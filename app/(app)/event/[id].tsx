@@ -1,93 +1,163 @@
-import { useEffect, useState } from 'react'
-import { View, Text, ScrollView, Alert, StyleSheet } from 'react-native'
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
-import { supabase } from '../../../lib/supabase'
-import { Button } from '../../../components/Button'
-import { shared, theme, formatEventDate } from '../../../constants'
-import { EventWithDetails, Profile } from '../../../types'
+import { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  Alert,
+  StyleSheet,
+  TouchableOpacity,
+} from "react-native";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { supabase } from "../../../lib/supabase";
+import { Button } from "../../../components/Button";
+import { shared, theme, formatEventDate } from "../../../constants";
+import { EventWithDetails, Profile } from "../../../types";
 
 export default function EventDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>()
-  const router = useRouter()
-  const [event, setEvent] = useState<EventWithDetails | null>(null)
-  const [attendees, setAttendees] = useState<Profile[]>([])
-  const [loading, setLoading] = useState(true)
-  const [joining, setJoining] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const [event, setEvent] = useState<EventWithDetails | null>(null);
+  const [attendees, setAttendees] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [joining, setJoining] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchEvent()
-    supabase.auth.getUser().then(({ data: { user } }) => setUserId(user?.id ?? null))
-  }, [])
+    fetchEvent();
+    supabase.auth
+      .getUser()
+      .then(({ data: { user } }) => setUserId(user?.id ?? null));
+  }, []);
 
   async function fetchEvent() {
     const { data, error } = await supabase
-      .from('events')
-      .select(`
+      .from("events")
+      .select(
+        `
         *,
         profiles!events_created_by_fkey (id, username, avatar_url),
         event_attendees (event_id, user_id, joined_at)
-      `)
-      .eq('id', id)
-      .single()
+      `,
+      )
+      .eq("id", id)
+      .single();
 
-    if (error) return
-    setEvent(data as EventWithDetails)
+    if (error) return;
+    setEvent(data as EventWithDetails);
 
     if (data.event_attendees?.length > 0) {
-      const userIds = data.event_attendees.map((a: any) => a.user_id)
+      const userIds = data.event_attendees.map((a: any) => a.user_id);
       const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', userIds)
-      if (profileData) setAttendees(profileData as Profile[])
+        .from("profiles")
+        .select("*")
+        .in("id", userIds);
+      if (profileData) setAttendees(profileData as Profile[]);
     } else {
-      setAttendees([])
+      setAttendees([]);
     }
 
-    setLoading(false)
+    setLoading(false);
   }
 
   async function handleJoin() {
-    if (!userId) return
+    if (!userId) return;
     try {
-      setJoining(true)
+      setJoining(true);
       const { error } = await supabase
-        .from('event_attendees')
-        .insert({ event_id: id, user_id: userId })
-      if (error) throw error
-      fetchEvent()
+        .from("event_attendees")
+        .insert({ event_id: id, user_id: userId });
+      if (error) throw error;
+      fetchEvent();
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      Alert.alert("Error", e.message);
     } finally {
-      setJoining(false)
+      setJoining(false);
     }
   }
 
   async function handleLeave() {
-    if (!userId) return
+    if (!userId) return;
     try {
-      setJoining(true)
+      setJoining(true);
       const { error } = await supabase
-        .from('event_attendees')
+        .from("event_attendees")
         .delete()
-        .eq('event_id', id)
-        .eq('user_id', userId)
-      if (error) throw error
-      fetchEvent()
+        .eq("event_id", id)
+        .eq("user_id", userId);
+      if (error) throw error;
+      fetchEvent();
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      Alert.alert("Error", e.message);
     } finally {
-      setJoining(false)
+      setJoining(false);
     }
   }
 
-  if (loading || !event) return null
+  async function handleRemoveAttendee(attendeeId: string, username: string) {
+    Alert.alert(
+      "Remove attendee",
+      `Are you sure you want to remove ${username} from this event?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from("event_attendees")
+                .delete()
+                .eq("event_id", id)
+                .eq("user_id", attendeeId);
+              if (error) throw error;
+              fetchEvent();
+            } catch (e: any) {
+              Alert.alert("Error", e.message);
+            }
+          },
+        },
+      ],
+    );
+  }
 
-  const isAttending = event.event_attendees?.some(a => a.user_id === userId)
-  const isOwner = event.created_by === userId
-  const attendeeCount = event.event_attendees?.length ?? 0
-  const isFull = event.max_attendees ? attendeeCount >= event.max_attendees : false
+  async function handleDelete() {
+    Alert.alert(
+      "Delete event",
+      "Are you sure you want to delete this event? This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setDeleting(true);
+              const { error } = await supabase
+                .from("events")
+                .delete()
+                .eq("id", id);
+              if (error) throw error;
+              router.replace("/(app)/(tabs)");
+            } catch (e: any) {
+              Alert.alert("Error", e.message);
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  if (loading || !event) return null;
+
+  const isAttending = event.event_attendees?.some((a) => a.user_id === userId);
+  const isOwner = event.created_by === userId;
+  const attendeeCount = event.event_attendees?.length ?? 0;
+  const isFull = event.max_attendees
+    ? attendeeCount >= event.max_attendees
+    : false;
 
   return (
     <>
@@ -97,26 +167,61 @@ export default function EventDetail() {
           headerShown: true,
           headerStyle: { backgroundColor: theme.colors.background },
           headerTintColor: theme.colors.primary,
-          headerBackTitle: 'Events',
+          headerBackTitle: "Events",
           gestureEnabled: true,
         }}
       />
-      <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
-        <Text style={[shared.primaryText, shared.mb_xs]}>{formatEventDate(event.event_date, 'long')}</Text>
-        {event.location && <Text style={[shared.caption, shared.mb_xs]}>{event.location}</Text>}
-        {event.description && <Text style={[shared.body, shared.mb_lg]}>{event.description}</Text>}
+      <ScrollView
+        style={shared.screen}
+        contentContainerStyle={shared.scrollContent}
+      >
+        {/* Event info */}
+        <Text style={[shared.primaryText, shared.mb_xs]}>
+          {formatEventDate(event.event_date, "long")}
+        </Text>
+        {event.location && (
+          <Text style={[shared.caption, shared.mb_xs]}>{event.location}</Text>
+        )}
+        {event.description && (
+          <Text style={[shared.body, shared.mb_lg]}>{event.description}</Text>
+        )}
 
+        {/* Join / Leave — hidden for host */}
         {!isOwner && (
           <View style={shared.mb_lg}>
-            {isAttending
-              ? <Button label="Leave event" onPress={handleLeave} loading={joining} variant="secondary" />
-              : <Button label={isFull ? 'Event full' : 'Join event'} onPress={handleJoin} loading={joining} disabled={isFull} />
-            }
+            {isAttending ? (
+              <Button
+                label="Leave event"
+                onPress={handleLeave}
+                loading={joining}
+                variant="secondary"
+              />
+            ) : (
+              <Button
+                label={isFull ? "Event full" : "Join event"}
+                onPress={handleJoin}
+                loading={joining}
+                disabled={isFull}
+              />
+            )}
+          </View>
+        )}
+
+        {/* Delete — only for host */}
+        {isOwner && (
+          <View style={shared.mb_lg}>
+            <Button
+              label="Delete event"
+              onPress={handleDelete}
+              loading={deleting}
+              variant="danger"
+            />
           </View>
         )}
 
         <View style={shared.divider} />
 
+        {/* Host */}
         <Text style={[shared.subheading, shared.mb_sm]}>Host</Text>
         <View style={[shared.card, shared.mb_lg]}>
           <Text style={shared.body}>{event.profiles?.username}</Text>
@@ -124,29 +229,56 @@ export default function EventDetail() {
 
         <View style={shared.divider} />
 
+        {/* Attendees */}
         <View style={[shared.rowBetween, shared.mb_sm]}>
           <Text style={shared.subheading}>Going</Text>
           <Text style={shared.caption}>
-            {attendeeCount}{event.max_attendees ? ` / ${event.max_attendees}` : ''} people
+            {attendeeCount}
+            {event.max_attendees ? ` / ${event.max_attendees}` : ""} people
           </Text>
         </View>
 
         {attendees.length === 0 ? (
           <Text style={shared.caption}>no one yet — be the first!</Text>
         ) : (
-          attendees.map(profile => (
+          attendees.map((profile) => (
             <View key={profile.id} style={[shared.card, styles.attendeeRow]}>
               <Text style={shared.body}>{profile.username}</Text>
+              {isOwner && (
+                <TouchableOpacity
+                  onPress={() =>
+                    handleRemoveAttendee(profile.id, profile.username)
+                  }
+                  style={styles.removeButton}
+                >
+                  <Text style={styles.removeText}>Remove</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ))
         )}
       </ScrollView>
     </>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
   attendeeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: theme.spacing.sm,
   },
-})
+  removeButton: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.error,
+  },
+  removeText: {
+    color: theme.colors.error,
+    fontSize: theme.font.size.sm,
+    fontWeight: theme.font.weight.medium,
+  },
+});

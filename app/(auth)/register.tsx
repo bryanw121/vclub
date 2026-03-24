@@ -17,10 +17,10 @@ export default function Register() {
     try {
       setLoading(true)
       const { error } = await supabase.auth.signUp({
-        email,
+        email: email.toLowerCase().trim(),
         password,
         options: {
-          data: { username }
+          data: { username: username.toLowerCase().trim() }
         }
       })
       if (error) throw error

@@ -1,4 +1,5 @@
 import { Tabs } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { theme } from '../../../constants'
 
 export default function TabsLayout() {
@@ -13,9 +14,33 @@ export default function TabsLayout() {
         headerShadowVisible: false,
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Events' }} />
-      <Tabs.Screen name="create" options={{ title: 'Create' }} />
-      <Tabs.Screen name="profile/index" options={{ title: 'Profile' }} />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Events',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="create"
+        options={{
+          title: 'Create',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="add-circle-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile/index"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-circle-outline" size={size} color={color} />
+          ),
+        }}
+      />
       <Tabs.Screen name="profile/[id]" options={{ href: null }} />
     </Tabs>
   )

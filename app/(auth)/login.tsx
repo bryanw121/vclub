@@ -16,14 +16,15 @@ export default function Login() {
     try {
       setLoading(true)
 
-      const isEmail = identifier.includes('@')
-      let email = identifier
+      const normalized = identifier.toLowerCase().trim()
+      const isEmail = normalized.includes('@')
+      let email = normalized
 
       if (!isEmail) {
         const { data, error } = await supabase
           .from('profiles')
           .select('id')
-          .eq('username', identifier)
+          .eq('username', normalized)
           .single()
 
         if (error || !data) throw new Error('Username not found')
@@ -48,8 +49,19 @@ export default function Login() {
     <View style={shared.authContainer}>
       <Text style={shared.authTitle}>vclub</Text>
       <Text style={shared.authSubtitle}>sign in to continue</Text>
-      <Input label="Email or username" value={identifier} onChangeText={setIdentifier} placeholder="you@example.com or yourname" />
-      <Input label="Password" value={password} onChangeText={setPassword} placeholder="••••••••" secureTextEntry />
+      <Input
+        label="Email or username"
+        value={identifier}
+        onChangeText={setIdentifier}
+        placeholder="you@example.com or yourname"
+      />
+      <Input
+        label="Password"
+        value={password}
+        onChangeText={setPassword}
+        placeholder="••••••••"
+        secureTextEntry
+      />
       <Button label="Sign in" onPress={handleLogin} loading={loading} disabled={!identifier || !password} />
       <TouchableOpacity style={shared.authLink} onPress={() => router.push('/(auth)/register')}>
         <Text style={shared.authLinkText}>don't have an account? sign up</Text>
