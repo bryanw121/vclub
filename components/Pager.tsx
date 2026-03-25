@@ -22,9 +22,11 @@ export function Pager({ page, onPageChange, children }: Props) {
   const activePage = useRef(page)
   const dragging = useRef(false)
 
-  // Animate when the page prop changes (e.g. tab bar tapped)
+  // Animate when the page prop changes (e.g. tab bar tapped).
+  // No dragging guard here — inner PanResponders (week strip, calendar) can leave
+  // dragging.current in an inconsistent state via onPanResponderTerminationRequest.
+  // Two springs to the same target are harmless.
   useEffect(() => {
-    if (dragging.current) return
     activePage.current = page
     Animated.spring(translateX, {
       toValue: -page * width,

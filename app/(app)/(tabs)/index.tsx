@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { View, FlatList, Text, RefreshControl, TouchableOpacity, PanResponder, Animated } from 'react-native'
+import { useState, useRef, useMemo, useLayoutEffect } from 'react'
+import { View, SectionList, Text, RefreshControl, TouchableOpacity, PanResponder, Animated, Dimensions, Easing } from 'react-native'
 import { Calendar } from 'react-native-calendars'
 import { Ionicons } from '@expo/vector-icons'
 import { useEvents } from '../../../hooks/useEvents'
@@ -9,184 +9,337 @@ import { EventWithDetails } from '../../../types'
 
 const TODAY = new Date().toISOString().split('T')[0]
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+const SCREEN_WIDTH = Dimensions.get('window').width
+const SLIDE = { duration: 250, easing: Easing.out(Easing.cubic), useNativeDriver: true } as const
+
+function prevMonth(month: string): string {
+  const [y, m] = month.split('-').map(Number)
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`
+}
+
+function nextMonth(month: string): string {
+  const [y, m] = month.split('-').map(Number)
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
+}
+
+type DateSection = { date: string; data: EventWithDetails[] }
 
 export default function EventsScreen() {
   const { events, loading, error, refetch } = useEvents()
   const [selectedDate, setSelectedDate] = useState<string>(TODAY)
   const [mode, setMode] = useState<'week' | 'month'>('week')
   const [weekStart, setWeekStart] = useState<Date>(() => getWeekStart(new Date()))
+  const [currentMonth, setCurrentMonth] = useState(() => TODAY.substring(0, 7))
+
+  const sectionListRef = useRef<SectionList>(null)
+
+  // These flags are set just before a state update that triggers a panel content change.
+  // useLayoutEffect reads them to reset the animated offset synchronously after React
+  // commits the new panel content — so the reset and the content update land in the
+  // same display frame and the user never sees the stale middle panel.
+  const pendingWeekReset = useRef(false)
+  const pendingCalendarReset = useRef(false)
+
+  const sections: DateSection[] = useMemo(() => {
+    const sorted = [...events].sort((a, b) => a.event_date.localeCompare(b.event_date))
+    const grouped: Record<string, EventWithDetails[]> = {}
+    for (const event of sorted) {
+      const date = event.event_date.split('T')[0]
+      if (!grouped[date]) grouped[date] = []
+      grouped[date].push(event)
+    }
+    for (const date of Object.keys(grouped)) {
+      grouped[date].sort((a, b) =>
+        (a.profiles?.username ?? '').localeCompare(b.profiles?.username ?? '')
+      )
+    }
+    return Object.entries(grouped)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, data]) => ({ date, data }))
+  }, [events])
 
   const markedDates = buildMarkedDates(events, selectedDate)
-  const eventsForDay = events.filter(e => e.event_date.startsWith(selectedDate))
 
-  // Absorbs horizontal swipes in the month calendar area so they don't bubble up to the tab Pager.
-  // The Calendar's own internal PanResponder fires first (it's more inner), so month-swiping still works.
-  // This absorber only claims gestures the Calendar itself didn't want.
-  const calendarSwipeAbsorber = useRef(PanResponder.create({
+  // Animated values — declared before useLayoutEffect so the effects can reference them
+  const calendarOffset = useRef(new Animated.Value(-SCREEN_WIDTH)).current
+  const weekOffset = useRef(new Animated.Value(-SCREEN_WIDTH)).current
+
+  // After weekStart re-renders with new panel content, reset the offset in the same frame
+  useLayoutEffect(() => {
+    if (!pendingWeekReset.current) return
+    pendingWeekReset.current = false
+    weekOffset.setValue(-SCREEN_WIDTH)
+  }, [weekStart])
+
+  useLayoutEffect(() => {
+    if (!pendingCalendarReset.current) return
+    pendingCalendarReset.current = false
+    calendarOffset.setValue(-SCREEN_WIDTH)
+  }, [currentMonth])
+
+  // ─── Month calendar 3-panel swipe ──────────────────────────────────────────
+  // Capture phase beats react-native-calendars' internal bubble-phase handler.
+  const calendarSwipeHandlers = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponderCapture: (_, { dx, dy }) =>
+      Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > 8,
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderGrant: () => { calendarOffset.stopAnimation() },
+    onPanResponderMove: (_, { dx }) => calendarOffset.setValue(-SCREEN_WIDTH + dx),
+    onPanResponderRelease: (_, { dx, vx }) => {
+      const goNext = dx < -40 || vx < -0.5
+      const goPrev = dx > 40 || vx > 0.5
+      if (goNext) {
+        Animated.timing(calendarOffset, { ...SLIDE, toValue: -SCREEN_WIDTH * 2 }).start(({ finished }) => {
+          if (!finished) return
+          pendingCalendarReset.current = true
+          setCurrentMonth(prev => nextMonth(prev))
+        })
+      } else if (goPrev) {
+        Animated.timing(calendarOffset, { ...SLIDE, toValue: 0 }).start(({ finished }) => {
+          if (!finished) return
+          pendingCalendarReset.current = true
+          setCurrentMonth(prev => prevMonth(prev))
+        })
+      } else {
+        Animated.timing(calendarOffset, { ...SLIDE, toValue: -SCREEN_WIDTH }).start()
+      }
+    },
+  })).current
+
+  // ─── Week strip 3-panel swipe ───────────────────────────────────────────────
+  // Bubble phase — the week strip is inner to the Pager, so it claims first.
+  // Capture phase is intentionally avoided here; it interferes with the Pager after swipes.
+  const weekSwipeHandlers = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_, { dx, dy }) =>
       Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > 8,
-    onPanResponderTerminationRequest: () => false, // don't yield to the outer Pager once claimed
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderGrant: () => { weekOffset.stopAnimation() },
+    onPanResponderMove: (_, { dx }) => weekOffset.setValue(-SCREEN_WIDTH + dx),
+    onPanResponderRelease: (_, { dx, vx }) => {
+      const goNext = dx < -40 || vx < -0.5
+      const goPrev = dx > 40 || vx > 0.5
+      if (goNext) {
+        Animated.timing(weekOffset, { ...SLIDE, toValue: -SCREEN_WIDTH * 2 }).start(({ finished }) => {
+          if (!finished) return
+          pendingWeekReset.current = true
+          setWeekStart(prev => offsetDate(prev, 7))
+        })
+      } else if (goPrev) {
+        Animated.timing(weekOffset, { ...SLIDE, toValue: 0 }).start(({ finished }) => {
+          if (!finished) return
+          pendingWeekReset.current = true
+          setWeekStart(prev => offsetDate(prev, -7))
+        })
+      } else {
+        Animated.timing(weekOffset, { ...SLIDE, toValue: -SCREEN_WIDTH }).start()
+      }
+    },
   })).current
 
-  // Selecting a date also keeps the week strip in sync (e.g. when tapping in month view)
+  function goToPrevWeek() {
+    Animated.timing(weekOffset, { ...SLIDE, toValue: 0 }).start(({ finished }) => {
+      if (!finished) return
+      pendingWeekReset.current = true
+      setWeekStart(prev => offsetDate(prev, -7))
+    })
+  }
+
+  function goToNextWeek() {
+    Animated.timing(weekOffset, { ...SLIDE, toValue: -SCREEN_WIDTH * 2 }).start(({ finished }) => {
+      if (!finished) return
+      pendingWeekReset.current = true
+      setWeekStart(prev => offsetDate(prev, 7))
+    })
+  }
+
   function selectDate(dateStr: string) {
     setSelectedDate(dateStr)
     setWeekStart(getWeekStart(new Date(dateStr + 'T00:00:00')))
+    setCurrentMonth(dateStr.substring(0, 7))
+
+    const sectionIndex = sections.findIndex(s => s.date === dateStr)
+    if (sectionIndex >= 0) {
+      // Small delay lets the selection state settle before scrolling,
+      // which improves reliability on first tap after data load.
+      setTimeout(() => {
+        try {
+          sectionListRef.current?.scrollToLocation({
+            sectionIndex,
+            itemIndex: 0,
+            animated: true,
+            viewPosition: 0,
+          })
+        } catch {}
+      }, 50)
+    }
   }
 
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart)
-    d.setDate(weekStart.getDate() + i)
-    return d
-  })
+  const weekDays = getWeekDays(weekStart)
+  const prevWeekDays = getWeekDays(offsetDate(weekStart, -7))
+  const nextWeekDays = getWeekDays(offsetDate(weekStart, 7))
 
   if (error) {
     return <View style={shared.centered}><Text style={shared.errorText}>{error}</Text></View>
   }
 
   return (
-    <FlatList
-      style={shared.screen}
-      data={eventsForDay}
-      keyExtractor={item => item.id}
-      renderItem={({ item }) => <EventCard event={item} />}
-      contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, paddingBottom: 32 }}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={theme.colors.primary} />}
-      ListHeaderComponent={
-        <View>
-          {/* Week / Month toggle */}
-          <View style={{ alignItems: 'flex-end', paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.xs }}>
-            <View style={{ flexDirection: 'row', borderRadius: theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border }}>
-              <TouchableOpacity
-                onPress={() => setMode('week')}
-                style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, backgroundColor: mode === 'week' ? theme.colors.primary : 'transparent' }}
-              >
-                <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: mode === 'week' ? theme.colors.white : theme.colors.subtext }}>
-                  Week
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setMode('month')}
-                style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, backgroundColor: mode === 'month' ? theme.colors.primary : 'transparent' }}
-              >
-                <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: mode === 'month' ? theme.colors.white : theme.colors.subtext }}>
-                  Month
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+    <View style={shared.screen}>
 
-          {mode === 'week'
-            ? <WeekStrip
-                weekDays={weekDays}
-                selectedDate={selectedDate}
-                markedDates={markedDates}
-                onSelectDate={selectDate}
-                onPrevWeek={() => setWeekStart(prev => offsetDate(prev, -7))}
-                onNextWeek={() => setWeekStart(prev => offsetDate(prev, 7))}
-              />
-            : <View {...calendarSwipeAbsorber.panHandlers}>
-                <Calendar
-                  current={selectedDate}
-                  markedDates={markedDates}
-                  markingType="dot"
-                  enableSwipeMonths
-                  onDayPress={day => selectDate(day.dateString)}
-                  theme={{
-                    backgroundColor: theme.colors.background,
-                    calendarBackground: theme.colors.background,
-                    selectedDayBackgroundColor: theme.colors.primary,
-                    selectedDayTextColor: theme.colors.white,
-                    todayTextColor: theme.colors.primary,
-                    dayTextColor: theme.colors.text,
-                    textDisabledColor: theme.colors.border,
-                    dotColor: theme.colors.primary,
-                    selectedDotColor: theme.colors.white,
-                    arrowColor: theme.colors.primary,
-                    monthTextColor: theme.colors.text,
-                    textMonthFontWeight: theme.font.weight.semibold,
-                    textDayFontSize: theme.font.size.md,
-                    textMonthFontSize: theme.font.size.lg,
-                    textDayHeaderFontSize: theme.font.size.sm,
-                    textDayHeaderFontWeight: theme.font.weight.medium,
-                  }}
-                />
-              </View>
-          }
-
-          {/* Divider + label above event list */}
-          <View style={[shared.divider, { marginHorizontal: theme.spacing.lg }]} />
-          <View style={[shared.rowBetween, { paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md }]}>
-            <Text style={shared.subheading}>{formatDayLabel(selectedDate)}</Text>
-            <Text style={shared.caption}>
-              {eventsForDay.length === 0 ? 'no events' : `${eventsForDay.length} event${eventsForDay.length > 1 ? 's' : ''}`}
-            </Text>
+      {/* ── Fixed header: calendar/week strip stays visible while events scroll ── */}
+      <View>
+        {/* Week / Month toggle */}
+        <View style={{ alignItems: 'flex-end', paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.xs }}>
+          <View style={{ flexDirection: 'row', borderRadius: theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border }}>
+            <TouchableOpacity
+              onPress={() => setMode('week')}
+              style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, backgroundColor: mode === 'week' ? theme.colors.primary : 'transparent' }}
+            >
+              <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: mode === 'week' ? theme.colors.white : theme.colors.subtext }}>
+                Week
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setMode('month')}
+              style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, backgroundColor: mode === 'month' ? theme.colors.primary : 'transparent' }}
+            >
+              <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: mode === 'month' ? theme.colors.white : theme.colors.subtext }}>
+                Month
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
-      }
-      ListEmptyComponent={
-        !loading ? (
-          <Text style={[shared.caption, { paddingHorizontal: theme.spacing.lg }]}>
-            nothing planned — tap another day or create an event
-          </Text>
-        ) : null
-      }
-    />
+
+        {mode === 'week' ? (
+          <View style={{ overflow: 'hidden' }}>
+            <Animated.View
+              style={{ flexDirection: 'row', width: SCREEN_WIDTH * 3, transform: [{ translateX: weekOffset }] }}
+              {...weekSwipeHandlers.panHandlers}
+            >
+              {[prevWeekDays, weekDays, nextWeekDays].map((days, idx) => (
+                <View key={idx} style={{ width: SCREEN_WIDTH, paddingHorizontal: theme.spacing.lg }}>
+                  <WeekStripContent
+                    weekDays={days}
+                    selectedDate={selectedDate}
+                    markedDates={markedDates}
+                    onSelectDate={idx === 1 ? selectDate : () => {}}
+                    onPrevWeek={goToPrevWeek}
+                    onNextWeek={goToNextWeek}
+                    showChevrons={idx === 1}
+                  />
+                </View>
+              ))}
+            </Animated.View>
+          </View>
+        ) : (
+          <View style={{ overflow: 'hidden' }}>
+            <Animated.View
+              style={{ flexDirection: 'row', width: SCREEN_WIDTH * 3, transform: [{ translateX: calendarOffset }] }}
+              {...calendarSwipeHandlers.panHandlers}
+            >
+              {[prevMonth(currentMonth), currentMonth, nextMonth(currentMonth)].map((month, i) => (
+                <View key={month} style={{ width: SCREEN_WIDTH }}>
+                  <Calendar
+                    current={`${month}-01`}
+                    markedDates={markedDates}
+                    markingType="dot"
+                    onDayPress={day => selectDate(day.dateString)}
+                    onMonthChange={i === 1 ? m => setCurrentMonth(`${m.year}-${String(m.month).padStart(2, '0')}`) : undefined}
+                    theme={{
+                      backgroundColor: theme.colors.background,
+                      calendarBackground: theme.colors.background,
+                      selectedDayBackgroundColor: theme.colors.primary,
+                      selectedDayTextColor: theme.colors.white,
+                      todayTextColor: theme.colors.primary,
+                      dayTextColor: theme.colors.text,
+                      textDisabledColor: theme.colors.border,
+                      dotColor: theme.colors.primary,
+                      selectedDotColor: theme.colors.white,
+                      arrowColor: theme.colors.primary,
+                      monthTextColor: theme.colors.text,
+                      textMonthFontWeight: theme.font.weight.semibold,
+                      textDayFontSize: theme.font.size.md,
+                      textMonthFontSize: theme.font.size.lg,
+                      textDayHeaderFontSize: theme.font.size.sm,
+                      textDayHeaderFontWeight: theme.font.weight.medium,
+                    }}
+                  />
+                </View>
+              ))}
+            </Animated.View>
+          </View>
+        )}
+
+        <View style={[shared.divider, { marginHorizontal: theme.spacing.lg }]} />
+      </View>
+
+      {/* ── Scrollable events list — tapping a date scrolls this, not the header ── */}
+      <SectionList
+        ref={sectionListRef}
+        style={{ flex: 1 }}
+        sections={sections}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <View style={{ paddingHorizontal: theme.spacing.lg }}>
+            <EventCard event={item} />
+          </View>
+        )}
+        renderSectionHeader={({ section }) => (
+          <View style={[shared.rowBetween, {
+            paddingHorizontal: theme.spacing.lg,
+            paddingTop: theme.spacing.md,
+            paddingBottom: theme.spacing.xs,
+            backgroundColor: theme.colors.background,
+          }]}>
+            <Text style={shared.subheading}>{formatDayLabel(section.date)}</Text>
+            <Text style={shared.caption}>
+              {section.data.length} event{section.data.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+        )}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={theme.colors.primary} />}
+        ListEmptyComponent={
+          !loading ? (
+            <Text style={[shared.caption, { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md }]}>
+              no upcoming events — create one!
+            </Text>
+          ) : null
+        }
+        stickySectionHeadersEnabled
+      />
+    </View>
   )
 }
 
-// ─── Week Strip ───────────────────────────────────────────────────────────────
+// ─── Week Strip Content (pure display, no gesture handling) ──────────────────
 
-type WeekStripProps = {
+type WeekStripContentProps = {
   weekDays: Date[]
   selectedDate: string
   markedDates: Record<string, any>
   onSelectDate: (date: string) => void
   onPrevWeek: () => void
   onNextWeek: () => void
+  showChevrons: boolean
 }
 
-function WeekStrip({ weekDays, selectedDate, markedDates, onSelectDate, onPrevWeek, onNextWeek }: WeekStripProps) {
+function WeekStripContent({ weekDays, selectedDate, markedDates, onSelectDate, onPrevWeek, onNextWeek, showChevrons }: WeekStripContentProps) {
   const monthLabel = weekDays[3].toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-
-  const translateX = useRef(new Animated.Value(0)).current
-  const callbacks = useRef({ onPrevWeek, onNextWeek })
-  callbacks.current = { onPrevWeek, onNextWeek }
-
-  const swipeHandlers = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    // Bubble phase (inner→outer): fires before the outer Pager's handler, so a swipe here
-    // claims the gesture and prevents the tab from switching.
-    onMoveShouldSetPanResponder: (_, { dx, dy }) =>
-      Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > 8,
-    onPanResponderTerminationRequest: () => false, // don't yield to the outer Pager once claimed
-    onPanResponderMove: (_, { dx }) => translateX.setValue(dx),
-    onPanResponderRelease: (_, { dx, vx }) => {
-      const goNext = dx < -40 || vx < -0.5
-      const goPrev = dx > 40 || vx > 0.5
-
-      if (goNext || goPrev) {
-        const direction = goNext ? -1 : 1
-        // Slide current week off screen, then swap content and slide new week in
-        Animated.timing(translateX, { toValue: direction * 400, duration: 150, useNativeDriver: true }).start(() => {
-          goNext ? callbacks.current.onNextWeek() : callbacks.current.onPrevWeek()
-          translateX.setValue(-direction * 400)
-          Animated.timing(translateX, { toValue: 0, duration: 150, useNativeDriver: true }).start()
-        })
-      } else {
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start()
-      }
-    },
-  })).current.panHandlers
+  const chevronWidth = 28
 
   return (
-    <View style={{ paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.md, overflow: 'hidden' }}>
+    <View style={{ paddingBottom: theme.spacing.md }}>
       <Text style={[shared.caption, { textAlign: 'center', marginBottom: theme.spacing.sm }]}>{monthLabel}</Text>
-      <Animated.View style={{ flexDirection: 'row', alignItems: 'center', transform: [{ translateX }] }} {...swipeHandlers}>
-        <TouchableOpacity onPress={onPrevWeek} style={{ padding: theme.spacing.xs }}>
-          <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
-        </TouchableOpacity>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        {showChevrons ? (
+          <TouchableOpacity onPress={onPrevWeek} style={{ padding: theme.spacing.xs }}>
+            <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: chevronWidth }} />
+        )}
 
         <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-around' }}>
           {weekDays.map(day => {
@@ -225,21 +378,33 @@ function WeekStrip({ weekDays, selectedDate, markedDates, onSelectDate, onPrevWe
           })}
         </View>
 
-        <TouchableOpacity onPress={onNextWeek} style={{ padding: theme.spacing.xs }}>
-          <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
-        </TouchableOpacity>
-      </Animated.View>
+        {showChevrons ? (
+          <TouchableOpacity onPress={onNextWeek} style={{ padding: theme.spacing.xs }}>
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: chevronWidth }} />
+        )}
+      </View>
     </View>
   )
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getWeekStart(date: Date): Date {
   const d = new Date(date)
   d.setDate(d.getDate() - d.getDay())
   d.setHours(0, 0, 0, 0)
   return d
+}
+
+function getWeekDays(start: Date): Date[] {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start)
+    d.setDate(start.getDate() + i)
+    return d
+  })
 }
 
 function offsetDate(date: Date, days: number): Date {
@@ -250,19 +415,16 @@ function offsetDate(date: Date, days: number): Date {
 
 function buildMarkedDates(events: EventWithDetails[], selectedDate: string) {
   const marks: Record<string, { marked?: boolean; dotColor?: string; selected?: boolean; selectedColor?: string; selectedDotColor?: string }> = {}
-
   for (const event of events) {
     const day = event.event_date.split('T')[0]
     marks[day] = { marked: true, dotColor: theme.colors.primary }
   }
-
   marks[selectedDate] = {
     ...marks[selectedDate],
     selected: true,
     selectedColor: theme.colors.primary,
     selectedDotColor: theme.colors.white,
   }
-
   return marks
 }
 
