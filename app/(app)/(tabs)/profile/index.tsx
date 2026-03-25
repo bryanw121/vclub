@@ -4,7 +4,6 @@ import { supabase } from '../../../../lib/supabase'
 import { Button } from '../../../../components/Button'
 import { shared } from '../../../../constants'
 import { Profile } from '../../../../types'
-
 export default function MyProfile() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)

@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { View, Text, TouchableOpacity, Alert } from 'react-native'
+import { useState, useRef } from 'react'
+import { View, Text, TouchableOpacity, TextInput } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { supabase } from '../../lib/supabase'
 import { Button } from '../../components/Button'
@@ -8,64 +9,87 @@ import { shared } from '../../constants'
 
 export default function Login() {
   const router = useRouter()
+  const passwordRef = useRef<TextInput>(null)
+
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState<{ identifier?: string; password?: string }>({})
 
   async function handleLogin() {
-    try {
-      setLoading(true)
+    setErrors({})
+    setLoading(true)
 
+    try {
       const normalized = identifier.toLowerCase().trim()
       const isEmail = normalized.includes('@')
       let email = normalized
 
       if (!isEmail) {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('profiles')
           .select('id')
           .eq('username', normalized)
           .single()
 
-        if (error || !data) throw new Error('Username not found')
+        if (!data) {
+          setErrors({ identifier: 'Username not found' })
+          return
+        }
 
-        const { data: userData, error: userError } = await supabase
+        const { data: userData } = await supabase
           .rpc('get_email_by_user_id', { user_id: data.id })
 
-        if (userError || !userData) throw new Error('Could not find account')
+        if (!userData) {
+          setErrors({ identifier: 'Account not found' })
+          return
+        }
         email = userData
       }
 
       const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) throw error
-    } catch (e: any) {
-      Alert.alert('Error', e.message)
+      if (error) setErrors({ password: 'Incorrect password' })
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <View style={shared.authContainer}>
-      <Text style={shared.authTitle}>vclub</Text>
-      <Text style={shared.authSubtitle}>sign in to continue</Text>
-      <Input
-        label="Email or username"
-        value={identifier}
-        onChangeText={setIdentifier}
-        placeholder="you@example.com or yourname"
-      />
-      <Input
-        label="Password"
-        value={password}
-        onChangeText={setPassword}
-        placeholder="••••••••"
-        secureTextEntry
-      />
-      <Button label="Sign in" onPress={handleLogin} loading={loading} disabled={!identifier || !password} />
-      <TouchableOpacity style={shared.authLink} onPress={() => router.push('/(auth)/register')}>
-        <Text style={shared.authLinkText}>don't have an account? sign up</Text>
-      </TouchableOpacity>
-    </View>
+    <LinearGradient colors={['#4FC3F7', '#7C4DFF', '#E040FB']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={shared.authBackground}>
+      <View style={shared.authCard}>
+        <Text style={shared.authTitle}>vclub</Text>
+        <Text style={shared.authSubtitle}>sign in to continue</Text>
+
+        <Input
+          label="Email or username"
+          value={identifier}
+          onChangeText={setIdentifier}
+          placeholder="you@example.com or yourname"
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => passwordRef.current?.focus()}
+          error={errors.identifier}
+        />
+        <Input
+          ref={passwordRef}
+          label="Password"
+          value={password}
+          onChangeText={setPassword}
+          placeholder="••••••••"
+          secureTextEntry
+          autoCapitalize="none"
+          returnKeyType="go"
+          onSubmitEditing={handleLogin}
+          error={errors.password}
+        />
+
+        <Button label="Sign in" onPress={handleLogin} loading={loading} disabled={!identifier || !password} />
+        <TouchableOpacity style={shared.authLink} onPress={() => router.push('/(auth)/register')}>
+          <Text style={shared.authLinkText}>don't have an account? sign up</Text>
+        </TouchableOpacity>
+      </View>
+    </LinearGradient>
   )
 }

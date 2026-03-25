@@ -1,13 +1,9 @@
-import { TouchableOpacity, Text, View, StyleSheet } from 'react-native'
+import { TouchableOpacity, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
-import { shared, theme, formatEventDate } from '../constants'
+import { shared, formatEventDate } from '../constants'
 import { EventWithDetails } from '../types'
 
-type Props = {
-  event: EventWithDetails
-}
-
-export function EventCard({ event }: Props) {
+export function EventCard({ event }: { event: EventWithDetails }) {
   const router = useRouter()
   const attendeeCount = event.event_attendees?.length ?? 0
   const spotsLeft = event.max_attendees ? event.max_attendees - attendeeCount : null
@@ -15,11 +11,11 @@ export function EventCard({ event }: Props) {
 
   return (
     <TouchableOpacity
-      style={[shared.card, styles.card]}
+      style={[shared.card, shared.eventCard]}
       onPress={() => router.push(`/event/${event.id}`)}
     >
       <View style={[shared.rowBetween, shared.mb_xs]}>
-        <Text style={[shared.subheading, styles.title]}>{event.title}</Text>
+        <Text style={[shared.subheading, shared.eventCardTitle]}>{event.title}</Text>
         {spotsLeft !== null && (
           <View style={[shared.badge, isFull && shared.badgeFull]}>
             <Text style={shared.badgeText}>{isFull ? 'Full' : `${spotsLeft} spots`}</Text>
@@ -35,13 +31,3 @@ export function EventCard({ event }: Props) {
     </TouchableOpacity>
   )
 }
-
-const styles = StyleSheet.create({
-  card: {
-    marginBottom: theme.spacing.md,
-  },
-  title: {
-    flex: 1,
-    marginRight: theme.spacing.sm,
-  },
-})

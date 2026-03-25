@@ -1,27 +1,12 @@
 import { TouchableOpacity, Text, ActivityIndicator } from 'react-native'
-import { shared } from '../constants'
-import { theme } from '../constants'
+import { shared, theme } from '../constants'
 
 type Variant = 'primary' | 'secondary' | 'danger'
-
-type Props = {
-  label: string
-  onPress: () => void
-  loading?: boolean
-  variant?: Variant
-  disabled?: boolean
-}
+type Props = { label: string; onPress: () => void; loading?: boolean; variant?: Variant; disabled?: boolean }
 
 export function Button({ label, onPress, loading, variant = 'primary', disabled }: Props) {
-  const buttonStyle = {
-    primary: shared.buttonPrimary,
-    secondary: shared.buttonSecondary,
-    danger: shared.buttonDanger,
-  }[variant]
-
-  const labelStyle = variant === 'primary' || variant === 'danger'
-    ? shared.buttonLabelPrimary
-    : shared.buttonLabelSecondary
+  const buttonStyle = { primary: shared.buttonPrimary, secondary: shared.buttonSecondary, danger: shared.buttonDanger }[variant]
+  const labelStyle = variant === 'secondary' ? shared.buttonLabelSecondary : shared.buttonLabelPrimary
 
   return (
     <TouchableOpacity
@@ -30,7 +15,7 @@ export function Button({ label, onPress, loading, variant = 'primary', disabled 
       disabled={disabled || loading}
     >
       {loading
-        ? <ActivityIndicator color={variant === 'primary' ? theme.colors.white : theme.colors.primary} />
+        ? <ActivityIndicator color={variant === 'secondary' ? theme.colors.primary : theme.colors.white} />
         : <Text style={labelStyle}>{label}</Text>
       }
     </TouchableOpacity>
