@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
-import { View, Text, Alert } from 'react-native'
+import { View, Text, Alert, Pressable } from 'react-native'
+import { useRouter } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../../../lib/supabase'
 import { Button } from '../../../../components/Button'
-import { shared } from '../../../../constants'
+import { shared, theme } from '../../../../constants'
 import { Profile } from '../../../../types'
 export default function MyProfile() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     fetchProfile()
@@ -35,7 +38,17 @@ export default function MyProfile() {
 
   return (
     <View style={shared.screenPadded}>
-      <Text style={[shared.heading, shared.mb_xs]}>{profile.username}</Text>
+      <View style={[shared.rowBetween, shared.mb_xs]}>
+        <Text style={shared.heading}>{profile.username}</Text>
+        <Pressable
+          onPress={() => router.push('/settings')}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Open settings"
+        >
+          <Ionicons name="settings-outline" size={22} color={theme.colors.subtext} />
+        </Pressable>
+      </View>
       <Text style={[shared.caption, shared.mb_xl]}>
         joined {new Date(profile.created_at).toLocaleDateString()}
       </Text>

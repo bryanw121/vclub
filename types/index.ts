@@ -41,6 +41,23 @@ export type EventAttendee = {
   joined_at: string // ISO 8601 — when the user joined
 }
 
+/**
+ * `feedback_submissions` table
+ * Stores feature requests and bug reports submitted by users.
+ */
+export type FeedbackSubmission = {
+  id: string
+  user_id: string
+  kind: FeedbackKind
+  priority: FeedbackPriority
+  title: string
+  description: string
+  created_at: string
+}
+
+export type FeedbackKind = 'feature' | 'bug'
+export type FeedbackPriority = 'low' | 'medium' | 'high'
+
 // ─── Query Response Types ─────────────────────────────────────────────────────
 // These represent data returned by Supabase queries that JOIN related tables.
 // The field names are determined by the Supabase query syntax, not renamed here.
