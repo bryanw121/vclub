@@ -1,9 +1,10 @@
+import React, { memo } from 'react'
 import { TouchableOpacity, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { shared, formatEventDate } from '../constants'
 import { EventWithDetails } from '../types'
 
-export function EventCard({ event }: { event: EventWithDetails }) {
+function EventCardInner({ event }: { event: EventWithDetails }) {
   const router = useRouter()
   const attendeeCount = event.event_attendees?.length ?? 0
   const spotsLeft = event.max_attendees ? event.max_attendees - attendeeCount : null
@@ -31,3 +32,5 @@ export function EventCard({ event }: { event: EventWithDetails }) {
     </TouchableOpacity>
   )
 }
+
+export const EventCard = memo(EventCardInner)
