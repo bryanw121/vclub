@@ -116,6 +116,18 @@ export const shared = StyleSheet.create({
   eventCardTitle: { flex: 1, marginRight: spacing.sm },
   eventCard:      { marginBottom: spacing.md },
 
+  // ─── Floating actions ─────────────────────────────────────
+  floatingButtonWrap: {
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.lg,
+    bottom: spacing.lg,
+  },
+  scrollContentWithFloatingButton: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl + spacing.xl,
+  },
+
   // ─── Spacing helpers ──────────────────────────────────────
   mb_xs: { marginBottom: spacing.xs },
   mb_sm: { marginBottom: spacing.sm },
