@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { View, Text, TouchableOpacity, TextInput } from 'react-native'
+import { View, Text, TouchableOpacity, TextInput, Animated, Modal } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { supabase } from '../../lib/supabase'
@@ -27,6 +27,35 @@ export default function Login() {
   const [resetSent, setResetSent] = useState<string | null>(null)
   const [resetLoading, setResetLoading] = useState(false)
   const [resetError, setResetError] = useState('')
+
+  // ── Minigame ──────────────────────────────────────────────────────────────
+  const [score, setScore] = useState(0)
+  const [easterEgg, setEasterEgg] = useState(false)
+  const [balls, setBalls] = useState([
+    { id: 0, top: 8,  left:  10, right: undefined as number | undefined },
+    { id: 1, top: 15, left: undefined as number | undefined, right: 8  },
+    { id: 2, top: 55, left:  5,  right: undefined as number | undefined },
+    { id: 3, top: 70, left: undefined as number | undefined, right: 6  },
+    { id: 4, top: 88, left:  30, right: undefined as number | undefined },
+  ])
+  const scales = useRef(Array.from({ length: 5 }, () => new Animated.Value(1))).current
+
+  function tapBall(i: number) {
+    const newScore = score + 1
+    setScore(newScore)
+    if (newScore === 10) setEasterEgg(true)
+    Animated.timing(scales[i], { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
+      setBalls(prev => prev.map((b, idx) => {
+        if (idx !== i) return b
+        const edge = Math.floor(Math.random() * 4)
+        if (edge === 0) return { ...b, top: 2  + Math.random() * 12, left: 5 + Math.random() * 80, right: undefined } // top
+        if (edge === 1) return { ...b, top: 82 + Math.random() * 12, left: 5 + Math.random() * 80, right: undefined } // bottom
+        if (edge === 2) return { ...b, top: 15 + Math.random() * 65, left: 2,                       right: undefined } // left
+                        return { ...b, top: 15 + Math.random() * 65, left: undefined,               right: 2         } // right
+      }))
+      Animated.timing(scales[i], { toValue: 1, duration: 150, useNativeDriver: true }).start()
+    })
+  }
 
   async function handleForgotPassword() {
     const email = resetEmail.toLowerCase().trim()
@@ -88,6 +117,38 @@ export default function Login() {
 
   return (
     <LinearGradient colors={['#4FC3F7', '#7C4DFF', '#E040FB']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={shared.authBackground}>
+      {/* Minigame balls — behind the card */}
+      {balls.map((ball, i) => (
+        <TouchableOpacity
+          key={ball.id}
+          onPress={() => tapBall(i)}
+          style={{
+            position: 'absolute',
+            top: `${ball.top}%`,
+            ...(ball.right !== undefined ? { right: `${ball.right}%` } : { left: `${ball.left}%` }),
+          }}
+        >
+          <Animated.Text style={{ fontSize: 64, opacity: 0.55, transform: [{ scale: scales[i] }] }}>
+            🏐
+          </Animated.Text>
+        </TouchableOpacity>
+      ))}
+
+      {/* Easter egg modal */}
+      <Modal visible={easterEgg} transparent animationType="none" onRequestClose={() => setEasterEgg(false)}>
+        <TouchableOpacity
+          onPress={() => setEasterEgg(false)}
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}
+        >
+          <View style={{ backgroundColor: 'white', borderRadius: 24, padding: 32, alignItems: 'center', gap: 12, maxWidth: 300 }}>
+            <Text style={{ fontSize: 48 }}>🏐🏆🏐</Text>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#7C4DFF', textAlign: 'center' }}>You're a natural!</Text>
+            <Text style={{ fontSize: 15, color: '#666', textAlign: 'center' }}>10 spikes. The team needs you. Now go sign in.</Text>
+            <Text style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>tap to dismiss</Text>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       <View style={shared.authCard}>
         <Text style={shared.authTitle}>vclub</Text>
 
@@ -159,6 +220,7 @@ export default function Login() {
           </>
         )}
       </View>
+
     </LinearGradient>
   )
 }
