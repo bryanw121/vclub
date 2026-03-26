@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { ScrollView, Alert, Text, View, Pressable, ActivityIndicator } from 'react-native'
+import { ScrollView, Alert, Text, View, Pressable, ActivityIndicator, TouchableOpacity } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../../lib/supabase'
 import { Button } from '../../../components/Button'
 import { Input } from '../../../components/Input'
 import { DatePickerField } from '../../../components/DatePickerField'
 import { EventCard } from '../../../components/EventCard'
-import { shared } from '../../../constants'
+import { shared, theme } from '../../../constants'
 import { cleanDate } from '../../../utils'
 import { CreateEventForm, EventWithDetails } from '../../../types'
 
@@ -179,6 +180,10 @@ export default function CreateEvent() {
   function renderPastView() {
     return (
       <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
+        <TouchableOpacity onPress={() => setView('upcoming')} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.md }}>
+          <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
+          <Text style={shared.primaryText}>Back</Text>
+        </TouchableOpacity>
         <Text style={[shared.subheading, shared.mb_md]}>Your past hosted events</Text>
         {eventsLoading ? (
           <ActivityIndicator />
@@ -187,9 +192,6 @@ export default function CreateEvent() {
         ) : (
           renderHostedEventsList(pastVisible, pastOverflowCount, 'No past events found.')
         )}
-        <View style={shared.mt_lg}>
-          <Button label="Back to upcoming hosted events" onPress={() => setView('upcoming')} variant="secondary" />
-        </View>
       </ScrollView>
     )
   }
@@ -197,6 +199,10 @@ export default function CreateEvent() {
   function renderCreateFormView() {
     return (
       <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent} scrollEnabled={!holding}>
+        <TouchableOpacity onPress={() => setView('upcoming')} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.md }}>
+          <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
+          <Text style={shared.primaryText}>Back</Text>
+        </TouchableOpacity>
         <Text style={[shared.subheading, shared.mb_md]}>Create event</Text>
 
         <Input label="Title" value={form.title} onChangeText={v => setField('title', v)} placeholder="Event name" />
@@ -226,7 +232,6 @@ export default function CreateEvent() {
         <View style={shared.mb_md}>
           <Button label="Create event" onPress={handleCreate} loading={loading} disabled={!form.title || !userId} />
         </View>
-        <Button label="Back to upcoming hosted events" onPress={() => setView('upcoming')} variant="secondary" />
       </ScrollView>
     )
   }

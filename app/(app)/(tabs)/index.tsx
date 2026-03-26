@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useCallback, memo } from 'react'
-import { View, SectionList, FlatList, Text, RefreshControl, TouchableOpacity, Dimensions } from 'react-native'
+import { View, ScrollView, FlatList, Text, RefreshControl, TouchableOpacity, Dimensions } from 'react-native'
 import { Calendar } from 'react-native-calendars'
 import { Ionicons } from '@expo/vector-icons'
 import { useEvents } from '../../../hooks/useEvents'
@@ -43,7 +43,8 @@ export default function EventsScreen() {
 
   const weekFlatRef  = useRef<FlatList>(null)
   const calFlatRef   = useRef<FlatList>(null)
-  const sectionListRef = useRef<SectionList>(null)
+  const scrollRef    = useRef<ScrollView>(null)
+  const sectionYRef  = useRef<Record<string, number>>({})
 
   const defaultCalendarHeight = 360
   const [calendarHeight, setCalendarHeight] = useState<number>(defaultCalendarHeight)
@@ -79,13 +80,9 @@ export default function EventsScreen() {
     curWeekPage.current  = weekIdx
     curMonthPage.current = monthIdx
 
-    const sectionIndex = sections.findIndex(s => s.date === dateStr)
-    if (sectionIndex >= 0) {
-      setTimeout(() => {
-        try {
-          sectionListRef.current?.scrollToLocation({ sectionIndex, itemIndex: 0, animated: true, viewPosition: 0 })
-        } catch {}
-      }, 50)
+    const y = sectionYRef.current[dateStr]
+    if (y !== undefined) {
+      setTimeout(() => scrollRef.current?.scrollTo({ y, animated: true }), 50)
     }
   }, [sections])
 
@@ -101,13 +98,20 @@ export default function EventsScreen() {
     curWeekPage.current = t
   }, [])
 
+  const goPrevMonth = useCallback(() => {
+    const t = curMonthPage.current - 1
+    calFlatRef.current?.scrollToOffset({ offset: t * SW, animated: true })
+    curMonthPage.current = t
+  }, [])
+
+  const goNextMonth = useCallback(() => {
+    const t = curMonthPage.current + 1
+    calFlatRef.current?.scrollToOffset({ offset: t * SW, animated: true })
+    curMonthPage.current = t
+  }, [])
+
   // (removed manual drag tracking; use onMomentumScrollEnd for stable snapping)
 
-  const renderEventItem = useCallback(({ item }: { item: EventWithDetails }) => (
-    <View style={{ paddingHorizontal: theme.spacing.lg }}>
-      <EventCard event={item} />
-    </View>
-  ), [])
 
   const renderWeekItem = useCallback(({ item: i }: { item: number }) => (
     <View style={{ width: SW, paddingHorizontal: theme.spacing.lg }}>
@@ -135,13 +139,8 @@ export default function EventsScreen() {
         markedDates={markedDates}
         markingType="dot"
         onDayPress={day => selectDate(day.dateString)}
-        onMonthChange={m => {
-          // Ignore events from off-screen Calendar panels (they fire on mount/render)
-          if (i !== curMonthPage.current) return
-          const idx = idxForMonth(`${m.year}-${String(m.month).padStart(2, '0')}`)
-          calFlatRef.current?.scrollToOffset({ offset: idx * SW, animated: true })
-          curMonthPage.current = idx
-        }}
+        onPressArrowLeft={() => goPrevMonth()}
+        onPressArrowRight={() => goNextMonth()}
         theme={{
           backgroundColor: theme.colors.background,
           calendarBackground: theme.colors.background,
@@ -162,19 +161,8 @@ export default function EventsScreen() {
         }}
       />
     </View>
-  ), [markedDates, selectDate])
+  ), [markedDates, selectDate, goPrevMonth, goNextMonth])
 
-  const renderSectionHeader = useCallback(({ section }: { section: any }) => (
-    <View style={[shared.rowBetween, {
-      paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.md,
-      paddingBottom: theme.spacing.xs,
-      backgroundColor: theme.colors.background,
-    }]}>
-      <Text style={shared.subheading}>{formatDayLabel(section.date)}</Text>
-      <Text style={shared.caption}>{section.data.length} event{section.data.length !== 1 ? 's' : ''}</Text>
-    </View>
-  ), [])
 
   if (error) {
     return <View style={shared.centered}><Text style={shared.errorText}>{error}</Text></View>
@@ -265,26 +253,36 @@ export default function EventsScreen() {
       </View>
 
       {/* ── Scrollable events list ── */}
-      <SectionList
-        ref={sectionListRef}
+      <ScrollView
+        ref={scrollRef}
         style={{ flex: 1 }}
-        sections={sections}
-        keyExtractor={item => item.id}
-        renderItem={renderEventItem}
-        renderSectionHeader={renderSectionHeader}
-        removeClippedSubviews
-        maxToRenderPerBatch={5}
         contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={theme.colors.primary} />}
-        ListEmptyComponent={
-          !loading ? (
-            <Text style={[shared.caption, { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md }]}>
-              no upcoming events — create one!
-            </Text>
-          ) : null
-        }
-        stickySectionHeadersEnabled
-      />
+      >
+        {sections.length === 0 && !loading ? (
+          <Text style={[shared.caption, { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md }]}>
+            no upcoming events — create one!
+          </Text>
+        ) : (
+          sections.map(section => (
+            <View key={section.date} onLayout={e => { sectionYRef.current[section.date] = e.nativeEvent.layout.y }}>
+              <View style={[shared.rowBetween, {
+                paddingHorizontal: theme.spacing.lg,
+                paddingTop: theme.spacing.md,
+                paddingBottom: theme.spacing.xs,
+              }]}>
+                <Text style={shared.subheading}>{formatDayLabel(section.date)}</Text>
+                <Text style={shared.caption}>{section.data.length} event{section.data.length !== 1 ? 's' : ''}</Text>
+              </View>
+              {section.data.map(item => (
+                <View key={item.id} style={{ paddingHorizontal: theme.spacing.lg }}>
+                  <EventCard event={item} />
+                </View>
+              ))}
+            </View>
+          ))
+        )}
+      </ScrollView>
     </View>
   )
 }
