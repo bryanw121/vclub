@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, TouchableOpacity, Text, Platform } from "react-native";
+import { View, TouchableOpacity, Text, Platform, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TabsContext } from "../../../contexts/tabs";
@@ -25,9 +25,10 @@ export default function TabsLayout() {
   const [pagerBlocked, setPagerBlocked] = useState(false);
   const insets = useSafeAreaInsets();
   const webNav = useWebNav();
+  const { width: windowWidth } = useWindowDimensions();
 
-  // ── Web: sidebar lives in (app)/_layout — just render the active screen ──
-  if (Platform.OS === "web") {
+  // ── Web (wide): sidebar in (app)/_layout — just render the active screen ─
+  if (Platform.OS === "web" && windowWidth >= 768) {
     const ActiveScreen = SCREENS[webNav.activeTab];
     return (
       <TabsContext.Provider value={{ goToTab: webNav.goToTab, pagerBlocked }}>
