@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { View, TouchableOpacity, Text } from "react-native";
+import { View, TouchableOpacity, Text, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TabsContext } from "../../../contexts/tabs";
+import { useWebNav } from "../../../contexts/webNav";
 import { Pager } from "../../../components/Pager";
 import { theme } from "../../../constants";
 
-// Import the three tab screens directly so Pager can render them as pages
 import EventsScreen from "./index";
 import CreateScreen from "./create";
 import ProfileScreen from "./profile/index";
@@ -17,45 +17,54 @@ const TABS = [
   { name: "Profile", icon: "person-circle-outline" as const },
 ];
 
+const SCREENS = [EventsScreen, CreateScreen, ProfileScreen];
+
 export default function TabsLayout() {
-  const [activeTab, setActiveTab] = useState(0);
+  // All hooks called unconditionally
+  const [mobileActiveTab, setMobileActiveTab] = useState(0);
   const [pagerBlocked, setPagerBlocked] = useState(false);
   const insets = useSafeAreaInsets();
+  const webNav = useWebNav();
 
+  // ── Web: sidebar lives in (app)/_layout — just render the active screen ──
+  if (Platform.OS === "web") {
+    const ActiveScreen = SCREENS[webNav.activeTab];
+    return (
+      <TabsContext.Provider value={{ goToTab: webNav.goToTab, pagerBlocked }}>
+        <View style={{ flex: 1 }}>
+          <ActiveScreen />
+        </View>
+      </TabsContext.Provider>
+    );
+  }
+
+  // ── Mobile: pager + bottom tab bar ───────────────────────────────────────
   function goToTab(index: number) {
-    setActiveTab(index);
+    setMobileActiveTab(index);
   }
 
   return (
     <TabsContext.Provider value={{ goToTab, pagerBlocked }}>
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: theme.colors.background,
-          paddingTop: insets.top,
-        }}
-      >
-        <Pager
-          page={activeTab}
-          onPageChange={setActiveTab}
-          swipeEnabled={activeTab !== 0}
-        >
+      <View style={{
+        flex: 1,
+        backgroundColor: theme.colors.background,
+        paddingTop: insets.top,
+      }}>
+        <Pager page={mobileActiveTab} onPageChange={setMobileActiveTab} swipeEnabled={mobileActiveTab !== 0}>
           <EventsScreen />
           <CreateScreen />
           <ProfileScreen />
         </Pager>
 
-        {/* Custom bottom tab bar — replaces Expo Router's built-in Tabs */}
-        <View
-          style={{
-            flexDirection: "row",
-            borderTopWidth: 1,
-            borderTopColor: theme.colors.border,
-            backgroundColor: theme.colors.card,
-            paddingTop: theme.spacing.sm,
-            paddingBottom: insets.bottom || theme.spacing.md,
-          }}
-        >
+        {/* Bottom tab bar */}
+        <View style={{
+          flexDirection: "row",
+          borderTopWidth: 1,
+          borderTopColor: theme.colors.border,
+          backgroundColor: theme.colors.card,
+          paddingTop: theme.spacing.sm,
+          paddingBottom: insets.bottom || theme.spacing.md,
+        }}>
           {TABS.map((tab, i) => (
             <TouchableOpacity
               key={tab.name}
@@ -65,23 +74,13 @@ export default function TabsLayout() {
               <Ionicons
                 name={tab.icon}
                 size={24}
-                color={
-                  activeTab === i ? theme.colors.primary : theme.colors.subtext
-                }
+                color={mobileActiveTab === i ? theme.colors.primary : theme.colors.subtext}
               />
-              <Text
-                style={{
-                  fontSize: 10,
-                  color:
-                    activeTab === i
-                      ? theme.colors.primary
-                      : theme.colors.subtext,
-                  fontWeight:
-                    activeTab === i
-                      ? theme.font.weight.medium
-                      : theme.font.weight.regular,
-                }}
-              >
+              <Text style={{
+                fontSize: 10,
+                color: mobileActiveTab === i ? theme.colors.primary : theme.colors.subtext,
+                fontWeight: mobileActiveTab === i ? theme.font.weight.medium : theme.font.weight.regular,
+              }}>
                 {tab.name}
               </Text>
             </TouchableOpacity>

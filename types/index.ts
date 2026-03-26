@@ -36,9 +36,11 @@ export type Event = {
  * There is no separate "attendee ID" — the composite (event_id, user_id) is the key.
  */
 export type EventAttendee = {
-  event_id: string  // FK → events.id
-  user_id: string   // FK → profiles.id
-  joined_at: string // ISO 8601 — when the user joined
+  event_id: string       // FK → events.id
+  user_id: string        // FK → profiles.id
+  joined_at: string      // ISO 8601 — when the user joined
+  team_number: number | null  // which team (1-based); null = unassigned
+  team_pinned: boolean        // true if manually assigned by host; skipped during randomize
 }
 
 /**
