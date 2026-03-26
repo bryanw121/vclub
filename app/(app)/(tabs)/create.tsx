@@ -19,7 +19,7 @@ const EMPTY_FORM: CreateEventForm = {
 }
 
 const HOSTED_EVENTS_LIMIT = 5
-type CreateTabView = 'upcoming' | 'past' | 'form'
+type CreateTabView = 'upcoming' | 'form'
 
 export default function CreateEvent() {
   const [view, setView] = useState<CreateTabView>('upcoming')
@@ -29,7 +29,6 @@ export default function CreateEvent() {
   const [eventsError, setEventsError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [upcomingHostedEvents, setUpcomingHostedEvents] = useState<EventWithDetails[]>([])
-  const [pastHostedEvents, setPastHostedEvents] = useState<EventWithDetails[]>([])
   // Tracks whether the stepper is being held — used to lock ScrollView scrolling
   // so the parent scroll gesture doesn't steal the touch and prevent onPressOut from firing
   const [holding, setHolding] = useState(false)
@@ -55,28 +54,17 @@ export default function CreateEvent() {
       setUserId(user.id)
 
       const now = new Date().toISOString()
-      const [upcomingRes, pastRes] = await Promise.all([
-        supabase
-          .from('events')
-          .select(`*, profiles!events_created_by_fkey (id, username, avatar_url), event_attendees (event_id, user_id, joined_at)`)
-          .eq('created_by', user.id)
-          .gte('event_date', now)
-          .order('event_date', { ascending: true })
-          .limit(HOSTED_EVENTS_LIMIT + 1),
-        supabase
-          .from('events')
-          .select(`*, profiles!events_created_by_fkey (id, username, avatar_url), event_attendees (event_id, user_id, joined_at)`)
-          .eq('created_by', user.id)
-          .lt('event_date', now)
-          .order('event_date', { ascending: false })
-          .limit(HOSTED_EVENTS_LIMIT + 1),
-      ])
+      const upcomingRes = await supabase
+        .from('events')
+        .select(`*, profiles!events_created_by_fkey (id, username, avatar_url), event_attendees (event_id, user_id, joined_at)`)
+        .eq('created_by', user.id)
+        .gte('event_date', now)
+        .order('event_date', { ascending: true })
+        .limit(HOSTED_EVENTS_LIMIT + 1)
 
       if (upcomingRes.error) throw upcomingRes.error
-      if (pastRes.error) throw pastRes.error
 
       setUpcomingHostedEvents((upcomingRes.data ?? []) as EventWithDetails[])
-      setPastHostedEvents((pastRes.data ?? []) as EventWithDetails[])
     } catch (e: any) {
       setEventsError(e.message)
     } finally {
@@ -139,9 +127,7 @@ export default function CreateEvent() {
   }
 
   const upcomingVisible = upcomingHostedEvents.slice(0, HOSTED_EVENTS_LIMIT)
-  const pastVisible = pastHostedEvents.slice(0, HOSTED_EVENTS_LIMIT)
   const upcomingOverflowCount = Math.max(0, upcomingHostedEvents.length - HOSTED_EVENTS_LIMIT)
-  const pastOverflowCount = Math.max(0, pastHostedEvents.length - HOSTED_EVENTS_LIMIT)
 
   function renderHostedEventsList(events: EventWithDetails[], overflowCount: number, emptyText: string) {
     if (events.length === 0) return <Text style={shared.caption}>{emptyText}</Text>
@@ -159,9 +145,6 @@ export default function CreateEvent() {
       <View style={shared.screen}>
         <ScrollView contentContainerStyle={shared.scrollContentWithFloatingButton}>
           <Text style={[shared.subheading, shared.mb_md]}>Your upcoming hosted events</Text>
-          <Pressable style={shared.mb_md} onPress={() => setView('past')}>
-            <Text style={shared.primaryText}>View past hosted events</Text>
-          </Pressable>
           {eventsLoading ? (
             <ActivityIndicator />
           ) : eventsError ? (
@@ -174,25 +157,6 @@ export default function CreateEvent() {
           <Button label="Create Event" onPress={() => setView('form')} />
         </View>
       </View>
-    )
-  }
-
-  function renderPastView() {
-    return (
-      <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
-        <TouchableOpacity onPress={() => setView('upcoming')} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.md }}>
-          <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
-          <Text style={shared.primaryText}>Back</Text>
-        </TouchableOpacity>
-        <Text style={[shared.subheading, shared.mb_md]}>Your past hosted events</Text>
-        {eventsLoading ? (
-          <ActivityIndicator />
-        ) : eventsError ? (
-          <Text style={shared.errorText}>{eventsError}</Text>
-        ) : (
-          renderHostedEventsList(pastVisible, pastOverflowCount, 'No past events found.')
-        )}
-      </ScrollView>
     )
   }
 
@@ -237,6 +201,5 @@ export default function CreateEvent() {
   }
 
   if (view === 'form') return renderCreateFormView()
-  if (view === 'past') return renderPastView()
   return renderUpcomingView()
 }
