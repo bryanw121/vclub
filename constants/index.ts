@@ -1,3 +1,5 @@
 export { theme } from './theme'
 export { shared } from './styles'
 export { formatEventDate } from '../utils'
+export { LOCATIONS, EVENT_TEMPLATES, DAY_LABELS_SHORT } from './events'
+export type { VenueLocation, EventTemplate, RecurrenceCadence } from './events'
