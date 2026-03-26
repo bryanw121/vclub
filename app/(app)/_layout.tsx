@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Platform, View, Text, TouchableOpacity } from 'react-native'
+import { Platform, View, Text, TouchableOpacity, useWindowDimensions } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Stack, useRouter, usePathname } from 'expo-router'
 import { theme } from '../../constants'
@@ -26,11 +26,14 @@ const TABS = [
   { name: 'Profile', icon: 'person-circle-outline' as const, index: 2 },
 ]
 
+const SIDEBAR_BREAKPOINT = 768
+
 export default function AppLayout() {
   const router = useRouter()
   const pathname = usePathname()
   const [activeTab, setActiveTab] = useState(0)
   const [collapsed, setCollapsed] = useState(false)
+  const { width: windowWidth } = useWindowDimensions()
 
   function goToTab(index: number) {
     setActiveTab(index)
@@ -44,8 +47,8 @@ export default function AppLayout() {
       ? 0
       : activeTab
 
-  // ── Web: sidebar always visible ──────────────────────────────────────────
-  if (Platform.OS === 'web') {
+  // ── Web (wide): sidebar always visible ───────────────────────────────────
+  if (Platform.OS === 'web' && windowWidth >= SIDEBAR_BREAKPOINT) {
     return (
       <WebNavContext.Provider value={{ activeTab, goToTab }}>
         <View style={{ flex: 1, flexDirection: 'row', backgroundColor: theme.colors.background }}>
@@ -149,23 +152,21 @@ export default function AppLayout() {
     )
   }
 
-  // ── Mobile: plain Stack, sidebar handled inside tabs layout ───────────────
+  // ── Mobile: plain Stack — WebNavContext not needed on mobile ─────────────
   return (
-    <WebNavContext.Provider value={{ activeTab, goToTab }}>
-      <Stack
-        screenOptions={{
-          headerStyle: { backgroundColor: theme.colors.background },
-          headerTintColor: theme.colors.primary,
-          headerShadowVisible: false,
-          gestureEnabled: true,
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="settings/index" options={{ title: 'Settings', headerBackTitle: 'Profile', gestureEnabled: true }} />
-        <Stack.Screen name="settings/account" options={{ title: 'Account settings', headerBackTitle: 'Settings', gestureEnabled: true }} />
-        <Stack.Screen name="settings/feedback" options={{ title: 'Submit feedback', headerBackTitle: 'Settings', gestureEnabled: true }} />
-        <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
-      </Stack>
-    </WebNavContext.Provider>
+    <Stack
+      screenOptions={{
+        headerStyle: { backgroundColor: theme.colors.background },
+        headerTintColor: theme.colors.primary,
+        headerShadowVisible: false,
+        gestureEnabled: true,
+      }}
+    >
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="settings/index" options={{ title: 'Settings', headerBackTitle: 'Profile', gestureEnabled: true }} />
+      <Stack.Screen name="settings/account" options={{ title: 'Account settings', headerBackTitle: 'Settings', gestureEnabled: true }} />
+      <Stack.Screen name="settings/feedback" options={{ title: 'Submit feedback', headerBackTitle: 'Settings', gestureEnabled: true }} />
+      <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
+    </Stack>
   )
 }

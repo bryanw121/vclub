@@ -1,5 +1,5 @@
-import React, { useState, useRef, useMemo, useCallback, memo } from 'react'
-import { View, ScrollView, FlatList, Text, RefreshControl, TouchableOpacity, Dimensions } from 'react-native'
+import React, { useState, useRef, useMemo, useCallback, memo, useEffect } from 'react'
+import { View, ScrollView, FlatList, Text, RefreshControl, TouchableOpacity } from 'react-native'
 import { Calendar } from 'react-native-calendars'
 import { Ionicons } from '@expo/vector-icons'
 import { useEvents } from '../../../hooks/useEvents'
@@ -9,7 +9,6 @@ import { EventWithDetails } from '../../../types'
 
 const TODAY = new Date().toISOString().split('T')[0]
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
-const SW = Dimensions.get('window').width
 
 // Stable reference points computed once at module load
 const REF_WEEK  = getWeekStart(new Date())
@@ -40,6 +39,8 @@ export default function EventsScreen() {
   const { events, loading, error, refetch } = useEvents()
   const [selectedDate, setSelectedDate] = useState<string>(TODAY)
   const [mode, setMode] = useState<'week' | 'month'>('week')
+  // Measured from the actual container — accounts for sidebar width automatically
+  const [SW, setSW] = useState(0)
 
   const weekFlatRef  = useRef<FlatList>(null)
   const calFlatRef   = useRef<FlatList>(null)
@@ -48,11 +49,16 @@ export default function EventsScreen() {
 
   const defaultCalendarHeight = 360
   const [calendarHeight, setCalendarHeight] = useState<number>(defaultCalendarHeight)
-  
 
   // Track current page via ref (avoids re-renders)
   const curWeekPage  = useRef(WEEK_CENTER)
   const curMonthPage = useRef(MONTH_CENTER)
+
+  // Re-snap to the correct page when the window is resized
+  useEffect(() => {
+    weekFlatRef.current?.scrollToOffset({ offset: curWeekPage.current * SW, animated: false })
+    calFlatRef.current?.scrollToOffset({ offset: curMonthPage.current * SW, animated: false })
+  }, [SW])
 
   const sections: DateSection[] = useMemo(() => {
     const grouped: Record<string, EventWithDetails[]> = {}
@@ -84,31 +90,31 @@ export default function EventsScreen() {
     if (y !== undefined) {
       setTimeout(() => scrollRef.current?.scrollTo({ y, animated: true }), 50)
     }
-  }, [sections])
+  }, [sections, SW])
 
   const goPrevWeek = useCallback(() => {
     const t = curWeekPage.current - 1
     weekFlatRef.current?.scrollToOffset({ offset: t * SW, animated: true })
     curWeekPage.current = t
-  }, [])
+  }, [SW])
 
   const goNextWeek = useCallback(() => {
     const t = curWeekPage.current + 1
     weekFlatRef.current?.scrollToOffset({ offset: t * SW, animated: true })
     curWeekPage.current = t
-  }, [])
+  }, [SW])
 
   const goPrevMonth = useCallback(() => {
     const t = curMonthPage.current - 1
     calFlatRef.current?.scrollToOffset({ offset: t * SW, animated: true })
     curMonthPage.current = t
-  }, [])
+  }, [SW])
 
   const goNextMonth = useCallback(() => {
     const t = curMonthPage.current + 1
     calFlatRef.current?.scrollToOffset({ offset: t * SW, animated: true })
     curMonthPage.current = t
-  }, [])
+  }, [SW])
 
   // (removed manual drag tracking; use onMomentumScrollEnd for stable snapping)
 
@@ -124,7 +130,7 @@ export default function EventsScreen() {
         onNextWeek={goNextWeek}
       />
     </View>
-  ), [selectedDate, markedDates, selectDate, goPrevWeek, goNextWeek])
+  ), [SW, selectedDate, markedDates, selectDate, goPrevWeek, goNextWeek])
 
   const renderMonthItem = useCallback(({ item: i }: { item: number }) => (
     <View style={{ width: SW, height: calendarHeight }} onLayout={e => {
@@ -161,7 +167,7 @@ export default function EventsScreen() {
         }}
       />
     </View>
-  ), [markedDates, selectDate, goPrevMonth, goNextMonth])
+  ), [SW, calendarHeight, markedDates, selectDate, goPrevMonth, goNextMonth])
 
 
   if (error) {
@@ -169,7 +175,7 @@ export default function EventsScreen() {
   }
 
   return (
-    <View style={shared.screen}>
+    <View style={shared.screen} onLayout={e => setSW(e.nativeEvent.layout.width)}>
 
       {/* ── Fixed header ── */}
       <View>
@@ -190,7 +196,7 @@ export default function EventsScreen() {
           </View>
         </View>
 
-        {mode === 'week' ? (
+        {SW > 0 && mode === 'week' ? (
           <FlatList
             ref={weekFlatRef}
             horizontal
@@ -214,7 +220,7 @@ export default function EventsScreen() {
               curWeekPage.current = Math.round(e.nativeEvent.contentOffset.x / SW)
             }}
           />
-        ) : (
+        ) : SW > 0 ? (
           <FlatList
             ref={calFlatRef}
             horizontal
@@ -247,7 +253,7 @@ export default function EventsScreen() {
             maxToRenderPerBatch={1}
             windowSize={3}
           />
-        )}
+        ) : null}
 
         <View style={[shared.divider, { marginHorizontal: theme.spacing.lg }]} />
       </View>
