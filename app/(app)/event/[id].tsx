@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { Platform, View, Text, ScrollView, Alert, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
+import { GestureDetector, Gesture } from 'react-native-gesture-handler'
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '../../../lib/supabase'
@@ -7,9 +9,103 @@ import { Button } from '../../../components/Button'
 import { shared, theme, formatEventDate } from '../../../constants'
 import { EventWithDetails, Profile, AttendanceStatus } from '../../../types'
 
-const TEAM_COLORS = ['#6C47FF', '#E85D5D', '#2DA265', '#E07B00', '#1A8FD1', '#9C27B0']
+const TEAM_COLORS      = ['#6C47FF', '#E85D5D', '#2DA265', '#E07B00', '#1A8FD1', '#9C27B0']
+const TEAM_COLOR_NAMES = ['Purple',  'Red',     'Green',   'Orange',  'Blue',    'Violet']
 
 type TeamAssignment = { team: number | null; pinned: boolean }
+
+type DraggableCardProps = {
+  profile: Profile
+  teamColor: string | null
+  isPinned: boolean
+  isOwner: boolean
+  onDragStart: (x: number, y: number) => void
+  onDragMove: (x: number, y: number) => void
+  onDragEnd: (x: number, y: number) => void
+  onRemove: () => void
+}
+
+function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStart, onDragMove, onDragEnd, onRemove }: DraggableCardProps) {
+  const scale = useSharedValue(1)
+  const opacity = useSharedValue(1)
+
+  // Stable wrappers so the gesture closure never captures stale callbacks
+  const cbRef = useRef({ onDragStart, onDragMove, onDragEnd })
+  cbRef.current = { onDragStart, onDragMove, onDragEnd }
+  const stableStart  = useCallback((x: number, y: number) => cbRef.current.onDragStart(x, y), [])
+  const stableMove   = useCallback((x: number, y: number) => cbRef.current.onDragMove(x, y), [])
+  const stableEnd    = useCallback((x: number, y: number) => cbRef.current.onDragEnd(x, y), [])
+  // Called when gesture is externally cancelled (phone call, alert, etc.)
+  const stableCancel = useCallback(() => cbRef.current.onDragEnd(-1, -1), [])
+
+  const gesture = useMemo(() => {
+    const pan = Gesture.Pan()
+      .onStart((e) => {
+        'worklet'
+        scale.value = withSpring(1.06, { damping: 12 })
+        opacity.value = withSpring(0.35)
+        runOnJS(stableStart)(e.absoluteX, e.absoluteY)
+      })
+      .onUpdate((e) => {
+        'worklet'
+        runOnJS(stableMove)(e.absoluteX, e.absoluteY)
+      })
+      .onEnd((e) => {
+        'worklet'
+        scale.value = withSpring(1)
+        opacity.value = withSpring(1)
+        runOnJS(stableEnd)(e.absoluteX, e.absoluteY)
+      })
+      .onFinalize((_e, success) => {
+        'worklet'
+        scale.value = withSpring(1)
+        opacity.value = withSpring(1)
+        if (!success) runOnJS(stableCancel)()
+      })
+      .enabled(isOwner)
+
+    // Web: activate on click-drag (standard mouse UX)
+    // Mobile: require a long press first so normal scrolling isn't broken
+    return Platform.OS === 'web'
+      ? pan.minDistance(5)
+      : pan.activateAfterLongPress(500)
+  }, [isOwner])
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }))
+
+  const initial = profile.username.charAt(0).toUpperCase()
+
+  return (
+    <GestureDetector gesture={gesture}>
+      <Animated.View style={[styles.playerCard, animStyle]}>
+        <View style={[
+          styles.avatar,
+          {
+            borderColor: teamColor ?? theme.colors.border,
+            backgroundColor: teamColor ? teamColor + '18' : theme.colors.background,
+            borderWidth: teamColor ? 2 : 1.5,
+          }
+        ]}>
+          <Text style={[styles.avatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{initial}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.playerName} numberOfLines={1}>{profile.username}</Text>
+        </View>
+        {isPinned && teamColor && (
+          <Ionicons name="lock-closed" size={13} color={theme.colors.subtext} />
+        )}
+        {isOwner && (
+          <TouchableOpacity onPress={onRemove} style={styles.removeBtn} hitSlop={8}>
+            <Ionicons name="close" size={15} color={theme.colors.subtext} />
+          </TouchableOpacity>
+        )}
+      </Animated.View>
+    </GestureDetector>
+  )
+}
 
 export default function EventDetail() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -27,6 +123,18 @@ export default function EventDetail() {
   const [assignments, setAssignments] = useState<Record<string, TeamAssignment>>({})
   const [savingTeams, setSavingTeams] = useState(false)
 
+  // Drag-and-drop
+  const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null)
+  const [hoveredTeamKey, setHoveredTeamKey] = useState<string | null>(null)
+  const ghostX = useSharedValue(-500)
+  const ghostY = useSharedValue(-500)
+  const containerOffsetX = useSharedValue(0)
+  const containerOffsetY = useSharedValue(0)
+  const draggingPlayerIdRef = useRef<string | null>(null)
+  const containerRef = useRef<View>(null)
+  const teamZoneRefs = useRef<Record<string, View | null>>({})
+  const teamZoneLayouts = useRef<Record<string, { top: number; bottom: number }>>({})
+
   useEffect(() => {
     fetchEvent()
     supabase.auth.getUser().then(({ data: { user } }) => setUserId(user?.id ?? null))
@@ -39,7 +147,7 @@ export default function EventDetail() {
 
       const { data, error } = await supabase
         .from('events')
-        .select(`*, profiles!events_created_by_fkey (id, username, avatar_url), event_attendees (event_id, user_id, joined_at, team_number, team_pinned)`)
+        .select(`*, profiles!events_created_by_fkey (id, username, avatar_url), event_attendees (event_id, user_id, joined_at, team_number, team_pinned), event_tags (tag_id, tags (id, name, category, display_order))`)
         .eq('id', id)
         .single()
 
@@ -216,11 +324,87 @@ export default function EventDetail() {
     }
   }
 
+  function measureContainerOffset() {
+    if (Platform.OS === 'web') {
+      const el = containerRef.current as any
+      const rect = el?.getBoundingClientRect?.()
+      if (rect) {
+        containerOffsetX.value = rect.left
+        containerOffsetY.value = rect.top
+      }
+    } else {
+      ;(containerRef.current as any)?.measure(
+        (_x: number, _y: number, _w: number, _h: number, px: number, py: number) => {
+          containerOffsetX.value = px
+          containerOffsetY.value = py
+        }
+      )
+    }
+  }
+
+  function handleDragStart(playerId: string, x: number, y: number) {
+    measureContainerOffset()
+    draggingPlayerIdRef.current = playerId
+    ghostX.value = x
+    ghostY.value = y
+    setDraggingPlayerId(playerId)
+    // Snapshot layout of every team drop zone
+    Object.entries(teamZoneRefs.current).forEach(([key, ref]) => {
+      ;(ref as any)?.measure((_x: number, _y: number, _w: number, h: number, _px: number, py: number) => {
+        teamZoneLayouts.current[key] = { top: py - 24, bottom: py + h + 24 }
+      })
+    })
+  }
+
+  function handleDragMove(x: number, y: number) {
+    ghostX.value = x
+    ghostY.value = y
+    let hovered: string | null = null
+    for (const [key, zone] of Object.entries(teamZoneLayouts.current)) {
+      if (y >= zone.top && y <= zone.bottom) { hovered = key; break }
+    }
+    setHoveredTeamKey(hovered)
+  }
+
+  function handleDragEnd(_x: number, y: number) {
+    const playerId = draggingPlayerIdRef.current
+    if (playerId) {
+      let targetKey: string | null = null
+      for (const [key, zone] of Object.entries(teamZoneLayouts.current)) {
+        if (y >= zone.top && y <= zone.bottom) { targetKey = key; break }
+      }
+      if (targetKey !== null) {
+        const teamNum = targetKey === 'unassigned' ? null : parseInt(targetKey, 10)
+        setAssignments(prev => ({ ...prev, [playerId]: { team: teamNum, pinned: teamNum !== null } }))
+      }
+    }
+    draggingPlayerIdRef.current = null
+    setDraggingPlayerId(null)
+    setHoveredTeamKey(null)
+    ghostX.value = -500
+    ghostY.value = -500
+  }
+
+  // Web: ghost is position:fixed (viewport coords) so no container offset needed
+  // Mobile: ghost is position:absolute inside container so subtract container offset
+  const ghostOverlayStyle = useAnimatedStyle(() => ({
+    left: Platform.OS === 'web'
+      ? ghostX.value - 80
+      : ghostX.value - containerOffsetX.value - 80,
+    top: Platform.OS === 'web'
+      ? ghostY.value - 28
+      : ghostY.value - containerOffsetY.value - 28,
+  }))
+
   const isOwner = event?.created_by === userId
   const hasTeams = Object.values(assignments).some(a => a.team !== null)
 
   return (
-    <>
+    <View
+      ref={containerRef}
+      style={{ flex: 1 }}
+      onLayout={() => { measureContainerOffset() }}
+    >
       <Stack.Screen options={{
         headerShown: Platform.OS !== 'web',
         title: event?.title ?? '',
@@ -234,12 +418,17 @@ export default function EventDetail() {
           </TouchableOpacity>
         ),
         headerRight: isOwner ? () => (
-          <TouchableOpacity onPress={handleDelete} style={{ padding: 8 }} hitSlop={8}>
-            {deleting
-              ? <ActivityIndicator size="small" color={theme.colors.error} />
-              : <Ionicons name="trash-outline" size={22} color={theme.colors.error} />
-            }
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+            <TouchableOpacity onPress={() => router.push(`/host?edit=${id}` as any)} style={{ padding: 8 }} hitSlop={8}>
+              <Ionicons name="create-outline" size={22} color={theme.colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleDelete} style={{ padding: 8 }} hitSlop={8}>
+              {deleting
+                ? <ActivityIndicator size="small" color={theme.colors.error} />
+                : <Ionicons name="trash-outline" size={22} color={theme.colors.error} />
+              }
+            </TouchableOpacity>
+          </View>
         ) : undefined,
       }} />
 
@@ -266,12 +455,17 @@ export default function EventDetail() {
             {event?.title ?? ''}
           </Text>
           {isOwner && (
-            <TouchableOpacity onPress={handleDelete} style={{ padding: 4 }} hitSlop={8}>
-              {deleting
-                ? <ActivityIndicator size="small" color={theme.colors.error} />
-                : <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
-              }
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+              <TouchableOpacity onPress={() => router.push(`/host?edit=${id}` as any)} style={{ padding: 4 }} hitSlop={8}>
+                <Ionicons name="create-outline" size={20} color={theme.colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleDelete} style={{ padding: 4 }} hitSlop={8}>
+                {deleting
+                  ? <ActivityIndicator size="small" color={theme.colors.error} />
+                  : <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
+                }
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       )}
@@ -300,6 +494,15 @@ export default function EventDetail() {
                 {/* Event info */}
                 <Text style={[shared.primaryText, shared.mb_xs]}>{formatEventDate(event.event_date, 'long')}</Text>
                 {event.location && <Text style={[shared.caption, shared.mb_xs]}>{event.location}</Text>}
+                {(event.event_tags?.length ?? 0) > 0 && (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: theme.spacing.sm }}>
+                    {[...(event.event_tags ?? [])].sort((a, b) => a.tags.display_order - b.tags.display_order).map(et => (
+                      <View key={et.tag_id} style={shared.tag}>
+                        <Text style={shared.tagText}>{et.tags.name}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
                 {event.description && <Text style={[shared.body, shared.mb_lg]}>{event.description}</Text>}
 
                 {/* Join / Leave */}
@@ -352,41 +555,75 @@ export default function EventDetail() {
 
                 {attendees.length === 0
                   ? <Text style={shared.caption}>no one yet — be the first!</Text>
-                  : attendees.map(profile => {
-                    const a = assignments[profile.id]
-                    const teamNum = a?.team ?? null
-                    const badgeColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : theme.colors.border
-                    const showBadge = status.isOwner || hasTeams
+                  : (() => {
+                    function renderCard(profile: Profile) {
+                      const a = assignments[profile.id]
+                      const teamNum = a?.team ?? null
+                      const teamColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : null
+                      return (
+                        <View key={profile.id} style={styles.playerCell}>
+                          <DraggablePlayerCard
+                            profile={profile}
+                            teamColor={teamColor}
+                            isPinned={a?.pinned ?? false}
+                            isOwner={status.isOwner}
+                            onDragStart={(x, y) => handleDragStart(profile.id, x, y)}
+                            onDragMove={handleDragMove}
+                            onDragEnd={handleDragEnd}
+                            onRemove={() => handleRemoveAttendee(profile.id, profile.username)}
+                          />
+                        </View>
+                      )
+                    }
+
+                    if (!hasTeams) {
+                      return (
+                        <View
+                          ref={(r) => { teamZoneRefs.current['unassigned'] = r as View | null }}
+                          style={[styles.dropZone, hoveredTeamKey === 'unassigned' && styles.dropZoneActive]}
+                        >
+                          <View style={styles.playerGrid}>{attendees.map(renderCard)}</View>
+                        </View>
+                      )
+                    }
+
+                    const unassigned = attendees.filter(p => !assignments[p.id]?.team)
                     return (
-                      <View key={profile.id} style={styles.assignRow}>
-                        {showBadge && (
-                          status.isOwner
-                            ? (
-                              <TouchableOpacity onPress={() => cycleTeam(profile.id)} style={styles.teamBadge} hitSlop={6}>
-                                <View style={[styles.teamBadgeCircle, { backgroundColor: teamNum !== null ? badgeColor : 'transparent', borderColor: badgeColor }]}>
-                                  {teamNum !== null && <Text style={styles.teamBadgeText}>{teamNum}</Text>}
-                                </View>
-                              </TouchableOpacity>
-                            ) : (
-                              <View style={styles.teamBadge}>
-                                <View style={[styles.teamBadgeCircle, { backgroundColor: teamNum !== null ? badgeColor : 'transparent', borderColor: badgeColor }]}>
-                                  {teamNum !== null && <Text style={styles.teamBadgeText}>{teamNum}</Text>}
-                                </View>
+                      <View style={{ gap: theme.spacing.sm }}>
+                        {Array.from({ length: numTeams }, (_, i) => i + 1).map(teamNum => {
+                          const teamPlayers = attendees.filter(p => assignments[p.id]?.team === teamNum)
+                          if (teamPlayers.length === 0) return null
+                          const teamColor = TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length]
+                          const isHovered = hoveredTeamKey === String(teamNum)
+                          return (
+                            <View
+                              key={teamNum}
+                              ref={(r) => { teamZoneRefs.current[String(teamNum)] = r as View | null }}
+                              style={[styles.dropZone, isHovered && { backgroundColor: teamColor + '14', borderColor: teamColor + '60' }]}
+                            >
+                              <View style={styles.teamHeader}>
+                                <View style={[styles.teamDot, { backgroundColor: teamColor }]} />
+                                <Text style={[styles.teamHeading, { color: teamColor }]}>Team {TEAM_COLOR_NAMES[(teamNum - 1) % TEAM_COLOR_NAMES.length]}</Text>
                               </View>
-                            )
-                        )}
-                        <Text style={[shared.body, { flex: 1 }]} numberOfLines={1}>{profile.username}</Text>
-                        {status.isOwner && a?.pinned && teamNum !== null && (
-                          <Ionicons name="lock-closed" size={11} color={theme.colors.subtext} />
-                        )}
-                        {status.isOwner && (
-                          <TouchableOpacity onPress={() => handleRemoveAttendee(profile.id, profile.username)} hitSlop={8}>
-                            <Ionicons name="close-outline" size={18} color={theme.colors.subtext} />
-                          </TouchableOpacity>
+                              <View style={styles.playerGrid}>{teamPlayers.map(renderCard)}</View>
+                            </View>
+                          )
+                        })}
+                        {unassigned.length > 0 && (
+                          <View
+                            ref={(r) => { teamZoneRefs.current['unassigned'] = r as View | null }}
+                            style={[styles.dropZone, hoveredTeamKey === 'unassigned' && styles.dropZoneActive]}
+                          >
+                            <View style={styles.teamHeader}>
+                              <View style={[styles.teamDot, { backgroundColor: theme.colors.subtext }]} />
+                              <Text style={[styles.teamHeading, { color: theme.colors.subtext }]}>Unassigned</Text>
+                            </View>
+                            <View style={styles.playerGrid}>{unassigned.map(renderCard)}</View>
+                          </View>
                         )}
                       </View>
                     )
-                  })
+                  })()
                 }
 
                 {/* Randomize + Save — host only */}
@@ -415,7 +652,32 @@ export default function EventDetail() {
           })()}
         </ScrollView>
       )}
-    </>
+
+      {/* Drag ghost — floats above everything */}
+      {draggingPlayerId && (() => {
+        const profile = attendees.find(p => p.id === draggingPlayerId)
+        if (!profile) return null
+        const a = assignments[draggingPlayerId]
+        const teamNum = a?.team ?? null
+        const teamColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : null
+        const initial = profile.username.charAt(0).toUpperCase()
+        return (
+          <Animated.View
+            style={[styles.ghostCard, ghostOverlayStyle, Platform.OS === 'web' ? { position: 'fixed' as any } : null]}
+            pointerEvents="none"
+          >
+            <View style={[styles.avatar, {
+              borderColor: teamColor ?? theme.colors.border,
+              backgroundColor: teamColor ? teamColor + '18' : theme.colors.card,
+              borderWidth: teamColor ? 2 : 1.5,
+            }]}>
+              <Text style={[styles.avatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{initial}</Text>
+            </View>
+            <Text style={[styles.playerName, { flex: 1 }]} numberOfLines={1}>{profile.username}</Text>
+          </Animated.View>
+        )
+      })()}
+    </View>
   )
 }
 
@@ -448,29 +710,91 @@ const styles = StyleSheet.create({
     minWidth: 20,
     textAlign: 'center',
   },
-  assignRow: {
+  playerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  playerCell: {
+    width: Platform.OS === 'web' ? '33.33%' : '50%',
+    padding: 3,
+  },
+  playerCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     paddingVertical: theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+    gap: theme.spacing.xs,
   },
-  teamBadge: {
+  dropZone: {
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    padding: theme.spacing.xs,
+  },
+  dropZoneActive: {
+    backgroundColor: theme.colors.subtext + '12',
+    borderColor: theme.colors.subtext + '40',
+  },
+  ghostCard: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: 160,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+    gap: theme.spacing.xs,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 10,
+    zIndex: 1000,
+  },
+  teamHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.xs,
+  },
+  teamDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  teamHeading: {
+    fontSize: theme.font.size.sm,
+    fontWeight: theme.font.weight.semibold,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  teamBadgeCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
+  avatarInitial: {
+    fontSize: theme.font.size.md,
+    fontWeight: theme.font.weight.semibold,
   },
-  teamBadgeText: {
+  removeBtn: {
+    padding: 4,
+  },
+  playerName: {
+    fontSize: theme.font.size.md,
+    fontWeight: theme.font.weight.medium,
+    color: theme.colors.text,
+  },
+  teamLabel: {
     fontSize: theme.font.size.xs,
-    fontWeight: theme.font.weight.bold,
-    color: '#fff',
+    fontWeight: theme.font.weight.medium,
+    marginTop: 1,
   },
 })

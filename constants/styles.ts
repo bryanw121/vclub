@@ -116,6 +116,10 @@ export const shared = StyleSheet.create({
   eventCardTitle: { flex: 1, marginRight: spacing.sm },
   eventCard:      { marginBottom: spacing.md },
 
+  // ─── Tags ─────────────────────────────────────────────────
+  tag:     { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.full, backgroundColor: colors.primary + '18', borderWidth: 1, borderColor: colors.primary + '40' },
+  tagText: { fontSize: font.size.xs, fontWeight: font.weight.medium, color: colors.primary },
+
   // ─── Floating actions ─────────────────────────────────────
   floatingButtonWrap: {
     position: 'absolute',
@@ -127,6 +131,35 @@ export const shared = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.xxl + spacing.xl,
   },
+
+  // ─── Modal ────────────────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    alignItems: 'center',
+    gap: spacing.sm,
+    maxWidth: 320,
+    width: '85%',
+    ...shadow.md,
+  },
+  modalEmoji:    { fontSize: 48 },
+  modalTitle:    { fontSize: font.size.lg, fontWeight: font.weight.bold,   color: colors.text,    textAlign: 'center' },
+  modalBody:     { fontSize: font.size.sm, fontWeight: font.weight.regular, color: colors.subtext, textAlign: 'center' },
+  modalButton: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm,
+  },
+  modalButtonText: { color: colors.white, fontWeight: font.weight.medium, fontSize: font.size.md },
 
   // ─── Spacing helpers ──────────────────────────────────────
   mb_xs: { marginBottom: spacing.xs },

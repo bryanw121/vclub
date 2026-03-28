@@ -80,6 +80,7 @@ export type FeedbackPriority = 'low' | 'medium' | 'high'
 export type EventWithDetails = Event & {
   profiles: Profile
   event_attendees: EventAttendee[]
+  event_tags?: { tag_id: string; tags: Tag }[]
 }
 
 // ─── Form Types ───────────────────────────────────────────────────────────────
@@ -92,6 +93,34 @@ export type CreateEventForm = {
   location: string
   date: Date             // Stored as JS Date locally; converted to ISO string on submit
   maxAttendees: number | null  // null = unlimited
+}
+
+/**
+ * `tags` table
+ * Defines all available tags (e.g. skill levels, event types).
+ * Grouped by `category` so new tag categories can be added without schema changes.
+ */
+export type Tag = {
+  id: string
+  name: string
+  category: string      // e.g. 'skill_level', 'event_type'
+  display_order: number
+  created_at: string
+}
+
+/**
+ * `user_event_templates` table
+ * User-saved event templates for quickly re-hosting recurring events.
+ */
+export type UserEventTemplate = {
+  id: string
+  user_id: string
+  name: string
+  title: string
+  description: string | null
+  location: string | null
+  max_attendees: number | null
+  created_at: string
 }
 
 // ─── Derived / Computed Types ─────────────────────────────────────────────────

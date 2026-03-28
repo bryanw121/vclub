@@ -9,6 +9,7 @@ function EventCardInner({ event }: { event: EventWithDetails }) {
   const attendeeCount = event.event_attendees?.length ?? 0
   const spotsLeft = event.max_attendees ? event.max_attendees - attendeeCount : null
   const isFull = spotsLeft === 0
+  const tags = event.event_tags?.map(et => et.tags).sort((a, b) => a.display_order - b.display_order) ?? []
 
   return (
     <TouchableOpacity
@@ -24,7 +25,16 @@ function EventCardInner({ event }: { event: EventWithDetails }) {
         )}
       </View>
       <Text style={[shared.primaryText, shared.mb_xs]}>{formatEventDate(event.event_date, 'short')}</Text>
-      {event.location && <Text style={[shared.caption, shared.mb_sm]}>{event.location}</Text>}
+      {event.location && <Text style={[shared.caption, shared.mb_xs]}>{event.location}</Text>}
+      {tags.length > 0 && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {tags.map(tag => (
+            <View key={tag.id} style={shared.tag}>
+              <Text style={shared.tagText}>{tag.name}</Text>
+            </View>
+          ))}
+        </View>
+      )}
       <View style={shared.rowBetween}>
         <Text style={shared.caption}>by {event.profiles?.username ?? 'unknown'}</Text>
         <Text style={shared.caption}>{attendeeCount} going</Text>

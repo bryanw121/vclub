@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import type { ComponentProps } from 'react'
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../../../lib/supabase'
 import { Button } from '../../../../components/Button'
@@ -9,7 +9,7 @@ import { Input } from '../../../../components/Input'
 import { shared, theme } from '../../../../constants'
 import type { EventWithDetails, FeedbackKind, FeedbackPriority, Profile } from '../../../../types'
 
-type Section = 'menu' | 'account' | 'feedback' | 'history' | 'kudos'
+type Section = 'menu' | 'account' | 'feedback' | 'history' | 'kudos' | 'hosted'
 type HistoryFilter = 'hosted' | 'attended'
 const HISTORY_LIMIT = 5
 
@@ -21,6 +21,7 @@ export default function MyProfile() {
   const [historyLoading, setHistoryLoading] = useState(true)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [pastHostedEvents, setPastHostedEvents] = useState<EventWithDetails[]>([])
+  const [upcomingHostedEvents, setUpcomingHostedEvents] = useState<EventWithDetails[]>([])
 
   // Feedback form state (kept here so we don't have to add router screens yet).
   const [kind, setKind] = useState<FeedbackKind>('feature')
@@ -28,6 +29,8 @@ export default function MyProfile() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchProfile()
@@ -38,7 +41,7 @@ export default function MyProfile() {
     if (!user) return
 
     const now = new Date().toISOString()
-    const [profileRes, hostedHistoryRes] = await Promise.all([
+    const [profileRes, hostedHistoryRes, upcomingHostedRes] = await Promise.all([
       supabase
         .from('profiles')
         .select('*')
@@ -51,6 +54,12 @@ export default function MyProfile() {
         .lt('event_date', now)
         .order('event_date', { ascending: false })
         .limit(HISTORY_LIMIT + 1),
+      supabase
+        .from('events')
+        .select(`*, profiles!events_created_by_fkey (id, username, avatar_url), event_attendees (event_id, user_id, joined_at)`)
+        .eq('created_by', user.id)
+        .gte('event_date', now)
+        .order('event_date', { ascending: true }),
     ])
 
     if (!profileRes.error) setProfile(profileRes.data as Profile)
@@ -58,6 +67,9 @@ export default function MyProfile() {
       setHistoryError(hostedHistoryRes.error.message)
     } else {
       setPastHostedEvents((hostedHistoryRes.data ?? []) as EventWithDetails[])
+    }
+    if (!upcomingHostedRes.error) {
+      setUpcomingHostedEvents((upcomingHostedRes.data ?? []) as EventWithDetails[])
     }
     setHistoryLoading(false)
     setLoading(false)
@@ -90,9 +102,10 @@ export default function MyProfile() {
       setPriority('medium')
       setTitle('')
       setDescription('')
-      Alert.alert('Submitted', 'Thanks for making vclub better!')
+      setFeedbackError(null)
+      setFeedbackSubmitted(true)
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      setFeedbackError(e.message)
     } finally {
       setFeedbackLoading(false)
     }
@@ -108,6 +121,19 @@ export default function MyProfile() {
 
   return (
     <View style={shared.screen}>
+      <Modal visible={feedbackSubmitted} transparent animationType="none" onRequestClose={() => setFeedbackSubmitted(false)}>
+        <TouchableOpacity style={shared.modalOverlay} onPress={() => setFeedbackSubmitted(false)}>
+          <View style={shared.modalCard}>
+            <Text style={shared.modalEmoji}>🏐</Text>
+            <Text style={shared.modalTitle}>Thanks for making vclub better!</Text>
+            <Text style={shared.modalBody}>Your feedback has been saved and the team will review it.</Text>
+            <TouchableOpacity style={shared.modalButton} onPress={() => setFeedbackSubmitted(false)}>
+              <Text style={shared.modalButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       <ScrollView contentContainerStyle={shared.scrollContent}>
         <View style={[shared.rowBetween, shared.mb_xs]}>
           <Text style={shared.heading}>{profile.username}</Text>
@@ -161,6 +187,13 @@ export default function MyProfile() {
               style={activeCardStyle(section === 'kudos')}
             />
           </View>
+          <MenuCard
+            title="Hosted Events"
+            icon="calendar-outline"
+            active={section === 'hosted'}
+            onPress={() => setSection('hosted')}
+            style={[activeCardStyle(section === 'hosted'), { flex: undefined }]}
+          />
         </View>
 
         {/* Section content */}
@@ -227,6 +260,10 @@ export default function MyProfile() {
               disabled={feedbackLoading}
             />
 
+            {feedbackError && (
+              <Text style={[shared.mt_sm, shared.errorText]}>{feedbackError}</Text>
+            )}
+
             <View style={shared.mt_sm} />
             <Text style={shared.caption}>
               Your submission is saved to the club database so the team can triage it.
@@ -278,6 +315,18 @@ export default function MyProfile() {
         {section === 'kudos' && (
           <View style={[shared.card, { marginTop: theme.spacing.md }]}>
             <Text style={shared.caption}>coming soon</Text>
+          </View>
+        )}
+
+        {section === 'hosted' && (
+          <View style={[shared.card, { marginTop: theme.spacing.md }]}>
+            <Text style={shared.subheading}>Hosted Events</Text>
+            <View style={shared.mt_md} />
+            {upcomingHostedEvents.length === 0 ? (
+              <Text style={shared.caption}>No upcoming hosted events.</Text>
+            ) : (
+              upcomingHostedEvents.map(event => <EventCard key={event.id} event={event} />)
+            )}
           </View>
         )}
       </ScrollView>

@@ -1,9 +1,15 @@
-import { useState } from 'react'
-import { Platform, View, Text, TouchableOpacity, useWindowDimensions } from 'react-native'
+import { useRef, useState } from 'react'
+import { Animated, Platform, Pressable, View, Text, TouchableOpacity, useWindowDimensions } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Stack, useRouter, usePathname } from 'expo-router'
 import { theme } from '../../constants'
 import { WebNavContext } from '../../contexts/webNav'
+
+const FAB_OPTIONS = [
+  { label: 'Open Play',     path: '/host?maxAttendees=18' },
+  { label: 'Tournament',    path: '/host' },
+  { label: 'From Template', path: '/host?mode=templates' },
+]
 
 function SidebarToggleIcon({ color }: { color: string }) {
   return (
@@ -21,36 +27,49 @@ function SidebarToggleIcon({ color }: { color: string }) {
 }
 
 const TABS = [
-  { name: 'Events',  icon: 'calendar-outline'     as const, index: 0 },
-  { name: 'Host',    icon: 'add-circle-outline'    as const, index: 1 },
-  { name: 'Profile', icon: 'person-circle-outline' as const, index: 2 },
+  { name: 'Events',  icon: 'calendar-outline'     as const, path: '/'        },
+  { name: 'Profile', icon: 'person-circle-outline' as const, path: '/profile' },
 ]
 
 const SIDEBAR_BREAKPOINT = 768
 
+function tabIndexFromPath(path: string): number {
+  if (path.startsWith('/profile') || path.startsWith('/settings')) return 1
+  return 0
+}
+
 export default function AppLayout() {
   const router = useRouter()
   const pathname = usePathname()
-  const [activeTab, setActiveTab] = useState(0)
   const [collapsed, setCollapsed] = useState(false)
+  const [fabOpen, setFabOpen] = useState(false)
+  const fabAnim = useRef(new Animated.Value(0)).current
   const { width: windowWidth } = useWindowDimensions()
 
   function goToTab(index: number) {
-    setActiveTab(index)
-    const onTabs = !pathname.includes('/event/') && !pathname.includes('/settings')
-    if (!onTabs) router.replace('/(app)/(tabs)')
+    router.replace(TABS[index].path as any)
   }
 
-  const sidebarActive = pathname.includes('/settings')
-    ? 2
-    : pathname.includes('/event/')
-      ? 0
-      : activeTab
+  function openFab() {
+    setFabOpen(true)
+    Animated.spring(fabAnim, { toValue: 1, useNativeDriver: true, tension: 120, friction: 8 }).start()
+  }
+
+  function closeFab() {
+    Animated.timing(fabAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => setFabOpen(false))
+  }
+
+  function goHost(path: string) {
+    closeFab()
+    setTimeout(() => router.push(path as any), 160)
+  }
+
+  const sidebarActive = tabIndexFromPath(pathname)
 
   // ── Web (wide): sidebar always visible ───────────────────────────────────
   if (Platform.OS === 'web' && windowWidth >= SIDEBAR_BREAKPOINT) {
     return (
-      <WebNavContext.Provider value={{ activeTab, goToTab }}>
+      <WebNavContext.Provider value={{ activeTab: sidebarActive, goToTab }}>
         <View style={{ flex: 1, flexDirection: 'row', backgroundColor: theme.colors.background }}>
 
           {/* Sidebar */}
@@ -90,12 +109,12 @@ export default function AppLayout() {
               </TouchableOpacity>
             </View>
 
-            {TABS.map(tab => {
-              const active = sidebarActive === tab.index
+            {TABS.map((tab, i) => {
+              const active = sidebarActive === i
               return (
                 <TouchableOpacity
                   key={tab.name}
-                  onPress={() => goToTab(tab.index)}
+                  onPress={() => goToTab(i)}
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -130,7 +149,7 @@ export default function AppLayout() {
           </View>
 
           {/* Content */}
-          <View style={{ flex: 1, overflow: 'hidden' }}>
+          <View style={{ flex: 1 }}>
             <Stack
               screenOptions={{
                 headerStyle: { backgroundColor: theme.colors.background },
@@ -140,11 +159,84 @@ export default function AppLayout() {
               }}
             >
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="host" options={{ title: 'Host Event', headerBackTitle: 'Events', gestureEnabled: true }} />
               <Stack.Screen name="settings/index" options={{ title: 'Settings', headerBackTitle: 'Profile', gestureEnabled: true }} />
               <Stack.Screen name="settings/account" options={{ title: 'Account settings', headerBackTitle: 'Settings', gestureEnabled: true }} />
               <Stack.Screen name="settings/feedback" options={{ title: 'Submit feedback', headerBackTitle: 'Settings', gestureEnabled: true }} />
               <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
             </Stack>
+
+            {/* FAB backdrop */}
+            {fabOpen && (
+              <Pressable
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+                onPress={closeFab}
+              />
+            )}
+
+            {/* FAB popup options */}
+            {fabOpen && (
+              <Animated.View
+                style={{
+                  position: 'absolute',
+                  bottom: 32 + 52 + theme.spacing.sm,
+                  right: 32,
+                  gap: theme.spacing.sm,
+                  alignItems: 'flex-end',
+                  opacity: fabAnim,
+                  transform: [{ translateY: fabAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+                }}
+              >
+                {FAB_OPTIONS.map(opt => (
+                  <TouchableOpacity
+                    key={opt.label}
+                    onPress={() => goHost(opt.path)}
+                    style={{
+                      backgroundColor: theme.colors.card,
+                      borderRadius: theme.radius.full,
+                      paddingVertical: theme.spacing.sm,
+                      paddingHorizontal: theme.spacing.lg,
+                      borderWidth: 1,
+                      borderColor: theme.colors.border,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.12,
+                      shadowRadius: 4,
+                    }}
+                  >
+                    <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.medium, color: theme.colors.text }}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </Animated.View>
+            )}
+
+            {/* FAB button */}
+            {!pathname.startsWith('/host') && !pathname.startsWith('/profile') && (
+              <TouchableOpacity
+                onPress={fabOpen ? closeFab : openFab}
+                style={{
+                  position: 'absolute',
+                  bottom: 32,
+                  right: 32,
+                  width: 52,
+                  height: 52,
+                  borderRadius: 26,
+                  backgroundColor: theme.colors.primary,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 6,
+                }}
+              >
+                <Animated.View style={{ transform: [{ rotate: fabAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] }) }] }}>
+                  <Ionicons name="add" size={28} color={theme.colors.white} />
+                </Animated.View>
+              </TouchableOpacity>
+            )}
           </View>
 
         </View>
@@ -163,6 +255,7 @@ export default function AppLayout() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="host" options={{ title: 'Host Event', headerBackTitle: 'Events', gestureEnabled: true }} />
       <Stack.Screen name="settings/index" options={{ title: 'Settings', headerBackTitle: 'Profile', gestureEnabled: true }} />
       <Stack.Screen name="settings/account" options={{ title: 'Account settings', headerBackTitle: 'Settings', gestureEnabled: true }} />
       <Stack.Screen name="settings/feedback" options={{ title: 'Submit feedback', headerBackTitle: 'Settings', gestureEnabled: true }} />

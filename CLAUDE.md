@@ -197,6 +197,9 @@ Drop a file in `app/(app)/` — Expo Router picks it up automatically. Use `useR
 ### Adding a new shared style
 Add to `constants/styles.ts` inside the existing `StyleSheet.create({})` call, then reference as `shared.newStyle`.
 
+## Collaboration
+- It is okay — and encouraged — to ask the user clarifying questions before starting a task when the requirements are ambiguous or a decision would significantly affect the approach.
+
 ## Things to Avoid
 - Don't use `react-native-pager-view` — it's native-only. The custom `Pager` component is the cross-platform replacement.
 - Don't hardcode colors/spacing — always use `theme.*`
