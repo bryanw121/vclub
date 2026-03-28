@@ -9,19 +9,28 @@ import { shared } from '../../constants'
 
 export default function Register() {
   const router = useRouter()
+  const lastNameRef = useRef<TextInput>(null)
+  const usernameRef = useRef<TextInput>(null)
   const emailRef = useRef<TextInput>(null)
   const passwordRef = useRef<TextInput>(null)
 
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [errors, setErrors] = useState<{ username?: string; email?: string; password?: string }>({})
+  const [errors, setErrors] = useState<{ firstName?: string; lastName?: string; username?: string; email?: string; password?: string }>({})
 
   async function handleRegister() {
     setErrors({})
-    setLoading(true)
 
+    const trimmedFirst = firstName.trim()
+    const trimmedLast = lastName.trim()
+    if (!trimmedFirst) { setErrors({ firstName: 'First name is required' }); return }
+    if (!trimmedLast)  { setErrors({ lastName:  'Last name is required'  }); return }
+
+    setLoading(true)
     try {
       const normalizedUsername = username.toLowerCase().trim()
       const normalizedEmail = email.toLowerCase().trim()
@@ -38,10 +47,10 @@ export default function Register() {
         return
       }
 
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
-        options: { data: { username: normalizedUsername } },
+        options: { data: { username: normalizedUsername, first_name: trimmedFirst, last_name: trimmedLast } },
       })
 
       if (error) {
@@ -51,6 +60,13 @@ export default function Register() {
           setErrors({ password: error.message })
         }
         return
+      }
+
+      // Also update the profile row directly in case the trigger doesn't set names
+      if (data.user) {
+        await supabase.from('profiles')
+          .update({ first_name: trimmedFirst, last_name: trimmedLast })
+          .eq('id', data.user.id)
       }
 
       Alert.alert('Success', 'Account created!')
@@ -67,6 +83,30 @@ export default function Register() {
         <Text style={shared.authSubtitle}>create your account</Text>
 
         <Input
+          label="First Name"
+          value={firstName}
+          onChangeText={setFirstName}
+          placeholder="Jane"
+          autoCorrect={false}
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => lastNameRef.current?.focus()}
+          error={errors.firstName}
+        />
+        <Input
+          ref={lastNameRef}
+          label="Last Name"
+          value={lastName}
+          onChangeText={setLastName}
+          placeholder="Smith"
+          autoCorrect={false}
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => usernameRef.current?.focus()}
+          error={errors.lastName}
+        />
+        <Input
+          ref={usernameRef}
           label="Username"
           value={username}
           onChangeText={setUsername}
@@ -105,7 +145,7 @@ export default function Register() {
           error={errors.password}
         />
 
-        <Button label="Create account" onPress={handleRegister} loading={loading} disabled={!username || !email || !password} />
+        <Button label="Create account" onPress={handleRegister} loading={loading} disabled={!firstName || !lastName || !username || !email || !password} />
         <TouchableOpacity style={shared.authLink} onPress={() => router.push('/(auth)/login')}>
           <Text style={shared.authLinkText}>already have an account? sign in</Text>
         </TouchableOpacity>

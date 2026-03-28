@@ -32,6 +32,13 @@ export default function MyProfile() {
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
 
+  // Account settings — name editing
+  const [editFirstName, setEditFirstName] = useState('')
+  const [editLastName, setEditLastName] = useState('')
+  const [savingName, setSavingName] = useState(false)
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [nameSaved, setNameSaved] = useState(false)
+
   useEffect(() => {
     fetchProfile()
   }, [])
@@ -78,6 +85,28 @@ export default function MyProfile() {
   async function handleSignOut() {
     const { error } = await supabase.auth.signOut()
     if (error) Alert.alert('Error', error.message)
+  }
+
+  async function handleSaveName() {
+    const first = editFirstName.trim()
+    const last  = editLastName.trim()
+    if (!first || !last) { setNameError('Both fields are required'); return }
+    setNameError(null)
+    setSavingName(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not logged in')
+      const { error } = await supabase.from('profiles')
+        .update({ first_name: first, last_name: last })
+        .eq('id', user.id)
+      if (error) throw error
+      setProfile(p => p ? { ...p, first_name: first, last_name: last } : p)
+      setNameSaved(true)
+    } catch (e: any) {
+      setNameError(e.message)
+    } finally {
+      setSavingName(false)
+    }
   }
 
   async function submitFeedback() {
@@ -136,10 +165,18 @@ export default function MyProfile() {
 
       <ScrollView contentContainerStyle={shared.scrollContent}>
         <View style={[shared.rowBetween, shared.mb_xs]}>
-          <Text style={shared.heading}>{profile.username}</Text>
+          <Text style={shared.heading}>
+            {profile.first_name && profile.last_name
+              ? `${profile.first_name} ${profile.last_name}`
+              : profile.username}
+          </Text>
           {section !== 'menu' && (
             <Pressable
-              onPress={() => setSection('menu')}
+              onPress={() => {
+                setSection('menu')
+                setNameSaved(false)
+                setNameError(null)
+              }}
               hitSlop={10}
               accessibilityRole="button"
               accessibilityLabel="Back to profile menu"
@@ -160,7 +197,13 @@ export default function MyProfile() {
               title="Account Settings"
               icon="settings-outline"
               active={section === 'account'}
-              onPress={() => setSection('account')}
+              onPress={() => {
+                setSection('account')
+                setEditFirstName(profile?.first_name ?? '')
+                setEditLastName(profile?.last_name ?? '')
+                setNameSaved(false)
+                setNameError(null)
+              }}
               style={activeCardStyle(section === 'account')}
             />
             <MenuCard
@@ -200,7 +243,30 @@ export default function MyProfile() {
         {section === 'account' && (
           <View style={[shared.card, { marginTop: theme.spacing.md }]}>
             <Text style={shared.subheading}>Account settings</Text>
+            <View style={shared.mt_md} />
+
+            <Input
+              label="First Name"
+              value={editFirstName}
+              onChangeText={v => { setEditFirstName(v); setNameSaved(false) }}
+              placeholder="Jane"
+              autoCorrect={false}
+            />
+            <Input
+              label="Last Name"
+              value={editLastName}
+              onChangeText={v => { setEditLastName(v); setNameSaved(false) }}
+              placeholder="Smith"
+              autoCorrect={false}
+            />
+
+            {nameError && <Text style={[shared.errorText, shared.mt_sm]}>{nameError}</Text>}
+            {nameSaved && <Text style={[shared.caption, shared.mt_sm, { color: theme.colors.success }]}>Saved!</Text>}
+
             <View style={shared.mt_sm} />
+            <Button label="Save name" onPress={handleSaveName} loading={savingName} />
+
+            <View style={[shared.divider, shared.mt_md]} />
             <Button label="Sign out" onPress={handleSignOut} variant="danger" />
           </View>
         )}

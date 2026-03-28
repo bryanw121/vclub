@@ -12,6 +12,17 @@ import { EventWithDetails, Profile, AttendanceStatus } from '../../../types'
 const TEAM_COLORS      = ['#6C47FF', '#E85D5D', '#2DA265', '#E07B00', '#1A8FD1', '#9C27B0']
 const TEAM_COLOR_NAMES = ['Purple',  'Red',     'Green',   'Orange',  'Blue',    'Violet']
 
+function playerDisplayName(profile: Profile): string {
+  if (profile.first_name && profile.last_name) {
+    return `${profile.first_name} ${profile.last_name.charAt(0)}.`
+  }
+  return profile.username
+}
+
+function playerInitial(profile: Profile): string {
+  return (profile.first_name ?? profile.username).charAt(0).toUpperCase()
+}
+
 type TeamAssignment = { team: number | null; pinned: boolean }
 
 type DraggableCardProps = {
@@ -23,20 +34,21 @@ type DraggableCardProps = {
   onDragMove: (x: number, y: number) => void
   onDragEnd: (x: number, y: number) => void
   onRemove: () => void
+  onTogglePin: () => void
 }
 
-function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStart, onDragMove, onDragEnd, onRemove }: DraggableCardProps) {
+function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStart, onDragMove, onDragEnd, onRemove, onTogglePin }: DraggableCardProps) {
   const scale = useSharedValue(1)
   const opacity = useSharedValue(1)
 
   // Stable wrappers so the gesture closure never captures stale callbacks
-  const cbRef = useRef({ onDragStart, onDragMove, onDragEnd })
-  cbRef.current = { onDragStart, onDragMove, onDragEnd }
-  const stableStart  = useCallback((x: number, y: number) => cbRef.current.onDragStart(x, y), [])
-  const stableMove   = useCallback((x: number, y: number) => cbRef.current.onDragMove(x, y), [])
-  const stableEnd    = useCallback((x: number, y: number) => cbRef.current.onDragEnd(x, y), [])
-  // Called when gesture is externally cancelled (phone call, alert, etc.)
-  const stableCancel = useCallback(() => cbRef.current.onDragEnd(-1, -1), [])
+  const cbRef = useRef({ onDragStart, onDragMove, onDragEnd, onTogglePin })
+  cbRef.current = { onDragStart, onDragMove, onDragEnd, onTogglePin }
+  const stableStart     = useCallback((x: number, y: number) => cbRef.current.onDragStart(x, y), [])
+  const stableMove      = useCallback((x: number, y: number) => cbRef.current.onDragMove(x, y), [])
+  const stableEnd       = useCallback((x: number, y: number) => cbRef.current.onDragEnd(x, y), [])
+  const stableCancel    = useCallback(() => cbRef.current.onDragEnd(-1, -1), [])
+  const stableTogglePin = useCallback(() => cbRef.current.onTogglePin(), [])
 
   const gesture = useMemo(() => {
     const pan = Gesture.Pan()
@@ -64,19 +76,24 @@ function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStar
       })
       .enabled(isOwner)
 
+    const tap = Gesture.Tap()
+      .onEnd(() => { 'worklet'; runOnJS(stableTogglePin)() })
+      .enabled(isOwner)
+
     // Web: activate on click-drag (standard mouse UX)
     // Mobile: require a long press first so normal scrolling isn't broken
-    return Platform.OS === 'web'
+    const configuredPan = Platform.OS === 'web'
       ? pan.minDistance(5)
       : pan.activateAfterLongPress(500)
+
+    // Pan takes priority; tap fires only if pan doesn't activate
+    return Gesture.Exclusive(configuredPan, tap)
   }, [isOwner])
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
     opacity: opacity.value,
   }))
-
-  const initial = profile.username.charAt(0).toUpperCase()
 
   return (
     <GestureDetector gesture={gesture}>
@@ -89,12 +106,12 @@ function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStar
             borderWidth: teamColor ? 2 : 1.5,
           }
         ]}>
-          <Text style={[styles.avatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{initial}</Text>
+          <Text style={[styles.avatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{playerInitial(profile)}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.playerName} numberOfLines={1}>{profile.username}</Text>
+          <Text style={styles.playerName} numberOfLines={1}>{playerDisplayName(profile)}</Text>
         </View>
-        {isPinned && teamColor && (
+        {isOwner && isPinned && teamColor && (
           <Ionicons name="lock-closed" size={13} color={theme.colors.subtext} />
         )}
         {isOwner && (
@@ -242,6 +259,13 @@ export default function EventDetail() {
         [userId]: { team: next, pinned: next !== null },
       }
     })
+  }
+
+  function togglePin(userId: string) {
+    setAssignments(prev => ({
+      ...prev,
+      [userId]: { ...prev[userId], pinned: !prev[userId]?.pinned },
+    }))
   }
 
   function resetTeams() {
@@ -397,7 +421,9 @@ export default function EventDetail() {
   }))
 
   const isOwner = event?.created_by === userId
-  const hasTeams = Object.values(assignments).some(a => a.team !== null)
+  const hasTeams = isOwner
+    ? attendees.length > 0  // owners always see team layout so they can drag
+    : Object.values(assignments).some(a => a.team !== null)  // non-owners only see teams when assigned
 
   return (
     <View
@@ -571,6 +597,7 @@ export default function EventDetail() {
                             onDragMove={handleDragMove}
                             onDragEnd={handleDragEnd}
                             onRemove={() => handleRemoveAttendee(profile.id, profile.username)}
+                            onTogglePin={() => togglePin(profile.id)}
                           />
                         </View>
                       )
@@ -592,7 +619,6 @@ export default function EventDetail() {
                       <View style={{ gap: theme.spacing.sm }}>
                         {Array.from({ length: numTeams }, (_, i) => i + 1).map(teamNum => {
                           const teamPlayers = attendees.filter(p => assignments[p.id]?.team === teamNum)
-                          if (teamPlayers.length === 0) return null
                           const teamColor = TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length]
                           const isHovered = hoveredTeamKey === String(teamNum)
                           return (
@@ -603,9 +629,12 @@ export default function EventDetail() {
                             >
                               <View style={styles.teamHeader}>
                                 <View style={[styles.teamDot, { backgroundColor: teamColor }]} />
-                                <Text style={[styles.teamHeading, { color: teamColor }]}>Team {TEAM_COLOR_NAMES[(teamNum - 1) % TEAM_COLOR_NAMES.length]}</Text>
+                                <Text style={[styles.teamHeading, { color: teamColor }]}>{TEAM_COLOR_NAMES[(teamNum - 1) % TEAM_COLOR_NAMES.length]} Team</Text>
                               </View>
-                              <View style={styles.playerGrid}>{teamPlayers.map(renderCard)}</View>
+                              {teamPlayers.length === 0
+                                ? <Text style={[shared.caption, { paddingHorizontal: theme.spacing.xs, paddingBottom: theme.spacing.xs }]}>No players</Text>
+                                : <View style={styles.playerGrid}>{teamPlayers.map(renderCard)}</View>
+                              }
                             </View>
                           )
                         })}
@@ -660,7 +689,6 @@ export default function EventDetail() {
         const a = assignments[draggingPlayerId]
         const teamNum = a?.team ?? null
         const teamColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : null
-        const initial = profile.username.charAt(0).toUpperCase()
         return (
           <Animated.View
             style={[styles.ghostCard, ghostOverlayStyle, Platform.OS === 'web' ? { position: 'fixed' as any } : null]}
@@ -671,9 +699,9 @@ export default function EventDetail() {
               backgroundColor: teamColor ? teamColor + '18' : theme.colors.card,
               borderWidth: teamColor ? 2 : 1.5,
             }]}>
-              <Text style={[styles.avatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{initial}</Text>
+              <Text style={[styles.avatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{playerInitial(profile)}</Text>
             </View>
-            <Text style={[styles.playerName, { flex: 1 }]} numberOfLines={1}>{profile.username}</Text>
+            <Text style={[styles.playerName, { flex: 1 }]} numberOfLines={1}>{playerDisplayName(profile)}</Text>
           </Animated.View>
         )
       })()}

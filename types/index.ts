@@ -10,6 +10,8 @@
 export type Profile = {
   id: string            // Primary key — same UUID as the auth user
   username: string      // Unique, lowercase display name chosen at registration
+  first_name: string | null
+  last_name: string | null
   avatar_url: string | null  // Optional profile picture (not yet used in UI)
   created_at: string    // ISO 8601 — when the account was created
 }
