@@ -101,13 +101,18 @@ export default function EventsScreen({ refreshTick }: Props) {
   useEffect(() => {
     if (SW === 0) return
     setCalReady(false)
-    const id = requestAnimationFrame(() => {
+    const scroll = () => {
       if (mode === 'week') {
         weekFlatRef.current?.scrollToOffset({ offset: curWeekPage.current * SW, animated: false })
       } else {
         calFlatRef.current?.scrollToOffset({ offset: curMonthPage.current * SW, animated: false })
       }
+    }
+    const id = requestAnimationFrame(() => {
+      scroll()
       setCalReady(true)
+      // Scroll once more after reveal in case pagingEnabled's CSS snap corrects it
+      requestAnimationFrame(scroll)
     })
     return () => cancelAnimationFrame(id)
   }, [SW, mode])
@@ -262,10 +267,6 @@ export default function EventsScreen({ refreshTick }: Props) {
               data={weekData}
               keyExtractor={String}
               getItemLayout={(_, i) => ({ length: SW, offset: SW * i, index: i })}
-              initialScrollIndex={curWeekPage.current}
-              onScrollToIndexFailed={() =>
-                weekFlatRef.current?.scrollToOffset({ offset: curWeekPage.current * SW, animated: false })
-              }
               renderItem={renderWeekItem}
               removeClippedSubviews
               maxToRenderPerBatch={1}
@@ -283,11 +284,7 @@ export default function EventsScreen({ refreshTick }: Props) {
               data={monthData}
               keyExtractor={String}
               getItemLayout={(_, i) => ({ length: SW, offset: SW * i, index: i })}
-              initialScrollIndex={curMonthPage.current}
               initialNumToRender={1}
-              onScrollToIndexFailed={() =>
-                calFlatRef.current?.scrollToOffset({ offset: curMonthPage.current * SW, animated: false })
-              }
               renderItem={renderMonthItem}
               onMomentumScrollEnd={e => {
                 curMonthPage.current = Math.round(e.nativeEvent.contentOffset.x / SW)
