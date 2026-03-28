@@ -54,6 +54,7 @@ export type EventAttendee = {
   joined_at: string      // ISO 8601 — when the user joined
   team_number: number | null  // which team (1-based); null = unassigned
   team_pinned: boolean        // true if manually assigned by host; skipped during randomize
+  status: 'attending' | 'waitlisted'
 }
 
 /**
@@ -148,6 +149,9 @@ export type AttendanceStatus = {
   count: number           // Total number of attendees currently signed up
   spotsLeft: number | null  // Remaining spots; null if the event has no cap
   isFull: boolean         // true when count >= max_attendees (and max_attendees is set)
-  isAttending: boolean    // true if the current logged-in user is in event_attendees
+  isAttending: boolean    // true if the current logged-in user is in event_attendees with status='attending'
   isOwner: boolean        // true if the current logged-in user created the event
+  isWaitlisted: boolean       // true if the current user is on the waitlist
+  waitlistPosition: number | null  // 1-based position on waitlist; null if not waitlisted
+  waitlistCount: number       // total number of people on the waitlist
 }

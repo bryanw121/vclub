@@ -28,13 +28,15 @@ function SidebarToggleIcon({ color }: { color: string }) {
 
 const TABS = [
   { name: 'Events',  icon: 'calendar-outline'     as const, path: '/'        },
+  { name: 'Clubs',   icon: 'people-outline'        as const, path: '/clubs'   },
   { name: 'Profile', icon: 'person-circle-outline' as const, path: '/profile' },
 ]
 
 const SIDEBAR_BREAKPOINT = 768
 
 function tabIndexFromPath(path: string): number {
-  if (path.startsWith('/profile') || path.startsWith('/settings')) return 1
+  if (path.startsWith('/profile') || path.startsWith('/settings')) return 2
+  if (path.startsWith('/clubs')) return 1
   return 0
 }
 
@@ -167,6 +169,7 @@ export default function AppLayout() {
               <Stack.Screen name="settings/kudos" options={{ title: '', gestureEnabled: true }} />
               <Stack.Screen name="settings/hosted" options={{ title: '', gestureEnabled: true }} />
               <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
+              <Stack.Screen name="(tabs)/profile/[id]" options={{ title: 'Profile', headerBackTitle: 'Back', gestureEnabled: true }} />
             </Stack>
 
             {/* FAB backdrop */}
@@ -216,7 +219,7 @@ export default function AppLayout() {
             )}
 
             {/* FAB button */}
-            {!pathname.startsWith('/host') && !pathname.startsWith('/profile') && !pathname.startsWith('/settings') && (
+            {!pathname.startsWith('/host') && !pathname.startsWith('/profile') && !pathname.startsWith('/settings') && !pathname.startsWith('/clubs') && (
               <TouchableOpacity
                 onPress={fabOpen ? closeFab : openFab}
                 style={{
@@ -266,6 +269,7 @@ export default function AppLayout() {
       <Stack.Screen name="settings/kudos" options={{ title: '', gestureEnabled: true }} />
       <Stack.Screen name="settings/hosted" options={{ title: '', gestureEnabled: true }} />
       <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
+      <Stack.Screen name="(tabs)/profile/[id]" options={{ title: 'Profile', headerBackTitle: 'Back', gestureEnabled: true }} />
     </Stack>
   )
 }

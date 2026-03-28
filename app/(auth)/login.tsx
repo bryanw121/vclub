@@ -70,7 +70,7 @@ export default function Login() {
       const redirectTo = Linking.createURL('/(auth)/reset-password')
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
       if (error) {
-        setResetError('Could not send reset email. Check your address and try again.')
+        setResetError(error.message)
       } else {
         setResetSent(obfuscateEmail(email))
       }

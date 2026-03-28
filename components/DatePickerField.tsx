@@ -31,6 +31,7 @@ export function DatePickerField({ value, onChange }: Props) {
               value={value}
               mode="time"
               display="compact"
+              minuteInterval={5}
               themeVariant="light"
               onChange={(_, d) => { if (d) onChange(d) }}
             />

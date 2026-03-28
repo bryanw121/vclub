@@ -11,11 +11,13 @@ import { theme } from "../../../constants";
 
 import EventsScreen from "./index";
 import ProfileScreen from "./profile/index";
+import ClubsScreen from "./clubs";
 
-// Pager indices: 0=Events, 1=Profile
+// Pager indices: 0=Events, 1=Clubs, 2=Profile
 const MOBILE_NAV_TABS = [
   { name: "Events",  icon: "calendar-outline"     as const, pageIndex: 0 },
-  { name: "Profile", icon: "person-circle-outline" as const, pageIndex: 1 },
+  { name: "Clubs",   icon: "people-outline"        as const, pageIndex: 1 },
+  { name: "Profile", icon: "person-circle-outline" as const, pageIndex: 2 },
 ];
 
 const FAB_OPTIONS = [
@@ -98,6 +100,7 @@ export default function TabsLayout() {
       <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: insets.top }}>
         <Pager page={mobileActiveTab} onPageChange={setMobileActiveTab} pagerBlockedRef={pagerBlocked}>
           <EventsScreen refreshTick={eventsRefreshTick} />
+          <ClubsScreen />
           <ProfileScreen />
         </Pager>
 
@@ -148,8 +151,8 @@ export default function TabsLayout() {
           </Animated.View>
         )}
 
-        {/* FAB button — hidden on Profile tab */}
-        {mobileActiveTab !== 1 && <TouchableOpacity
+        {/* FAB button — hidden on Clubs and Profile tabs */}
+        {mobileActiveTab === 0 && <TouchableOpacity
           onPress={fabOpen ? closeFab : openFab}
           style={{
             position: "absolute",
