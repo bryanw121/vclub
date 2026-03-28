@@ -1,7 +1,6 @@
 import React, { useState, useRef, useMemo, useCallback, memo, useEffect } from 'react'
 import { useFocusEffect } from 'expo-router'
-import { Platform, View, ScrollView, FlatList, Text, RefreshControl, TouchableOpacity } from 'react-native'
-import { Calendar } from 'react-native-calendars'
+import { Platform, View, ScrollView, Text, RefreshControl, TouchableOpacity, PanResponder, Animated } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useEvents } from '../../../hooks/useEvents'
 import { EventCard } from '../../../components/EventCard'
@@ -12,13 +11,10 @@ import { useTabsContext } from '../../../contexts/tabs'
 const TODAY = new Date().toISOString().split('T')[0]
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
-// Stable reference points computed once at module load
 const REF_WEEK  = getWeekStart(new Date())
 const REF_MONTH = TODAY.substring(0, 7)
-const WEEK_CENTER  = 52   // center index in a 105-item array
-const MONTH_CENTER = 24   // center index in a 49-item array
-const weekData  = Array.from({ length: 105 }, (_, i) => i)
-const monthData = Array.from({ length: 49  }, (_, i) => i)
+const WEEK_CENTER  = 52
+const MONTH_CENTER = 24
 
 function weekForIdx(i: number): Date {
   return offsetDate(REF_WEEK, (i - WEEK_CENTER) * 7)
@@ -36,20 +32,15 @@ function idxForMonth(month: string): number {
 }
 
 type DateSection = { date: string; data: EventWithDetails[] }
-
 type Props = { refreshTick?: number }
 
 export default function EventsScreen({ refreshTick }: Props) {
   const { events, loading, error, refetch } = useEvents()
 
-  // Mobile: refreshTick is incremented by _layout's useFocusEffect when returning
-  // from host/event screens. Skip 0 (initial mount; useEvents already fetches).
   useEffect(() => {
     if (refreshTick && refreshTick > 0) refetch()
   }, [refreshTick])
 
-  // Web wide: EventsScreen IS a proper route, so useFocusEffect fires here.
-  // Skip the first call (same reason as above).
   const webFocusCount = useRef(0)
   useFocusEffect(useCallback(() => {
     webFocusCount.current += 1
@@ -58,12 +49,11 @@ export default function EventsScreen({ refreshTick }: Props) {
 
   const [selectedDate, setSelectedDate] = useState<string>(TODAY)
   const [mode, setMode] = useState<'week' | 'month'>('week')
-  // Measured from the actual container — accounts for sidebar width automatically
-  const [SW, setSW] = useState(0)
+  const [curWeekPage, setCurWeekPage] = useState(WEEK_CENTER)
+  const [curMonthPage, setCurMonthPage] = useState(MONTH_CENTER)
 
-  const { pagerBlocked, setTabBarHidden } = useTabsContext()
+  const { pagerBlocked, setTabBarHidden, tabBarHeight } = useTabsContext()
 
-  // Scroll direction → hide/show tab bar on mobile web
   const lastScrollY = useRef(0)
   const handleScroll = useCallback((e: any) => {
     if (Platform.OS !== 'web') return
@@ -74,48 +64,11 @@ export default function EventsScreen({ refreshTick }: Props) {
     if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
   }, [setTabBarHidden])
 
-  // Prevent the Pager from claiming swipes that start in the calendar header
   const blockPager   = useCallback(() => { pagerBlocked.current = true  }, [pagerBlocked])
   const unblockPager = useCallback(() => { pagerBlocked.current = false }, [pagerBlocked])
 
-  const weekFlatRef  = useRef<FlatList>(null)
-  const calFlatRef   = useRef<FlatList>(null)
-  const scrollRef    = useRef<ScrollView>(null)
-  const sectionYRef  = useRef<Record<string, number>>({})
-
-  const defaultCalendarHeight = 360
-  const [calendarHeight, setCalendarHeight] = useState<number>(defaultCalendarHeight)
-
-  // Track current page via ref (avoids re-renders)
-  const curWeekPage  = useRef(WEEK_CENTER)
-  const curMonthPage = useRef(MONTH_CENTER)
-
-  // Hide the calendar FlatList until it has scrolled to the correct page.
-  // On web, initialScrollIndex is unreliable so without this the user would
-  // see a flash of the wrong month/week before the scroll fires.
-  const [calReady, setCalReady] = useState(false)
-
-  // Scroll to the correct page whenever SW becomes non-zero or mode changes.
-  // When mode changes the active FlatList remounts at position 0 — hide it,
-  // scroll to the right page, then reveal.
-  useEffect(() => {
-    if (SW === 0) return
-    setCalReady(false)
-    const scroll = () => {
-      if (mode === 'week') {
-        weekFlatRef.current?.scrollToOffset({ offset: curWeekPage.current * SW, animated: false })
-      } else {
-        calFlatRef.current?.scrollToOffset({ offset: curMonthPage.current * SW, animated: false })
-      }
-    }
-    const id = requestAnimationFrame(() => {
-      scroll()
-      setCalReady(true)
-      // Scroll once more after reveal in case pagingEnabled's CSS snap corrects it
-      requestAnimationFrame(scroll)
-    })
-    return () => cancelAnimationFrame(id)
-  }, [SW, mode])
+  const scrollRef   = useRef<ScrollView>(null)
+  const sectionYRef = useRef<Record<string, number>>({})
 
   const sections: DateSection[] = useMemo(() => {
     const grouped: Record<string, EventWithDetails[]> = {}
@@ -134,107 +87,25 @@ export default function EventsScreen({ refreshTick }: Props) {
 
   const selectDate = useCallback((dateStr: string) => {
     setSelectedDate(dateStr)
-
-    const weekIdx  = idxForWeek(getWeekStart(new Date(dateStr + 'T00:00:00')))
-    const monthIdx = idxForMonth(dateStr.substring(0, 7))
-
-    weekFlatRef.current?.scrollToOffset({ offset: weekIdx * SW, animated: false })
-    calFlatRef.current?.scrollToOffset({ offset: monthIdx * SW, animated: false })
-    curWeekPage.current  = weekIdx
-    curMonthPage.current = monthIdx
-
+    setCurWeekPage(idxForWeek(getWeekStart(new Date(dateStr + 'T00:00:00'))))
+    setCurMonthPage(idxForMonth(dateStr.substring(0, 7)))
     const y = sectionYRef.current[dateStr]
     if (y !== undefined) {
       setTimeout(() => scrollRef.current?.scrollTo({ y, animated: true }), 50)
     }
-  }, [sections, SW])
+  }, [])
 
-  const goPrevWeek = useCallback(() => {
-    const t = curWeekPage.current - 1
-    weekFlatRef.current?.scrollToOffset({ offset: t * SW, animated: true })
-    curWeekPage.current = t
-  }, [SW])
-
-  const goNextWeek = useCallback(() => {
-    const t = curWeekPage.current + 1
-    weekFlatRef.current?.scrollToOffset({ offset: t * SW, animated: true })
-    curWeekPage.current = t
-  }, [SW])
-
-  const goPrevMonth = useCallback(() => {
-    const t = curMonthPage.current - 1
-    calFlatRef.current?.scrollToOffset({ offset: t * SW, animated: true })
-    curMonthPage.current = t
-  }, [SW])
-
-  const goNextMonth = useCallback(() => {
-    const t = curMonthPage.current + 1
-    calFlatRef.current?.scrollToOffset({ offset: t * SW, animated: true })
-    curMonthPage.current = t
-  }, [SW])
-
-  // (removed manual drag tracking; use onMomentumScrollEnd for stable snapping)
-
-
-  const renderWeekItem = useCallback(({ item: i }: { item: number }) => (
-    <View style={{ width: SW, paddingHorizontal: theme.spacing.lg }}>
-      <WeekStripContent
-        weekDays={getWeekDays(weekForIdx(i))}
-        selectedDate={selectedDate}
-        markedDates={markedDates}
-        onSelectDate={selectDate}
-        onPrevWeek={goPrevWeek}
-        onNextWeek={goNextWeek}
-      />
-    </View>
-  ), [SW, selectedDate, markedDates, selectDate, goPrevWeek, goNextWeek])
-
-  const renderMonthItem = useCallback(({ item: i }: { item: number }) => (
-    <View style={{ width: SW, height: calendarHeight }} onLayout={e => {
-      // Measure the visible page and lock to its height to avoid jumps
-      if (i === curMonthPage.current) {
-        const h = e.nativeEvent.layout.height
-        if (h && h !== calendarHeight) setCalendarHeight(h)
-      }
-    }}>
-      <Calendar
-        current={`${monthForIdx(i)}-01`}
-        markedDates={markedDates}
-        markingType="dot"
-        onDayPress={day => selectDate(day.dateString)}
-        onPressArrowLeft={() => goPrevMonth()}
-        onPressArrowRight={() => goNextMonth()}
-        theme={{
-          backgroundColor: theme.colors.background,
-          calendarBackground: theme.colors.background,
-          selectedDayBackgroundColor: theme.colors.primary,
-          selectedDayTextColor: theme.colors.white,
-          todayTextColor: theme.colors.primary,
-          dayTextColor: theme.colors.text,
-          textDisabledColor: theme.colors.border,
-          dotColor: theme.colors.primary,
-          selectedDotColor: theme.colors.white,
-          arrowColor: theme.colors.primary,
-          monthTextColor: theme.colors.text,
-          textMonthFontWeight: theme.font.weight.semibold,
-          textDayFontSize: theme.font.size.md,
-          textMonthFontSize: theme.font.size.lg,
-          textDayHeaderFontSize: theme.font.size.sm,
-          textDayHeaderFontWeight: theme.font.weight.medium,
-        }}
-      />
-    </View>
-  ), [SW, calendarHeight, markedDates, selectDate, goPrevMonth, goNextMonth])
-
+  const goPrevWeek  = useCallback(() => setCurWeekPage(p => p - 1), [])
+  const goNextWeek  = useCallback(() => setCurWeekPage(p => p + 1), [])
+  const goPrevMonth = useCallback(() => setCurMonthPage(p => p - 1), [])
+  const goNextMonth = useCallback(() => setCurMonthPage(p => p + 1), [])
 
   if (error) {
     return <View style={shared.centered}><Text style={shared.errorText}>{error}</Text></View>
   }
 
   return (
-    <View style={shared.screen} onLayout={e => setSW(e.nativeEvent.layout.width)}>
-
-      {/* ── Fixed header — block Pager while touching calendar ── */}
+    <View style={shared.screen}>
       <View
         onTouchStart={blockPager}
         onTouchEnd={unblockPager}
@@ -257,53 +128,33 @@ export default function EventsScreen({ refreshTick }: Props) {
           </View>
         </View>
 
-        <View style={{ opacity: calReady ? 1 : 0 }}>
-          {SW > 0 && mode === 'week' ? (
-            <FlatList
-              ref={weekFlatRef}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              data={weekData}
-              keyExtractor={String}
-              getItemLayout={(_, i) => ({ length: SW, offset: SW * i, index: i })}
-              renderItem={renderWeekItem}
-              removeClippedSubviews
-              maxToRenderPerBatch={1}
-              windowSize={3}
-              onMomentumScrollEnd={e => {
-                curWeekPage.current = Math.round(e.nativeEvent.contentOffset.x / SW)
-              }}
-            />
-          ) : SW > 0 ? (
-            <FlatList
-              ref={calFlatRef}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              data={monthData}
-              keyExtractor={String}
-              getItemLayout={(_, i) => ({ length: SW, offset: SW * i, index: i })}
-              initialNumToRender={1}
-              renderItem={renderMonthItem}
-              onMomentumScrollEnd={e => {
-                curMonthPage.current = Math.round(e.nativeEvent.contentOffset.x / SW)
-              }}
-              removeClippedSubviews
-              maxToRenderPerBatch={1}
-              windowSize={3}
-            />
-          ) : null}
-        </View>
+        {mode === 'week' ? (
+          <WeekPager
+            curWeekPage={curWeekPage}
+            selectedDate={selectedDate}
+            markedDates={markedDates}
+            onSelectDate={selectDate}
+            onPrevWeek={goPrevWeek}
+            onNextWeek={goNextWeek}
+          />
+        ) : (
+          <MonthPager
+            curMonthPage={curMonthPage}
+            selectedDate={selectedDate}
+            markedDates={markedDates}
+            onSelectDate={selectDate}
+            onPrevMonth={goPrevMonth}
+            onNextMonth={goNextMonth}
+          />
+        )}
 
         <View style={[shared.divider, { marginHorizontal: theme.spacing.lg }]} />
       </View>
 
-      {/* ── Scrollable events list ── */}
       <ScrollView
         ref={scrollRef}
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={theme.colors.primary} />}
         onScroll={handleScroll}
         scrollEventThrottle={100}
@@ -336,6 +187,58 @@ export default function EventsScreen({ refreshTick }: Props) {
   )
 }
 
+// ─── Shared pager logic ───────────────────────────────────────────────────────
+//
+// useNativeDriver: false so stopAnimation() fires its callback synchronously.
+// This guarantees interrupted animations commit their state before the next
+// gesture starts, enabling rapid swiping without page-state divergence.
+
+function usePager(
+  widthRef: React.MutableRefObject<number>,
+  translateX: Animated.Value,
+  onPrevRef: React.MutableRefObject<() => void>,
+  onNextRef: React.MutableRefObject<() => void>,
+) {
+  const internalNavRef = useRef(false)
+
+  function snap(toValue: number, onComplete?: () => void) {
+    translateX.stopAnimation()
+    Animated.spring(translateX, { toValue, useNativeDriver: false, tension: 60, friction: 11 })
+      .start(() => {
+        translateX.setValue(-widthRef.current)
+        if (onComplete) {
+          internalNavRef.current = true
+          onComplete()
+        }
+      })
+  }
+
+  const panResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, { dx, dy }) =>
+      Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > 8,
+    onPanResponderGrant: () => { translateX.stopAnimation() },
+    onPanResponderMove: (_, { dx }) => {
+      translateX.setValue(-widthRef.current + dx)
+    },
+    onPanResponderRelease: (_, { dx, vx }) => {
+      const w = widthRef.current
+      if      (dx < -w * 0.3 || vx < -0.5) snap(-w * 2, () => onNextRef.current())
+      else if (dx >  w * 0.3 || vx >  0.5) snap(0,      () => onPrevRef.current())
+      else                                   snap(-w)
+    },
+    onPanResponderTerminate: () => {
+      translateX.stopAnimation()
+      Animated.spring(translateX, { toValue: -widthRef.current, useNativeDriver: false, tension: 60, friction: 11 }).start()
+    },
+  })).current
+
+  const snapToNext = useCallback(() => snap(-widthRef.current * 2, () => onNextRef.current()), [])
+  const snapToPrev = useCallback(() => snap(0,                      () => onPrevRef.current()), [])
+
+  return { panResponder, snapToNext, snapToPrev, internalNavRef }
+}
+
 // ─── Week Strip Content ───────────────────────────────────────────────────────
 
 type WeekStripContentProps = {
@@ -357,14 +260,12 @@ const WeekStripContent = memo(function WeekStripContent({ weekDays, selectedDate
         <TouchableOpacity onPress={onPrevWeek} style={{ padding: theme.spacing.xs }}>
           <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
         </TouchableOpacity>
-
         <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-around' }}>
           {weekDays.map(day => {
             const dateStr = day.toISOString().split('T')[0]
             const isSelected = dateStr === selectedDate
             const isToday = dateStr === TODAY
             const hasEvent = !!markedDates[dateStr]?.marked
-
             return (
               <TouchableOpacity key={dateStr} onPress={() => onSelectDate(dateStr)} style={{ alignItems: 'center' }}>
                 <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, fontWeight: theme.font.weight.medium, marginBottom: 4 }}>
@@ -394,7 +295,6 @@ const WeekStripContent = memo(function WeekStripContent({ weekDays, selectedDate
             )
           })}
         </View>
-
         <TouchableOpacity onPress={onNextWeek} style={{ padding: theme.spacing.xs }}>
           <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
         </TouchableOpacity>
@@ -402,6 +302,215 @@ const WeekStripContent = memo(function WeekStripContent({ weekDays, selectedDate
     </View>
   )
 })
+
+// ─── Month Grid Content ───────────────────────────────────────────────────────
+// Custom month calendar built from plain Views — no third-party library,
+// no remounting, no loading flash. Same interaction model as WeekStripContent.
+
+type MonthGridContentProps = {
+  month: string  // "YYYY-MM"
+  selectedDate: string
+  markedDates: Record<string, any>
+  onSelectDate: (date: string) => void
+  onPrevMonth: () => void
+  onNextMonth: () => void
+}
+
+const MonthGridContent = memo(function MonthGridContent({ month, selectedDate, markedDates, onSelectDate, onPrevMonth, onNextMonth }: MonthGridContentProps) {
+  const [year, mon] = month.split('-').map(Number)
+  const monthLabel  = new Date(year, mon - 1, 15).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const startOffset = new Date(year, mon - 1, 1).getDay()
+  const daysInMonth = new Date(year, mon, 0).getDate()
+
+  const cells: (number | null)[] = [
+    ...Array(startOffset).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ]
+  while (cells.length % 7 !== 0) cells.push(null)
+  const rows: (number | null)[][] = []
+  for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7))
+
+  return (
+    <View style={{ backgroundColor: theme.colors.background, paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm }}>
+      {/* Header */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: theme.spacing.sm }}>
+        <TouchableOpacity onPress={onPrevMonth} style={{ padding: theme.spacing.xs }}>
+          <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
+        </TouchableOpacity>
+        <Text style={{ flex: 1, textAlign: 'center', fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
+          {monthLabel}
+        </Text>
+        <TouchableOpacity onPress={onNextMonth} style={{ padding: theme.spacing.xs }}>
+          <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
+        </TouchableOpacity>
+      </View>
+      {/* Day-of-week labels */}
+      <View style={{ flexDirection: 'row', marginBottom: 2 }}>
+        {DAY_LABELS.map(d => (
+          <Text key={d} style={{ flex: 1, textAlign: 'center', fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: theme.colors.subtext }}>
+            {d}
+          </Text>
+        ))}
+      </View>
+      {/* Day grid */}
+      {rows.map((row, ri) => (
+        <View key={ri} style={{ flexDirection: 'row' }}>
+          {row.map((day, di) => {
+            if (day === null) return <View key={di} style={{ flex: 1, height: 44 }} />
+            const dateStr   = `${month}-${String(day).padStart(2, '0')}`
+            const isSelected = dateStr === selectedDate
+            const isToday    = dateStr === TODAY
+            const hasEvent   = !!markedDates[dateStr]?.marked
+            return (
+              <TouchableOpacity
+                key={di}
+                onPress={() => onSelectDate(dateStr)}
+                style={{ flex: 1, alignItems: 'center', paddingVertical: 3 }}
+              >
+                <View style={{
+                  width: 34, height: 34, borderRadius: 17,
+                  backgroundColor: isSelected ? theme.colors.primary : 'transparent',
+                  borderWidth: isToday && !isSelected ? 1 : 0,
+                  borderColor: theme.colors.primary,
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Text style={{
+                    fontSize: theme.font.size.md,
+                    fontWeight: isSelected || isToday ? theme.font.weight.semibold : theme.font.weight.regular,
+                    color: isSelected ? theme.colors.white : isToday ? theme.colors.primary : theme.colors.text,
+                  }}>
+                    {day}
+                  </Text>
+                </View>
+                <View style={{ height: 5, marginTop: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  {hasEvent && (
+                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: isSelected ? theme.colors.white : theme.colors.primary, opacity: isSelected ? 0.6 : 1 }} />
+                  )}
+                </View>
+              </TouchableOpacity>
+            )
+          })}
+        </View>
+      ))}
+    </View>
+  )
+})
+
+// ─── Week Pager ──────────────────────────────────────────────────────────────
+
+type WeekPagerProps = {
+  curWeekPage: number
+  selectedDate: string
+  markedDates: Record<string, any>
+  onSelectDate: (date: string) => void
+  onPrevWeek: () => void
+  onNextWeek: () => void
+}
+
+function WeekPager({ curWeekPage, selectedDate, markedDates, onSelectDate, onPrevWeek, onNextWeek }: WeekPagerProps) {
+  const [width, setWidth] = useState(0)
+  const widthRef = useRef(0)
+  const translateX = useRef(new Animated.Value(0)).current
+  const onPrevRef = useRef(onPrevWeek)
+  const onNextRef = useRef(onNextWeek)
+  onPrevRef.current = onPrevWeek
+  onNextRef.current = onNextWeek
+
+  const { panResponder, snapToPrev, snapToNext, internalNavRef } = usePager(widthRef, translateX, onPrevRef, onNextRef)
+
+  useEffect(() => {
+    if (internalNavRef.current) { internalNavRef.current = false; return }
+    translateX.stopAnimation()
+    if (widthRef.current > 0) translateX.setValue(-widthRef.current)
+  }, [curWeekPage])
+
+  return (
+    <View
+      style={{ overflow: 'hidden' }}
+      onLayout={e => {
+        const w = e.nativeEvent.layout.width
+        widthRef.current = w
+        if (w !== width) { setWidth(w); translateX.setValue(-w) }
+      }}
+      {...panResponder.panHandlers}
+    >
+      {width > 0 && (
+        <Animated.View style={{ flexDirection: 'row', width: width * 3, transform: [{ translateX }] }}>
+          {([-1, 0, 1] as const).map(offset => (
+            <View key={offset} style={{ width, paddingHorizontal: theme.spacing.lg }}>
+              <WeekStripContent
+                weekDays={getWeekDays(weekForIdx(curWeekPage + offset))}
+                selectedDate={selectedDate}
+                markedDates={markedDates}
+                onSelectDate={onSelectDate}
+                onPrevWeek={snapToPrev}
+                onNextWeek={snapToNext}
+              />
+            </View>
+          ))}
+        </Animated.View>
+      )}
+    </View>
+  )
+}
+
+// ─── Month Pager ─────────────────────────────────────────────────────────────
+
+type MonthPagerProps = {
+  curMonthPage: number
+  selectedDate: string
+  markedDates: Record<string, any>
+  onSelectDate: (date: string) => void
+  onPrevMonth: () => void
+  onNextMonth: () => void
+}
+
+function MonthPager({ curMonthPage, selectedDate, markedDates, onSelectDate, onPrevMonth, onNextMonth }: MonthPagerProps) {
+  const [width, setWidth] = useState(0)
+  const widthRef = useRef(0)
+  const translateX = useRef(new Animated.Value(0)).current
+  const onPrevRef = useRef(onPrevMonth)
+  const onNextRef = useRef(onNextMonth)
+  onPrevRef.current = onPrevMonth
+  onNextRef.current = onNextMonth
+
+  const { panResponder, snapToPrev, snapToNext, internalNavRef } = usePager(widthRef, translateX, onPrevRef, onNextRef)
+
+  useEffect(() => {
+    if (internalNavRef.current) { internalNavRef.current = false; return }
+    translateX.stopAnimation()
+    if (widthRef.current > 0) translateX.setValue(-widthRef.current)
+  }, [curMonthPage])
+
+  return (
+    <View
+      style={{ overflow: 'hidden' }}
+      onLayout={e => {
+        const w = e.nativeEvent.layout.width
+        widthRef.current = w
+        if (w !== width) { setWidth(w); translateX.setValue(-w) }
+      }}
+      {...panResponder.panHandlers}
+    >
+      {width > 0 && (
+        <Animated.View style={{ flexDirection: 'row', width: width * 3, transform: [{ translateX }] }}>
+          {([-1, 0, 1] as const).map(offset => (
+            <View key={offset} style={{ width }}>
+              <MonthGridContent
+                month={monthForIdx(curMonthPage + offset)}
+                selectedDate={selectedDate}
+                markedDates={markedDates}
+                onSelectDate={onSelectDate}
+                onPrevMonth={snapToPrev}
+                onNextMonth={snapToNext}
+              />
+            </View>
+          ))}
+        </Animated.View>
+      )}
+    </View>
+  )
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

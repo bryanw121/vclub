@@ -7,11 +7,14 @@ type TabsContextType = {
   pagerBlocked: MutableRefObject<boolean>;
   // Hide or show the bottom tab bar (animated, web-mobile only)
   setTabBarHidden: (hidden: boolean) => void;
+  // Current measured height of the tab bar (0 on wide web where there is no tab bar)
+  tabBarHeight: number;
 };
 
 export const TabsContext = createContext<TabsContextType>({
   goToTab: () => {},
   pagerBlocked: { current: false },
   setTabBarHidden: () => {},
+  tabBarHeight: 0,
 });
 export const useTabsContext = () => useContext(TabsContext);
