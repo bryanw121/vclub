@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { Platform, View, Text, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native'
+import { Platform, View, Text, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal } from 'react-native'
 import { GestureDetector, Gesture } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
@@ -167,6 +167,7 @@ export default function EventDetail() {
   const [deleting, setDeleting] = useState(false)
   const [shareMenuVisible, setShareMenuVisible] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false)
 
   const [numTeams, setNumTeams] = useState(2)
   const [assignments, setAssignments] = useState<Record<string, TeamAssignment>>({})
@@ -231,6 +232,37 @@ export default function EventDetail() {
     }
   }
 
+  async function refreshAttendees() {
+    const { data: rows, error } = await supabase
+      .from('event_attendees')
+      .select('event_id, user_id, joined_at, team_number, team_pinned')
+      .eq('event_id', id)
+    if (error) { Alert.alert('Error', error.message); return }
+
+    // Update only the attendees slice of the event object (preserves title, date, etc.)
+    setEvent(prev => prev ? { ...prev, event_attendees: rows ?? [] } : prev)
+
+    const attendeeIds = (rows ?? []).map((a: any) => a.user_id)
+    if (attendeeIds.length > 0) {
+      const { data: profiles } = await supabase.from('profiles').select('*').in('id', attendeeIds)
+      setAttendees((profiles ?? []) as Profile[])
+    } else {
+      setAttendees([])
+    }
+
+    const map: Record<string, TeamAssignment> = {}
+    let maxTeam = 1
+    for (const a of (rows ?? []) as any[]) {
+      const t = a.team_number ?? null
+      map[a.user_id] = { team: t, pinned: a.team_pinned ?? false }
+      if (t && t > maxTeam) maxTeam = t
+    }
+    setAssignments(map)
+    if (Object.values(map).some(a => a.team !== null)) {
+      setNumTeams(prev => Math.max(prev, maxTeam))
+    }
+  }
+
   async function handleToggleAttendance(action: 'join' | 'leave') {
     if (!userId) return
     try {
@@ -240,7 +272,7 @@ export default function EventDetail() {
         : supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', userId)
       const { error } = await query
       if (error) throw error
-      fetchEvent()
+      await refreshAttendees()
     } catch (e: any) {
       Alert.alert('Error', e.message)
     } finally {
@@ -255,7 +287,7 @@ export default function EventDetail() {
         text: 'Remove', style: 'destructive', onPress: async () => {
           const { error } = await supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', attendeeId)
           if (error) Alert.alert('Error', error.message)
-          else fetchEvent()
+          else refreshAttendees()
         }
       },
     ])
@@ -282,23 +314,21 @@ export default function EventDetail() {
   }
 
   function handleDelete() {
-    Alert.alert('Delete event', 'Are you sure? This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            setDeleting(true)
-            const { error } = await supabase.from('events').delete().eq('id', id)
-            if (error) throw error
-            router.replace('/(app)/(tabs)')
-          } catch (e: any) {
-            Alert.alert('Error', e.message)
-          } finally {
-            setDeleting(false)
-          }
-        }
-      },
-    ])
+    setDeleteConfirmVisible(true)
+  }
+
+  async function confirmDelete() {
+    setDeleteConfirmVisible(false)
+    try {
+      setDeleting(true)
+      const { error } = await supabase.from('events').delete().eq('id', id)
+      if (error) throw error
+      router.replace('/(app)/(tabs)')
+    } catch (e: any) {
+      Alert.alert('Error', e.message)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   function cycleTeam(userId: string) {
@@ -768,6 +798,34 @@ export default function EventDetail() {
           })()}
         </ScrollView>
       )}
+
+      {/* Delete confirmation modal */}
+      <Modal visible={deleteConfirmVisible} transparent animationType="fade" onRequestClose={() => setDeleteConfirmVisible(false)}>
+        <TouchableOpacity
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' }}
+          activeOpacity={1}
+          onPress={() => setDeleteConfirmVisible(false)}
+        >
+          <View style={{ backgroundColor: theme.colors.card, borderRadius: theme.radius.lg, padding: theme.spacing.xl, width: 300, gap: theme.spacing.md }}>
+            <Text style={{ fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>Delete event</Text>
+            <Text style={{ fontSize: theme.font.size.md, color: theme.colors.subtext }}>Are you sure? This cannot be undone.</Text>
+            <View style={{ flexDirection: 'row', gap: theme.spacing.sm, justifyContent: 'flex-end' }}>
+              <TouchableOpacity
+                onPress={() => setDeleteConfirmVisible(false)}
+                style={{ paddingVertical: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.colors.border }}
+              >
+                <Text style={{ color: theme.colors.text, fontSize: theme.font.size.md }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={confirmDelete}
+                style={{ paddingVertical: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderRadius: theme.radius.md, backgroundColor: theme.colors.error }}
+              >
+                <Text style={{ color: '#fff', fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold }}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Drag ghost — floats above everything */}
       {draggingPlayerId && (() => {

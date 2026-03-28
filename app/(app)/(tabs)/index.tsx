@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useCallback, memo, useEffect } from 'react'
+import { useFocusEffect } from 'expo-router'
 import { Platform, View, ScrollView, FlatList, Text, RefreshControl, TouchableOpacity } from 'react-native'
 import { Calendar } from 'react-native-calendars'
 import { Ionicons } from '@expo/vector-icons'
@@ -36,8 +37,25 @@ function idxForMonth(month: string): number {
 
 type DateSection = { date: string; data: EventWithDetails[] }
 
-export default function EventsScreen() {
+type Props = { refreshTick?: number }
+
+export default function EventsScreen({ refreshTick }: Props) {
   const { events, loading, error, refetch } = useEvents()
+
+  // Mobile: refreshTick is incremented by _layout's useFocusEffect when returning
+  // from host/event screens. Skip 0 (initial mount; useEvents already fetches).
+  useEffect(() => {
+    if (refreshTick && refreshTick > 0) refetch()
+  }, [refreshTick])
+
+  // Web wide: EventsScreen IS a proper route, so useFocusEffect fires here.
+  // Skip the first call (same reason as above).
+  const webFocusCount = useRef(0)
+  useFocusEffect(useCallback(() => {
+    webFocusCount.current += 1
+    if (webFocusCount.current > 1) refetch()
+  }, []))
+
   const [selectedDate, setSelectedDate] = useState<string>(TODAY)
   const [mode, setMode] = useState<'week' | 'month'>('week')
   // Measured from the actual container — accounts for sidebar width automatically
@@ -72,27 +90,27 @@ export default function EventsScreen() {
   const curWeekPage  = useRef(WEEK_CENTER)
   const curMonthPage = useRef(MONTH_CENTER)
 
-  // Scroll to the correct page after layout — use rAF so the FlatList's
-  // internal ScrollView is guaranteed to exist before we call scrollToOffset.
+  // Hide the calendar FlatList until it has scrolled to the correct page.
+  // On web, initialScrollIndex is unreliable so without this the user would
+  // see a flash of the wrong month/week before the scroll fires.
+  const [calReady, setCalReady] = useState(false)
+
+  // Scroll to the correct page whenever SW becomes non-zero or mode changes.
+  // When mode changes the active FlatList remounts at position 0 — hide it,
+  // scroll to the right page, then reveal.
   useEffect(() => {
     if (SW === 0) return
+    setCalReady(false)
     const id = requestAnimationFrame(() => {
-      weekFlatRef.current?.scrollToOffset({ offset: curWeekPage.current * SW, animated: false })
-      // Month FlatList may not be mounted yet (mode === 'week'); handled below.
-      calFlatRef.current?.scrollToOffset({ offset: curMonthPage.current * SW, animated: false })
+      if (mode === 'week') {
+        weekFlatRef.current?.scrollToOffset({ offset: curWeekPage.current * SW, animated: false })
+      } else {
+        calFlatRef.current?.scrollToOffset({ offset: curMonthPage.current * SW, animated: false })
+      }
+      setCalReady(true)
     })
     return () => cancelAnimationFrame(id)
-  }, [SW])
-
-  // When the user switches to month view the Calendar FlatList mounts fresh at
-  // index 0. Scroll it to the right page immediately after mount.
-  useEffect(() => {
-    if (mode !== 'month' || SW === 0) return
-    const id = requestAnimationFrame(() => {
-      calFlatRef.current?.scrollToOffset({ offset: curMonthPage.current * SW, animated: false })
-    })
-    return () => cancelAnimationFrame(id)
-  }, [mode, SW])
+  }, [SW, mode])
 
   const sections: DateSection[] = useMemo(() => {
     const grouped: Record<string, EventWithDetails[]> = {}
@@ -234,50 +252,52 @@ export default function EventsScreen() {
           </View>
         </View>
 
-        {SW > 0 && mode === 'week' ? (
-          <FlatList
-            ref={weekFlatRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            data={weekData}
-            keyExtractor={String}
-            getItemLayout={(_, i) => ({ length: SW, offset: SW * i, index: i })}
-            initialScrollIndex={curWeekPage.current}
-            onScrollToIndexFailed={() =>
-              weekFlatRef.current?.scrollToOffset({ offset: curWeekPage.current * SW, animated: false })
-            }
-            renderItem={renderWeekItem}
-            removeClippedSubviews
-            maxToRenderPerBatch={1}
-            windowSize={3}
-            onMomentumScrollEnd={e => {
-              curWeekPage.current = Math.round(e.nativeEvent.contentOffset.x / SW)
-            }}
-          />
-        ) : SW > 0 ? (
-          <FlatList
-            ref={calFlatRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            data={monthData}
-            keyExtractor={String}
-            getItemLayout={(_, i) => ({ length: SW, offset: SW * i, index: i })}
-            initialScrollIndex={curMonthPage.current}
-            initialNumToRender={1}
-            onScrollToIndexFailed={() =>
-              calFlatRef.current?.scrollToOffset({ offset: curMonthPage.current * SW, animated: false })
-            }
-            renderItem={renderMonthItem}
-            onMomentumScrollEnd={e => {
-              curMonthPage.current = Math.round(e.nativeEvent.contentOffset.x / SW)
-            }}
-            removeClippedSubviews
-            maxToRenderPerBatch={1}
-            windowSize={3}
-          />
-        ) : null}
+        <View style={{ opacity: calReady ? 1 : 0 }}>
+          {SW > 0 && mode === 'week' ? (
+            <FlatList
+              ref={weekFlatRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              data={weekData}
+              keyExtractor={String}
+              getItemLayout={(_, i) => ({ length: SW, offset: SW * i, index: i })}
+              initialScrollIndex={curWeekPage.current}
+              onScrollToIndexFailed={() =>
+                weekFlatRef.current?.scrollToOffset({ offset: curWeekPage.current * SW, animated: false })
+              }
+              renderItem={renderWeekItem}
+              removeClippedSubviews
+              maxToRenderPerBatch={1}
+              windowSize={3}
+              onMomentumScrollEnd={e => {
+                curWeekPage.current = Math.round(e.nativeEvent.contentOffset.x / SW)
+              }}
+            />
+          ) : SW > 0 ? (
+            <FlatList
+              ref={calFlatRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              data={monthData}
+              keyExtractor={String}
+              getItemLayout={(_, i) => ({ length: SW, offset: SW * i, index: i })}
+              initialScrollIndex={curMonthPage.current}
+              initialNumToRender={1}
+              onScrollToIndexFailed={() =>
+                calFlatRef.current?.scrollToOffset({ offset: curMonthPage.current * SW, animated: false })
+              }
+              renderItem={renderMonthItem}
+              onMomentumScrollEnd={e => {
+                curMonthPage.current = Math.round(e.nativeEvent.contentOffset.x / SW)
+              }}
+              removeClippedSubviews
+              maxToRenderPerBatch={1}
+              windowSize={3}
+            />
+          ) : null}
+        </View>
 
         <View style={[shared.divider, { marginHorizontal: theme.spacing.lg }]} />
       </View>

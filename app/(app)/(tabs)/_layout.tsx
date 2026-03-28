@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import { Animated, Platform, Pressable, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Slot, useRouter } from "expo-router";
@@ -26,6 +27,16 @@ const FAB_OPTIONS = [
 export default function TabsLayout() {
   const [mobileActiveTab, setMobileActiveTab] = useState(0);
   const pagerBlocked = useRef(false);
+
+  // Refresh the events list when returning from host/event screens.
+  // We skip the very first focus (initial mount) since useEvents already
+  // fetches on mount; only subsequent focus events mean "just came back".
+  const [eventsRefreshTick, setEventsRefreshTick] = useState(0);
+  const focusCount = useRef(0);
+  useFocusEffect(useCallback(() => {
+    focusCount.current += 1;
+    if (focusCount.current > 1) setEventsRefreshTick(t => t + 1);
+  }, []));
   const [fabOpen, setFabOpen] = useState(false);
   const fabAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
@@ -85,7 +96,7 @@ export default function TabsLayout() {
     <TabsContext.Provider value={{ goToTab, pagerBlocked, setTabBarHidden }}>
       <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: insets.top }}>
         <Pager page={mobileActiveTab} onPageChange={setMobileActiveTab} pagerBlockedRef={pagerBlocked}>
-          <EventsScreen />
+          <EventsScreen refreshTick={eventsRefreshTick} />
           <ProfileScreen />
         </Pager>
 
