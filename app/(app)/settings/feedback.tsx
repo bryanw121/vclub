@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { Alert, ScrollView, Text, View } from 'react-native'
-import { Stack } from 'expo-router'
+import React, { useState } from 'react'
+import { Alert, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { useStackBackTitle } from '../../../hooks/useStackBackTitle'
 import { supabase } from '../../../lib/supabase'
 import { Button } from '../../../components/Button'
 import { Input } from '../../../components/Input'
@@ -8,11 +8,14 @@ import { shared } from '../../../constants'
 import type { FeedbackKind, FeedbackPriority } from '../../../types'
 
 export default function FeedbackScreen() {
+  useStackBackTitle()
   const [kind, setKind] = useState<FeedbackKind>('feature')
   const [priority, setPriority] = useState<FeedbackPriority>('medium')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
 
   async function submit() {
     try {
@@ -20,6 +23,7 @@ export default function FeedbackScreen() {
       if (!description.trim()) return Alert.alert('Missing info', 'Please add a description.')
 
       setLoading(true)
+      setFeedbackError(null)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not logged in')
 
@@ -36,9 +40,9 @@ export default function FeedbackScreen() {
       setPriority('medium')
       setTitle('')
       setDescription('')
-      Alert.alert('Submitted', 'Thanks for making vclub better!')
+      setFeedbackSubmitted(true)
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      setFeedbackError(e.message)
     } finally {
       setLoading(false)
     }
@@ -46,10 +50,22 @@ export default function FeedbackScreen() {
 
   return (
     <View style={shared.screen}>
-      <Stack.Screen options={{ title: 'Submit feedback' }} />
-      <ScrollView contentContainerStyle={shared.scrollContent}>
+      <Modal visible={feedbackSubmitted} transparent animationType="none" onRequestClose={() => setFeedbackSubmitted(false)}>
+        <TouchableOpacity style={shared.modalOverlay} onPress={() => setFeedbackSubmitted(false)}>
+          <View style={shared.modalCard}>
+            <Text style={shared.modalEmoji}>🏐</Text>
+            <Text style={shared.modalTitle}>Thanks for making vclub better!</Text>
+            <Text style={shared.modalBody}>Your feedback has been saved and the team will review it.</Text>
+            <TouchableOpacity style={shared.modalButton} onPress={() => setFeedbackSubmitted(false)}>
+              <Text style={shared.modalButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <ScrollView contentContainerStyle={shared.scrollContentSubpage}>
         <View style={shared.card}>
-          <Text style={shared.subheading}>Submit a feature request or bug</Text>
+          <Text style={shared.subheading}>Submit feedback</Text>
           <View style={shared.mt_md} />
 
           <Text style={shared.label}>Type</Text>
@@ -63,6 +79,7 @@ export default function FeedbackScreen() {
           />
 
           <View style={shared.mt_md} />
+
           <Text style={shared.label}>Priority</Text>
           <ChoiceRow<FeedbackPriority>
             value={priority}
@@ -75,7 +92,14 @@ export default function FeedbackScreen() {
           />
 
           <View style={shared.mt_md} />
-          <Input label="Title" value={title} onChangeText={setTitle} placeholder="Short summary" />
+
+          <Input
+            label="Title"
+            value={title}
+            onChangeText={setTitle}
+            placeholder="Short summary"
+          />
+
           <Input
             label="Description"
             value={description}
@@ -85,7 +109,14 @@ export default function FeedbackScreen() {
             numberOfLines={6}
           />
 
+          <View style={shared.mt_md} />
+
           <Button label="Submit" onPress={submit} loading={loading} disabled={loading} />
+
+          {feedbackError ? (
+            <Text style={[shared.mt_sm, shared.errorText]}>{feedbackError}</Text>
+          ) : null}
+
           <View style={shared.mt_sm} />
           <Text style={shared.caption}>
             Your submission is saved to the club database so the team can triage it.
@@ -121,4 +152,3 @@ function ChoiceRow<T extends string>({
     </View>
   )
 }
-

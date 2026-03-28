@@ -158,11 +158,14 @@ export default function AppLayout() {
                 gestureEnabled: true,
               }}
             >
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false, headerBackTitle: 'Back' }} />
               <Stack.Screen name="host" options={{ title: 'Host Event', headerBackTitle: 'Events', gestureEnabled: true }} />
-              <Stack.Screen name="settings/index" options={{ title: 'Settings', headerBackTitle: 'Profile', gestureEnabled: true }} />
-              <Stack.Screen name="settings/account" options={{ title: 'Account settings', headerBackTitle: 'Settings', gestureEnabled: true }} />
-              <Stack.Screen name="settings/feedback" options={{ title: 'Submit feedback', headerBackTitle: 'Settings', gestureEnabled: true }} />
+              <Stack.Screen name="settings/index" options={{ title: '', gestureEnabled: true }} />
+              <Stack.Screen name="settings/account" options={{ title: '', gestureEnabled: true }} />
+              <Stack.Screen name="settings/feedback" options={{ title: '', gestureEnabled: true }} />
+              <Stack.Screen name="settings/history" options={{ title: '', gestureEnabled: true }} />
+              <Stack.Screen name="settings/kudos" options={{ title: '', gestureEnabled: true }} />
+              <Stack.Screen name="settings/hosted" options={{ title: '', gestureEnabled: true }} />
               <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
             </Stack>
 
@@ -213,7 +216,7 @@ export default function AppLayout() {
             )}
 
             {/* FAB button */}
-            {!pathname.startsWith('/host') && !pathname.startsWith('/profile') && (
+            {!pathname.startsWith('/host') && !pathname.startsWith('/profile') && !pathname.startsWith('/settings') && (
               <TouchableOpacity
                 onPress={fabOpen ? closeFab : openFab}
                 style={{
@@ -254,11 +257,14 @@ export default function AppLayout() {
         gestureEnabled: true,
       }}
     >
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false, headerBackTitle: 'Back' }} />
       <Stack.Screen name="host" options={{ title: 'Host Event', headerBackTitle: 'Events', gestureEnabled: true }} />
-      <Stack.Screen name="settings/index" options={{ title: 'Settings', headerBackTitle: 'Profile', gestureEnabled: true }} />
-      <Stack.Screen name="settings/account" options={{ title: 'Account settings', headerBackTitle: 'Settings', gestureEnabled: true }} />
-      <Stack.Screen name="settings/feedback" options={{ title: 'Submit feedback', headerBackTitle: 'Settings', gestureEnabled: true }} />
+      <Stack.Screen name="settings/index" options={{ title: '', gestureEnabled: true }} />
+      <Stack.Screen name="settings/account" options={{ title: '', gestureEnabled: true }} />
+      <Stack.Screen name="settings/feedback" options={{ title: '', gestureEnabled: true }} />
+      <Stack.Screen name="settings/history" options={{ title: '', gestureEnabled: true }} />
+      <Stack.Screen name="settings/kudos" options={{ title: '', gestureEnabled: true }} />
+      <Stack.Screen name="settings/hosted" options={{ title: '', gestureEnabled: true }} />
       <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
     </Stack>
   )

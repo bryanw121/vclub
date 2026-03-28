@@ -12,6 +12,12 @@ export const shared = StyleSheet.create({
   row:           { flexDirection: 'row', alignItems: 'center' },
   rowBetween:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   scrollContent: { padding: spacing.lg },
+  /** Stack subpages (settings, etc.): less space under the nav header than full scrollContent. */
+  scrollContentSubpage: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    paddingTop: spacing.xxs,
+  },
 
   // ─── Cards ────────────────────────────────────────────────
   card: {

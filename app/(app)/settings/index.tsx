@@ -1,15 +1,17 @@
+import React from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
-import { Stack, useRouter } from 'expo-router'
+import { useRouter } from 'expo-router'
+import { useStackBackTitle } from '../../../hooks/useStackBackTitle'
 import { Ionicons } from '@expo/vector-icons'
 import { shared, theme } from '../../../constants'
 
 export default function SettingsIndexScreen() {
+  useStackBackTitle()
   const router = useRouter()
 
   return (
     <View style={shared.screen}>
-      <Stack.Screen options={{ title: 'Settings' }} />
-      <ScrollView contentContainerStyle={shared.scrollContent}>
+      <ScrollView contentContainerStyle={shared.scrollContentSubpage}>
         <View style={shared.card}>
           <Row label="Account settings" onPress={() => router.push('/settings/account')} />
           <View style={shared.divider} />
