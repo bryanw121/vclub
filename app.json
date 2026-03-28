@@ -31,7 +31,13 @@
     },
     "plugins": [
       "expo-router",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow vclub to access your photos to set your profile picture."
+        }
+      ]
     ]
   }
 }

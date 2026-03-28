@@ -2,6 +2,14 @@
 // These mirror the Supabase (PostgreSQL) table schemas exactly.
 // Each field name matches the database column name.
 
+/** Allowed tokens in `profiles.position` (`text[]` in Postgres). */
+export type VolleyballPosition =
+  | 'setter'
+  | 'libero'
+  | 'outside_hitter'
+  | 'defensive_specialist'
+  | 'opposite_hitter'
+
 /**
  * `profiles` table
  * Created automatically by a database trigger when a user signs up via Supabase Auth.
@@ -12,7 +20,10 @@ export type Profile = {
   username: string      // Unique, lowercase display name chosen at registration
   first_name: string | null
   last_name: string | null
-  avatar_url: string | null  // Optional profile picture (not yet used in UI)
+  /** Storage object path in `avatars` bucket (private) or legacy `https://…` public URL. */
+  avatar_url: string | null
+  /** Preferred positions (`text[]`); empty array means none chosen. */
+  position: VolleyballPosition[]
   created_at: string    // ISO 8601 — when the account was created
 }
 
