@@ -86,7 +86,6 @@ export default function MyProfile() {
   const [nameError, setNameError] = useState<string | null>(null)
   const [nameSaved, setNameSaved] = useState(false)
 
-  const [usernameDraft, setUsernameDraft] = useState('')
   const [positionDraft, setPositionDraft] = useState<VolleyballPosition[]>([])
   const [profileSaving, setProfileSaving] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
@@ -137,7 +136,6 @@ export default function MyProfile() {
         created_at: row.created_at as string,
       }
       setProfile(normalized)
-      setUsernameDraft(normalized.username)
       setPositionDraft(positions)
       if (normalized.avatar_url) {
         setAvatarUriResolving(true)
@@ -165,7 +163,6 @@ export default function MyProfile() {
 
   function openEditProfile() {
     if (!profile) return
-    setUsernameDraft(profile.username)
     setPositionDraft([...profile.position])
     setSection('edit')
   }
@@ -173,38 +170,19 @@ export default function MyProfile() {
   async function saveProfileEdits() {
     if (!profile) return
     try {
-      const normalized = usernameDraft.toLowerCase().trim()
-      if (!normalized) {
-        Alert.alert('Missing name', 'Display name cannot be empty.')
-        return
-      }
-
       setProfileSaving(true)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not logged in')
 
-      if (normalized !== profile.username) {
-        const { data: taken } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('username', normalized)
-          .neq('id', user.id)
-          .maybeSingle()
-        if (taken) {
-          Alert.alert('Name in use', 'That display name is already taken.')
-          return
-        }
-      }
-
       const { error } = await supabase
         .from('profiles')
-        .update({ username: normalized, position: positionDraft })
+        .update({ position: positionDraft })
         .eq('id', user.id)
       if (error) throw error
 
       setProfile(prev =>
         prev
-          ? { ...prev, username: normalized, position: [...positionDraft] }
+          ? { ...prev, position: [...positionDraft] }
           : prev,
       )
       Alert.alert('Saved', 'Your profile was updated.')
@@ -358,10 +336,7 @@ export default function MyProfile() {
 
   const hostedVisible = pastHostedEvents.slice(0, HISTORY_LIMIT)
   const hostedOverflowCount = Math.max(0, pastHostedEvents.length - HISTORY_LIMIT)
-  const normalizedUsernameDraft = usernameDraft.toLowerCase().trim()
-  const editDirty =
-    normalizedUsernameDraft !== profile.username ||
-    !volleyballPositionsEqualUnordered(profile.position, positionDraft)
+  const editDirty = !volleyballPositionsEqualUnordered(profile.position, positionDraft)
 
   return (
     <View style={shared.screen}>
@@ -445,6 +420,13 @@ export default function MyProfile() {
               ? `${profile.first_name} ${profile.last_name}`
               : profile.username}
           </Text>
+          {profile.first_name && profile.last_name ? (
+            <Text
+              style={[shared.caption, shared.mt_xs, { textAlign: 'center', color: theme.colors.subtext }]}
+            >
+              @{profile.username}
+            </Text>
+          ) : null}
           <Text style={[shared.body, shared.mt_sm, { textAlign: 'center' }]}>
             {positionLabels(profile.position)}
           </Text>
@@ -514,16 +496,6 @@ export default function MyProfile() {
             <Text style={shared.subheading}>Edit profile</Text>
             <View style={shared.mt_md} />
 
-            <Input
-              label="Display name"
-              value={usernameDraft}
-              onChangeText={setUsernameDraft}
-              placeholder="Your name in the club"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <View style={shared.mt_md} />
             <Text style={shared.label}>Preferred positions</Text>
             <Text style={[shared.caption, shared.mt_xs]}>
               Tap any that apply. You can choose more than one.
