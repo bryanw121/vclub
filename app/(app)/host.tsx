@@ -11,11 +11,18 @@ import type { RecurrenceCadence } from '../../constants'
 import { cleanDate } from '../../utils'
 import type { CreateEventForm, Tag, UserEventTemplate } from '../../types'
 
+function roundToNearest5(): Date {
+  const d = new Date()
+  d.setSeconds(0, 0)
+  d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5)
+  return d
+}
+
 const EMPTY_FORM: CreateEventForm = {
   title: '',
   description: '',
   location: '',
-  date: new Date(),
+  date: roundToNearest5(),
   maxAttendees: null,
 }
 
@@ -262,6 +269,39 @@ export default function HostEventScreen() {
             selectedTagIds.map(tagId => ({ event_id: editId, tag_id: tagId }))
           )
           if (tagError) throw tagError
+        }
+
+        // Auto-promote waitlisted users when capacity is expanded
+        if (form.maxAttendees === null) {
+          // Unlimited capacity — promote everyone on the waitlist
+          await supabase
+            .from('event_attendees')
+            .update({ status: 'attending' })
+            .eq('event_id', editId)
+            .eq('status', 'waitlisted')
+        } else {
+          const { data: attendingData } = await supabase
+            .from('event_attendees')
+            .select('user_id')
+            .eq('event_id', editId)
+            .eq('status', 'attending')
+          const newSpots = form.maxAttendees - (attendingData?.length ?? 0)
+          if (newSpots > 0) {
+            const { data: waitlisted } = await supabase
+              .from('event_attendees')
+              .select('user_id')
+              .eq('event_id', editId)
+              .eq('status', 'waitlisted')
+              .order('joined_at', { ascending: true })
+              .limit(newSpots)
+            if (waitlisted && waitlisted.length > 0) {
+              await supabase
+                .from('event_attendees')
+                .update({ status: 'attending' })
+                .eq('event_id', editId)
+                .in('user_id', waitlisted.map(w => w.user_id))
+            }
+          }
         }
 
         setSuccessMessage('Event updated!')

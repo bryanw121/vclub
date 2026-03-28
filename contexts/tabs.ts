@@ -1,7 +1,7 @@
 import { createContext, useContext, MutableRefObject } from "react";
 
 type TabsContextType = {
-  // Call this to programmatically navigate to a tab by index (0=Events, 1=Profile)
+  // Call this to programmatically navigate to a tab by index (0=Events, 1=Clubs, 2=Profile)
   goToTab: (index: number) => void;
   // Pager-controlled tab index (mobile / narrow web); wide web uses router only
   activeTabIndex: number;

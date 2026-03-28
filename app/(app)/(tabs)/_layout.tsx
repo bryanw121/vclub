@@ -8,10 +8,11 @@ import { TabsContext } from "../../../contexts/tabs";
 import { useWebNav } from "../../../contexts/webNav";
 import { theme } from "../../../constants";
 
-// Pager indices: 0=Events, 1=Profile
+// Pager indices: 0=Events, 1=Clubs, 2=Profile
 const MOBILE_NAV_TABS = [
   { name: "Events",  icon: "calendar-outline"     as const, pageIndex: 0 },
-  { name: "Profile", icon: "person-circle-outline" as const, pageIndex: 1 },
+  { name: "Clubs",   icon: "people-outline"        as const, pageIndex: 1 },
+  { name: "Profile", icon: "person-circle-outline" as const, pageIndex: 2 },
 ];
 
 const FAB_OPTIONS = [
@@ -87,6 +88,7 @@ export default function TabsLayout() {
   function handleTabPress(tabIndex: number) {
     if (pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname)) {
       if (tabIndex === 0) router.replace("/" as any);
+      else if (tabIndex === 1) router.replace("/clubs" as any);
       else router.replace("/profile" as any);
     }
     goToTab(tabIndex);

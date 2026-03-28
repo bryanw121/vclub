@@ -3,7 +3,11 @@ import { supabase } from '../lib/supabase'
 import { AVATARS_BUCKET, AVATAR_SIGNED_URL_TTL_SEC } from '../constants/storage'
 
 export function formatEventDate(dateString: string, style: 'short' | 'long' = 'short') {
-  const date = new Date(dateString)
+  // Supabase `timestamp without time zone` returns strings with no timezone suffix
+  // (e.g. "2024-03-28T20:00:00"). JS treats those as local time, not UTC, which
+  // shifts the displayed time by the user's UTC offset. Appending 'Z' forces UTC.
+  const normalized = /[Z+]/.test(dateString) ? dateString : dateString + 'Z'
+  const date = new Date(normalized)
   const options: Intl.DateTimeFormatOptions = {
     weekday: style === 'long' ? 'long' : 'short',
     month: style === 'long' ? 'long' : 'short',

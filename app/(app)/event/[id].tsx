@@ -160,6 +160,7 @@ export default function EventDetail() {
 
   const [event, setEvent] = useState<EventWithDetails | null>(null)
   const [attendees, setAttendees] = useState<Profile[]>([])
+  const [waitlistProfiles, setWaitlistProfiles] = useState<Profile[]>([])
   const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -197,14 +198,18 @@ export default function EventDetail() {
 
       const { data, error } = await supabase
         .from('events')
-        .select(`*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees (event_id, user_id, joined_at, team_number, team_pinned), event_tags (tag_id, tags (id, name, category, display_order))`)
+        .select(`*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees (event_id, user_id, joined_at, team_number, team_pinned, status), event_tags (tag_id, tags (id, name, category, display_order))`)
         .eq('id', id)
         .single()
 
       if (error) throw error
       setEvent(data as EventWithDetails)
 
-      const attendeeIds = data.event_attendees?.map((a: any) => a.user_id) ?? []
+      const attendingEntries = (data.event_attendees ?? []).filter((a: any) => a.status !== 'waitlisted')
+      const waitlistEntries = [...(data.event_attendees ?? []).filter((a: any) => a.status === 'waitlisted')]
+        .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
+
+      const attendeeIds = attendingEntries.map((a: any) => a.user_id)
       if (attendeeIds.length > 0) {
         const { data: profiles, error: profilesError } = await supabase.from('profiles').select('*').in('id', attendeeIds)
         if (profilesError) throw profilesError
@@ -213,10 +218,19 @@ export default function EventDetail() {
         setAttendees([])
       }
 
-      // Initialise team assignments from DB
+      const waitlistIds = waitlistEntries.map((a: any) => a.user_id)
+      if (waitlistIds.length > 0) {
+        const { data: wProfiles } = await supabase.from('profiles').select('*').in('id', waitlistIds)
+        const profileMap = new Map(((wProfiles ?? []) as Profile[]).map(p => [p.id, p]))
+        setWaitlistProfiles(waitlistIds.map(uid => profileMap.get(uid)).filter(Boolean) as Profile[])
+      } else {
+        setWaitlistProfiles([])
+      }
+
+      // Initialise team assignments from DB (attending only)
       const map: Record<string, TeamAssignment> = {}
       let maxTeam = 1
-      for (const a of (data.event_attendees ?? []) as any[]) {
+      for (const a of attendingEntries as any[]) {
         const t = a.team_number ?? null
         map[a.user_id] = { team: t, pinned: a.team_pinned ?? false }
         if (t && t > maxTeam) maxTeam = t
@@ -235,14 +249,17 @@ export default function EventDetail() {
   async function refreshAttendees() {
     const { data: rows, error } = await supabase
       .from('event_attendees')
-      .select('event_id, user_id, joined_at, team_number, team_pinned')
+      .select('event_id, user_id, joined_at, team_number, team_pinned, status')
       .eq('event_id', id)
     if (error) { Alert.alert('Error', error.message); return }
 
-    // Update only the attendees slice of the event object (preserves title, date, etc.)
     setEvent(prev => prev ? { ...prev, event_attendees: rows ?? [] } : prev)
 
-    const attendeeIds = (rows ?? []).map((a: any) => a.user_id)
+    const attendingRows = (rows ?? []).filter((a: any) => a.status !== 'waitlisted')
+    const waitlistRows = [...(rows ?? []).filter((a: any) => a.status === 'waitlisted')]
+      .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
+
+    const attendeeIds = attendingRows.map((a: any) => a.user_id)
     if (attendeeIds.length > 0) {
       const { data: profiles } = await supabase.from('profiles').select('*').in('id', attendeeIds)
       setAttendees((profiles ?? []) as Profile[])
@@ -250,9 +267,18 @@ export default function EventDetail() {
       setAttendees([])
     }
 
+    const waitlistIds = waitlistRows.map((a: any) => a.user_id)
+    if (waitlistIds.length > 0) {
+      const { data: wProfiles } = await supabase.from('profiles').select('*').in('id', waitlistIds)
+      const profileMap = new Map(((wProfiles ?? []) as Profile[]).map(p => [p.id, p]))
+      setWaitlistProfiles(waitlistIds.map(uid => profileMap.get(uid)).filter(Boolean) as Profile[])
+    } else {
+      setWaitlistProfiles([])
+    }
+
     const map: Record<string, TeamAssignment> = {}
     let maxTeam = 1
-    for (const a of (rows ?? []) as any[]) {
+    for (const a of attendingRows as any[]) {
       const t = a.team_number ?? null
       map[a.user_id] = { team: t, pinned: a.team_pinned ?? false }
       if (t && t > maxTeam) maxTeam = t
@@ -277,6 +303,53 @@ export default function EventDetail() {
       Alert.alert('Error', e.message)
     } finally {
       setJoining(false)
+    }
+  }
+
+  async function handleJoinWaitlist() {
+    if (!userId) return
+    try {
+      setJoining(true)
+      const { error } = await supabase.from('event_attendees').insert({ event_id: id, user_id: userId, status: 'waitlisted' })
+      if (error) throw error
+      await refreshAttendees()
+    } catch (e: any) {
+      Alert.alert('Error', e.message)
+    } finally {
+      setJoining(false)
+    }
+  }
+
+  async function handleLeaveWaitlist() {
+    if (!userId) return
+    try {
+      setJoining(true)
+      const { error } = await supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', userId)
+      if (error) throw error
+      await refreshAttendees()
+    } catch (e: any) {
+      Alert.alert('Error', e.message)
+    } finally {
+      setJoining(false)
+    }
+  }
+
+  async function handleApproveFromWaitlist(waitlistUserId: string) {
+    const attendingCount = event?.event_attendees?.filter(a => a.status !== 'waitlisted').length ?? 0
+    if (event?.max_attendees && attendingCount >= event.max_attendees) {
+      Alert.alert('Event full', 'The event is still full. Remove an attendee first or increase the capacity.')
+      return
+    }
+    try {
+      const { error } = await supabase
+        .from('event_attendees')
+        .update({ status: 'attending' })
+        .eq('event_id', id)
+        .eq('user_id', waitlistUserId)
+      if (error) throw error
+      await refreshAttendees()
+    } catch (e: any) {
+      Alert.alert('Error', e.message)
     }
   }
 
@@ -624,12 +697,19 @@ export default function EventDetail() {
       ) : (
         <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
           {(() => {
+            const attendingEntries = event.event_attendees?.filter(a => a.status !== 'waitlisted') ?? []
+            const waitlistEntries = [...(event.event_attendees?.filter(a => a.status === 'waitlisted') ?? [])]
+              .sort((a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
+            const waitlistIdx = waitlistEntries.findIndex(a => a.user_id === userId)
             const status: AttendanceStatus = {
-              count: event.event_attendees?.length ?? 0,
-              spotsLeft: event.max_attendees ? event.max_attendees - (event.event_attendees?.length ?? 0) : null,
-              isFull: event.max_attendees ? (event.event_attendees?.length ?? 0) >= event.max_attendees : false,
-              isAttending: event.event_attendees?.some(a => a.user_id === userId) ?? false,
+              count: attendingEntries.length,
+              spotsLeft: event.max_attendees ? event.max_attendees - attendingEntries.length : null,
+              isFull: event.max_attendees ? attendingEntries.length >= event.max_attendees : false,
+              isAttending: attendingEntries.some(a => a.user_id === userId),
               isOwner: event.created_by === userId,
+              isWaitlisted: waitlistIdx !== -1,
+              waitlistPosition: waitlistIdx !== -1 ? waitlistIdx + 1 : null,
+              waitlistCount: waitlistEntries.length,
             }
 
             return (
@@ -648,15 +728,23 @@ export default function EventDetail() {
                 )}
                 {event.description && <Text style={[shared.body, shared.mb_lg]}>{event.description}</Text>}
 
-                {/* Join / Leave */}
-                {!status.isOwner && (
-                  <View style={shared.mb_lg}>
-                    {status.isAttending
-                      ? <Button label="Leave event" onPress={() => handleToggleAttendance('leave')} loading={joining} variant="secondary" />
-                      : <Button label={status.isFull ? 'Event full' : 'Join event'} onPress={() => handleToggleAttendance('join')} loading={joining} disabled={status.isFull} />
-                    }
-                  </View>
-                )}
+                {/* Join / Leave / Waitlist */}
+                <View style={shared.mb_lg}>
+                  {status.isAttending ? (
+                    <Button label="Leave event" onPress={() => handleToggleAttendance('leave')} loading={joining} variant="secondary" />
+                  ) : status.isWaitlisted ? (
+                    <View style={{ gap: theme.spacing.xs }}>
+                      <Button label="Leave Waitlist" onPress={handleLeaveWaitlist} loading={joining} variant="secondary" />
+                      <Text style={[shared.caption, { textAlign: 'center' }]}>
+                        You are #{status.waitlistPosition} on the waitlist
+                      </Text>
+                    </View>
+                  ) : status.isFull ? (
+                    <Button label="Join Waitlist" onPress={handleJoinWaitlist} loading={joining} />
+                  ) : (
+                    <Button label="Join event" onPress={() => handleToggleAttendance('join')} loading={joining} />
+                  )}
+                </View>
 
                 {/* Host */}
                 <View style={shared.divider} />
@@ -703,20 +791,34 @@ export default function EventDetail() {
                       const a = assignments[profile.id]
                       const teamNum = a?.team ?? null
                       const teamColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : null
+                      const card = (
+                        <DraggablePlayerCard
+                          profile={profile}
+                          teamColor={teamColor}
+                          isPinned={a?.pinned ?? false}
+                          isOwner={status.isOwner}
+                          onDragStart={(x, y) => handleDragStart(profile.id, x, y)}
+                          onDragMove={handleDragMove}
+                          onDragEnd={handleDragEnd}
+                          onRemove={() => handleRemoveAttendee(profile.id, profile.username)}
+                          onTogglePin={() => togglePin(profile.id)}
+                        />
+                      )
+                      if (status.isOwner) {
+                        return (
+                          <View key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>
+                            {card}
+                          </View>
+                        )
+                      }
                       return (
-                        <View key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>
-                          <DraggablePlayerCard
-                            profile={profile}
-                            teamColor={teamColor}
-                            isPinned={a?.pinned ?? false}
-                            isOwner={status.isOwner}
-                            onDragStart={(x, y) => handleDragStart(profile.id, x, y)}
-                            onDragMove={handleDragMove}
-                            onDragEnd={handleDragEnd}
-                            onRemove={() => handleRemoveAttendee(profile.id, profile.username)}
-                            onTogglePin={() => togglePin(profile.id)}
-                          />
-                        </View>
+                        <TouchableOpacity
+                          key={profile.id}
+                          style={[styles.playerCell, isMobileWeb && { width: '50%' }]}
+                          onPress={() => router.push(`/profile/${profile.id}` as any)}
+                        >
+                          {card}
+                        </TouchableOpacity>
                       )
                     }
 
@@ -791,6 +893,42 @@ export default function EventDetail() {
                         <Button label="Save" onPress={saveTeams} loading={savingTeams} />
                       </View>
                     </View>
+                  </>
+                )}
+
+                {/* Waitlist section */}
+                {(status.waitlistCount > 0 || (status.isFull && !status.isAttending && !status.isWaitlisted)) && (
+                  <>
+                    <View style={shared.divider} />
+                    <View style={[shared.rowBetween, shared.mb_sm]}>
+                      <Text style={shared.subheading}>Waitlist</Text>
+                      <Text style={shared.caption}>{status.waitlistCount} waiting</Text>
+                    </View>
+                    {waitlistProfiles.length === 0 ? (
+                      <Text style={shared.caption}>No one on the waitlist yet</Text>
+                    ) : (
+                      <View style={{ gap: theme.spacing.xs }}>
+                        {waitlistProfiles.map((profile, idx) => (
+                          <View key={profile.id} style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }]}>
+                            <Text style={[shared.caption, { minWidth: 20, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }]}>#{idx + 1}</Text>
+                            <Text style={[shared.body, { flex: 1 }]}>{playerDisplayName(profile)}</Text>
+                            {status.isOwner && (
+                              <TouchableOpacity
+                                onPress={() => handleApproveFromWaitlist(profile.id)}
+                                style={{
+                                  paddingVertical: theme.spacing.xs,
+                                  paddingHorizontal: theme.spacing.sm,
+                                  backgroundColor: theme.colors.primary,
+                                  borderRadius: theme.radius.md,
+                                }}
+                              >
+                                <Text style={{ color: theme.colors.white, fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium }}>Approve</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        ))}
+                      </View>
+                    )}
                   </>
                 )}
               </>
