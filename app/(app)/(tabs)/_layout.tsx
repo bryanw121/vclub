@@ -44,6 +44,7 @@ export default function TabsLayout() {
   // Tab bar hide/show animation (mobile web only)
   const tabBarTranslateY = useRef(new Animated.Value(0)).current;
   const tabBarNaturalHeight = useRef(60);
+  const [tabBarHeight, setTabBarHeight] = useState(60);
   const tabBarHiddenRef = useRef(false);
   const setTabBarHidden = useCallback((hidden: boolean) => {
     if (tabBarHiddenRef.current === hidden) return;
@@ -61,7 +62,7 @@ export default function TabsLayout() {
   // ── Web (wide): sidebar in (app)/_layout — let Expo Router render the route ─
   if (Platform.OS === "web" && windowWidth >= 768) {
     return (
-      <TabsContext.Provider value={{ goToTab: webNav.goToTab, pagerBlocked, setTabBarHidden: () => {} }}>
+      <TabsContext.Provider value={{ goToTab: webNav.goToTab, pagerBlocked, setTabBarHidden: () => {}, tabBarHeight: 0 }}>
         <View style={{ flex: 1 }}>
           <Slot />
         </View>
@@ -93,7 +94,7 @@ export default function TabsLayout() {
   const fabBottom = (insets.bottom || theme.spacing.md) + 64;
 
   return (
-    <TabsContext.Provider value={{ goToTab, pagerBlocked, setTabBarHidden }}>
+    <TabsContext.Provider value={{ goToTab, pagerBlocked, setTabBarHidden, tabBarHeight }}>
       <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: insets.top }}>
         <Pager page={mobileActiveTab} onPageChange={setMobileActiveTab} pagerBlockedRef={pagerBlocked}>
           <EventsScreen refreshTick={eventsRefreshTick} />
@@ -172,10 +173,19 @@ export default function TabsLayout() {
           </Animated.View>
         </TouchableOpacity>}
 
-        {/* Bottom tab bar — Events + Profile only */}
+        {/* Bottom tab bar — absolutely positioned so the Pager always fills the
+            full height. When the bar hides via translateY the Pager content
+            becomes fully visible without any layout recalculation. */}
         <Animated.View
-          style={{ transform: [{ translateY: tabBarTranslateY }] }}
-          onLayout={e => { tabBarNaturalHeight.current = e.nativeEvent.layout.height }}
+          style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            transform: [{ translateY: tabBarTranslateY }],
+          }}
+          onLayout={e => {
+            const h = e.nativeEvent.layout.height;
+            tabBarNaturalHeight.current = h;
+            setTabBarHeight(h);
+          }}
         >
           <View style={{
             flexDirection: "row",

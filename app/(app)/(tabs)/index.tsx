@@ -52,7 +52,7 @@ export default function EventsScreen({ refreshTick }: Props) {
   const [curWeekPage, setCurWeekPage] = useState(WEEK_CENTER)
   const [curMonthPage, setCurMonthPage] = useState(MONTH_CENTER)
 
-  const { pagerBlocked, setTabBarHidden } = useTabsContext()
+  const { pagerBlocked, setTabBarHidden, tabBarHeight } = useTabsContext()
 
   const lastScrollY = useRef(0)
   const handleScroll = useCallback((e: any) => {
@@ -154,7 +154,7 @@ export default function EventsScreen({ refreshTick }: Props) {
       <ScrollView
         ref={scrollRef}
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={theme.colors.primary} />}
         onScroll={handleScroll}
         scrollEventThrottle={100}
