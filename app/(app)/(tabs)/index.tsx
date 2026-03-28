@@ -205,11 +205,8 @@ export default function EventsScreen() {
             data={weekData}
             keyExtractor={String}
             getItemLayout={(_, i) => ({ length: SW, offset: SW * i, index: i })}
-            initialScrollIndex={WEEK_CENTER}
+            initialScrollIndex={curWeekPage.current}
             onScrollToIndexFailed={() =>
-              weekFlatRef.current?.scrollToOffset({ offset: WEEK_CENTER * SW, animated: false })
-            }
-            onLayout={() =>
               weekFlatRef.current?.scrollToOffset({ offset: curWeekPage.current * SW, animated: false })
             }
             renderItem={renderWeekItem}
@@ -229,12 +226,9 @@ export default function EventsScreen() {
             data={monthData}
             keyExtractor={String}
             getItemLayout={(_, i) => ({ length: SW, offset: SW * i, index: i })}
-            initialScrollIndex={MONTH_CENTER}
+            initialScrollIndex={curMonthPage.current}
             initialNumToRender={1}
             onScrollToIndexFailed={() =>
-              calFlatRef.current?.scrollToOffset({ offset: MONTH_CENTER * SW, animated: false })
-            }
-            onLayout={() =>
               calFlatRef.current?.scrollToOffset({ offset: curMonthPage.current * SW, animated: false })
             }
             renderItem={renderMonthItem}
