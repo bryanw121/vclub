@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { View, Text } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
+import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
 import { shared } from '../../../../constants'
 import { Profile } from '../../../../types'
 
 export default function UserProfile() {
+  useStackBackTitle()
   const { id } = useLocalSearchParams<{ id: string }>()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)

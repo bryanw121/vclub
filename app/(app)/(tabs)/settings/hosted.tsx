@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { ScrollView, Text, View } from 'react-native'
-import { useStackBackTitle } from '../../../hooks/useStackBackTitle'
-import { supabase } from '../../../lib/supabase'
-import { EventCard } from '../../../components/EventCard'
-import { shared } from '../../../constants'
-import type { EventWithDetails } from '../../../types'
+import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
+import { supabase } from '../../../../lib/supabase'
+import { EventCard } from '../../../../components/EventCard'
+import { shared } from '../../../../constants'
+import type { EventWithDetails } from '../../../../types'
 
 export default function ProfileHostedEventsScreen() {
   useStackBackTitle()

@@ -1,11 +1,11 @@
 import React, { useState } from 'react'
 import { Alert, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native'
-import { useStackBackTitle } from '../../../hooks/useStackBackTitle'
-import { supabase } from '../../../lib/supabase'
-import { Button } from '../../../components/Button'
-import { Input } from '../../../components/Input'
-import { shared } from '../../../constants'
-import type { FeedbackKind, FeedbackPriority } from '../../../types'
+import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
+import { supabase } from '../../../../lib/supabase'
+import { Button } from '../../../../components/Button'
+import { Input } from '../../../../components/Input'
+import { shared } from '../../../../constants'
+import type { FeedbackKind, FeedbackPriority } from '../../../../types'
 
 export default function FeedbackScreen() {
   useStackBackTitle()

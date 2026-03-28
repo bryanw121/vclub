@@ -1,9 +1,9 @@
 import React from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
-import { useStackBackTitle } from '../../../hooks/useStackBackTitle'
+import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { Ionicons } from '@expo/vector-icons'
-import { shared, theme } from '../../../constants'
+import { shared, theme } from '../../../../constants'
 
 export default function SettingsIndexScreen() {
   useStackBackTitle()

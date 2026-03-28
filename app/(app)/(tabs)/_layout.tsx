@@ -1,16 +1,12 @@
-import { useCallback, useRef, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import React, { useCallback, useRef, useState } from "react";
+import { useFocusEffect, Stack, usePathname, useRouter } from "expo-router";
 import { Animated, Platform, Pressable, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Slot, useRouter } from "expo-router";
+import { Slot } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TabsContext } from "../../../contexts/tabs";
 import { useWebNav } from "../../../contexts/webNav";
-import { Pager } from "../../../components/Pager";
 import { theme } from "../../../constants";
-
-import EventsScreen from "./index";
-import ProfileScreen from "./profile/index";
 
 // Pager indices: 0=Events, 1=Profile
 const MOBILE_NAV_TABS = [
@@ -24,24 +20,23 @@ const FAB_OPTIONS = [
   { label: "From Template", path: "/host?mode=templates" },
 ];
 
+const SIDEBAR_BREAKPOINT = 768;
+
 export default function TabsLayout() {
-  const [mobileActiveTab, setMobileActiveTab] = useState(0);
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const [eventsRefreshTick, setEventsRefreshTick] = useState(0);
   const pagerBlocked = useRef(false);
 
-  // Refresh the events list when returning from host/event screens.
-  // We skip the very first focus (initial mount) since useEvents already
-  // fetches on mount; only subsequent focus events mean "just came back".
-  const [eventsRefreshTick, setEventsRefreshTick] = useState(0);
   const focusCount = useRef(0);
   useFocusEffect(useCallback(() => {
     focusCount.current += 1;
     if (focusCount.current > 1) setEventsRefreshTick(t => t + 1);
   }, []));
+
   const [fabOpen, setFabOpen] = useState(false);
   const fabAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
 
-  // Tab bar hide/show animation (mobile web only)
   const tabBarTranslateY = useRef(new Animated.Value(0)).current;
   const tabBarNaturalHeight = useRef(60);
   const [tabBarHeight, setTabBarHeight] = useState(60);
@@ -54,15 +49,23 @@ export default function TabsLayout() {
       duration: 220,
       useNativeDriver: Platform.OS !== 'web',
     }).start();
-  }, []);
+  }, [tabBarTranslateY]);
   const webNav = useWebNav();
   const router = useRouter();
+  const pathname = usePathname();
   const { width: windowWidth } = useWindowDimensions();
 
   // ── Web (wide): sidebar in (app)/_layout — let Expo Router render the route ─
-  if (Platform.OS === "web" && windowWidth >= 768) {
+  if (Platform.OS === "web" && windowWidth >= SIDEBAR_BREAKPOINT) {
     return (
-      <TabsContext.Provider value={{ goToTab: webNav.goToTab, pagerBlocked, setTabBarHidden: () => {}, tabBarHeight: 0 }}>
+      <TabsContext.Provider value={{
+        goToTab: webNav.goToTab,
+        activeTabIndex: 0,
+        eventsRefreshTick,
+        pagerBlocked,
+        setTabBarHidden: () => {},
+        tabBarHeight: 0,
+      }}>
         <View style={{ flex: 1 }}>
           <Slot />
         </View>
@@ -70,20 +73,28 @@ export default function TabsLayout() {
     );
   }
 
-  // ── Mobile: pager + bottom tab bar ───────────────────────────────────────
+  function closeFab() {
+    Animated.timing(fabAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => setFabOpen(false));
+  }
+
   function goToTab(index: number) {
-    setMobileActiveTab(index);
+    setActiveTabIndex(index);
     if (fabOpen) closeFab();
-    setTabBarHidden(false); // always reveal tab bar on tab switch
+    setTabBarHidden(false);
+  }
+
+  /** When a stack screen (settings or another user's profile) is open, switch tabs by resetting the stack to the right home route. */
+  function handleTabPress(tabIndex: number) {
+    if (pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname)) {
+      if (tabIndex === 0) router.replace("/" as any);
+      else router.replace("/profile" as any);
+    }
+    goToTab(tabIndex);
   }
 
   function openFab() {
     setFabOpen(true);
     Animated.spring(fabAnim, { toValue: 1, useNativeDriver: true, tension: 120, friction: 8 }).start();
-  }
-
-  function closeFab() {
-    Animated.timing(fabAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => setFabOpen(false));
   }
 
   function goHost(path: string) {
@@ -92,16 +103,43 @@ export default function TabsLayout() {
   }
 
   const fabBottom = (insets.bottom || theme.spacing.md) + 64;
+  const onSettingsOrUserProfile =
+    pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname);
+  const showFab = activeTabIndex === 0 && !onSettingsOrUserProfile;
 
   return (
-    <TabsContext.Provider value={{ goToTab, pagerBlocked, setTabBarHidden, tabBarHeight }}>
+    <TabsContext.Provider value={{
+      goToTab,
+      activeTabIndex,
+      eventsRefreshTick,
+      pagerBlocked,
+      setTabBarHidden,
+      tabBarHeight,
+    }}>
       <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: insets.top }}>
-        <Pager page={mobileActiveTab} onPageChange={setMobileActiveTab} pagerBlockedRef={pagerBlocked}>
-          <EventsScreen refreshTick={eventsRefreshTick} />
-          <ProfileScreen />
-        </Pager>
+        <Stack
+          screenOptions={({ route }) => {
+            const isMain = route.name === "(main)";
+            return {
+              headerShown: !isMain,
+              title: "",
+              headerTitle: "",
+              headerShadowVisible: false,
+              headerTintColor: theme.colors.primary,
+              headerStyle: { backgroundColor: theme.colors.background },
+              gestureEnabled: true,
+              animation: "slide_from_right",
+              ...(Platform.OS === "ios" && !isMain
+                ? { fullScreenGestureEnabled: true }
+                : {}),
+              contentStyle: {
+                backgroundColor: theme.colors.background,
+                ...(isMain ? {} : { paddingBottom: tabBarHeight }),
+              },
+            };
+          }}
+        />
 
-        {/* FAB popup backdrop */}
         {fabOpen && (
           <Pressable
             style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
@@ -109,7 +147,6 @@ export default function TabsLayout() {
           />
         )}
 
-        {/* FAB popup options */}
         {fabOpen && (
           <Animated.View
             style={{
@@ -148,34 +185,32 @@ export default function TabsLayout() {
           </Animated.View>
         )}
 
-        {/* FAB button — hidden on Profile tab */}
-        {mobileActiveTab !== 1 && <TouchableOpacity
-          onPress={fabOpen ? closeFab : openFab}
-          style={{
-            position: "absolute",
-            bottom: fabBottom,
-            right: theme.spacing.lg,
-            width: 52,
-            height: 52,
-            borderRadius: 26,
-            backgroundColor: theme.colors.primary,
-            alignItems: "center",
-            justifyContent: "center",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.2,
-            shadowRadius: 6,
-            elevation: 6,
-          }}
-        >
-          <Animated.View style={{ transform: [{ rotate: fabAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "45deg"] }) }] }}>
-            <Ionicons name="add" size={28} color={theme.colors.white} />
-          </Animated.View>
-        </TouchableOpacity>}
+        {showFab && (
+          <TouchableOpacity
+            onPress={fabOpen ? closeFab : openFab}
+            style={{
+              position: "absolute",
+              bottom: fabBottom,
+              right: theme.spacing.lg,
+              width: 52,
+              height: 52,
+              borderRadius: 26,
+              backgroundColor: theme.colors.primary,
+              alignItems: "center",
+              justifyContent: "center",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.2,
+              shadowRadius: 6,
+              elevation: 6,
+            }}
+          >
+            <Animated.View style={{ transform: [{ rotate: fabAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "45deg"] }) }] }}>
+              <Ionicons name="add" size={28} color={theme.colors.white} />
+            </Animated.View>
+          </TouchableOpacity>
+        )}
 
-        {/* Bottom tab bar — absolutely positioned so the Pager always fills the
-            full height. When the bar hides via translateY the Pager content
-            becomes fully visible without any layout recalculation. */}
         <Animated.View
           style={{
             position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -196,11 +231,11 @@ export default function TabsLayout() {
             paddingBottom: insets.bottom || theme.spacing.md,
           }}>
             {MOBILE_NAV_TABS.map((tab) => {
-              const active = mobileActiveTab === tab.pageIndex;
+              const active = activeTabIndex === tab.pageIndex;
               return (
                 <TouchableOpacity
                   key={tab.name}
-                  onPress={() => { setMobileActiveTab(tab.pageIndex); setTabBarHidden(false); }}
+                  onPress={() => handleTabPress(tab.pageIndex)}
                   style={{ flex: 1, alignItems: "center", gap: 3 }}
                 >
                   <Ionicons

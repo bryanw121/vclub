@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, ScrollView, Text, View } from 'react-native'
-import { useStackBackTitle } from '../../../hooks/useStackBackTitle'
-import { supabase } from '../../../lib/supabase'
-import { Button } from '../../../components/Button'
-import { Input } from '../../../components/Input'
-import { shared } from '../../../constants'
-import { theme } from '../../../constants/theme'
-import { normalizeVolleyballPositions } from '../../../utils'
-import type { Profile } from '../../../types'
+import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
+import { supabase } from '../../../../lib/supabase'
+import { Button } from '../../../../components/Button'
+import { Input } from '../../../../components/Input'
+import { shared } from '../../../../constants'
+import { theme } from '../../../../constants/theme'
+import { normalizeVolleyballPositions } from '../../../../utils'
+import type { Profile } from '../../../../types'
 
 export default function AccountSettingsScreen() {
   useStackBackTitle()

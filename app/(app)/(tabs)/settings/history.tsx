@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native'
-import { useStackBackTitle } from '../../../hooks/useStackBackTitle'
-import { supabase } from '../../../lib/supabase'
-import { EventCard } from '../../../components/EventCard'
-import { shared } from '../../../constants'
-import { theme } from '../../../constants/theme'
-import type { EventWithDetails } from '../../../types'
+import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
+import { supabase } from '../../../../lib/supabase'
+import { EventCard } from '../../../../components/EventCard'
+import { shared } from '../../../../constants'
+import { theme } from '../../../../constants/theme'
+import type { EventWithDetails } from '../../../../types'
 
 type HistoryFilter = 'hosted' | 'attended'
 const HISTORY_LIMIT = 5

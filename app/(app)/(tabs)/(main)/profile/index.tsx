@@ -13,17 +13,17 @@ import {
 import * as ImagePicker from 'expo-image-picker'
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect, useRouter } from 'expo-router'
-import { supabase } from '../../../../lib/supabase'
-import { Button } from '../../../../components/Button'
-import { Input } from '../../../../components/Input'
-import { shared, theme, AVATARS_BUCKET, AVATAR_MAX_FILE_BYTES } from '../../../../constants'
+import { supabase } from '../../../../../lib/supabase'
+import { Button } from '../../../../../components/Button'
+import { Input } from '../../../../../components/Input'
+import { shared, theme, AVATARS_BUCKET, AVATAR_MAX_FILE_BYTES } from '../../../../../constants'
 import {
   normalizeVolleyballPositions,
   resolveProfileAvatarUriWithError,
   volleyballPositionsEqualUnordered,
-} from '../../../../utils'
-import type { Profile, VolleyballPosition } from '../../../../types'
-import { useTabsContext } from '../../../../contexts/tabs'
+} from '../../../../../utils'
+import type { Profile, VolleyballPosition } from '../../../../../types'
+import { useTabsContext } from '../../../../../contexts/tabs'
 
 type Section = 'menu' | 'edit'
 
@@ -35,7 +35,7 @@ const VOLLEYBALL_POSITION_OPTIONS: { value: VolleyballPosition; label: string }[
   { value: 'opposite_hitter', label: 'Opposite Hitter (OPP)' },
 ]
 
-const AVATAR_SIZE = 120
+const AVATAR_SIZE = 88
 
 function positionLabels(positions: VolleyballPosition[]): string {
   if (positions.length === 0) return 'No positions set'
@@ -47,7 +47,7 @@ function positionLabels(positions: VolleyballPosition[]): string {
 
 export default function MyProfile() {
   const router = useRouter()
-  const { setTabBarHidden } = useTabsContext()
+  const { setTabBarHidden, tabBarHeight } = useTabsContext()
   const lastScrollY = useRef(0)
   const handleScroll = useCallback((e: any) => {
     if (Platform.OS !== 'web') return
@@ -233,7 +233,10 @@ export default function MyProfile() {
   return (
     <View style={shared.screen}>
       <ScrollView
-        contentContainerStyle={shared.scrollContent}
+        contentContainerStyle={[
+          shared.scrollContent,
+          { paddingBottom: tabBarHeight + 32 },
+        ]}
         onScroll={handleScroll}
         scrollEventThrottle={100}
       >
@@ -250,64 +253,66 @@ export default function MyProfile() {
           </View>
         )}
 
-        <View style={[shared.card, { alignItems: 'center' }]}>
-          <Pressable
-            onPress={pickAndUploadAvatar}
-            disabled={avatarUploading}
-            accessibilityRole="button"
-            accessibilityLabel="Change profile picture"
-            style={{
-              width: AVATAR_SIZE,
-              height: AVATAR_SIZE,
-              borderRadius: AVATAR_SIZE / 2,
-              overflow: 'hidden',
-              backgroundColor: theme.colors.border,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderWidth: 2,
-              borderColor: theme.colors.border,
-            }}
-          >
-            {avatarUploading || avatarUriResolving ? (
-              <ActivityIndicator color={theme.colors.primary} />
-            ) : avatarDisplayUri ? (
-              <Image
-                source={{ uri: avatarDisplayUri }}
-                style={{ width: '100%', height: '100%' }}
-                accessibilityIgnoresInvertColors
-              />
-            ) : (
-              <Ionicons name="person" size={48} color={theme.colors.subtext} />
-            )}
-          </Pressable>
-          <Text style={[shared.caption, shared.mt_sm, { textAlign: 'center' }]}>
+        <View style={shared.card}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md }}>
+            <Pressable
+              onPress={pickAndUploadAvatar}
+              disabled={avatarUploading}
+              accessibilityRole="button"
+              accessibilityLabel="Change profile picture"
+              style={{
+                width: AVATAR_SIZE,
+                height: AVATAR_SIZE,
+                borderRadius: AVATAR_SIZE / 2,
+                overflow: 'hidden',
+                backgroundColor: theme.colors.border,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 2,
+                borderColor: theme.colors.border,
+                flexShrink: 0,
+              }}
+            >
+              {avatarUploading || avatarUriResolving ? (
+                <ActivityIndicator color={theme.colors.primary} />
+              ) : avatarDisplayUri ? (
+                <Image
+                  source={{ uri: avatarDisplayUri }}
+                  style={{ width: '100%', height: '100%' }}
+                  accessibilityIgnoresInvertColors
+                />
+              ) : (
+                <Ionicons name="person" size={40} color={theme.colors.subtext} />
+              )}
+            </Pressable>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={shared.heading}>
+                {profile.first_name && profile.last_name
+                  ? `${profile.first_name} ${profile.last_name}`
+                  : profile.username}
+              </Text>
+              {profile.first_name && profile.last_name ? (
+                <Text style={[shared.caption, shared.mt_xs, { color: theme.colors.subtext }]}>
+                  @{profile.username}
+                </Text>
+              ) : null}
+              <Text style={[shared.body, shared.mt_sm]}>
+                {positionLabels(profile.position)}
+              </Text>
+              <Text style={[shared.caption, shared.mt_xs]}>
+                joined {new Date(profile.created_at).toLocaleDateString()}
+              </Text>
+            </View>
+          </View>
+          <Text style={[shared.caption, shared.mt_sm]}>
             Max 3 MB per photo (private storage).{' '}
             {profile.avatar_url ? 'Tap photo to change.' : 'Tap to add a profile photo.'}
           </Text>
           {avatarUriError && profile.avatar_url ? (
-            <Text style={[shared.errorText, shared.mt_xs, { textAlign: 'center' }]}>
+            <Text style={[shared.errorText, shared.mt_xs]}>
               Could not load image (signed URL failed). Fix Storage SELECT policy for the avatars bucket, or see the alert after upload.
             </Text>
           ) : null}
-
-          <Text style={[shared.heading, shared.mt_md, { textAlign: 'center' }]}>
-            {profile.first_name && profile.last_name
-              ? `${profile.first_name} ${profile.last_name}`
-              : profile.username}
-          </Text>
-          {profile.first_name && profile.last_name ? (
-            <Text
-              style={[shared.caption, shared.mt_xs, { textAlign: 'center', color: theme.colors.subtext }]}
-            >
-              @{profile.username}
-            </Text>
-          ) : null}
-          <Text style={[shared.body, shared.mt_sm, { textAlign: 'center' }]}>
-            {positionLabels(profile.position)}
-          </Text>
-          <Text style={[shared.caption, shared.mt_xs]}>
-            joined {new Date(profile.created_at).toLocaleDateString()}
-          </Text>
 
           <View style={{ alignSelf: 'stretch', marginTop: theme.spacing.md }}>
             <Button label="Edit profile" onPress={openEditProfile} variant="primary" />
@@ -410,9 +415,15 @@ function MenuCard({
   return (
     <Pressable
       onPress={onPress}
-      style={[
+      style={({ pressed }) => [
         shared.card,
-        { flex: 1, margin: 0, alignItems: 'flex-start' },
+        {
+          flex: 1,
+          margin: 0,
+          alignItems: 'flex-start',
+          opacity: pressed ? 0.88 : 1,
+          transform: [{ scale: pressed ? 0.98 : 1 }],
+        },
         style,
       ]}
       accessibilityRole="button"

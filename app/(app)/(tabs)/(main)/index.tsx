@@ -2,11 +2,11 @@ import React, { useState, useRef, useMemo, useCallback, memo, useEffect } from '
 import { useFocusEffect } from 'expo-router'
 import { Platform, View, ScrollView, Text, RefreshControl, TouchableOpacity, PanResponder, Animated } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { useEvents } from '../../../hooks/useEvents'
-import { EventCard } from '../../../components/EventCard'
-import { shared, theme } from '../../../constants'
-import { EventWithDetails } from '../../../types'
-import { useTabsContext } from '../../../contexts/tabs'
+import { useEvents } from '../../../../hooks/useEvents'
+import { EventCard } from '../../../../components/EventCard'
+import { shared, theme } from '../../../../constants'
+import { EventWithDetails } from '../../../../types'
+import { useTabsContext } from '../../../../contexts/tabs'
 
 const TODAY = new Date().toISOString().split('T')[0]
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
@@ -32,27 +32,24 @@ function idxForMonth(month: string): number {
 }
 
 type DateSection = { date: string; data: EventWithDetails[] }
-type Props = { refreshTick?: number }
-
-export default function EventsScreen({ refreshTick }: Props) {
+export default function EventsScreen() {
   const { events, loading, error, refetch } = useEvents()
+  const { pagerBlocked, setTabBarHidden, tabBarHeight, eventsRefreshTick } = useTabsContext()
 
   useEffect(() => {
-    if (refreshTick && refreshTick > 0) refetch()
-  }, [refreshTick])
+    if (eventsRefreshTick > 0) refetch()
+  }, [eventsRefreshTick, refetch])
 
   const webFocusCount = useRef(0)
   useFocusEffect(useCallback(() => {
     webFocusCount.current += 1
     if (webFocusCount.current > 1) refetch()
-  }, []))
+  }, [refetch]))
 
   const [selectedDate, setSelectedDate] = useState<string>(TODAY)
   const [mode, setMode] = useState<'week' | 'month'>('week')
   const [curWeekPage, setCurWeekPage] = useState(WEEK_CENTER)
   const [curMonthPage, setCurMonthPage] = useState(MONTH_CENTER)
-
-  const { pagerBlocked, setTabBarHidden, tabBarHeight } = useTabsContext()
 
   const lastScrollY = useRef(0)
   const handleScroll = useCallback((e: any) => {
