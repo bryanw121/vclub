@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { Platform, View, Text, ScrollView, Alert, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
+import { Platform, View, Text, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
 import { GestureDetector, Gesture } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
+import * as Linking from 'expo-linking'
 import { supabase } from '../../../lib/supabase'
 import { Button } from '../../../components/Button'
 import { shared, theme, formatEventDate } from '../../../constants'
@@ -20,10 +21,37 @@ function playerDisplayName(profile: Profile): string {
 }
 
 function playerInitial(profile: Profile): string {
-  return (profile.first_name ?? profile.username).charAt(0).toUpperCase()
+  if (profile.first_name && profile.last_name) {
+    return profile.first_name.charAt(0).toUpperCase() + profile.last_name.charAt(0).toUpperCase()
+  }
+  return profile.username.charAt(0).toUpperCase()
 }
 
 type TeamAssignment = { team: number | null; pinned: boolean }
+
+function ShareMenuItem({ icon, label, onPress, active }: { icon: string; label: string; onPress: () => void; active?: boolean }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <Pressable
+      onPress={onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      style={[
+        styles.shareMenuItem,
+        hovered && { backgroundColor: theme.colors.background },
+      ]}
+    >
+      <Ionicons
+        name={icon as any}
+        size={16}
+        color={active ? theme.colors.success : theme.colors.text}
+      />
+      <Text style={[styles.shareMenuText, active && { color: theme.colors.success }]}>
+        {label}
+      </Text>
+    </Pressable>
+  )
+}
 
 type DraggableCardProps = {
   profile: Profile
@@ -135,6 +163,8 @@ export default function EventDetail() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [shareMenuVisible, setShareMenuVisible] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
 
   const [numTeams, setNumTeams] = useState(2)
   const [assignments, setAssignments] = useState<Record<string, TeamAssignment>>({})
@@ -164,7 +194,7 @@ export default function EventDetail() {
 
       const { data, error } = await supabase
         .from('events')
-        .select(`*, profiles!events_created_by_fkey (id, username, avatar_url), event_attendees (event_id, user_id, joined_at, team_number, team_pinned), event_tags (tag_id, tags (id, name, category, display_order))`)
+        .select(`*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees (event_id, user_id, joined_at, team_number, team_pinned), event_tags (tag_id, tags (id, name, category, display_order))`)
         .eq('id', id)
         .single()
 
@@ -227,6 +257,26 @@ export default function EventDetail() {
         }
       },
     ])
+  }
+
+  async function handleShare() {
+    if (Platform.OS === 'web') {
+      setShareMenuVisible(v => !v)
+      return
+    }
+    const url = Linking.createURL(`/event/${id}`)
+    await Share.share({ message: `Check out "${event?.title ?? 'Event'}" on vclub:\n${url}`, url })
+  }
+
+  async function handleCopyLink() {
+    await (navigator as any).clipboard.writeText(window.location.href)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2000)
+  }
+
+  async function handleWebShare() {
+    await (navigator as any).share({ title: event?.title ?? 'Event', url: window.location.href })
+    setShareMenuVisible(false)
   }
 
   function handleDelete() {
@@ -420,6 +470,11 @@ export default function EventDetail() {
       : ghostY.value - containerOffsetY.value - 28,
   }))
 
+  function goBack() {
+    if (router.canGoBack()) router.back()
+    else router.replace('/(app)/(tabs)')
+  }
+
   const isOwner = event?.created_by === userId
   const hasTeams = isOwner
     ? attendees.length > 0  // owners always see team layout so they can drag
@@ -438,24 +493,29 @@ export default function EventDetail() {
         headerTintColor: theme.colors.primary,
         gestureEnabled: true,
         headerLeft: () => (
-          <TouchableOpacity onPress={() => router.back()} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 8 }}>
+          <TouchableOpacity onPress={goBack} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 8 }}>
             <Ionicons name="chevron-back" size={22} color={theme.colors.primary} />
             <Text style={{ color: theme.colors.primary, fontSize: theme.font.size.md }}>Events</Text>
           </TouchableOpacity>
         ),
-        headerRight: isOwner ? () => (
+        headerRight: () => (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-            <TouchableOpacity onPress={() => router.push(`/host?edit=${id}` as any)} style={{ padding: 8 }} hitSlop={8}>
-              <Ionicons name="create-outline" size={22} color={theme.colors.primary} />
+            <TouchableOpacity onPress={handleShare} style={{ padding: 8 }} hitSlop={8}>
+              <Ionicons name="share-outline" size={22} color={theme.colors.primary} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleDelete} style={{ padding: 8 }} hitSlop={8}>
-              {deleting
-                ? <ActivityIndicator size="small" color={theme.colors.error} />
-                : <Ionicons name="trash-outline" size={22} color={theme.colors.error} />
-              }
-            </TouchableOpacity>
+            {isOwner && (<>
+              <TouchableOpacity onPress={() => router.push(`/host?edit=${id}` as any)} style={{ padding: 8 }} hitSlop={8}>
+                <Ionicons name="create-outline" size={22} color={theme.colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleDelete} style={{ padding: 8 }} hitSlop={8}>
+                {deleting
+                  ? <ActivityIndicator size="small" color={theme.colors.error} />
+                  : <Ionicons name="trash-outline" size={22} color={theme.colors.error} />
+                }
+              </TouchableOpacity>
+            </>)}
           </View>
-        ) : undefined,
+        ),
       }} />
 
       {/* Web-only page header: back + title + delete */}
@@ -467,11 +527,12 @@ export default function EventDetail() {
           paddingVertical: theme.spacing.md,
           borderBottomWidth: 1,
           borderBottomColor: theme.colors.border,
+          zIndex: 10,
           backgroundColor: theme.colors.background,
           gap: theme.spacing.sm,
         }}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={goBack}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: theme.spacing.sm }}
           >
             <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
@@ -480,8 +541,32 @@ export default function EventDetail() {
           <Text style={{ flex: 1, fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }} numberOfLines={1}>
             {event?.title ?? ''}
           </Text>
-          {isOwner && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+            <View>
+              <TouchableOpacity onPress={handleShare} style={{ padding: 4 }} hitSlop={8}>
+                <Ionicons name="share-outline" size={20} color={theme.colors.primary} />
+              </TouchableOpacity>
+              {shareMenuVisible && (
+                <>
+                  <TouchableOpacity
+                    style={{ position: 'fixed' as any, top: 0, left: 0, right: 0, bottom: 0 }}
+                    onPress={() => setShareMenuVisible(false)}
+                  />
+                  <View style={styles.shareMenu}>
+                    {!!(navigator as any).share && (
+                      <ShareMenuItem icon="share-social-outline" label="Share…" onPress={handleWebShare} />
+                    )}
+                    <ShareMenuItem
+                      icon={linkCopied ? 'checkmark' : 'link-outline'}
+                      label={linkCopied ? 'Copied!' : 'Copy link'}
+                      onPress={handleCopyLink}
+                      active={linkCopied}
+                    />
+                  </View>
+                </>
+              )}
+            </View>
+            {isOwner && (<>
               <TouchableOpacity onPress={() => router.push(`/host?edit=${id}` as any)} style={{ padding: 4 }} hitSlop={8}>
                 <Ionicons name="create-outline" size={20} color={theme.colors.primary} />
               </TouchableOpacity>
@@ -491,8 +576,8 @@ export default function EventDetail() {
                   : <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
                 }
               </TouchableOpacity>
-            </View>
-          )}
+            </>)}
+          </View>
         </View>
       )}
 
@@ -545,7 +630,7 @@ export default function EventDetail() {
                 <View style={shared.divider} />
                 <Text style={[shared.subheading, shared.mb_sm]}>Host</Text>
                 <View style={[shared.card, shared.mb_lg]}>
-                  <Text style={shared.body}>{event.profiles?.username}</Text>
+                  <Text style={shared.body}>{event.profiles ? playerDisplayName(event.profiles) : ''}</Text>
                 </View>
 
                 {/* ── Going + Teams (unified) ── */}
@@ -809,8 +894,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarInitial: {
-    fontSize: theme.font.size.md,
-    fontWeight: theme.font.weight.semibold,
+    fontSize: 13,
+    fontWeight: theme.font.weight.bold,
+    letterSpacing: 0.5,
   },
   removeBtn: {
     padding: 4,
@@ -824,5 +910,33 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.xs,
     fontWeight: theme.font.weight.medium,
     marginTop: 1,
+  },
+  shareMenu: {
+    position: 'absolute',
+    top: 32,
+    right: 0,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 100,
+    minWidth: 148,
+    overflow: 'hidden',
+  },
+  shareMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+  },
+  shareMenuText: {
+    fontSize: theme.font.size.md,
+    color: theme.colors.text,
   },
 })
