@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { View, Text, TouchableOpacity, TextInput, Animated, Modal } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
+import * as Linking from 'expo-linking'
 import { supabase } from '../../lib/supabase'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
@@ -66,7 +67,8 @@ export default function Login() {
     setResetError('')
     setResetLoading(true)
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email)
+      const redirectTo = Linking.createURL('/(auth)/reset-password')
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
       if (error) {
         setResetError('Could not send reset email. Check your address and try again.')
       } else {

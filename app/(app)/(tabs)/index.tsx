@@ -1,11 +1,12 @@
 import React, { useState, useRef, useMemo, useCallback, memo, useEffect } from 'react'
-import { View, ScrollView, FlatList, Text, RefreshControl, TouchableOpacity } from 'react-native'
+import { Platform, View, ScrollView, FlatList, Text, RefreshControl, TouchableOpacity } from 'react-native'
 import { Calendar } from 'react-native-calendars'
 import { Ionicons } from '@expo/vector-icons'
 import { useEvents } from '../../../hooks/useEvents'
 import { EventCard } from '../../../components/EventCard'
 import { shared, theme } from '../../../constants'
 import { EventWithDetails } from '../../../types'
+import { useTabsContext } from '../../../contexts/tabs'
 
 const TODAY = new Date().toISOString().split('T')[0]
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
@@ -42,6 +43,23 @@ export default function EventsScreen() {
   // Measured from the actual container — accounts for sidebar width automatically
   const [SW, setSW] = useState(0)
 
+  const { pagerBlocked, setTabBarHidden } = useTabsContext()
+
+  // Scroll direction → hide/show tab bar on mobile web
+  const lastScrollY = useRef(0)
+  const handleScroll = useCallback((e: any) => {
+    if (Platform.OS !== 'web') return
+    const y: number = e.nativeEvent.contentOffset.y
+    const diff = y - lastScrollY.current
+    lastScrollY.current = y
+    if (y <= 60) { setTabBarHidden(false); return }
+    if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
+  }, [setTabBarHidden])
+
+  // Prevent the Pager from claiming swipes that start in the calendar header
+  const blockPager   = useCallback(() => { pagerBlocked.current = true  }, [pagerBlocked])
+  const unblockPager = useCallback(() => { pagerBlocked.current = false }, [pagerBlocked])
+
   const weekFlatRef  = useRef<FlatList>(null)
   const calFlatRef   = useRef<FlatList>(null)
   const scrollRef    = useRef<ScrollView>(null)
@@ -54,11 +72,27 @@ export default function EventsScreen() {
   const curWeekPage  = useRef(WEEK_CENTER)
   const curMonthPage = useRef(MONTH_CENTER)
 
-  // Re-snap to the correct page when the window is resized
+  // Scroll to the correct page after layout — use rAF so the FlatList's
+  // internal ScrollView is guaranteed to exist before we call scrollToOffset.
   useEffect(() => {
-    weekFlatRef.current?.scrollToOffset({ offset: curWeekPage.current * SW, animated: false })
-    calFlatRef.current?.scrollToOffset({ offset: curMonthPage.current * SW, animated: false })
+    if (SW === 0) return
+    const id = requestAnimationFrame(() => {
+      weekFlatRef.current?.scrollToOffset({ offset: curWeekPage.current * SW, animated: false })
+      // Month FlatList may not be mounted yet (mode === 'week'); handled below.
+      calFlatRef.current?.scrollToOffset({ offset: curMonthPage.current * SW, animated: false })
+    })
+    return () => cancelAnimationFrame(id)
   }, [SW])
+
+  // When the user switches to month view the Calendar FlatList mounts fresh at
+  // index 0. Scroll it to the right page immediately after mount.
+  useEffect(() => {
+    if (mode !== 'month' || SW === 0) return
+    const id = requestAnimationFrame(() => {
+      calFlatRef.current?.scrollToOffset({ offset: curMonthPage.current * SW, animated: false })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [mode, SW])
 
   const sections: DateSection[] = useMemo(() => {
     const grouped: Record<string, EventWithDetails[]> = {}
@@ -177,8 +211,12 @@ export default function EventsScreen() {
   return (
     <View style={shared.screen} onLayout={e => setSW(e.nativeEvent.layout.width)}>
 
-      {/* ── Fixed header ── */}
-      <View>
+      {/* ── Fixed header — block Pager while touching calendar ── */}
+      <View
+        onTouchStart={blockPager}
+        onTouchEnd={unblockPager}
+        onTouchCancel={unblockPager}
+      >
         {/* Week / Month toggle */}
         <View style={{ alignItems: 'flex-end', paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.xs }}>
           <View style={{ flexDirection: 'row', borderRadius: theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border }}>
@@ -221,7 +259,7 @@ export default function EventsScreen() {
           <FlatList
             ref={calFlatRef}
             horizontal
-            pagingEnabled={false}
+            pagingEnabled
             showsHorizontalScrollIndicator={false}
             data={monthData}
             keyExtractor={String}
@@ -232,16 +270,8 @@ export default function EventsScreen() {
               calFlatRef.current?.scrollToOffset({ offset: curMonthPage.current * SW, animated: false })
             }
             renderItem={renderMonthItem}
-            // Smooth snapping for quick swipes
-            snapToInterval={SW}
-            snapToAlignment="start"
-            decelerationRate="fast"
             onMomentumScrollEnd={e => {
-              const offset = e.nativeEvent.contentOffset.x
-              const page = Math.round(offset / SW)
-              const clamped = Math.max(0, Math.min(monthData.length - 1, page))
-              // Update current page; layout of the newly visible item will animate height
-              curMonthPage.current = clamped
+              curMonthPage.current = Math.round(e.nativeEvent.contentOffset.x / SW)
             }}
             removeClippedSubviews
             maxToRenderPerBatch={1}
@@ -258,6 +288,8 @@ export default function EventsScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={theme.colors.primary} />}
+        onScroll={handleScroll}
+        scrollEventThrottle={100}
       >
         {sections.length === 0 && !loading ? (
           <Text style={[shared.caption, { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md }]}>

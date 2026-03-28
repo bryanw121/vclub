@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { Platform, View, Text, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
+import { Platform, View, Text, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native'
 import { GestureDetector, Gesture } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
@@ -155,6 +155,8 @@ function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStar
 export default function EventDetail() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
+  const { width: windowWidth } = useWindowDimensions()
+  const isMobileWeb = Platform.OS === 'web' && windowWidth < 768
 
   const [event, setEvent] = useState<EventWithDetails | null>(null)
   const [attendees, setAttendees] = useState<Profile[]>([])
@@ -672,7 +674,7 @@ export default function EventDetail() {
                       const teamNum = a?.team ?? null
                       const teamColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : null
                       return (
-                        <View key={profile.id} style={styles.playerCell}>
+                        <View key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>
                           <DraggablePlayerCard
                             profile={profile}
                             teamColor={teamColor}

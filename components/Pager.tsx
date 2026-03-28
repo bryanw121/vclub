@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { View, Animated, PanResponder, Dimensions } from 'react-native'
 
 type Props = {
@@ -6,20 +6,23 @@ type Props = {
   onPageChange: (index: number) => void
   children: React.ReactNode[]
   swipeEnabled?: boolean
+  pagerBlockedRef?: React.MutableRefObject<boolean>
 }
 
 /**
  * Tab pager driven by the `page` prop (controlled).
- * Pass swipeEnabled={false} to disable gesture-based tab switching
- * (e.g. when the active tab contains a horizontal FlatList that would conflict).
+ * Pass swipeEnabled={false} to disable gesture-based tab switching.
+ * Pass pagerBlockedRef to dynamically block swiping from specific inner areas.
  */
-export function Pager({ page, onPageChange, children, swipeEnabled = true }: Props) {
+export function Pager({ page, onPageChange, children, swipeEnabled = true, pagerBlockedRef }: Props) {
   const width = Dimensions.get('window').width
   const count = (children as React.ReactNode[]).length
   const translateX = useRef(new Animated.Value(-page * width)).current
   const activePage = useRef(page)
   const swipeEnabledRef = useRef(swipeEnabled)
   swipeEnabledRef.current = swipeEnabled
+  const fallbackBlockedRef = useRef(false)
+  const blockedRef = pagerBlockedRef ?? fallbackBlockedRef
 
   useEffect(() => {
     activePage.current = page
@@ -47,6 +50,7 @@ export function Pager({ page, onPageChange, children, swipeEnabled = true }: Pro
     onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_, { dx, dy }) =>
       swipeEnabledRef.current &&
+      !blockedRef.current &&
       Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > 8,
     onPanResponderGrant: () => { translateX.stopAnimation() },
     onPanResponderMove: (_, { dx }) => {

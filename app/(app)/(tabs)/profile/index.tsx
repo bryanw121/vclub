@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentProps } from 'react'
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../../../lib/supabase'
 import { Button } from '../../../../components/Button'
@@ -8,12 +8,24 @@ import { EventCard } from '../../../../components/EventCard'
 import { Input } from '../../../../components/Input'
 import { shared, theme } from '../../../../constants'
 import type { EventWithDetails, FeedbackKind, FeedbackPriority, Profile } from '../../../../types'
+import { useTabsContext } from '../../../../contexts/tabs'
 
 type Section = 'menu' | 'account' | 'feedback' | 'history' | 'kudos' | 'hosted'
 type HistoryFilter = 'hosted' | 'attended'
 const HISTORY_LIMIT = 5
 
 export default function MyProfile() {
+  const { setTabBarHidden } = useTabsContext()
+  const lastScrollY = useRef(0)
+  const handleScroll = useCallback((e: any) => {
+    if (Platform.OS !== 'web') return
+    const y: number = e.nativeEvent.contentOffset.y
+    const diff = y - lastScrollY.current
+    lastScrollY.current = y
+    if (y <= 60) { setTabBarHidden(false); return }
+    if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
+  }, [setTabBarHidden])
+
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [section, setSection] = useState<Section>('menu')
@@ -163,7 +175,7 @@ export default function MyProfile() {
         </TouchableOpacity>
       </Modal>
 
-      <ScrollView contentContainerStyle={shared.scrollContent}>
+      <ScrollView contentContainerStyle={shared.scrollContent} onScroll={handleScroll} scrollEventThrottle={100}>
         <View style={[shared.rowBetween, shared.mb_xs]}>
           <Text style={shared.heading}>
             {profile.first_name && profile.last_name

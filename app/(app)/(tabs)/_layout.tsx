@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Animated, Platform, Pressable, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Slot, useRouter } from "expo-router";
@@ -25,10 +25,24 @@ const FAB_OPTIONS = [
 
 export default function TabsLayout() {
   const [mobileActiveTab, setMobileActiveTab] = useState(0);
-  const [pagerBlocked, setPagerBlocked] = useState(false);
+  const pagerBlocked = useRef(false);
   const [fabOpen, setFabOpen] = useState(false);
   const fabAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
+
+  // Tab bar hide/show animation (mobile web only)
+  const tabBarTranslateY = useRef(new Animated.Value(0)).current;
+  const tabBarNaturalHeight = useRef(60);
+  const tabBarHiddenRef = useRef(false);
+  const setTabBarHidden = useCallback((hidden: boolean) => {
+    if (tabBarHiddenRef.current === hidden) return;
+    tabBarHiddenRef.current = hidden;
+    Animated.timing(tabBarTranslateY, {
+      toValue: hidden ? tabBarNaturalHeight.current : 0,
+      duration: 220,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, []);
   const webNav = useWebNav();
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
@@ -36,7 +50,7 @@ export default function TabsLayout() {
   // ── Web (wide): sidebar in (app)/_layout — let Expo Router render the route ─
   if (Platform.OS === "web" && windowWidth >= 768) {
     return (
-      <TabsContext.Provider value={{ goToTab: webNav.goToTab, pagerBlocked }}>
+      <TabsContext.Provider value={{ goToTab: webNav.goToTab, pagerBlocked, setTabBarHidden: () => {} }}>
         <View style={{ flex: 1 }}>
           <Slot />
         </View>
@@ -48,6 +62,7 @@ export default function TabsLayout() {
   function goToTab(index: number) {
     setMobileActiveTab(index);
     if (fabOpen) closeFab();
+    setTabBarHidden(false); // always reveal tab bar on tab switch
   }
 
   function openFab() {
@@ -67,9 +82,9 @@ export default function TabsLayout() {
   const fabBottom = (insets.bottom || theme.spacing.md) + 64;
 
   return (
-    <TabsContext.Provider value={{ goToTab, pagerBlocked }}>
+    <TabsContext.Provider value={{ goToTab, pagerBlocked, setTabBarHidden }}>
       <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: insets.top }}>
-        <Pager page={mobileActiveTab} onPageChange={setMobileActiveTab} swipeEnabled={mobileActiveTab !== 0}>
+        <Pager page={mobileActiveTab} onPageChange={setMobileActiveTab} pagerBlockedRef={pagerBlocked}>
           <EventsScreen />
           <ProfileScreen />
         </Pager>
@@ -147,38 +162,43 @@ export default function TabsLayout() {
         </TouchableOpacity>}
 
         {/* Bottom tab bar — Events + Profile only */}
-        <View style={{
-          flexDirection: "row",
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.border,
-          backgroundColor: theme.colors.card,
-          paddingTop: theme.spacing.sm,
-          paddingBottom: insets.bottom || theme.spacing.md,
-        }}>
-          {MOBILE_NAV_TABS.map((tab) => {
-            const active = mobileActiveTab === tab.pageIndex;
-            return (
-              <TouchableOpacity
-                key={tab.name}
-                onPress={() => setMobileActiveTab(tab.pageIndex)}
-                style={{ flex: 1, alignItems: "center", gap: 3 }}
-              >
-                <Ionicons
-                  name={tab.icon}
-                  size={24}
-                  color={active ? theme.colors.primary : theme.colors.subtext}
-                />
-                <Text style={{
-                  fontSize: 10,
-                  color: active ? theme.colors.primary : theme.colors.subtext,
-                  fontWeight: active ? theme.font.weight.medium : theme.font.weight.regular,
-                }}>
-                  {tab.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <Animated.View
+          style={{ transform: [{ translateY: tabBarTranslateY }] }}
+          onLayout={e => { tabBarNaturalHeight.current = e.nativeEvent.layout.height }}
+        >
+          <View style={{
+            flexDirection: "row",
+            borderTopWidth: 1,
+            borderTopColor: theme.colors.border,
+            backgroundColor: theme.colors.card,
+            paddingTop: theme.spacing.sm,
+            paddingBottom: insets.bottom || theme.spacing.md,
+          }}>
+            {MOBILE_NAV_TABS.map((tab) => {
+              const active = mobileActiveTab === tab.pageIndex;
+              return (
+                <TouchableOpacity
+                  key={tab.name}
+                  onPress={() => { setMobileActiveTab(tab.pageIndex); setTabBarHidden(false); }}
+                  style={{ flex: 1, alignItems: "center", gap: 3 }}
+                >
+                  <Ionicons
+                    name={tab.icon}
+                    size={24}
+                    color={active ? theme.colors.primary : theme.colors.subtext}
+                  />
+                  <Text style={{
+                    fontSize: 10,
+                    color: active ? theme.colors.primary : theme.colors.subtext,
+                    fontWeight: active ? theme.font.weight.medium : theme.font.weight.regular,
+                  }}>
+                    {tab.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </Animated.View>
       </View>
     </TabsContext.Provider>
   );

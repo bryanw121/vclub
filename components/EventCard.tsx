@@ -36,7 +36,7 @@ function EventCardInner({ event }: { event: EventWithDetails }) {
         </View>
       )}
       <View style={shared.rowBetween}>
-        <Text style={shared.caption}>by {event.profiles?.username ?? 'unknown'}</Text>
+        <Text style={shared.caption}>by {event.profiles ? (event.profiles.first_name ? `${event.profiles.first_name} ${event.profiles.last_name?.[0] ?? ''}`.trim() : event.profiles.username) : 'unknown'}</Text>
         <Text style={shared.caption}>{attendeeCount} going</Text>
       </View>
     </TouchableOpacity>
