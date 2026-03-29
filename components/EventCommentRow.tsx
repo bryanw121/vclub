@@ -1,0 +1,106 @@
+import { useEffect, useState } from 'react'
+import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native'
+import { useRouter } from 'expo-router'
+import { theme, shared } from '../constants'
+import type { EventCommentWithAuthor } from '../types'
+import { resolveProfileAvatarUriWithError, profileDisplayName, profileInitial } from '../utils'
+
+function formatCommentTime(iso: string): string {
+  const normalized = /[Z+]/.test(iso) ? iso : iso + 'Z'
+  const d = new Date(normalized)
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
+type Props = { comment: EventCommentWithAuthor }
+
+export function EventCommentRow({ comment }: Props) {
+  const router = useRouter()
+  const [avatarUri, setAvatarUri] = useState<string | null>(null)
+  const p = comment.profiles
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { uri } = await resolveProfileAvatarUriWithError(p?.avatar_url)
+      if (!cancelled) setAvatarUri(uri)
+    })()
+    return () => { cancelled = true }
+  }, [p?.avatar_url])
+
+  const name = p ? profileDisplayName(p) : 'Member'
+  const initial = p ? profileInitial(p) : '?'
+
+  function goProfile() {
+    router.push(`/profile/${comment.user_id}` as any)
+  }
+
+  return (
+    <View style={styles.row}>
+      <TouchableOpacity onPress={goProfile} style={styles.avatarOuter} accessibilityRole="button" accessibilityLabel={`${name} profile`}>
+        {avatarUri ? (
+          <Image source={{ uri: avatarUri }} style={styles.avatarImg} resizeMode="cover" />
+        ) : (
+          <View style={[styles.avatarImg, styles.avatarFallback]}>
+            <Text style={styles.avatarInitial}>{initial}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+      <View style={styles.content}>
+        <TouchableOpacity onPress={goProfile}>
+          <Text style={styles.name} numberOfLines={1}>{name}</Text>
+        </TouchableOpacity>
+        <Text style={shared.body}>{comment.body}</Text>
+        <Text style={styles.time}>{formatCommentTime(comment.created_at)}</Text>
+      </View>
+    </View>
+  )
+}
+
+const styles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+  },
+  avatarOuter: {},
+  avatarImg: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
+  },
+  avatarFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitial: {
+    fontSize: 13,
+    fontWeight: theme.font.weight.bold,
+    color: theme.colors.subtext,
+    letterSpacing: 0.5,
+  },
+  content: {
+    flex: 1,
+    minWidth: 0,
+  },
+  name: {
+    fontSize: theme.font.size.md,
+    fontWeight: theme.font.weight.semibold,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.xxs,
+  },
+  time: {
+    fontSize: theme.font.size.sm,
+    color: theme.colors.subtext,
+    marginTop: theme.spacing.xs,
+  },
+})

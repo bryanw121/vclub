@@ -7,25 +7,16 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import * as Linking from 'expo-linking'
 import { supabase } from '../../../lib/supabase'
 import { Button } from '../../../components/Button'
+import { Input } from '../../../components/Input'
+import { EventCommentRow } from '../../../components/EventCommentRow'
 import { shared, theme, formatEventDate } from '../../../constants'
-import { EventWithDetails, Profile, AttendanceStatus } from '../../../types'
+import { EventWithDetails, Profile, AttendanceStatus, EventCommentWithAuthor } from '../../../types'
+import { profileDisplayName, profileInitial } from '../../../utils'
 
 const TEAM_COLORS      = ['#6C47FF', '#E85D5D', '#2DA265', '#E07B00', '#1A8FD1', '#9C27B0']
 const TEAM_COLOR_NAMES = ['Purple',  'Red',     'Green',   'Orange',  'Blue',    'Violet']
 
-function playerDisplayName(profile: Profile): string {
-  if (profile.first_name && profile.last_name) {
-    return `${profile.first_name} ${profile.last_name.charAt(0)}.`
-  }
-  return profile.username
-}
-
-function playerInitial(profile: Profile): string {
-  if (profile.first_name && profile.last_name) {
-    return profile.first_name.charAt(0).toUpperCase() + profile.last_name.charAt(0).toUpperCase()
-  }
-  return profile.username.charAt(0).toUpperCase()
-}
+const EVENT_COMMENT_MAX_LEN = 2000
 
 type TeamAssignment = { team: number | null; pinned: boolean }
 
@@ -134,10 +125,10 @@ function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStar
             borderWidth: teamColor ? 2 : 1.5,
           }
         ]}>
-          <Text style={[styles.avatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{playerInitial(profile)}</Text>
+          <Text style={[styles.avatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{profileInitial(profile)}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.playerName} numberOfLines={1}>{playerDisplayName(profile)}</Text>
+          <Text style={styles.playerName} numberOfLines={1}>{profileDisplayName(profile)}</Text>
         </View>
         {isOwner && isPinned && teamColor && (
           <Ionicons name="lock-closed" size={13} color={theme.colors.subtext} />
@@ -169,6 +160,9 @@ export default function EventDetail() {
   const [shareMenuVisible, setShareMenuVisible] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false)
+  const [comments, setComments] = useState<EventCommentWithAuthor[]>([])
+  const [commentDraft, setCommentDraft] = useState('')
+  const [postingComment, setPostingComment] = useState(false)
 
   const [numTeams, setNumTeams] = useState(2)
   const [assignments, setAssignments] = useState<Record<string, TeamAssignment>>({})
@@ -189,7 +183,7 @@ export default function EventDetail() {
   useEffect(() => {
     fetchEvent()
     supabase.auth.getUser().then(({ data: { user } }) => setUserId(user?.id ?? null))
-  }, [])
+  }, [id])
 
   async function fetchEvent() {
     try {
@@ -239,10 +233,60 @@ export default function EventDetail() {
       if (Object.values(map).some(a => a.team !== null)) {
         setNumTeams(Math.max(2, maxTeam))
       }
+
+      const { data: commentRows, error: commentsError } = await supabase
+        .from('event_comments')
+        .select(
+          'id, event_id, body, created_at, user_id, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url)',
+        )
+        .eq('event_id', id)
+        .order('created_at', { ascending: true })
+      if (commentsError) throw commentsError
+      setComments((commentRows ?? []) as unknown as EventCommentWithAuthor[])
     } catch (e: any) {
       setLoadError(e.message ?? 'Failed to load event')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function refreshComments() {
+    const { data, error } = await supabase
+      .from('event_comments')
+      .select(
+        'id, event_id, body, created_at, user_id, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url)',
+      )
+      .eq('event_id', id)
+      .order('created_at', { ascending: true })
+    if (error) {
+      Alert.alert('Error', error.message)
+      return
+    }
+    setComments((data ?? []) as unknown as EventCommentWithAuthor[])
+  }
+
+  async function handlePostComment() {
+    if (!userId) return
+    const body = commentDraft.trim()
+    if (!body) return
+    if (body.length > EVENT_COMMENT_MAX_LEN) {
+      Alert.alert('Comment too long', `Please keep comments under ${EVENT_COMMENT_MAX_LEN} characters.`)
+      return
+    }
+    try {
+      setPostingComment(true)
+      const { error } = await supabase.from('event_comments').insert({
+        event_id: id,
+        user_id: userId,
+        body,
+      })
+      if (error) throw error
+      setCommentDraft('')
+      await refreshComments()
+    } catch (e: any) {
+      Alert.alert('Error', e.message)
+    } finally {
+      setPostingComment(false)
     }
   }
 
@@ -750,7 +794,7 @@ export default function EventDetail() {
                 <View style={shared.divider} />
                 <Text style={[shared.subheading, shared.mb_sm]}>Host</Text>
                 <View style={[shared.card, shared.mb_lg]}>
-                  <Text style={shared.body}>{event.profiles ? playerDisplayName(event.profiles) : ''}</Text>
+                  <Text style={shared.body}>{event.profiles ? profileDisplayName(event.profiles) : ''}</Text>
                 </View>
 
                 {/* ── Going + Teams (unified) ── */}
@@ -911,7 +955,7 @@ export default function EventDetail() {
                         {waitlistProfiles.map((profile, idx) => (
                           <View key={profile.id} style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }]}>
                             <Text style={[shared.caption, { minWidth: 20, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }]}>#{idx + 1}</Text>
-                            <Text style={[shared.body, { flex: 1 }]}>{playerDisplayName(profile)}</Text>
+                            <Text style={[shared.body, { flex: 1 }]}>{profileDisplayName(profile)}</Text>
                             {status.isOwner && (
                               <TouchableOpacity
                                 onPress={() => handleApproveFromWaitlist(profile.id)}
@@ -930,6 +974,38 @@ export default function EventDetail() {
                       </View>
                     )}
                   </>
+                )}
+
+                <View style={shared.divider} />
+                <Text style={[shared.subheading, shared.mb_sm]}>Discussion</Text>
+                {comments.length === 0 ? (
+                  <Text style={[shared.caption, shared.mb_md]}>No messages yet. Be the first to comment.</Text>
+                ) : (
+                  <View style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.lg }}>
+                    {comments.map(c => (
+                      <EventCommentRow key={c.id} comment={c} />
+                    ))}
+                  </View>
+                )}
+                {userId ? (
+                  <View style={{ gap: theme.spacing.sm, marginBottom: theme.spacing.lg }}>
+                    <Input
+                      label="Add a comment"
+                      value={commentDraft}
+                      onChangeText={setCommentDraft}
+                      placeholder="Write a message…"
+                      multiline
+                      numberOfLines={3}
+                    />
+                    <Button
+                      label="Post"
+                      onPress={handlePostComment}
+                      loading={postingComment}
+                      disabled={!commentDraft.trim()}
+                    />
+                  </View>
+                ) : (
+                  <Text style={[shared.caption, shared.mb_lg]}>Sign in to join the discussion.</Text>
                 )}
               </>
             )
@@ -982,9 +1058,9 @@ export default function EventDetail() {
               backgroundColor: teamColor ? teamColor + '18' : theme.colors.card,
               borderWidth: teamColor ? 2 : 1.5,
             }]}>
-              <Text style={[styles.avatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{playerInitial(profile)}</Text>
+              <Text style={[styles.avatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{profileInitial(profile)}</Text>
             </View>
-            <Text style={[styles.playerName, { flex: 1 }]} numberOfLines={1}>{playerDisplayName(profile)}</Text>
+            <Text style={[styles.playerName, { flex: 1 }]} numberOfLines={1}>{profileDisplayName(profile)}</Text>
           </Animated.View>
         )
       })()}

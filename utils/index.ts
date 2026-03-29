@@ -1,4 +1,4 @@
-import type { VolleyballPosition } from '../types'
+import type { Profile, VolleyballPosition } from '../types'
 import { supabase } from '../lib/supabase'
 import { AVATARS_BUCKET, AVATAR_SIGNED_URL_TTL_SEC } from '../constants/storage'
 
@@ -17,6 +17,21 @@ export function formatEventDate(dateString: string, style: 'short' | 'long' = 's
     hour12: true,
   }
   return date.toLocaleString('en-US', options)
+}
+
+/** Display name for lists and comments (matches event detail / attendee cards). */
+export function profileDisplayName(profile: Pick<Profile, 'username' | 'first_name' | 'last_name'>): string {
+  if (profile.first_name && profile.last_name) {
+    return `${profile.first_name} ${profile.last_name.charAt(0)}.`
+  }
+  return profile.username
+}
+
+export function profileInitial(profile: Pick<Profile, 'username' | 'first_name' | 'last_name'>): string {
+  if (profile.first_name && profile.last_name) {
+    return profile.first_name.charAt(0).toUpperCase() + profile.last_name.charAt(0).toUpperCase()
+  }
+  return profile.username.charAt(0).toUpperCase()
 }
 
 export function cleanDate(d: Date) {

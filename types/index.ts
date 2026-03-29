@@ -58,6 +58,23 @@ export type EventAttendee = {
 }
 
 /**
+ * `event_comments` table
+ * Discussion thread on an event; one row per message.
+ */
+export type EventComment = {
+  id: string
+  event_id: string
+  user_id: string
+  body: string
+  created_at: string
+}
+
+/** Comment row from Supabase with joined author profile (`profiles` null if author row missing). */
+export type EventCommentWithAuthor = EventComment & {
+  profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url'> | null
+}
+
+/**
  * `feedback_submissions` table
  * Stores feature requests and bug reports submitted by users.
  */
