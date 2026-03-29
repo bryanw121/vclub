@@ -77,16 +77,18 @@ export default function MyProfile() {
   )
 
   async function fetchProfile() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
+    // Local session only — avoids a second round-trip to Auth (getUser hits the server).
+    const { data: { session } } = await supabase.auth.getSession()
+    const userId = session?.user?.id
+    if (!userId) {
       setLoading(false)
       return
     }
 
     const profileRes = await supabase
       .from('profiles')
-      .select('*')
-      .eq('id', user.id)
+      .select('id, username, first_name, last_name, avatar_url, position, created_at')
+      .eq('id', userId)
       .single()
 
     if (!profileRes.error) {
@@ -133,13 +135,14 @@ export default function MyProfile() {
     if (!profile) return
     try {
       setProfileSaving(true)
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not logged in')
+      const { data: { session } } = await supabase.auth.getSession()
+      const userId = session?.user?.id
+      if (!userId) throw new Error('Not logged in')
 
       const { error } = await supabase
         .from('profiles')
         .update({ position: positionDraft })
-        .eq('id', user.id)
+        .eq('id', userId)
       if (error) throw error
 
       setProfile(prev =>
@@ -184,12 +187,13 @@ export default function MyProfile() {
         return
       }
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not logged in')
+      const { data: { session } } = await supabase.auth.getSession()
+      const userId = session?.user?.id
+      if (!userId) throw new Error('Not logged in')
 
       setAvatarUploading(true)
       const ext = asset.mimeType?.includes('png') ? 'png' : 'jpg'
-      const path = `${user.id}/avatar.${ext}`
+      const path = `${userId}/avatar.${ext}`
       const contentType = asset.mimeType ?? (ext === 'png' ? 'image/png' : 'image/jpeg')
 
       const response = await fetch(asset.uri)
@@ -210,7 +214,7 @@ export default function MyProfile() {
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ avatar_url: path })
-        .eq('id', user.id)
+        .eq('id', userId)
       if (profileError) throw profileError
 
       setProfile(prev => (prev ? { ...prev, avatar_url: path } : prev))
@@ -236,14 +240,15 @@ export default function MyProfile() {
     if (!profile?.avatar_url) return
     try {
       setAvatarUploading(true)
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not logged in')
+      const { data: { session } } = await supabase.auth.getSession()
+      const userId = session?.user?.id
+      if (!userId) throw new Error('Not logged in')
 
       if (!/^https?:\/\//i.test(profile.avatar_url)) {
         await supabase.storage.from(AVATARS_BUCKET).remove([profile.avatar_url])
       }
 
-      const { error } = await supabase.from('profiles').update({ avatar_url: null }).eq('id', user.id)
+      const { error } = await supabase.from('profiles').update({ avatar_url: null }).eq('id', userId)
       if (error) throw error
 
       setProfile(prev => prev ? { ...prev, avatar_url: null } : prev)

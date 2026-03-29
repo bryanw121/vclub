@@ -30,7 +30,7 @@ export default function ProfileHistoryScreen() {
     const now = new Date().toISOString()
     const { data, error } = await supabase
       .from('events')
-      .select(`*, profiles!events_created_by_fkey (id, username, avatar_url), event_attendees (event_id, user_id, joined_at)`)
+      .select(`*, profiles!events_created_by_fkey (id, username, avatar_url), event_attendees(count)`)
       .eq('created_by', user.id)
       .lt('event_date', now)
       .order('event_date', { ascending: false })

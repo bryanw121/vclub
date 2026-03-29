@@ -11,7 +11,7 @@ import { Input } from '../../../components/Input'
 import { EventCommentRow } from '../../../components/EventCommentRow'
 import { shared, theme, formatEventDate } from '../../../constants'
 import { EventWithDetails, Profile, AttendanceStatus, EventCommentWithAuthor } from '../../../types'
-import { profileDisplayName, profileInitial } from '../../../utils'
+import { profileDisplayName, profileInitial, eventAttendeeRows } from '../../../utils'
 
 const TEAM_COLORS      = ['#6C47FF', '#E85D5D', '#2DA265', '#E07B00', '#1A8FD1', '#9C27B0']
 const TEAM_COLOR_NAMES = ['Purple',  'Red',     'Green',   'Orange',  'Blue',    'Violet']
@@ -199,8 +199,9 @@ export default function EventDetail() {
       if (error) throw error
       setEvent(data as EventWithDetails)
 
-      const attendingEntries = (data.event_attendees ?? []).filter((a: any) => a.status !== 'waitlisted')
-      const waitlistEntries = [...(data.event_attendees ?? []).filter((a: any) => a.status === 'waitlisted')]
+      const attendeeRows = eventAttendeeRows({ event_attendees: data.event_attendees })
+      const attendingEntries = attendeeRows.filter((a: any) => a.status !== 'waitlisted')
+      const waitlistEntries = [...attendeeRows.filter((a: any) => a.status === 'waitlisted')]
         .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
 
       const attendeeIds = attendingEntries.map((a: any) => a.user_id)
@@ -379,7 +380,7 @@ export default function EventDetail() {
   }
 
   async function handleApproveFromWaitlist(waitlistUserId: string) {
-    const attendingCount = event?.event_attendees?.filter(a => a.status !== 'waitlisted').length ?? 0
+    const attendingCount = eventAttendeeRows(event ?? { event_attendees: [] }).filter(a => a.status !== 'waitlisted').length
     if (event?.max_attendees && attendingCount >= event.max_attendees) {
       Alert.alert('Event full', 'The event is still full. Remove an attendee first or increase the capacity.')
       return
@@ -741,8 +742,9 @@ export default function EventDetail() {
       ) : (
         <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
           {(() => {
-            const attendingEntries = event.event_attendees?.filter(a => a.status !== 'waitlisted') ?? []
-            const waitlistEntries = [...(event.event_attendees?.filter(a => a.status === 'waitlisted') ?? [])]
+            const attendeeRows = eventAttendeeRows(event)
+            const attendingEntries = attendeeRows.filter(a => a.status !== 'waitlisted')
+            const waitlistEntries = [...attendeeRows.filter(a => a.status === 'waitlisted')]
               .sort((a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
             const waitlistIdx = waitlistEntries.findIndex(a => a.user_id === userId)
             const status: AttendanceStatus = {

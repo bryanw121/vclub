@@ -1,6 +1,6 @@
 export { theme } from './theme'
 export { AVATARS_BUCKET, AVATAR_MAX_FILE_BYTES, AVATAR_SIGNED_URL_TTL_SEC } from './storage'
 export { shared } from './styles'
-export { formatEventDate } from '../utils'
+export { formatEventDate, eventAttendeeDisplayCount } from '../utils'
 export { LOCATIONS, EVENT_TEMPLATES, DAY_LABELS_SHORT } from './events'
 export type { VenueLocation, EventTemplate, RecurrenceCadence } from './events'

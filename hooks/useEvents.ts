@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { startOfToday } from '../utils'
 import { EventWithDetails } from '../types'
@@ -8,15 +8,13 @@ export function useEvents() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => { fetchEvents() }, [])
-
-  async function fetchEvents() {
+  const fetchEvents = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
       const { data, error } = await supabase
         .from('events')
-        .select(`*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees (event_id, user_id, joined_at), event_tags (tag_id, tags (id, name, category, display_order))`)
+        .select(`*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees(count), event_tags (tag_id, tags (id, name, category, display_order))`)
         .gte('event_date', startOfToday())
         .order('event_date', { ascending: true })
       if (error) throw error
@@ -26,7 +24,11 @@ export function useEvents() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    void fetchEvents()
+  }, [fetchEvents])
 
   return { events, loading, error, refetch: fetchEvents }
 }

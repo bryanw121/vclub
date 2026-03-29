@@ -1,4 +1,4 @@
-import type { Profile, VolleyballPosition } from '../types'
+import type { Profile, VolleyballPosition, EventAttendee, EventAttendeeCountEmbed } from '../types'
 import { supabase } from '../lib/supabase'
 import { AVATARS_BUCKET, AVATAR_SIGNED_URL_TTL_SEC } from '../constants/storage'
 
@@ -44,6 +44,31 @@ export function startOfToday() {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
   return d.toISOString()
+}
+
+type EventAttendeesRelation = readonly (EventAttendee | EventAttendeeCountEmbed)[] | null | undefined
+
+function isEventAttendeeCountEmbedRow(row: EventAttendee | EventAttendeeCountEmbed): row is EventAttendeeCountEmbed {
+  return 'count' in row && !('user_id' in row)
+}
+
+/** Full attendee rows when the query embedded row data; empty when the relation is `event_attendees(count)` only. */
+export function eventAttendeeRows(event: { event_attendees?: EventAttendeesRelation }): EventAttendee[] {
+  const ea = event.event_attendees
+  if (!ea || ea.length === 0) return []
+  if (isEventAttendeeCountEmbedRow(ea[0])) return []
+  return ea as EventAttendee[]
+}
+
+/**
+ * Count for EventCard / capacity: aggregate total from list queries, or attending-only (excludes waitlist)
+ * when full `event_attendees` rows are present.
+ */
+export function eventAttendeeDisplayCount(event: { event_attendees?: EventAttendeesRelation }): number {
+  const ea = event.event_attendees
+  if (!ea || ea.length === 0) return 0
+  if (isEventAttendeeCountEmbedRow(ea[0])) return Math.max(0, Number(ea[0].count))
+  return (ea as EventAttendee[]).filter(a => a.status !== 'waitlisted').length
 }
 
 const VOLLEYBALL_POSITION_ALLOWED = new Set<string>([

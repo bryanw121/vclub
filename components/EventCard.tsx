@@ -1,12 +1,12 @@
 import React, { memo } from 'react'
 import { TouchableOpacity, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
-import { shared, formatEventDate } from '../constants'
+import { shared, formatEventDate, eventAttendeeDisplayCount } from '../constants'
 import { EventWithDetails } from '../types'
 
 function EventCardInner({ event }: { event: EventWithDetails }) {
   const router = useRouter()
-  const attendeeCount = event.event_attendees?.length ?? 0
+  const attendeeCount = eventAttendeeDisplayCount(event)
   const spotsLeft = event.max_attendees ? event.max_attendees - attendeeCount : null
   const isFull = spotsLeft === 0
   const tags = event.event_tags?.map(et => et.tags).sort((a, b) => a.display_order - b.display_order) ?? []

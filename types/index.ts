@@ -57,6 +57,9 @@ export type EventAttendee = {
   status: 'attending' | 'waitlisted'
 }
 
+/** Row shape from PostgREST embed `event_attendees(count)` (list/card queries). */
+export type EventAttendeeCountEmbed = { count: number }
+
 /**
  * `event_comments` table
  * Discussion thread on an event; one row per message.
@@ -96,21 +99,16 @@ export type FeedbackPriority = 'low' | 'medium' | 'high'
 // The field names are determined by the Supabase query syntax, not renamed here.
 
 /**
- * An event with its creator profile and full attendee list pre-fetched.
+ * An event with its creator profile and attendee data pre-fetched.
  *
- * Returned by:
- *   supabase.from('events').select(`
- *     *,
- *     profiles!events_created_by_fkey (id, username, avatar_url),
- *     event_attendees (event_id, user_id, joined_at)
- *   `)
+ * List/feed queries use `event_attendees(count)` so `event_attendees` is a one-element
+ * aggregate (total RSVP rows, same as the old embedded row list length).
  *
- * - `profiles` is singular because every event has exactly one creator
- * - `event_attendees` is an array because an event can have many attendees
+ * Event detail uses full rows: `event_attendees (event_id, user_id, …)`.
  */
 export type EventWithDetails = Event & {
   profiles: Profile
-  event_attendees: EventAttendee[]
+  event_attendees: EventAttendee[] | EventAttendeeCountEmbed[]
   event_tags?: { tag_id: string; tags: Tag }[]
 }
 
