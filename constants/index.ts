@@ -1,5 +1,5 @@
 export { theme } from './theme'
-export { AVATARS_BUCKET, AVATAR_MAX_FILE_BYTES, AVATAR_SIGNED_URL_TTL_SEC } from './storage'
+export { AVATARS_BUCKET, CLUB_AVATARS_BUCKET, AVATAR_MAX_FILE_BYTES, AVATAR_SIGNED_URL_TTL_SEC } from './storage'
 export { shared } from './styles'
 export { formatEventDate, eventAttendeeDisplayCount } from '../utils'
 export { LOCATIONS, EVENT_TEMPLATES, DAY_LABELS_SHORT } from './events'

@@ -25,6 +25,7 @@ export type Profile = {
   /** Preferred positions (`text[]`); empty array means none chosen. */
   position: VolleyballPosition[]
   created_at: string    // ISO 8601 — when the account was created
+  is_admin?: boolean  // default false; only true for club/platform admins
 }
 
 /**
@@ -40,6 +41,7 @@ export type Event = {
   event_date: string           // ISO 8601 — when the event takes place
   max_attendees: number | null // Optional capacity cap; null means unlimited
   created_at: string           // ISO 8601 — when this row was inserted
+  club_id: string | null       // Optional FK → clubs.id
 }
 
 /**
@@ -126,6 +128,7 @@ export type EventWithDetails = Event & {
   profiles: Profile
   event_attendees: EventAttendee[] | EventAttendeeCountEmbed[]
   event_tags?: { tag_id: string; tags: Tag }[]
+  clubs?: { id: string; name: string; avatar_url: string | null } | null
 }
 
 // ─── Form Types ───────────────────────────────────────────────────────────────
@@ -166,6 +169,45 @@ export type UserEventTemplate = {
   location: string | null
   max_attendees: number | null
   created_at: string
+}
+
+// ─── Club Types ───────────────────────────────────────────────────────────────
+
+export type MembershipType = 'open' | 'invite'
+
+/**
+ * `clubs` table
+ * A volleyball club with members and associated events.
+ */
+export type Club = {
+  id: string
+  name: string
+  description: string | null
+  membership_type: MembershipType
+  created_by: string
+  avatar_url: string | null
+  created_at: string
+}
+
+/**
+ * `club_members` join table
+ * One row per (club, user) pair. Role is 'owner' for the creator and 'member' for others.
+ */
+export type ClubMember = {
+  club_id: string
+  user_id: string
+  role: 'owner' | 'member'
+  joined_at: string
+}
+
+/**
+ * Club with its full member list (each member includes a partial profile embed).
+ * Returned by queries that join club_members → profiles.
+ */
+export type ClubWithDetails = Club & {
+  club_members: (ClubMember & {
+    profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url'>
+  })[]
 }
 
 // ─── Derived / Computed Types ─────────────────────────────────────────────────

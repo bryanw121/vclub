@@ -1,7 +1,8 @@
 import React, { memo } from 'react'
 import { TouchableOpacity, Text, View } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { shared, formatEventDate, eventAttendeeDisplayCount } from '../constants'
+import { shared, theme, formatEventDate, eventAttendeeDisplayCount } from '../constants'
 import { EventWithDetails } from '../types'
 
 function EventCardInner({ event }: { event: EventWithDetails }) {
@@ -34,6 +35,26 @@ function EventCardInner({ event }: { event: EventWithDetails }) {
               <Text style={shared.tagText}>{tag.name}</Text>
             </View>
           ))}
+        </View>
+      )}
+      {event.clubs && (
+        <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
+            paddingHorizontal: theme.spacing.sm,
+            paddingVertical: 2,
+            borderRadius: theme.radius.full,
+            backgroundColor: theme.colors.primary + '18',
+            borderWidth: 1,
+            borderColor: theme.colors.primary + '40',
+          }}>
+            <Ionicons name="people-outline" size={11} color={theme.colors.primary} />
+            <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.medium, color: theme.colors.primary }}>
+              {event.clubs.name}
+            </Text>
+          </View>
         </View>
       )}
       <View style={shared.rowBetween}>

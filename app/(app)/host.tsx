@@ -121,6 +121,10 @@ export default function HostEventScreen() {
   const [availableTags, setAvailableTags] = useState<Tag[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
 
+  // Club
+  const [ownedClubs, setOwnedClubs] = useState<{ id: string; name: string }[]>([])
+  const [selectedClubId, setSelectedClubId] = useState<string | null>(null)
+
   // Edit loading
   const [editLoading, setEditLoading] = useState(isEdit)
 
@@ -139,6 +143,20 @@ export default function HostEventScreen() {
 
     if (editId) loadEventForEdit(editId)
   }, [])
+
+  useEffect(() => {
+    if (!userId) return
+    supabase
+      .from('club_members')
+      .select('club_id, clubs (id, name)')
+      .eq('user_id', userId)
+      .eq('role', 'owner')
+      .then(({ data }) => {
+        setOwnedClubs(
+          ((data ?? []) as any[]).map((m: any) => m.clubs).filter(Boolean)
+        )
+      })
+  }, [userId])
 
   async function loadEventForEdit(id: string) {
     try {
@@ -163,6 +181,7 @@ export default function HostEventScreen() {
         setLocationId('other')
       }
       setSelectedTagIds((data.event_tags ?? []).map((et: any) => et.tag_id))
+      setSelectedClubId(data.club_id ?? null)
     } finally {
       setEditLoading(false)
     }
@@ -264,6 +283,7 @@ export default function HostEventScreen() {
             location: form.location || null,
             event_date: cleanDate(form.date),
             max_attendees: form.maxAttendees,
+            club_id: selectedClubId,
           })
           .eq('id', editId)
         if (error) throw error
@@ -328,6 +348,7 @@ export default function HostEventScreen() {
           event_date: cleanDate(d),
           max_attendees: form.maxAttendees,
           created_by: user.id,
+          club_id: selectedClubId,
         }))
 
         const { data: insertedEvents, error } = await supabase.from('events').insert(rows).select('id')
@@ -360,6 +381,7 @@ export default function HostEventScreen() {
         setSaveAsTemplate(false)
         setTemplateName('')
         setSelectedTagIds([])
+        setSelectedClubId(null)
       }
     } catch (e: any) {
       setSuccessMessage(e.message)
@@ -609,6 +631,36 @@ export default function HostEventScreen() {
             </View>
           ))
         })()}
+
+        {/* ── Club (optional) — only shown if user owns clubs ── */}
+        {ownedClubs.length > 0 && (
+          <View style={shared.inputContainer}>
+            <Text style={shared.label}>Club (optional)</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
+              {ownedClubs.map(club => {
+                const active = selectedClubId === club.id
+                return (
+                  <TouchableOpacity
+                    key={club.id}
+                    onPress={() => setSelectedClubId(active ? null : club.id)}
+                    style={{
+                      paddingHorizontal: theme.spacing.md,
+                      paddingVertical: theme.spacing.xs,
+                      borderRadius: theme.radius.full,
+                      borderWidth: 1.5,
+                      borderColor: active ? theme.colors.primary : theme.colors.border,
+                      backgroundColor: active ? theme.colors.primary + '18' : 'transparent',
+                    }}
+                  >
+                    <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: active ? theme.colors.primary : theme.colors.subtext }}>
+                      {club.name}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+          </View>
+        )}
 
         {/* ── Save as Template — hidden in edit mode ── */}
         {!isEdit && (

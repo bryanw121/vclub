@@ -18,7 +18,7 @@ export function useEvents() {
       setError(null)
       const { data, error } = await supabase
         .from('events')
-        .select(`*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees(count), event_tags (tag_id, tags (id, name, category, display_order))`)
+        .select(`*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees(count), event_tags (tag_id, tags (id, name, category, display_order)), clubs (id, name, avatar_url)`)
         .gte('event_date', startOfToday())
         .order('event_date', { ascending: true })
       if (error) throw error
