@@ -3,7 +3,7 @@ import { ActivityIndicator, ScrollView, Text, View } from 'react-native'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
 import { EventCard } from '../../../../components/EventCard'
-import { shared, theme } from '../../../../constants'
+import { shared, theme, EVENT_CARD_LIST_SELECT_MINIMAL } from '../../../../constants'
 import type { EventWithDetails } from '../../../../types'
 
 export default function ProfileHostedEventsScreen() {
@@ -24,12 +24,12 @@ export default function ProfileHostedEventsScreen() {
     const now = new Date().toISOString()
     const { data, error } = await supabase
       .from('events')
-      .select(`*, profiles!events_created_by_fkey (id, username, avatar_url), event_attendees(count)`)
+      .select(EVENT_CARD_LIST_SELECT_MINIMAL)
       .eq('created_by', user.id)
       .gte('event_date', now)
       .order('event_date', { ascending: true })
 
-    if (!error) setEvents((data ?? []) as EventWithDetails[])
+    if (!error) setEvents((data ?? []) as unknown as EventWithDetails[])
     setLoading(false)
   }
 

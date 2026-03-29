@@ -60,11 +60,28 @@ export function eventAttendeeRows(event: { event_attendees?: EventAttendeesRelat
   return ea as EventAttendee[]
 }
 
+function listHeadcountFromEmbed(
+  attending: readonly EventAttendeeCountEmbed[] | undefined,
+  guests: readonly EventAttendeeCountEmbed[] | undefined,
+): number | null {
+  if (!attending || attending.length === 0 || !isEventAttendeeCountEmbedRow(attending[0])) return null
+  const a = Math.max(0, Number(attending[0].count))
+  const g =
+    guests && guests.length > 0 && isEventAttendeeCountEmbedRow(guests[0]) ? Math.max(0, Number(guests[0].count)) : 0
+  return a + g
+}
+
 /**
- * Count for EventCard / capacity: aggregate total from list queries, or attending-only (excludes waitlist)
- * when full `event_attendees` rows are present.
+ * Count for EventCard / capacity: list queries use attending-only embeds (+1 guests included);
+ * full `event_attendees` rows count non-waitlisted attendees only (guests are not on that relation).
  */
-export function eventAttendeeDisplayCount(event: { event_attendees?: EventAttendeesRelation }): number {
+export function eventAttendeeDisplayCount(event: {
+  event_attendees?: EventAttendeesRelation
+  event_attendees_attending?: readonly EventAttendeeCountEmbed[]
+  event_guests_attending?: readonly EventAttendeeCountEmbed[]
+}): number {
+  const fromList = listHeadcountFromEmbed(event.event_attendees_attending, event.event_guests_attending)
+  if (fromList !== null) return fromList
   const ea = event.event_attendees
   if (!ea || ea.length === 0) return 0
   if (isEventAttendeeCountEmbedRow(ea[0])) return Math.max(0, Number(ea[0].count))

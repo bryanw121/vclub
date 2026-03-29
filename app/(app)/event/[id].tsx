@@ -10,8 +10,8 @@ import { Button } from '../../../components/Button'
 import { Input } from '../../../components/Input'
 import { EventCommentRow } from '../../../components/EventCommentRow'
 import { shared, theme, formatEventDate } from '../../../constants'
-import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor } from '../../../types'
-import { profileDisplayName, profileInitial, eventAttendeeRows } from '../../../utils'
+import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile } from '../../../types'
+import { profileDisplayName, profileInitial, eventAttendeeRows, normalizeVolleyballPositions } from '../../../utils'
 
 const EVENT_COMMENT_MAX_LEN = 2000
 
@@ -304,6 +304,7 @@ export default function EventDetail() {
   const [linkCopied, setLinkCopied] = useState(false)
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false)
   const [comments, setComments] = useState<EventCommentWithAuthor[]>([])
+  const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentDraft, setCommentDraft] = useState('')
   const [postingComment, setPostingComment] = useState(false)
 
@@ -336,8 +337,11 @@ export default function EventDetail() {
   const containerRef = useRef<View>(null)
   const teamZoneRefs = useRef<Record<string, View | null>>({})
   const teamZoneLayouts = useRef<Record<string, { top: number; bottom: number }>>({})
+  const idRef = useRef(id)
+  idRef.current = id
 
   useEffect(() => {
+    setComments([])
     fetchEvent()
     supabase.auth.getUser().then(({ data: { user } }) => setUserId(user?.id ?? null))
   }, [id])
@@ -350,45 +354,80 @@ export default function EventDetail() {
     return () => clearTimeout(t)
   }, [removeModal])
 
+  function attendeeRowsWithProfiles(eventAttendees: EventWithDetails['event_attendees']): EventAttendeeWithProfile[] {
+    const ea = eventAttendees
+    if (!ea || ea.length === 0) return []
+    const first = ea[0] as EventAttendeeWithProfile | { count: number }
+    if ('count' in first && !('user_id' in first)) return []
+    return ea as EventAttendeeWithProfile[]
+  }
+
+  function profileFromAttendeeEmbed(a: EventAttendeeWithProfile): Profile | null {
+    const p = a.profiles
+    if (!p) return null
+    return {
+      id: p.id,
+      username: p.username,
+      first_name: p.first_name,
+      last_name: p.last_name,
+      avatar_url: p.avatar_url,
+      position: normalizeVolleyballPositions(p.position),
+      created_at: '',
+    }
+  }
+
   async function fetchEvent() {
+    const fetchId = id
     try {
       setLoading(true)
       setLoadError(null)
+      setCommentsLoading(true)
 
       const { data, error } = await supabase
         .from('events')
-        .select(`*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees (event_id, user_id, joined_at, team_number, team_pinned, status), event_tags (tag_id, tags (id, name, category, display_order))`)
-        .eq('id', id)
+        .select(
+          `*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees (event_id, user_id, joined_at, team_number, team_pinned, status, profiles!event_attendees_user_id_fkey (id, username, first_name, last_name, avatar_url, position)), event_tags (tag_id, tags (id, name, category, display_order))`,
+        )
+        .eq('id', fetchId)
         .single()
 
       if (error) throw error
       setEvent(data as EventWithDetails)
 
-      const attendeeRows = eventAttendeeRows({ event_attendees: data.event_attendees })
-      const attendingEntries = attendeeRows.filter((a: any) => a.status !== 'waitlisted')
-      const waitlistEntries = [...attendeeRows.filter((a: any) => a.status === 'waitlisted')]
-        .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
+      const attendeeRows = attendeeRowsWithProfiles(data.event_attendees)
+      const attendingEntries = attendeeRows.filter(a => a.status !== 'waitlisted')
+      const waitlistEntries = [...attendeeRows.filter(a => a.status === 'waitlisted')].sort(
+        (a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime(),
+      )
 
-      const attendeeIds = attendingEntries.map((a: any) => a.user_id)
-      const waitlistIds = waitlistEntries.map((a: any) => a.user_id)
-      const allProfileIds = [...new Set([...attendeeIds, ...waitlistIds])]
-      const profilesMap = new Map<string, Profile>()
-      if (allProfileIds.length > 0) {
-        const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, username, first_name, last_name, avatar_url, position')
-          .in('id', allProfileIds)
-        if (profilesError) throw profilesError
-        for (const p of profiles ?? []) profilesMap.set((p as any).id, p as Profile)
-      }
-      setAttendees(attendeeIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
-      setWaitlistProfiles(waitlistIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
+      setAttendees(attendingEntries.map(profileFromAttendeeEmbed).filter(Boolean) as Profile[])
+      setWaitlistProfiles(waitlistEntries.map(profileFromAttendeeEmbed).filter(Boolean) as Profile[])
 
-      const { data: guestRows } = await supabase
+      // Comments load in parallel with guests; do not block the main shell.
+      void supabase
+        .from('event_comments')
+        .select(
+          'id, event_id, body, created_at, user_id, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url)',
+        )
+        .eq('event_id', fetchId)
+        .order('created_at', { ascending: true })
+        .then(({ data: commentRows, error: commentsError }) => {
+          if (fetchId !== idRef.current) return
+          if (commentsError) {
+            setComments([])
+          } else {
+            setComments((commentRows ?? []) as unknown as EventCommentWithAuthor[])
+          }
+          setCommentsLoading(false)
+        })
+
+      const { data: guestRows, error: guestsError } = await supabase
         .from('event_guests')
         .select('*')
-        .eq('event_id', id)
+        .eq('event_id', fetchId)
         .order('joined_at', { ascending: true })
+      if (guestsError) throw guestsError
+
       const allGuests = (guestRows ?? []) as EventGuest[]
       const attendingGuests = allGuests.filter(g => g.status === 'attending')
       setGuests(attendingGuests)
@@ -404,10 +443,9 @@ export default function EventDetail() {
         setAdderUsernames({})
       }
 
-      // Initialise team assignments from DB (attending only)
       const map: Record<string, TeamAssignment> = {}
       let maxTeam = 1
-      for (const a of attendingEntries as any[]) {
+      for (const a of attendingEntries) {
         const t = a.team_number ?? null
         map[a.user_id] = { team: t, pinned: a.team_pinned ?? false }
         if (t && t > maxTeam) maxTeam = t
@@ -421,18 +459,9 @@ export default function EventDetail() {
       if (Object.values(map).some(a => a.team !== null)) {
         setNumTeams(Math.max(2, maxTeam))
       }
-
-      const { data: commentRows, error: commentsError } = await supabase
-        .from('event_comments')
-        .select(
-          'id, event_id, body, created_at, user_id, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url)',
-        )
-        .eq('event_id', id)
-        .order('created_at', { ascending: true })
-      if (commentsError) throw commentsError
-      setComments((commentRows ?? []) as unknown as EventCommentWithAuthor[])
     } catch (e: any) {
       setLoadError(e.message ?? 'Failed to load event')
+      setCommentsLoading(false)
     } finally {
       setLoading(false)
     }
@@ -595,7 +624,7 @@ export default function EventDetail() {
     if (!userId || !guestFirstName.trim() || !guestLastName.trim()) return
     try {
       setAddingGuest(true)
-      const attendingCount = (event?.event_attendees?.filter(a => a.status !== 'waitlisted').length ?? 0) + guests.length
+      const attendingCount = eventAttendeeRows(event ?? { event_attendees: [] }).filter(a => a.status !== 'waitlisted').length + guests.length
       const isFull = event?.max_attendees ? attendingCount >= event.max_attendees : false
       const { error } = await supabase.from('event_guests').insert({
         event_id: id,
@@ -1324,7 +1353,11 @@ export default function EventDetail() {
 
                 <View style={shared.divider} />
                 <Text style={[shared.subheading, shared.mb_sm]}>Discussion</Text>
-                {comments.length === 0 ? (
+                {commentsLoading && comments.length === 0 ? (
+                  <View style={{ paddingVertical: theme.spacing.lg, alignItems: 'center', marginBottom: theme.spacing.lg }}>
+                    <ActivityIndicator color={theme.colors.primary} />
+                  </View>
+                ) : comments.length === 0 ? (
                   <Text style={[shared.caption, shared.mb_md]}>No messages yet. Be the first to comment.</Text>
                 ) : (
                   <View style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.lg }}>

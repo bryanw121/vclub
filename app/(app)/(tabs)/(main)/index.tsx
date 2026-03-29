@@ -54,57 +54,6 @@ export default function EventsScreen() {
   const [curWeekPage, setCurWeekPage] = useState(WEEK_CENTER)
   const [curMonthPage, setCurMonthPage] = useState(MONTH_CENTER)
 
-  const lastScrollY = useRef(0)
-  const scrollDelta = useRef(0)
-  const calendarAnim = useRef(new Animated.Value(1)).current
-  const calendarCollapsed = useRef(false)
-  const [calendarNaturalHeight, setCalendarNaturalHeight] = useState(300)
-
-  function collapseCalendar() {
-    if (!isMobile || calendarCollapsed.current) return
-    calendarCollapsed.current = true
-    Animated.timing(calendarAnim, { toValue: 0, duration: 200, useNativeDriver: false }).start()
-  }
-  function expandCalendar() {
-    if (!calendarCollapsed.current) return
-    calendarCollapsed.current = false
-    Animated.timing(calendarAnim, { toValue: 1, duration: 220, useNativeDriver: false }).start()
-  }
-
-  const handleScroll = useCallback((e: any) => {
-    const y: number = e.nativeEvent.contentOffset.y
-    const contentHeight: number = e.nativeEvent.contentSize.height
-    const visibleHeight: number = e.nativeEvent.layoutMeasurement.height
-    const diff = y - lastScrollY.current
-    lastScrollY.current = y
-
-    // At the bottom — stop reacting to oscillation
-    if (y + visibleHeight >= contentHeight - 60) {
-      scrollDelta.current = 0
-      return
-    }
-
-    if (y < 80) {
-      scrollDelta.current = 0
-      expandCalendar()
-      return
-    }
-
-    // Reset accumulator when direction reverses
-    if ((diff > 0 && scrollDelta.current < 0) || (diff < 0 && scrollDelta.current > 0)) {
-      scrollDelta.current = 0
-    }
-    scrollDelta.current += diff
-
-    if (scrollDelta.current > 50) {
-      scrollDelta.current = 0
-      collapseCalendar()
-    } else if (scrollDelta.current < -50) {
-      scrollDelta.current = 0
-      expandCalendar()
-    }
-  }, [isMobile])
-
   const blockPager   = useCallback(() => { pagerBlocked.current = true  }, [pagerBlocked])
   const unblockPager = useCallback(() => { pagerBlocked.current = false }, [pagerBlocked])
 
@@ -179,54 +128,48 @@ export default function EventsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Collapsible calendar area */}
-        <Animated.View style={{
-          overflow: 'hidden',
-          opacity: calendarAnim,
-          maxHeight: calendarAnim.interpolate({ inputRange: [0, 1], outputRange: [0, calendarNaturalHeight] }),
-        }}>
-          <View onLayout={e => setCalendarNaturalHeight(e.nativeEvent.layout.height)}>
-            {/* Week / Month toggle — desktop only */}
-            {!isMobile && (
-              <View style={{ paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.sm }}>
-                <View style={{ flexDirection: 'row', alignSelf: 'flex-start', borderRadius: theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.card }}>
-                  {(['week', 'month'] as const).map(m => (
-                    <TouchableOpacity
-                      key={m}
-                      onPress={() => setMode(m)}
-                      style={{ paddingHorizontal: theme.spacing.md, paddingVertical: 6, backgroundColor: mode === m ? theme.colors.primary : 'transparent' }}
-                    >
-                      <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: mode === m ? theme.colors.white : theme.colors.subtext }}>
-                        {m.charAt(0).toUpperCase() + m.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+        {/* Calendar + week/month strip — fixed below header; list scrolls independently */}
+        <View>
+          {/* Week / Month toggle — desktop only */}
+          {!isMobile && (
+            <View style={{ paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.sm }}>
+              <View style={{ flexDirection: 'row', alignSelf: 'flex-start', borderRadius: theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.card }}>
+                {(['week', 'month'] as const).map(m => (
+                  <TouchableOpacity
+                    key={m}
+                    onPress={() => setMode(m)}
+                    style={{ paddingHorizontal: theme.spacing.md, paddingVertical: 6, backgroundColor: mode === m ? theme.colors.primary : 'transparent' }}
+                  >
+                    <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: mode === m ? theme.colors.white : theme.colors.subtext }}>
+                      {m.charAt(0).toUpperCase() + m.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-            )}
+            </View>
+          )}
 
-            {(!isMobile && mode === 'month') ? (
-              <MonthPager
-                curMonthPage={curMonthPage}
-                selectedDate={selectedDate}
-                markedDates={markedDates}
-                onSelectDate={selectDate}
-                onPrevMonth={goPrevMonth}
-                onNextMonth={goNextMonth}
-              />
-            ) : (
-              <WeekPager
-                curWeekPage={curWeekPage}
-                selectedDate={selectedDate}
-                markedDates={markedDates}
-                onSelectDate={selectDate}
-                onPrevWeek={goPrevWeek}
-                onNextWeek={goNextWeek}
-              />
-            )}
-            <View style={[shared.divider, { marginHorizontal: theme.spacing.lg, marginBottom: 0 }]} />
-          </View>
-        </Animated.View>
+          {(!isMobile && mode === 'month') ? (
+            <MonthPager
+              curMonthPage={curMonthPage}
+              selectedDate={selectedDate}
+              markedDates={markedDates}
+              onSelectDate={selectDate}
+              onPrevMonth={goPrevMonth}
+              onNextMonth={goNextMonth}
+            />
+          ) : (
+            <WeekPager
+              curWeekPage={curWeekPage}
+              selectedDate={selectedDate}
+              markedDates={markedDates}
+              onSelectDate={selectDate}
+              onPrevWeek={goPrevWeek}
+              onNextWeek={goNextWeek}
+            />
+          )}
+          <View style={[shared.divider, { marginHorizontal: theme.spacing.lg, marginBottom: 0 }]} />
+        </View>
       </View>
 
       <ScrollView
@@ -234,8 +177,6 @@ export default function EventsScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => refetch(true)} tintColor={theme.colors.primary} />}
-        onScroll={handleScroll}
-        scrollEventThrottle={100}
       >
         {loading && sections.length === 0 ? (
           <ActivityIndicator

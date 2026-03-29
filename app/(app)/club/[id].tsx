@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../../lib/supabase'
-import { shared, theme, CLUB_AVATARS_BUCKET } from '../../../constants'
+import { shared, theme, CLUB_AVATARS_BUCKET, EVENT_CARD_LIST_SELECT } from '../../../constants'
 import { EventCard } from '../../../components/EventCard'
 import type { ClubWithDetails, EventWithDetails } from '../../../types'
 
@@ -118,7 +118,7 @@ export default function ClubDetailScreen() {
         .single(),
       supabase
         .from('events')
-        .select('*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees(count), event_tags (tag_id, tags (id, name, category, display_order)), clubs (id, name, avatar_url)')
+        .select(EVENT_CARD_LIST_SELECT)
         .eq('club_id', id)
         .gte('event_date', new Date().toISOString())
         .order('event_date', { ascending: true }),
@@ -138,7 +138,7 @@ export default function ClubDetailScreen() {
       setAvatarUri(uri)
     }
 
-    setUpcomingEvents((eventsRes.data ?? []) as EventWithDetails[])
+    setUpcomingEvents((eventsRes.data ?? []) as unknown as EventWithDetails[])
     setPastCount(pastRes.count ?? 0)
     setLoading(false)
   }

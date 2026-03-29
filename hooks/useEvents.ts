@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { EVENT_CARD_LIST_SELECT } from '../constants'
 import { supabase } from '../lib/supabase'
 import { startOfToday } from '../utils'
 import { EventWithDetails } from '../types'
@@ -18,11 +19,11 @@ export function useEvents() {
       setError(null)
       const { data, error } = await supabase
         .from('events')
-        .select(`*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees(count), event_tags (tag_id, tags (id, name, category, display_order)), clubs (id, name, avatar_url)`)
+        .select(EVENT_CARD_LIST_SELECT)
         .gte('event_date', startOfToday())
         .order('event_date', { ascending: true })
       if (error) throw error
-      setEvents(data as EventWithDetails[])
+      setEvents((data ?? []) as unknown as EventWithDetails[])
       lastFetchedAt.current = Date.now()
     } catch (e: any) {
       setError(e.message)

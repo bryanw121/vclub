@@ -3,7 +3,7 @@ import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'rea
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
 import { EventCard } from '../../../../components/EventCard'
-import { shared } from '../../../../constants'
+import { shared, EVENT_CARD_LIST_SELECT_MINIMAL } from '../../../../constants'
 import { theme } from '../../../../constants/theme'
 import type { EventWithDetails } from '../../../../types'
 
@@ -30,14 +30,14 @@ export default function ProfileHistoryScreen() {
     const now = new Date().toISOString()
     const { data, error } = await supabase
       .from('events')
-      .select(`*, profiles!events_created_by_fkey (id, username, avatar_url), event_attendees(count)`)
+      .select(EVENT_CARD_LIST_SELECT_MINIMAL)
       .eq('created_by', user.id)
       .lt('event_date', now)
       .order('event_date', { ascending: false })
       .limit(HISTORY_LIMIT + 1)
 
     if (error) setHistoryError(error.message)
-    else setPastHostedEvents((data ?? []) as EventWithDetails[])
+    else setPastHostedEvents((data ?? []) as unknown as EventWithDetails[])
     setHistoryLoading(false)
   }
 

@@ -59,6 +59,11 @@ export type EventAttendee = {
   status: 'attending' | 'waitlisted'
 }
 
+/** `event_attendees` row with embedded `profiles` from the event detail query (`profiles!…user_id…`). */
+export type EventAttendeeWithProfile = EventAttendee & {
+  profiles: Profile | null
+}
+
 /** Row shape from PostgREST embed `event_attendees(count)` (list/card queries). */
 export type EventAttendeeCountEmbed = { count: number }
 
@@ -119,14 +124,18 @@ export type FeedbackPriority = 'low' | 'medium' | 'high'
 /**
  * An event with its creator profile and attendee data pre-fetched.
  *
- * List/feed queries use `event_attendees(count)` so `event_attendees` is a one-element
- * aggregate (total RSVP rows, same as the old embedded row list length).
+ * List/feed queries use `event_attendees_attending(count)` and `event_guests_attending(count)`
+ * (one-element aggregates each) so “going” and spots match event detail.
  *
- * Event detail uses full rows: `event_attendees (event_id, user_id, …)`.
+ * Event detail uses full rows: `event_attendees (event_id, user_id, …)` optionally with embedded `profiles`.
  */
 export type EventWithDetails = Event & {
   profiles: Profile
-  event_attendees: EventAttendee[] | EventAttendeeCountEmbed[]
+  event_attendees?: EventAttendee[] | EventAttendeeCountEmbed[] | EventAttendeeWithProfile[]
+  /** List/card queries only: attending RSVPs excluding waitlist. */
+  event_attendees_attending?: EventAttendeeCountEmbed[]
+  /** List/card queries only: attending +1 guests (excludes waitlisted guests). */
+  event_guests_attending?: EventAttendeeCountEmbed[]
   event_tags?: { tag_id: string; tags: Tag }[]
   clubs?: { id: string; name: string; avatar_url: string | null } | null
 }
