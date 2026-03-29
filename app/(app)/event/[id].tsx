@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { Platform, View, Text, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal } from 'react-native'
-import { GestureDetector, Gesture } from 'react-native-gesture-handler'
+import { GestureDetector, Gesture, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
@@ -10,13 +10,43 @@ import { Button } from '../../../components/Button'
 import { Input } from '../../../components/Input'
 import { EventCommentRow } from '../../../components/EventCommentRow'
 import { shared, theme, formatEventDate } from '../../../constants'
-import { EventWithDetails, Profile, AttendanceStatus, EventCommentWithAuthor } from '../../../types'
+import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor } from '../../../types'
 import { profileDisplayName, profileInitial, eventAttendeeRows } from '../../../utils'
+
+const EVENT_COMMENT_MAX_LEN = 2000
+
+type RemoveModalState =
+  | null
+  | {
+      kind: 'attendee'
+      userId: string
+      firstName: string | null
+      lastName: string | null
+      username: string
+    }
+  | {
+      kind: 'guest'
+      guestId: string
+      firstName: string
+      lastName: string
+    }
+
+function playerDisplayName(profile: Profile): string {
+  if (profile.first_name && profile.last_name) {
+    return `${profile.first_name} ${profile.last_name.charAt(0)}.`
+  }
+  return profile.username
+}
+
+function playerInitial(profile: Profile): string {
+  if (profile.first_name && profile.last_name) {
+    return profile.first_name.charAt(0).toUpperCase() + profile.last_name.charAt(0).toUpperCase()
+  }
+  return profile.username.charAt(0).toUpperCase()
+}
 
 const TEAM_COLORS      = ['#6C47FF', '#E85D5D', '#2DA265', '#E07B00', '#1A8FD1', '#9C27B0']
 const TEAM_COLOR_NAMES = ['Purple',  'Red',     'Green',   'Orange',  'Blue',    'Violet']
-
-const EVENT_COMMENT_MAX_LEN = 2000
 
 type TeamAssignment = { team: number | null; pinned: boolean }
 
@@ -69,7 +99,7 @@ function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStar
   const stableCancel    = useCallback(() => cbRef.current.onDragEnd(-1, -1), [])
   const stableTogglePin = useCallback(() => cbRef.current.onTogglePin(), [])
 
-  const gesture = useMemo(() => {
+  const panGesture = useMemo(() => {
     const pan = Gesture.Pan()
       .onStart((e) => {
         'worklet'
@@ -95,51 +125,164 @@ function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStar
       })
       .enabled(isOwner)
 
-    const tap = Gesture.Tap()
-      .onEnd(() => { 'worklet'; runOnJS(stableTogglePin)() })
-      .enabled(isOwner)
-
     // Web: activate on click-drag (standard mouse UX)
     // Mobile: require a long press first so normal scrolling isn't broken
-    const configuredPan = Platform.OS === 'web'
-      ? pan.minDistance(5)
-      : pan.activateAfterLongPress(500)
-
-    // Pan takes priority; tap fires only if pan doesn't activate
-    return Gesture.Exclusive(configuredPan, tap)
+    return Platform.OS === 'web' ? pan.minDistance(5) : pan.activateAfterLongPress(500)
   }, [isOwner])
+
+  const tapGesture = useMemo(() => Gesture.Tap()
+    .onEnd(() => { 'worklet'; runOnJS(stableTogglePin)() })
+    .enabled(isOwner),
+  [isOwner])
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
     opacity: opacity.value,
   }))
 
+  // X stays outside the pan gesture so taps work; shell keeps the original single-card look.
   return (
-    <GestureDetector gesture={gesture}>
-      <Animated.View style={[styles.playerCard, animStyle]}>
-        <View style={[
-          styles.avatar,
-          {
-            borderColor: teamColor ?? theme.colors.border,
-            backgroundColor: teamColor ? teamColor + '18' : theme.colors.background,
-            borderWidth: teamColor ? 2 : 1.5,
-          }
-        ]}>
-          <Text style={[styles.avatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{profileInitial(profile)}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.playerName} numberOfLines={1}>{profileDisplayName(profile)}</Text>
-        </View>
-        {isOwner && isPinned && teamColor && (
-          <Ionicons name="lock-closed" size={13} color={theme.colors.subtext} />
-        )}
-        {isOwner && (
-          <TouchableOpacity onPress={onRemove} style={styles.removeBtn} hitSlop={8}>
+    <View style={styles.playerCardShell}>
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={[{ flex: 1, minWidth: 0 }, animStyle]}>
+          <GestureDetector gesture={tapGesture}>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+              <View style={[
+                styles.avatar,
+                {
+                  borderColor: teamColor ?? theme.colors.border,
+                  backgroundColor: teamColor ? teamColor + '18' : theme.colors.background,
+                  borderWidth: teamColor ? 2 : 1.5,
+                }
+              ]}>
+                <Text style={[styles.avatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{playerInitial(profile)}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.playerName} numberOfLines={1}>{playerDisplayName(profile)}</Text>
+              </View>
+              {isOwner && isPinned && teamColor && (
+                <Ionicons name="lock-closed" size={13} color={theme.colors.subtext} />
+              )}
+            </View>
+          </GestureDetector>
+        </Animated.View>
+      </GestureDetector>
+      {isOwner && (() => {
+        const handleRemove = () => { onRemove() }
+        return Platform.OS === 'web' ? (
+          <View
+            onStartShouldSetResponder={() => true}
+            onResponderRelease={handleRemove}
+            style={[styles.removeBtn, styles.removeBtnHit]}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove ${playerDisplayName(profile)}`}
+          >
             <Ionicons name="close" size={15} color={theme.colors.subtext} />
-          </TouchableOpacity>
-        )}
-      </Animated.View>
-    </GestureDetector>
+          </View>
+        ) : (
+          <GHTouchableOpacity
+            onPress={handleRemove}
+            style={[styles.removeBtn, styles.removeBtnHit]}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove ${playerDisplayName(profile)}`}
+          >
+            <Ionicons name="close" size={15} color={theme.colors.subtext} />
+          </GHTouchableOpacity>
+        )
+      })()}
+    </View>
+  )
+}
+
+type DraggableGuestCardProps = {
+  guest: EventGuest
+  adderUsername: string
+  teamColor: string | null
+  isPinned: boolean
+  isOwner: boolean
+  onDragStart: (x: number, y: number) => void
+  onDragMove: (x: number, y: number) => void
+  onDragEnd: (x: number, y: number) => void
+  onRemove: () => void
+  onTogglePin: () => void
+}
+
+function DraggableGuestCard({ guest, adderUsername, teamColor, isPinned, isOwner, onDragStart, onDragMove, onDragEnd, onRemove, onTogglePin }: DraggableGuestCardProps) {
+  const scale = useSharedValue(1)
+  const opacity = useSharedValue(1)
+
+  const cbRef = useRef({ onDragStart, onDragMove, onDragEnd, onTogglePin })
+  cbRef.current = { onDragStart, onDragMove, onDragEnd, onTogglePin }
+  const stableStart     = useCallback((x: number, y: number) => cbRef.current.onDragStart(x, y), [])
+  const stableMove      = useCallback((x: number, y: number) => cbRef.current.onDragMove(x, y), [])
+  const stableEnd       = useCallback((x: number, y: number) => cbRef.current.onDragEnd(x, y), [])
+  const stableCancel    = useCallback(() => cbRef.current.onDragEnd(-1, -1), [])
+  const stableTogglePin = useCallback(() => cbRef.current.onTogglePin(), [])
+
+  const panGesture = useMemo(() => {
+    const pan = Gesture.Pan()
+      .onStart((e) => { 'worklet'; scale.value = withSpring(1.06, { damping: 12 }); opacity.value = withSpring(0.35); runOnJS(stableStart)(e.absoluteX, e.absoluteY) })
+      .onUpdate((e) => { 'worklet'; runOnJS(stableMove)(e.absoluteX, e.absoluteY) })
+      .onEnd((e) => { 'worklet'; scale.value = withSpring(1); opacity.value = withSpring(1); runOnJS(stableEnd)(e.absoluteX, e.absoluteY) })
+      .onFinalize((_e, success) => { 'worklet'; scale.value = withSpring(1); opacity.value = withSpring(1); if (!success) runOnJS(stableCancel)() })
+      .enabled(isOwner)
+    return Platform.OS === 'web' ? pan.minDistance(5) : pan.activateAfterLongPress(500)
+  }, [isOwner])
+
+  const tapGesture = useMemo(() => Gesture.Tap()
+    .onEnd(() => { 'worklet'; runOnJS(stableTogglePin)() })
+    .enabled(isOwner),
+  [isOwner])
+
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }], opacity: opacity.value }))
+  const initials = guest.first_name.charAt(0).toUpperCase() + guest.last_name.charAt(0).toUpperCase()
+
+  return (
+    <View style={styles.playerCardShell}>
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={[{ flex: 1, minWidth: 0 }, animStyle]}>
+          <GestureDetector gesture={tapGesture}>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+              <View style={[styles.avatar, { borderColor: teamColor ?? theme.colors.border, backgroundColor: teamColor ? teamColor + '18' : theme.colors.background, borderWidth: teamColor ? 2 : 1.5 }]}>
+                <Text style={[styles.avatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{initials}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.playerName} numberOfLines={1}>{guest.first_name} {guest.last_name.charAt(0)}.</Text>
+                <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, lineHeight: 14 }} numberOfLines={1}>{adderUsername}'s +1</Text>
+              </View>
+              {isOwner && isPinned && teamColor && (
+                <Ionicons name="lock-closed" size={13} color={theme.colors.subtext} />
+              )}
+            </View>
+          </GestureDetector>
+        </Animated.View>
+      </GestureDetector>
+      {isOwner && (() => {
+        const handleRemove = () => { onRemove() }
+        return Platform.OS === 'web' ? (
+          <View
+            onStartShouldSetResponder={() => true}
+            onResponderRelease={handleRemove}
+            style={[styles.removeBtn, styles.removeBtnHit]}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove guest ${guest.first_name} ${guest.last_name}`}
+          >
+            <Ionicons name="close" size={15} color={theme.colors.subtext} />
+          </View>
+        ) : (
+          <GHTouchableOpacity
+            onPress={handleRemove}
+            style={[styles.removeBtn, styles.removeBtnHit]}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove guest ${guest.first_name} ${guest.last_name}`}
+          >
+            <Ionicons name="close" size={15} color={theme.colors.subtext} />
+          </GHTouchableOpacity>
+        )
+      })()}
+    </View>
   )
 }
 
@@ -163,6 +306,19 @@ export default function EventDetail() {
   const [comments, setComments] = useState<EventCommentWithAuthor[]>([])
   const [commentDraft, setCommentDraft] = useState('')
   const [postingComment, setPostingComment] = useState(false)
+
+  const [removeModal, setRemoveModal] = useState<RemoveModalState>(null)
+  const [removingAttendee, setRemovingAttendee] = useState(false)
+
+  
+
+  const [guests, setGuests] = useState<EventGuest[]>([])
+  const [waitlistGuests, setWaitlistGuests] = useState<EventGuest[]>([])
+  const [adderUsernames, setAdderUsernames] = useState<Record<string, string>>({})
+  const [guestModalVisible, setGuestModalVisible] = useState(false)
+  const [guestFirstName, setGuestFirstName] = useState('')
+  const [guestLastName, setGuestLastName] = useState('')
+  const [addingGuest, setAddingGuest] = useState(false)
 
   const [numTeams, setNumTeams] = useState(2)
   const [assignments, setAssignments] = useState<Record<string, TeamAssignment>>({})
@@ -222,12 +378,37 @@ export default function EventDetail() {
         setWaitlistProfiles([])
       }
 
+      const { data: guestRows } = await supabase
+        .from('event_guests')
+        .select('*')
+        .eq('event_id', id)
+        .order('joined_at', { ascending: true })
+      const allGuests = (guestRows ?? []) as EventGuest[]
+      const attendingGuests = allGuests.filter(g => g.status === 'attending')
+      setGuests(attendingGuests)
+      setWaitlistGuests(allGuests.filter(g => g.status === 'waitlisted'))
+
+      const adderIds = [...new Set(allGuests.map(g => g.added_by))]
+      if (adderIds.length > 0) {
+        const { data: adderProfiles } = await supabase.from('profiles').select('id, username').in('id', adderIds)
+        const nameMap: Record<string, string> = {}
+        for (const p of adderProfiles ?? []) nameMap[(p as any).id] = (p as any).username
+        setAdderUsernames(nameMap)
+      } else {
+        setAdderUsernames({})
+      }
+
       // Initialise team assignments from DB (attending only)
       const map: Record<string, TeamAssignment> = {}
       let maxTeam = 1
       for (const a of attendingEntries as any[]) {
         const t = a.team_number ?? null
         map[a.user_id] = { team: t, pinned: a.team_pinned ?? false }
+        if (t && t > maxTeam) maxTeam = t
+      }
+      for (const g of attendingGuests) {
+        const t = g.team_number ?? null
+        map[g.id] = { team: t, pinned: g.team_pinned ?? false }
         if (t && t > maxTeam) maxTeam = t
       }
       setAssignments(map)
@@ -332,6 +513,34 @@ export default function EventDetail() {
     if (Object.values(map).some(a => a.team !== null)) {
       setNumTeams(prev => Math.max(prev, maxTeam))
     }
+
+    const { data: guestRows } = await supabase
+      .from('event_guests')
+      .select('*')
+      .eq('event_id', id)
+      .order('joined_at', { ascending: true })
+    const allGuests = (guestRows ?? []) as EventGuest[]
+    const attendingGuests = allGuests.filter(g => g.status === 'attending')
+    setGuests(attendingGuests)
+    setWaitlistGuests(allGuests.filter(g => g.status === 'waitlisted'))
+
+    const adderIds = [...new Set(allGuests.map(g => g.added_by))]
+    if (adderIds.length > 0) {
+      const { data: adderProfiles } = await supabase.from('profiles').select('id, username').in('id', adderIds)
+      const nameMap: Record<string, string> = {}
+      for (const p of adderProfiles ?? []) nameMap[(p as any).id] = (p as any).username
+      setAdderUsernames(nameMap)
+    } else {
+      setAdderUsernames({})
+    }
+
+    setAssignments(prev => {
+      const next = { ...prev }
+      for (const g of attendingGuests) {
+        if (!next[g.id]) next[g.id] = { team: g.team_number ?? null, pinned: g.team_pinned ?? false }
+      }
+      return next
+    })
   }
 
   async function handleToggleAttendance(action: 'join' | 'leave') {
@@ -379,6 +588,105 @@ export default function EventDetail() {
     }
   }
 
+  async function handleAddGuest() {
+    if (!userId || !guestFirstName.trim() || !guestLastName.trim()) return
+    try {
+      setAddingGuest(true)
+      const attendingCount = (event?.event_attendees?.filter(a => a.status !== 'waitlisted').length ?? 0) + guests.length
+      const isFull = event?.max_attendees ? attendingCount >= event.max_attendees : false
+      const { error } = await supabase.from('event_guests').insert({
+        event_id: id,
+        added_by: userId,
+        first_name: guestFirstName.trim(),
+        last_name: guestLastName.trim(),
+        status: isFull ? 'waitlisted' : 'attending',
+      })
+      if (error) throw error
+      setGuestFirstName('')
+      setGuestLastName('')
+      setGuestModalVisible(false)
+      await refreshAttendees()
+    } catch (e: any) {
+      Alert.alert('Error', e.message)
+    } finally {
+      setAddingGuest(false)
+    }
+  }
+
+  function openRemoveGuestModal(g: EventGuest) {
+    // openRemoveGuestModal called
+    // Ignore if a remove modal is already open or if we're in the short blocked window
+    if (removeModal !== null) return
+    // Open modal on next tick so the originating touch event
+    // doesn't immediately hit the backdrop and close it.
+    setTimeout(() => {
+      // set guest remove modal
+      setRemoveModal({ kind: 'guest', guestId: g.id, firstName: g.first_name, lastName: g.last_name })
+    }, 0)
+  }
+
+  function openRemoveAttendeeModal(profile: Profile) {
+    // openRemoveAttendeeModal called
+    // Ignore duplicate rapid opens if a modal is already visible or we're in the blocked window
+    if (removeModal !== null) return
+    // Open modal on next tick so the originating touch event
+    // doesn't immediately hit the backdrop and close it.
+    setTimeout(() => {
+      // set attendee remove modal
+      setRemoveModal({
+        kind: 'attendee',
+        userId: profile.id,
+        firstName: profile.first_name,
+        lastName: profile.last_name,
+        username: profile.username,
+      })
+    }, 0)
+  }
+
+  async function confirmRemoveFromModal() {
+    // confirmRemoveFromModal start
+    if (!removeModal) return
+    try {
+      setRemovingAttendee(true)
+      if (removeModal.kind === 'guest') {
+        const { data, error } = await supabase.from('event_guests').delete().eq('id', removeModal.guestId).select()
+        if (error) {
+          Alert.alert('Error', error.message)
+          return
+        }
+        if (!data?.length) {
+          Alert.alert(
+            'Could not remove',
+            'Nothing was deleted. As host, ensure the Supabase delete policy for event_guests is installed (see supabase/event_host_remove_attendees.sql).'
+          )
+          return
+        }
+      } else {
+        const { data, error } = await supabase
+          .from('event_attendees')
+          .delete()
+          .eq('event_id', id)
+          .eq('user_id', removeModal.userId)
+          .select()
+        if (error) {
+          Alert.alert('Error', error.message)
+          return
+        }
+        if (!data?.length) {
+          Alert.alert(
+            'Could not remove',
+            'Nothing was deleted. As host, add the Supabase policy so hosts can remove other attendees — run supabase/event_host_remove_attendees.sql in the SQL editor.'
+          )
+          return
+        }
+      }
+      setRemoveModal(null)
+      await refreshAttendees()
+    } finally {
+      setRemovingAttendee(false)
+    }
+  }
+
   async function handleApproveFromWaitlist(waitlistUserId: string) {
     const attendingCount = eventAttendeeRows(event ?? { event_attendees: [] }).filter(a => a.status !== 'waitlisted').length
     if (event?.max_attendees && attendingCount >= event.max_attendees) {
@@ -396,19 +704,6 @@ export default function EventDetail() {
     } catch (e: any) {
       Alert.alert('Error', e.message)
     }
-  }
-
-  function handleRemoveAttendee(attendeeId: string, username: string) {
-    Alert.alert('Remove attendee', `Remove ${username} from this event?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove', style: 'destructive', onPress: async () => {
-          const { error } = await supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', attendeeId)
-          if (error) Alert.alert('Error', error.message)
-          else refreshAttendees()
-        }
-      },
-    ])
   }
 
   async function handleShare() {
@@ -477,21 +772,18 @@ export default function EventDetail() {
   }
 
   function randomizeTeams() {
-    if (attendees.length % numTeams !== 0) {
-      Alert.alert('Unequal teams', `${attendees.length} players can't be split into ${numTeams} equal teams. Adjust the team count so it divides evenly.`)
+    const totalPlayers = attendees.length + guests.length
+    if (totalPlayers % numTeams !== 0) {
+      Alert.alert('Unequal teams', `${totalPlayers} players can't be split into ${numTeams} equal teams. Adjust the team count so it divides evenly.`)
       return
     }
-    const target = attendees.length / numTeams
+    const target = totalPlayers / numTeams
 
-    // Count how many players are already pinned per team
     const pinnedCount: Record<number, number> = {}
     for (let t = 1; t <= numTeams; t++) pinnedCount[t] = 0
-    for (const p of attendees) {
-      const a = assignments[p.id]
-      if (a?.pinned && a.team !== null) pinnedCount[a.team]++
-    }
+    for (const p of attendees) { const a = assignments[p.id]; if (a?.pinned && a.team !== null) pinnedCount[a.team]++ }
+    for (const g of guests)    { const a = assignments[g.id];  if (a?.pinned && a.team !== null) pinnedCount[a.team]++ }
 
-    // Validate no team is already over its target size
     for (let t = 1; t <= numTeams; t++) {
       if (pinnedCount[t] > target) {
         Alert.alert('Too many pinned', `Team ${t} already has ${pinnedCount[t]} pinned players but can only hold ${target}.`)
@@ -499,14 +791,15 @@ export default function EventDetail() {
       }
     }
 
-    // Build a slot list: one entry per open spot on each team
     const slots: number[] = []
     for (let t = 1; t <= numTeams; t++) {
       for (let i = 0; i < target - pinnedCount[t]; i++) slots.push(t)
     }
 
-    // Shuffle both unpinned players and slots independently
-    const unpinned = attendees.filter(p => !assignments[p.id]?.pinned).map(p => p.id)
+    const unpinned = [
+      ...attendees.filter(p => !assignments[p.id]?.pinned).map(p => p.id),
+      ...guests.filter(g => !assignments[g.id]?.pinned).map(g => g.id),
+    ]
     for (let i = unpinned.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
       ;[unpinned[i], unpinned[j]] = [unpinned[j], unpinned[i]]
@@ -526,20 +819,26 @@ export default function EventDetail() {
   async function saveTeams() {
     setSavingTeams(true)
     try {
-      const results = await Promise.all(
-        Object.entries(assignments).map(([uid, { team, pinned }]) =>
-          supabase
-            .from('event_attendees')
-            .update({ team_number: team, team_pinned: pinned })
-            .eq('event_id', id)
-            .eq('user_id', uid)
-            .select()
+      const guestIds = new Set(guests.map(g => g.id))
+      const attendeeEntries = Object.entries(assignments).filter(([id]) => !guestIds.has(id))
+      const guestEntries    = Object.entries(assignments).filter(([id]) => guestIds.has(id))
+
+      const attendeeResults = await Promise.all(
+        attendeeEntries.map(([uid, { team, pinned }]) =>
+          supabase.from('event_attendees').update({ team_number: team, team_pinned: pinned }).eq('event_id', id).eq('user_id', uid).select()
         )
       )
-      const failed = results.find(r => r.error)
+      const failed = attendeeResults.find(r => r.error)
       if (failed?.error) throw failed.error
-      const blocked = results.find(r => !r.data || r.data.length === 0)
+      const blocked = attendeeResults.find(r => !r.data || r.data.length === 0)
       if (blocked) throw new Error('Update blocked — add an RLS UPDATE policy for event_attendees')
+
+      await Promise.all(
+        guestEntries.map(([gid, { team, pinned }]) =>
+          supabase.from('event_guests').update({ team_number: team, team_pinned: pinned }).eq('id', gid)
+        )
+      )
+
       await fetchEvent()
     } catch (e: any) {
       Alert.alert('Error saving teams', e.message)
@@ -626,14 +925,16 @@ export default function EventDetail() {
   }
 
   const isOwner = event?.created_by === userId
+  const totalPlayers = attendees.length + guests.length
   const hasTeams = isOwner
-    ? attendees.length > 0  // owners always see team layout so they can drag
-    : Object.values(assignments).some(a => a.team !== null)  // non-owners only see teams when assigned
+    ? totalPlayers > 0
+    : Object.values(assignments).some(a => a.team !== null)
 
   return (
     <View
       ref={containerRef}
       style={{ flex: 1 }}
+      pointerEvents={removeModal !== null ? 'none' : 'auto'}
       onLayout={() => { measureContainerOffset() }}
     >
       <Stack.Screen options={{
@@ -747,10 +1048,11 @@ export default function EventDetail() {
             const waitlistEntries = [...attendeeRows.filter(a => a.status === 'waitlisted')]
               .sort((a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
             const waitlistIdx = waitlistEntries.findIndex(a => a.user_id === userId)
+            const totalAttending = attendingEntries.length + guests.length
             const status: AttendanceStatus = {
-              count: attendingEntries.length,
-              spotsLeft: event.max_attendees ? event.max_attendees - attendingEntries.length : null,
-              isFull: event.max_attendees ? attendingEntries.length >= event.max_attendees : false,
+              count: totalAttending,
+              spotsLeft: event.max_attendees ? event.max_attendees - totalAttending : null,
+              isFull: event.max_attendees ? totalAttending >= event.max_attendees : false,
               isAttending: attendingEntries.some(a => a.user_id === userId),
               isOwner: event.created_by === userId,
               isWaitlisted: waitlistIdx !== -1,
@@ -775,20 +1077,41 @@ export default function EventDetail() {
                 {event.description && <Text style={[shared.body, shared.mb_lg]}>{event.description}</Text>}
 
                 {/* Join / Leave / Waitlist */}
-                <View style={shared.mb_lg}>
-                  {status.isAttending ? (
-                    <Button label="Leave event" onPress={() => handleToggleAttendance('leave')} loading={joining} variant="secondary" />
-                  ) : status.isWaitlisted ? (
-                    <View style={{ gap: theme.spacing.xs }}>
-                      <Button label="Leave Waitlist" onPress={handleLeaveWaitlist} loading={joining} variant="secondary" />
-                      <Text style={[shared.caption, { textAlign: 'center' }]}>
-                        You are #{status.waitlistPosition} on the waitlist
-                      </Text>
-                    </View>
-                  ) : status.isFull ? (
-                    <Button label="Join Waitlist" onPress={handleJoinWaitlist} loading={joining} />
-                  ) : (
-                    <Button label="Join event" onPress={() => handleToggleAttendance('join')} loading={joining} />
+                <View style={[shared.mb_lg, { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm }]}>
+                  <View style={{ flex: 1 }}>
+                    {status.isAttending ? (
+                      <Button label="Leave event" onPress={() => handleToggleAttendance('leave')} loading={joining} variant="secondary" />
+                    ) : status.isWaitlisted ? (
+                      <View style={{ gap: theme.spacing.xs }}>
+                        <Button label="Leave Waitlist" onPress={handleLeaveWaitlist} loading={joining} variant="secondary" />
+                        <Text style={[shared.caption, { textAlign: 'center' }]}>
+                          You are #{status.waitlistPosition} on the waitlist
+                        </Text>
+                      </View>
+                    ) : status.isFull ? (
+                      <Button label="Join Waitlist" onPress={handleJoinWaitlist} loading={joining} />
+                    ) : (
+                      <Button label="Join event" onPress={() => handleToggleAttendance('join')} loading={joining} />
+                    )}
+                  </View>
+                  {(status.isAttending || status.isOwner) && (
+                    <TouchableOpacity
+                      onPress={() => setGuestModalVisible(true)}
+                      hitSlop={8}
+                      accessibilityLabel="Add a +1 guest"
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: theme.radius.md,
+                        borderWidth: 1,
+                        borderColor: theme.colors.border,
+                        backgroundColor: theme.colors.card,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Ionicons name="person-add-outline" size={20} color={theme.colors.primary} />
+                    </TouchableOpacity>
                   )}
                 </View>
 
@@ -821,7 +1144,7 @@ export default function EventDetail() {
                         <TouchableOpacity
                           style={[styles.stepBtn, numTeams >= Math.min(6, attendees.length) && styles.stepBtnDisabled]}
                           onPress={() => setNumTeams(t => Math.min(6, attendees.length, t + 1))}
-                          disabled={numTeams >= Math.min(6, attendees.length)}
+                          disabled={numTeams >= Math.min(6, attendees.length + guests.length)}
                         >
                           <Text style={styles.stepBtnText}>+</Text>
                         </TouchableOpacity>
@@ -830,7 +1153,7 @@ export default function EventDetail() {
                   </View>
                 </View>
 
-                {attendees.length === 0
+                {attendees.length === 0 && guests.length === 0
                   ? <Text style={shared.caption}>no one yet — be the first!</Text>
                   : (() => {
                     function renderCard(profile: Profile) {
@@ -846,25 +1169,39 @@ export default function EventDetail() {
                           onDragStart={(x, y) => handleDragStart(profile.id, x, y)}
                           onDragMove={handleDragMove}
                           onDragEnd={handleDragEnd}
-                          onRemove={() => handleRemoveAttendee(profile.id, profile.username)}
+                          onRemove={() => openRemoveAttendeeModal(profile)}
                           onTogglePin={() => togglePin(profile.id)}
                         />
                       )
                       if (status.isOwner) {
-                        return (
-                          <View key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>
-                            {card}
-                          </View>
-                        )
+                        return <View key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>{card}</View>
                       }
                       return (
-                        <TouchableOpacity
-                          key={profile.id}
-                          style={[styles.playerCell, isMobileWeb && { width: '50%' }]}
-                          onPress={() => router.push(`/profile/${profile.id}` as any)}
-                        >
+                        <TouchableOpacity key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]} onPress={() => router.push(`/profile/${profile.id}` as any)}>
                           {card}
                         </TouchableOpacity>
+                      )
+                    }
+
+                    function renderGuestCard(g: EventGuest) {
+                      const a = assignments[g.id]
+                      const teamNum = a?.team ?? null
+                      const teamColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : null
+                      return (
+                        <View key={g.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>
+                          <DraggableGuestCard
+                            guest={g}
+                            adderUsername={adderUsernames[g.added_by] ?? '?'}
+                            teamColor={teamColor}
+                            isPinned={a?.pinned ?? false}
+                            isOwner={status.isOwner}
+                            onDragStart={(x, y) => handleDragStart(g.id, x, y)}
+                            onDragMove={handleDragMove}
+                            onDragEnd={handleDragEnd}
+                            onRemove={() => openRemoveGuestModal(g)}
+                            onTogglePin={() => togglePin(g.id)}
+                          />
+                        </View>
                       )
                     }
 
@@ -874,16 +1211,21 @@ export default function EventDetail() {
                           ref={(r) => { teamZoneRefs.current['unassigned'] = r as View | null }}
                           style={[styles.dropZone, hoveredTeamKey === 'unassigned' && styles.dropZoneActive]}
                         >
-                          <View style={styles.playerGrid}>{attendees.map(renderCard)}</View>
+                          <View style={styles.playerGrid}>
+                            {attendees.map(renderCard)}
+                            {guests.map(renderGuestCard)}
+                          </View>
                         </View>
                       )
                     }
 
                     const unassigned = attendees.filter(p => !assignments[p.id]?.team)
+                    const unassignedGuests = guests.filter(g => !assignments[g.id]?.team)
                     return (
                       <View style={{ gap: theme.spacing.sm }}>
                         {Array.from({ length: numTeams }, (_, i) => i + 1).map(teamNum => {
                           const teamPlayers = attendees.filter(p => assignments[p.id]?.team === teamNum)
+                          const teamGuests  = guests.filter(g => assignments[g.id]?.team === teamNum)
                           const teamColor = TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length]
                           const isHovered = hoveredTeamKey === String(teamNum)
                           return (
@@ -896,14 +1238,14 @@ export default function EventDetail() {
                                 <View style={[styles.teamDot, { backgroundColor: teamColor }]} />
                                 <Text style={[styles.teamHeading, { color: teamColor }]}>{TEAM_COLOR_NAMES[(teamNum - 1) % TEAM_COLOR_NAMES.length]} Team</Text>
                               </View>
-                              {teamPlayers.length === 0
+                              {teamPlayers.length === 0 && teamGuests.length === 0
                                 ? <Text style={[shared.caption, { paddingHorizontal: theme.spacing.xs, paddingBottom: theme.spacing.xs }]}>No players</Text>
-                                : <View style={styles.playerGrid}>{teamPlayers.map(renderCard)}</View>
+                                : <View style={styles.playerGrid}>{teamPlayers.map(renderCard)}{teamGuests.map(renderGuestCard)}</View>
                               }
                             </View>
                           )
                         })}
-                        {unassigned.length > 0 && (
+                        {(unassigned.length > 0 || unassignedGuests.length > 0) && (
                           <View
                             ref={(r) => { teamZoneRefs.current['unassigned'] = r as View | null }}
                             style={[styles.dropZone, hoveredTeamKey === 'unassigned' && styles.dropZoneActive]}
@@ -912,7 +1254,10 @@ export default function EventDetail() {
                               <View style={[styles.teamDot, { backgroundColor: theme.colors.subtext }]} />
                               <Text style={[styles.teamHeading, { color: theme.colors.subtext }]}>Unassigned</Text>
                             </View>
-                            <View style={styles.playerGrid}>{unassigned.map(renderCard)}</View>
+                            <View style={styles.playerGrid}>
+                              {unassigned.map(renderCard)}
+                              {unassignedGuests.map(renderGuestCard)}
+                            </View>
                           </View>
                         )}
                       </View>
@@ -943,14 +1288,14 @@ export default function EventDetail() {
                 )}
 
                 {/* Waitlist section */}
-                {(status.waitlistCount > 0 || (status.isFull && !status.isAttending && !status.isWaitlisted)) && (
+                {(status.waitlistCount > 0 || waitlistGuests.length > 0 || (status.isFull && !status.isAttending && !status.isWaitlisted)) && (
                   <>
                     <View style={shared.divider} />
                     <View style={[shared.rowBetween, shared.mb_sm]}>
                       <Text style={shared.subheading}>Waitlist</Text>
-                      <Text style={shared.caption}>{status.waitlistCount} waiting</Text>
+                      <Text style={shared.caption}>{status.waitlistCount + waitlistGuests.length} waiting</Text>
                     </View>
-                    {waitlistProfiles.length === 0 ? (
+                    {waitlistProfiles.length === 0 && waitlistGuests.length === 0 ? (
                       <Text style={shared.caption}>No one on the waitlist yet</Text>
                     ) : (
                       <View style={{ gap: theme.spacing.xs }}>
@@ -961,14 +1306,24 @@ export default function EventDetail() {
                             {status.isOwner && (
                               <TouchableOpacity
                                 onPress={() => handleApproveFromWaitlist(profile.id)}
-                                style={{
-                                  paddingVertical: theme.spacing.xs,
-                                  paddingHorizontal: theme.spacing.sm,
-                                  backgroundColor: theme.colors.primary,
-                                  borderRadius: theme.radius.md,
-                                }}
+                                style={{ paddingVertical: theme.spacing.xs, paddingHorizontal: theme.spacing.sm, backgroundColor: theme.colors.primary, borderRadius: theme.radius.md }}
                               >
                                 <Text style={{ color: theme.colors.white, fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium }}>Approve</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        ))}
+                        {waitlistGuests.map((g, idx) => (
+                          <View key={g.id} style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }]}>
+                            <Text style={[shared.caption, { minWidth: 20, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }]}>#{waitlistProfiles.length + idx + 1}</Text>
+                            <Text style={[shared.body, { flex: 1 }]}>{g.first_name} {g.last_name}</Text>
+                            <View style={shared.tag}><Text style={shared.tagText}>Guest</Text></View>
+                            {status.isOwner && (
+                              <TouchableOpacity
+                                onPress={() => openRemoveGuestModal(g)}
+                                hitSlop={8}
+                              >
+                                <Ionicons name="close" size={16} color={theme.colors.subtext} />
                               </TouchableOpacity>
                             )}
                           </View>
@@ -1014,6 +1369,123 @@ export default function EventDetail() {
           })()}
         </ScrollView>
       )}
+
+      {/* Add guest modal */}
+      <Modal visible={guestModalVisible} transparent animationType="fade" onRequestClose={() => setGuestModalVisible(false)}>
+        <TouchableOpacity
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' }}
+          activeOpacity={1}
+          onPress={() => setGuestModalVisible(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={{ backgroundColor: theme.colors.card, borderRadius: theme.radius.lg, padding: theme.spacing.xl, width: 300, gap: theme.spacing.md }}>
+              <Text style={{ fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>Add a +1</Text>
+              <Input
+                placeholder="First name"
+                value={guestFirstName}
+                onChangeText={setGuestFirstName}
+                autoCapitalize="words"
+              />
+              <Input
+                placeholder="Last name"
+                value={guestLastName}
+                onChangeText={setGuestLastName}
+                autoCapitalize="words"
+              />
+              <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
+                <View style={{ flex: 1 }}>
+                  <Button label="Cancel" onPress={() => { setGuestModalVisible(false); setGuestFirstName(''); setGuestLastName('') }} variant="secondary" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Button
+                    label="Add"
+                    onPress={handleAddGuest}
+                    loading={addingGuest}
+                    disabled={!guestFirstName.trim() || !guestLastName.trim()}
+                  />
+                </View>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Remove attendee / guest — host confirmation
+          Use backdrop Pressable + card as siblings (not nested TouchableOpacity). Nested touchables
+          let Cancel bubble to the backdrop and cause a double-close / flash. */}
+      <Modal visible={removeModal !== null} transparent animationType="fade" onRequestClose={() => !removingAttendee && setRemoveModal(null)}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Pressable
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }]}
+            onPress={() => { !removingAttendee && setRemoveModal(null) }}
+          />
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}
+            style={{
+              backgroundColor: theme.colors.card,
+              borderRadius: theme.radius.lg,
+              padding: theme.spacing.xl,
+              width: 320,
+              maxWidth: '92%',
+              gap: theme.spacing.md,
+              zIndex: 1,
+            }}
+          >
+            <Text style={{ fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
+              {removeModal?.kind === 'guest' ? 'Remove guest?' : 'Remove attendee?'}
+            </Text>
+            <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>
+              This person will be removed from the event. They can join again if there is space.
+            </Text>
+            {/* render-time trace removed */}
+            {removeModal ? (
+              (removeModal.kind === 'attendee' && !removeModal.username && !removeModal.firstName) ? (
+                <ActivityIndicator />
+              ) : (
+                <View style={{ gap: theme.spacing.sm }}>
+                  <View>
+                    <Text style={shared.label}>First name</Text>
+                    <Text style={shared.body}>
+                      {removeModal.kind === 'guest'
+                        ? removeModal.firstName
+                        : (removeModal.firstName?.trim() || '—')}
+                    </Text>
+                  </View>
+                  <View>
+                    <Text style={shared.label}>Last name</Text>
+                    <Text style={shared.body}>
+                      {removeModal.kind === 'guest'
+                        ? removeModal.lastName
+                        : (removeModal.lastName?.trim() || '—')}
+                    </Text>
+                  </View>
+                  <View>
+                    <Text style={shared.label}>Username</Text>
+                    <Text style={shared.body}>
+                      {removeModal.kind === 'guest'
+                        ? '— (guest — no account)'
+                        : `@${removeModal.username}`}
+                    </Text>
+                  </View>
+                </View>
+              )
+            ) : null}
+                <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginTop: theme.spacing.xs }}>
+                <View style={{ flex: 1 }}>
+                <Button label="Cancel" onPress={() => { setRemoveModal(null) }} variant="secondary" disabled={removingAttendee} />
+                </View>
+              <View style={{ flex: 1 }}>
+                <Button
+                  label="Remove"
+                  onPress={() => { void confirmRemoveFromModal() }}
+                  loading={removingAttendee}
+                  disabled={removingAttendee}
+                  variant="danger"
+                />
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </Modal>
 
       {/* Delete confirmation modal */}
       <Modal visible={deleteConfirmVisible} transparent animationType="fade" onRequestClose={() => setDeleteConfirmVisible(false)}>
@@ -1107,9 +1579,11 @@ const styles = StyleSheet.create({
     width: Platform.OS === 'web' ? '33.33%' : '50%',
     padding: 3,
   },
-  playerCard: {
+  /** One bordered row: draggable name area + remove X (X outside pan gesture, same look as before). */
+  playerCardShell: {
     flexDirection: 'row',
     alignItems: 'center',
+    width: '100%',
     backgroundColor: theme.colors.card,
     borderRadius: theme.radius.md,
     borderWidth: 1,
@@ -1176,6 +1650,10 @@ const styles = StyleSheet.create({
   },
   removeBtn: {
     padding: 4,
+  },
+  removeBtnHit: {
+    zIndex: 2,
+    elevation: 2,
   },
   playerName: {
     fontSize: theme.font.size.md,

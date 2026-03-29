@@ -78,6 +78,22 @@ export type EventCommentWithAuthor = EventComment & {
 }
 
 /**
+ * `event_guests` table
+ * A guest added as a +1 by an attending user. Has no profile/account.
+ */
+export type EventGuest = {
+  id: string
+  event_id: string
+  added_by: string        // FK → profiles.id — the user who added them
+  first_name: string
+  last_name: string
+  status: 'attending' | 'waitlisted'
+  joined_at: string
+  team_number: number | null
+  team_pinned: boolean
+}
+
+/**
  * `feedback_submissions` table
  * Stores feature requests and bug reports submitted by users.
  */
