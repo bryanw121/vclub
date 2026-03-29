@@ -7,7 +7,7 @@ import { shared } from '../../../../constants'
 import type { EventWithDetails } from '../../../../types'
 
 export default function ProfileHostedEventsScreen() {
-  useStackBackTitle()
+  useStackBackTitle('Hosted events')
   const [events, setEvents] = useState<EventWithDetails[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -39,8 +39,6 @@ export default function ProfileHostedEventsScreen() {
     <View style={shared.screen}>
       <ScrollView contentContainerStyle={shared.scrollContentSubpage}>
         <View style={shared.card}>
-          <Text style={shared.subheading}>Hosted events</Text>
-          <View style={shared.mt_md} />
           {events.length === 0 ? (
             <Text style={shared.caption}>No upcoming hosted events.</Text>
           ) : (

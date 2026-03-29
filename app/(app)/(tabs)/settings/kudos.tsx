@@ -4,7 +4,7 @@ import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { shared } from '../../../../constants'
 
 export default function ProfileKudosScreen() {
-  useStackBackTitle()
+  useStackBackTitle('Kudos')
   return (
     <View style={shared.screen}>
       <ScrollView contentContainerStyle={shared.scrollContentSubpage}>

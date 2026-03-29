@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { shared, theme } from '../../../../constants'
 
 export default function SettingsIndexScreen() {
-  useStackBackTitle()
+  useStackBackTitle('Settings')
   const router = useRouter()
 
   return (

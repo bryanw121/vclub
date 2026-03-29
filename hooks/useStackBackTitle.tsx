@@ -4,16 +4,18 @@ import { useNavigation } from 'expo-router'
 import { theme } from '../constants/theme'
 
 /**
- * Settings subpages: chevron-only back (no label beside the arrow) and no duplicate
- * title in the nav bar — the screen card already shows the heading.
+ * Settings routes render under `settings/_layout` → `<Slot />`, which uses an inner
+ * stack that does not paint the native header. The visible bar is the parent `(tabs)`
+ * stack, so we set options on `getParent()` as well as the leaf navigator.
  */
-export function useStackBackTitle() {
+export function useStackBackTitle(screenTitle: string) {
   const navigation = useNavigation()
 
   useLayoutEffect(() => {
-    navigation.setOptions({
-      title: '',
-      headerTitle: '',
+    const opts = {
+      title: screenTitle,
+      headerTitle: screenTitle,
+      headerTitleAlign: 'left' as const,
       headerBackTitle: '',
       headerLeft: (props: HeaderBackButtonProps) => (
         <HeaderBackButton
@@ -22,6 +24,8 @@ export function useStackBackTitle() {
           tintColor={props.tintColor ?? theme.colors.primary}
         />
       ),
-    })
-  }, [navigation])
+    }
+    navigation.setOptions(opts)
+    navigation.getParent()?.setOptions(opts)
+  }, [navigation, screenTitle])
 }

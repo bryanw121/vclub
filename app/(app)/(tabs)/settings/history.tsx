@@ -11,7 +11,7 @@ type HistoryFilter = 'hosted' | 'attended'
 const HISTORY_LIMIT = 5
 
 export default function ProfileHistoryScreen() {
-  useStackBackTitle()
+  useStackBackTitle('History')
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('hosted')
   const [historyLoading, setHistoryLoading] = useState(true)
   const [historyError, setHistoryError] = useState<string | null>(null)
@@ -48,9 +48,6 @@ export default function ProfileHistoryScreen() {
     <View style={shared.screen}>
       <ScrollView contentContainerStyle={shared.scrollContentSubpage}>
         <View style={shared.card}>
-          <Text style={shared.subheading}>History</Text>
-          <View style={shared.mt_md} />
-
           <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
             <HistoryChip
               label="Hosted"

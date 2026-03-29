@@ -124,8 +124,6 @@ export default function TabsLayout() {
             const isMain = route.name === "(main)";
             return {
               headerShown: !isMain,
-              title: "",
-              headerTitle: "",
               headerShadowVisible: false,
               headerTintColor: theme.colors.primary,
               headerStyle: { backgroundColor: theme.colors.background },

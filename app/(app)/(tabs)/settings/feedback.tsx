@@ -8,7 +8,7 @@ import { shared } from '../../../../constants'
 import type { FeedbackKind, FeedbackPriority } from '../../../../types'
 
 export default function FeedbackScreen() {
-  useStackBackTitle()
+  useStackBackTitle('Submit feedback')
   const [kind, setKind] = useState<FeedbackKind>('feature')
   const [priority, setPriority] = useState<FeedbackPriority>('medium')
   const [title, setTitle] = useState('')
@@ -65,9 +65,6 @@ export default function FeedbackScreen() {
 
       <ScrollView contentContainerStyle={shared.scrollContentSubpage}>
         <View style={shared.card}>
-          <Text style={shared.subheading}>Submit feedback</Text>
-          <View style={shared.mt_md} />
-
           <Text style={shared.label}>Type</Text>
           <ChoiceRow<FeedbackKind>
             value={kind}

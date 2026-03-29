@@ -10,7 +10,7 @@ import { normalizeVolleyballPositions } from '../../../../utils'
 import type { Profile } from '../../../../types'
 
 export default function AccountSettingsScreen() {
-  useStackBackTitle()
+  useStackBackTitle('Account settings')
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [editFirstName, setEditFirstName] = useState('')
@@ -85,9 +85,6 @@ export default function AccountSettingsScreen() {
     <View style={shared.screen}>
       <ScrollView contentContainerStyle={shared.scrollContentSubpage}>
         <View style={shared.card}>
-          <Text style={shared.subheading}>Account settings</Text>
-          <View style={shared.mt_md} />
-
           <Input
             label="First Name"
             value={editFirstName}
