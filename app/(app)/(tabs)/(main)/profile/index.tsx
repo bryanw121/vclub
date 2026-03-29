@@ -262,7 +262,11 @@ export default function MyProfile() {
     }
   }
 
-  if (loading || !profile) return null
+  if (loading || !profile) return (
+    <View style={[shared.screen, { alignItems: 'center', justifyContent: 'center' }]}>
+      <ActivityIndicator color={theme.colors.primary} />
+    </View>
+  )
 
   const editDirty = !volleyballPositionsEqualUnordered(profile.position, positionDraft)
 

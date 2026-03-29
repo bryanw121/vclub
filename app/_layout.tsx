@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { View } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { useAuth } from '../hooks/useAuth'
@@ -18,6 +19,16 @@ export default function RootLayout() {
       router.replace('/(app)')
     }
   }, [session, loading])
+
+  // Don't render any route until auth state is known — prevents flashing
+  // the app screen before redirecting unauthenticated users to login.
+  if (loading) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: theme.colors.background }} />
+      </GestureHandlerRootView>
+    )
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

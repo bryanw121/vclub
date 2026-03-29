@@ -152,7 +152,12 @@ export default function Login() {
       </Modal>
 
       <View style={shared.authCard}>
-        <Text style={shared.authTitle}>vclub</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <Text style={shared.authTitle}>vclub</Text>
+          <View style={{ backgroundColor: 'rgba(124,77,255,0.15)', borderWidth: 1, borderColor: 'rgba(124,77,255,0.4)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 2 }}>
+            <Text style={{ fontSize: 10, fontWeight: '700', color: '#7C4DFF', letterSpacing: 1 }}>BETA</Text>
+          </View>
+        </View>
 
         {forgotMode ? (
           <>

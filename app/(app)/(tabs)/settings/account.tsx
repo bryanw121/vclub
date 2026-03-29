@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Alert, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, ScrollView, Text, View } from 'react-native'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
 import { Button } from '../../../../components/Button'
@@ -79,7 +79,11 @@ export default function AccountSettingsScreen() {
     if (error) Alert.alert('Error', error.message)
   }
 
-  if (loading || !profile) return null
+  if (loading || !profile) return (
+    <View style={[shared.screen, { alignItems: 'center', justifyContent: 'center' }]}>
+      <ActivityIndicator color={theme.colors.primary} />
+    </View>
+  )
 
   return (
     <View style={shared.screen}>

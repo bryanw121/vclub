@@ -94,13 +94,18 @@ export default function AppLayout() {
               paddingHorizontal: collapsed ? 0 : undefined,
             }}>
               {!collapsed && (
-                <Text style={{
-                  fontSize: theme.font.size.xl,
-                  fontWeight: theme.font.weight.bold,
-                  color: theme.colors.primary,
-                }}>
-                  vclub
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{
+                    fontSize: theme.font.size.xl,
+                    fontWeight: theme.font.weight.bold,
+                    color: theme.colors.primary,
+                  }}>
+                    vclub
+                  </Text>
+                  <View style={{ backgroundColor: theme.colors.primary + '22', borderWidth: 1, borderColor: theme.colors.primary + '66', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: theme.colors.primary, letterSpacing: 1 }}>BETA</Text>
+                  </View>
+                </View>
               )}
               <TouchableOpacity
                 onPress={() => setCollapsed(c => !c)}

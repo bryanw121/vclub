@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
 import { EventCard } from '../../../../components/EventCard'
-import { shared } from '../../../../constants'
+import { shared, theme } from '../../../../constants'
 import type { EventWithDetails } from '../../../../types'
 
 export default function ProfileHostedEventsScreen() {
@@ -33,7 +33,11 @@ export default function ProfileHostedEventsScreen() {
     setLoading(false)
   }
 
-  if (loading) return null
+  if (loading) return (
+    <View style={[shared.screen, { alignItems: 'center', justifyContent: 'center' }]}>
+      <ActivityIndicator color={theme.colors.primary} />
+    </View>
+  )
 
   return (
     <View style={shared.screen}>

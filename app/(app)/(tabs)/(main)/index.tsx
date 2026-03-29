@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useCallback, memo, useEffect } from 'react'
 import { useFocusEffect } from 'expo-router'
-import { Platform, View, ScrollView, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions } from 'react-native'
+import { Platform, View, ScrollView, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions, ActivityIndicator } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useEvents } from '../../../../hooks/useEvents'
 import { EventCard } from '../../../../components/EventCard'
@@ -186,33 +186,26 @@ export default function EventsScreen() {
           maxHeight: calendarAnim.interpolate({ inputRange: [0, 1], outputRange: [0, calendarNaturalHeight] }),
         }}>
           <View onLayout={e => setCalendarNaturalHeight(e.nativeEvent.layout.height)}>
-            {/* Week / Month toggle */}
-            <View style={{ paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.sm }}>
-              <View style={{ flexDirection: 'row', alignSelf: 'flex-start', borderRadius: theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.card }}>
-                {(['week', 'month'] as const).map(m => (
-                  <TouchableOpacity
-                    key={m}
-                    onPress={() => setMode(m)}
-                    style={{ paddingHorizontal: theme.spacing.md, paddingVertical: 6, backgroundColor: mode === m ? theme.colors.primary : 'transparent' }}
-                  >
-                    <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: mode === m ? theme.colors.white : theme.colors.subtext }}>
-                      {m.charAt(0).toUpperCase() + m.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            {/* Week / Month toggle — desktop only */}
+            {!isMobile && (
+              <View style={{ paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.sm }}>
+                <View style={{ flexDirection: 'row', alignSelf: 'flex-start', borderRadius: theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.card }}>
+                  {(['week', 'month'] as const).map(m => (
+                    <TouchableOpacity
+                      key={m}
+                      onPress={() => setMode(m)}
+                      style={{ paddingHorizontal: theme.spacing.md, paddingVertical: 6, backgroundColor: mode === m ? theme.colors.primary : 'transparent' }}
+                    >
+                      <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: mode === m ? theme.colors.white : theme.colors.subtext }}>
+                        {m.charAt(0).toUpperCase() + m.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-            </View>
+            )}
 
-            {mode === 'week' ? (
-              <WeekPager
-                curWeekPage={curWeekPage}
-                selectedDate={selectedDate}
-                markedDates={markedDates}
-                onSelectDate={selectDate}
-                onPrevWeek={goPrevWeek}
-                onNextWeek={goNextWeek}
-              />
-            ) : (
+            {(!isMobile && mode === 'month') ? (
               <MonthPager
                 curMonthPage={curMonthPage}
                 selectedDate={selectedDate}
@@ -220,6 +213,15 @@ export default function EventsScreen() {
                 onSelectDate={selectDate}
                 onPrevMonth={goPrevMonth}
                 onNextMonth={goNextMonth}
+              />
+            ) : (
+              <WeekPager
+                curWeekPage={curWeekPage}
+                selectedDate={selectedDate}
+                markedDates={markedDates}
+                onSelectDate={selectDate}
+                onPrevWeek={goPrevWeek}
+                onNextWeek={goNextWeek}
               />
             )}
             <View style={[shared.divider, { marginHorizontal: theme.spacing.lg, marginBottom: 0 }]} />
@@ -235,7 +237,12 @@ export default function EventsScreen() {
         onScroll={handleScroll}
         scrollEventThrottle={100}
       >
-        {sections.length === 0 && !loading ? (
+        {loading && sections.length === 0 ? (
+          <ActivityIndicator
+            style={{ marginTop: theme.spacing.xl }}
+            color={theme.colors.primary}
+          />
+        ) : sections.length === 0 ? (
           <Text style={[shared.caption, { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md }]}>
             no upcoming events — create one!
           </Text>
