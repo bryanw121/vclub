@@ -69,9 +69,12 @@ export default function MyProfile() {
   const [avatarUriResolving, setAvatarUriResolving] = useState(false)
   const [avatarUriError, setAvatarUriError] = useState<string | null>(null)
   const lastResolvedAvatarUrl = useRef<string | null>(null)
+  const lastFetchedAt = useRef(0)
 
   useFocusEffect(
     useCallback(() => {
+      if (Date.now() - lastFetchedAt.current < 60_000) return
+      lastFetchedAt.current = Date.now()
       void fetchProfile()
     }, []),
   )

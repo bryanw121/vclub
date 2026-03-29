@@ -39,13 +39,13 @@ export default function EventsScreen() {
   const isMobile = Platform.OS !== 'web' || windowWidth < 768
 
   useEffect(() => {
-    if (eventsRefreshTick > 0) refetch()
+    if (eventsRefreshTick > 0) refetch(true) // force after creating/editing an event
   }, [eventsRefreshTick, refetch])
 
   const webFocusCount = useRef(0)
   useFocusEffect(useCallback(() => {
     webFocusCount.current += 1
-    if (webFocusCount.current > 1) refetch()
+    if (webFocusCount.current > 1) refetch() // respects 60s staleness window
   }, [refetch]))
 
   const [selectedDate, setSelectedDate] = useState<string>(TODAY)
@@ -233,7 +233,7 @@ export default function EventsScreen() {
         ref={scrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={theme.colors.primary} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => refetch(true)} tintColor={theme.colors.primary} />}
         onScroll={handleScroll}
         scrollEventThrottle={100}
       >

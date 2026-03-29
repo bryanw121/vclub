@@ -370,22 +370,19 @@ export default function EventDetail() {
         .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
 
       const attendeeIds = attendingEntries.map((a: any) => a.user_id)
-      if (attendeeIds.length > 0) {
-        const { data: profiles, error: profilesError } = await supabase.from('profiles').select('*').in('id', attendeeIds)
-        if (profilesError) throw profilesError
-        setAttendees((profiles ?? []) as Profile[])
-      } else {
-        setAttendees([])
-      }
-
       const waitlistIds = waitlistEntries.map((a: any) => a.user_id)
-      if (waitlistIds.length > 0) {
-        const { data: wProfiles } = await supabase.from('profiles').select('*').in('id', waitlistIds)
-        const profileMap = new Map(((wProfiles ?? []) as Profile[]).map(p => [p.id, p]))
-        setWaitlistProfiles(waitlistIds.map(uid => profileMap.get(uid)).filter(Boolean) as Profile[])
-      } else {
-        setWaitlistProfiles([])
+      const allProfileIds = [...new Set([...attendeeIds, ...waitlistIds])]
+      const profilesMap = new Map<string, Profile>()
+      if (allProfileIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username, first_name, last_name, avatar_url, position')
+          .in('id', allProfileIds)
+        if (profilesError) throw profilesError
+        for (const p of profiles ?? []) profilesMap.set((p as any).id, p as Profile)
       }
+      setAttendees(attendeeIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
+      setWaitlistProfiles(waitlistIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
 
       const { data: guestRows } = await supabase
         .from('event_guests')
@@ -495,21 +492,18 @@ export default function EventDetail() {
       .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
 
     const attendeeIds = attendingRows.map((a: any) => a.user_id)
-    if (attendeeIds.length > 0) {
-      const { data: profiles } = await supabase.from('profiles').select('*').in('id', attendeeIds)
-      setAttendees((profiles ?? []) as Profile[])
-    } else {
-      setAttendees([])
-    }
-
     const waitlistIds = waitlistRows.map((a: any) => a.user_id)
-    if (waitlistIds.length > 0) {
-      const { data: wProfiles } = await supabase.from('profiles').select('*').in('id', waitlistIds)
-      const profileMap = new Map(((wProfiles ?? []) as Profile[]).map(p => [p.id, p]))
-      setWaitlistProfiles(waitlistIds.map(uid => profileMap.get(uid)).filter(Boolean) as Profile[])
-    } else {
-      setWaitlistProfiles([])
+    const allProfileIds = [...new Set([...attendeeIds, ...waitlistIds])]
+    const profilesMap = new Map<string, Profile>()
+    if (allProfileIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username, first_name, last_name, avatar_url, position')
+        .in('id', allProfileIds)
+      for (const p of profiles ?? []) profilesMap.set((p as any).id, p as Profile)
     }
+    setAttendees(attendeeIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
+    setWaitlistProfiles(waitlistIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
 
     const map: Record<string, TeamAssignment> = {}
     let maxTeam = 1
