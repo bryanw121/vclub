@@ -218,7 +218,7 @@ export default function AppLayout() {
             )}
 
             {/* FAB button */}
-            {!pathname.startsWith('/host') && !pathname.startsWith('/profile') && !pathname.startsWith('/settings') && !pathname.startsWith('/clubs') && (
+            {pathname === '/' && (
               <TouchableOpacity
                 onPress={fabOpen ? closeFab : openFab}
                 style={{

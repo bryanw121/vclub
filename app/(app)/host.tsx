@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, ScrollView, Text, View, Pressable, TouchableOpacity, Switch, Modal, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '../../lib/supabase'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
@@ -83,6 +83,11 @@ function generateEventDates(
 
 export default function HostEventScreen() {
   const router = useRouter()
+
+  function goBack() {
+    if (router.canGoBack()) router.back()
+    else router.replace('/(app)')
+  }
   const { mode: modeParam, edit: editId, maxAttendees: maxAttendeesParam } = useLocalSearchParams<{ mode?: string; edit?: string; maxAttendees?: string }>()
   const isEdit = !!editId
 
@@ -410,6 +415,14 @@ export default function HostEventScreen() {
 
   return (
     <>
+      <Stack.Screen options={{
+        title: 'Host Event',
+        headerLeft: () => (
+          <TouchableOpacity onPress={goBack} style={{ paddingRight: 8 }}>
+            <Ionicons name="chevron-back" size={24} color={theme.colors.primary} />
+          </TouchableOpacity>
+        ),
+      }} />
       <Modal visible={successModal} transparent animationType="none" onRequestClose={() => setSuccessModal(false)}>
         <TouchableOpacity style={shared.modalOverlay} onPress={() => setSuccessModal(false)}>
           <View style={shared.modalCard}>
