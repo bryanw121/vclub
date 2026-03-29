@@ -309,8 +309,9 @@ export default function EventDetail() {
 
   const [removeModal, setRemoveModal] = useState<RemoveModalState>(null)
   const [removingAttendee, setRemovingAttendee] = useState(false)
+  const [removeModalButtonsReady, setRemoveModalButtonsReady] = useState(false)
 
-  
+
 
   const [guests, setGuests] = useState<EventGuest[]>([])
   const [waitlistGuests, setWaitlistGuests] = useState<EventGuest[]>([])
@@ -340,6 +341,14 @@ export default function EventDetail() {
     fetchEvent()
     supabase.auth.getUser().then(({ data: { user } }) => setUserId(user?.id ?? null))
   }, [id])
+
+  // After the remove modal renders, allow interaction after a short delay so the
+  // ghost mouseup/pointerup from the X button click can't immediately dismiss it.
+  useEffect(() => {
+    if (removeModal === null) { setRemoveModalButtonsReady(false); return }
+    const t = setTimeout(() => setRemoveModalButtonsReady(true), 250)
+    return () => clearTimeout(t)
+  }, [removeModal])
 
   async function fetchEvent() {
     try {
@@ -614,33 +623,19 @@ export default function EventDetail() {
   }
 
   function openRemoveGuestModal(g: EventGuest) {
-    // openRemoveGuestModal called
-    // Ignore if a remove modal is already open or if we're in the short blocked window
     if (removeModal !== null) return
-    // Open modal on next tick so the originating touch event
-    // doesn't immediately hit the backdrop and close it.
-    setTimeout(() => {
-      // set guest remove modal
-      setRemoveModal({ kind: 'guest', guestId: g.id, firstName: g.first_name, lastName: g.last_name })
-    }, 0)
+    setRemoveModal({ kind: 'guest', guestId: g.id, firstName: g.first_name, lastName: g.last_name })
   }
 
   function openRemoveAttendeeModal(profile: Profile) {
-    // openRemoveAttendeeModal called
-    // Ignore duplicate rapid opens if a modal is already visible or we're in the blocked window
     if (removeModal !== null) return
-    // Open modal on next tick so the originating touch event
-    // doesn't immediately hit the backdrop and close it.
-    setTimeout(() => {
-      // set attendee remove modal
-      setRemoveModal({
-        kind: 'attendee',
-        userId: profile.id,
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        username: profile.username,
-      })
-    }, 0)
+    setRemoveModal({
+      kind: 'attendee',
+      userId: profile.id,
+      firstName: profile.first_name,
+      lastName: profile.last_name,
+      username: profile.username,
+    })
   }
 
   async function confirmRemoveFromModal() {
@@ -751,7 +746,7 @@ export default function EventDetail() {
       const next = current === null ? 1 : current >= numTeams ? null : current + 1
       return {
         ...prev,
-        [userId]: { team: next, pinned: next !== null },
+        [userId]: { team: next, pinned: prev[userId]?.pinned ?? false },
       }
     })
   }
@@ -898,7 +893,7 @@ export default function EventDetail() {
       }
       if (targetKey !== null) {
         const teamNum = targetKey === 'unassigned' ? null : parseInt(targetKey, 10)
-        setAssignments(prev => ({ ...prev, [playerId]: { team: teamNum, pinned: teamNum !== null } }))
+        setAssignments(prev => ({ ...prev, [playerId]: { team: teamNum, pinned: prev[playerId]?.pinned ?? false } }))
       }
     }
     draggingPlayerIdRef.current = null
@@ -1413,11 +1408,11 @@ export default function EventDetail() {
       {/* Remove attendee / guest — host confirmation
           Use backdrop Pressable + card as siblings (not nested TouchableOpacity). Nested touchables
           let Cancel bubble to the backdrop and cause a double-close / flash. */}
-      <Modal visible={removeModal !== null} transparent animationType="fade" onRequestClose={() => !removingAttendee && setRemoveModal(null)}>
+      <Modal visible={removeModal !== null} transparent animationType="fade" onRequestClose={() => { if (!removingAttendee && removeModalButtonsReady) setRemoveModal(null) }}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <Pressable
             style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }]}
-            onPress={() => { !removingAttendee && setRemoveModal(null) }}
+            onPress={() => { if (!removingAttendee && removeModalButtonsReady) setRemoveModal(null) }}
           />
           <TouchableOpacity activeOpacity={1} onPress={() => {}}
             style={{
@@ -1434,51 +1429,18 @@ export default function EventDetail() {
               {removeModal?.kind === 'guest' ? 'Remove guest?' : 'Remove attendee?'}
             </Text>
             <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>
-              This person will be removed from the event. They can join again if there is space.
+              This person will be removed from the event. They can rejoin if there is space.
             </Text>
-            {/* render-time trace removed */}
-            {removeModal ? (
-              (removeModal.kind === 'attendee' && !removeModal.username && !removeModal.firstName) ? (
-                <ActivityIndicator />
-              ) : (
-                <View style={{ gap: theme.spacing.sm }}>
-                  <View>
-                    <Text style={shared.label}>First name</Text>
-                    <Text style={shared.body}>
-                      {removeModal.kind === 'guest'
-                        ? removeModal.firstName
-                        : (removeModal.firstName?.trim() || '—')}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={shared.label}>Last name</Text>
-                    <Text style={shared.body}>
-                      {removeModal.kind === 'guest'
-                        ? removeModal.lastName
-                        : (removeModal.lastName?.trim() || '—')}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={shared.label}>Username</Text>
-                    <Text style={shared.body}>
-                      {removeModal.kind === 'guest'
-                        ? '— (guest — no account)'
-                        : `@${removeModal.username}`}
-                    </Text>
-                  </View>
-                </View>
-              )
-            ) : null}
                 <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginTop: theme.spacing.xs }}>
                 <View style={{ flex: 1 }}>
-                <Button label="Cancel" onPress={() => { setRemoveModal(null) }} variant="secondary" disabled={removingAttendee} />
+                <Button label="Cancel" onPress={() => setRemoveModal(null)} variant="secondary" disabled={removingAttendee || !removeModalButtonsReady} />
                 </View>
               <View style={{ flex: 1 }}>
                 <Button
                   label="Remove"
                   onPress={() => { void confirmRemoveFromModal() }}
                   loading={removingAttendee}
-                  disabled={removingAttendee}
+                  disabled={removingAttendee || !removeModalButtonsReady}
                   variant="danger"
                 />
               </View>

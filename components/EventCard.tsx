@@ -7,7 +7,8 @@ import { EventWithDetails } from '../types'
 function EventCardInner({ event }: { event: EventWithDetails }) {
   const router = useRouter()
   const attendeeCount = eventAttendeeDisplayCount(event)
-  const spotsLeft = event.max_attendees ? event.max_attendees - attendeeCount : null
+  const isOverfull = !!event.max_attendees && attendeeCount > event.max_attendees
+  const spotsLeft = event.max_attendees ? Math.max(0, event.max_attendees - attendeeCount) : null
   const isFull = spotsLeft === 0
   const tags = event.event_tags?.map(et => et.tags).sort((a, b) => a.display_order - b.display_order) ?? []
 
@@ -20,7 +21,7 @@ function EventCardInner({ event }: { event: EventWithDetails }) {
         <Text style={[shared.subheading, shared.eventCardTitle]}>{event.title}</Text>
         {spotsLeft !== null && (
           <View style={[shared.badge, isFull && shared.badgeFull]}>
-            <Text style={shared.badgeText}>{isFull ? 'Full' : `${spotsLeft} spots`}</Text>
+            <Text style={shared.badgeText}>{isOverfull ? `${attendeeCount}/${event.max_attendees} spots` : isFull ? 'Full' : `${spotsLeft} spots`}</Text>
           </View>
         )}
       </View>
