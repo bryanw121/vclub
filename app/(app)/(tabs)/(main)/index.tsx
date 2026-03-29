@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useCallback, memo, useEffect } from 'react'
 import { useFocusEffect } from 'expo-router'
-import { Platform, View, ScrollView, Text, RefreshControl, TouchableOpacity, PanResponder, Animated } from 'react-native'
+import { Platform, View, ScrollView, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useEvents } from '../../../../hooks/useEvents'
 import { EventCard } from '../../../../components/EventCard'
@@ -35,6 +35,8 @@ type DateSection = { date: string; data: EventWithDetails[] }
 export default function EventsScreen() {
   const { events, loading, error, refetch } = useEvents()
   const { pagerBlocked, setTabBarHidden, tabBarHeight, eventsRefreshTick } = useTabsContext()
+  const { width: windowWidth } = useWindowDimensions()
+  const isMobile = Platform.OS !== 'web' || windowWidth < 768
 
   useEffect(() => {
     if (eventsRefreshTick > 0) refetch()
@@ -48,18 +50,60 @@ export default function EventsScreen() {
 
   const [selectedDate, setSelectedDate] = useState<string>(TODAY)
   const [mode, setMode] = useState<'week' | 'month'>('week')
+  const [notifOpen, setNotifOpen] = useState(false)
   const [curWeekPage, setCurWeekPage] = useState(WEEK_CENTER)
   const [curMonthPage, setCurMonthPage] = useState(MONTH_CENTER)
 
   const lastScrollY = useRef(0)
+  const scrollDelta = useRef(0)
+  const calendarAnim = useRef(new Animated.Value(1)).current
+  const calendarCollapsed = useRef(false)
+  const [calendarNaturalHeight, setCalendarNaturalHeight] = useState(300)
+
+  function collapseCalendar() {
+    if (!isMobile || calendarCollapsed.current) return
+    calendarCollapsed.current = true
+    Animated.timing(calendarAnim, { toValue: 0, duration: 200, useNativeDriver: false }).start()
+  }
+  function expandCalendar() {
+    if (!calendarCollapsed.current) return
+    calendarCollapsed.current = false
+    Animated.timing(calendarAnim, { toValue: 1, duration: 220, useNativeDriver: false }).start()
+  }
+
   const handleScroll = useCallback((e: any) => {
-    if (Platform.OS !== 'web') return
     const y: number = e.nativeEvent.contentOffset.y
+    const contentHeight: number = e.nativeEvent.contentSize.height
+    const visibleHeight: number = e.nativeEvent.layoutMeasurement.height
     const diff = y - lastScrollY.current
     lastScrollY.current = y
-    if (y <= 60) { setTabBarHidden(false); return }
-    if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
-  }, [setTabBarHidden])
+
+    // At the bottom — stop reacting to oscillation
+    if (y + visibleHeight >= contentHeight - 60) {
+      scrollDelta.current = 0
+      return
+    }
+
+    if (y < 80) {
+      scrollDelta.current = 0
+      expandCalendar()
+      return
+    }
+
+    // Reset accumulator when direction reverses
+    if ((diff > 0 && scrollDelta.current < 0) || (diff < 0 && scrollDelta.current > 0)) {
+      scrollDelta.current = 0
+    }
+    scrollDelta.current += diff
+
+    if (scrollDelta.current > 50) {
+      scrollDelta.current = 0
+      collapseCalendar()
+    } else if (scrollDelta.current < -50) {
+      scrollDelta.current = 0
+      expandCalendar()
+    }
+  }, [isMobile])
 
   const blockPager   = useCallback(() => { pagerBlocked.current = true  }, [pagerBlocked])
   const unblockPager = useCallback(() => { pagerBlocked.current = false }, [pagerBlocked])
@@ -108,44 +152,79 @@ export default function EventsScreen() {
         onTouchEnd={unblockPager}
         onTouchCancel={unblockPager}
       >
-        {/* Week / Month toggle */}
-        <View style={{ alignItems: 'flex-end', paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.xs }}>
-          <View style={{ flexDirection: 'row', borderRadius: theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border }}>
-            {(['week', 'month'] as const).map(m => (
-              <TouchableOpacity
-                key={m}
-                onPress={() => setMode(m)}
-                style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, backgroundColor: mode === m ? theme.colors.primary : 'transparent' }}
-              >
-                <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: mode === m ? theme.colors.white : theme.colors.subtext }}>
-                  {m.charAt(0).toUpperCase() + m.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+        {/* Header: title + bell */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm }}>
+          <Text style={{ fontSize: theme.font.size.xl, fontWeight: theme.font.weight.bold, color: theme.colors.text }}>
+            Events
+          </Text>
+          <TouchableOpacity
+            onPress={() => setNotifOpen(o => !o)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: notifOpen ? theme.colors.primary + '14' : theme.colors.border + '60',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons
+              name={notifOpen ? 'notifications' : 'notifications-outline'}
+              size={20}
+              color={notifOpen ? theme.colors.primary : theme.colors.subtext}
+            />
+          </TouchableOpacity>
         </View>
 
-        {mode === 'week' ? (
-          <WeekPager
-            curWeekPage={curWeekPage}
-            selectedDate={selectedDate}
-            markedDates={markedDates}
-            onSelectDate={selectDate}
-            onPrevWeek={goPrevWeek}
-            onNextWeek={goNextWeek}
-          />
-        ) : (
-          <MonthPager
-            curMonthPage={curMonthPage}
-            selectedDate={selectedDate}
-            markedDates={markedDates}
-            onSelectDate={selectDate}
-            onPrevMonth={goPrevMonth}
-            onNextMonth={goNextMonth}
-          />
-        )}
+        {/* Collapsible calendar area */}
+        <Animated.View style={{
+          overflow: 'hidden',
+          opacity: calendarAnim,
+          maxHeight: calendarAnim.interpolate({ inputRange: [0, 1], outputRange: [0, calendarNaturalHeight] }),
+        }}>
+          <View onLayout={e => setCalendarNaturalHeight(e.nativeEvent.layout.height)}>
+            {/* Week / Month toggle */}
+            <View style={{ paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.sm }}>
+              <View style={{ flexDirection: 'row', alignSelf: 'flex-start', borderRadius: theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.card }}>
+                {(['week', 'month'] as const).map(m => (
+                  <TouchableOpacity
+                    key={m}
+                    onPress={() => setMode(m)}
+                    style={{ paddingHorizontal: theme.spacing.md, paddingVertical: 6, backgroundColor: mode === m ? theme.colors.primary : 'transparent' }}
+                  >
+                    <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: mode === m ? theme.colors.white : theme.colors.subtext }}>
+                      {m.charAt(0).toUpperCase() + m.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
 
-        <View style={[shared.divider, { marginHorizontal: theme.spacing.lg }]} />
+            {mode === 'week' ? (
+              <WeekPager
+                curWeekPage={curWeekPage}
+                selectedDate={selectedDate}
+                markedDates={markedDates}
+                onSelectDate={selectDate}
+                onPrevWeek={goPrevWeek}
+                onNextWeek={goNextWeek}
+              />
+            ) : (
+              <MonthPager
+                curMonthPage={curMonthPage}
+                selectedDate={selectedDate}
+                markedDates={markedDates}
+                onSelectDate={selectDate}
+                onPrevMonth={goPrevMonth}
+                onNextMonth={goNextMonth}
+              />
+            )}
+            <View style={[shared.divider, { marginHorizontal: theme.spacing.lg, marginBottom: 0 }]} />
+          </View>
+        </Animated.View>
       </View>
 
       <ScrollView
@@ -180,6 +259,44 @@ export default function EventsScreen() {
           ))
         )}
       </ScrollView>
+
+      {/* Notification popup */}
+      {notifOpen && (
+        <>
+          <Pressable
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+            onPress={() => setNotifOpen(false)}
+          />
+          <View style={{
+            position: 'absolute',
+            top: 48,
+            right: theme.spacing.lg,
+            width: 260,
+            backgroundColor: theme.colors.card,
+            borderRadius: theme.radius.md,
+            borderWidth: 1,
+            borderColor: theme.colors.border,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.10,
+            shadowRadius: 8,
+            elevation: 6,
+            overflow: 'hidden',
+          }}>
+            <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, borderBottomWidth: 1, borderBottomColor: theme.colors.border }}>
+              <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
+                Notifications
+              </Text>
+            </View>
+            <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.lg, alignItems: 'center', gap: theme.spacing.sm }}>
+              <Ionicons name="notifications-off-outline" size={28} color={theme.colors.subtext} />
+              <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, textAlign: 'center' }}>
+                Notifications coming soon
+              </Text>
+            </View>
+          </View>
+        </>
+      )}
     </View>
   )
 }
@@ -323,7 +440,7 @@ const MonthGridContent = memo(function MonthGridContent({ month, selectedDate, m
     ...Array(startOffset).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ]
-  while (cells.length % 7 !== 0) cells.push(null)
+  while (cells.length < 42) cells.push(null)
   const rows: (number | null)[][] = []
   for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7))
 

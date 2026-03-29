@@ -12,7 +12,7 @@ export function formatEventDate(dateString: string, style: 'short' | 'long' = 's
     weekday: style === 'long' ? 'long' : 'short',
     month: style === 'long' ? 'long' : 'short',
     day: 'numeric',
-    hour: '2-digit',
+    hour: 'numeric',
     minute: '2-digit',
     hour12: true,
   }

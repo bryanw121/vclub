@@ -163,7 +163,7 @@ export default function AppLayout() {
               <Stack.Screen name="(tabs)" options={{ headerShown: false, headerBackTitle: 'Back' }} />
               <Stack.Screen name="host" options={{ title: 'Host Event', headerBackTitle: 'Events', gestureEnabled: true }} />
               <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
-              <Stack.Screen name="(tabs)/profile/[id]" options={{ title: 'Profile', headerBackTitle: 'Back', gestureEnabled: true }} />
+              <Stack.Screen name="profile/[id]" options={{ headerShown: false, gestureEnabled: true }} />
             </Stack>
 
             {/* FAB backdrop */}
@@ -257,7 +257,7 @@ export default function AppLayout() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false, headerBackTitle: 'Back' }} />
       <Stack.Screen name="host" options={{ title: 'Host Event', headerBackTitle: 'Events', gestureEnabled: true }} />
       <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
-      <Stack.Screen name="(tabs)/profile/[id]" options={{ title: 'Profile', headerBackTitle: 'Back', gestureEnabled: true }} />
+      <Stack.Screen name="profile/[id]" options={{ headerShown: false, gestureEnabled: true }} />
     </Stack>
   )
 }

@@ -68,6 +68,7 @@ export default function MyProfile() {
   const [avatarDisplayUri, setAvatarDisplayUri] = useState<string | null>(null)
   const [avatarUriResolving, setAvatarUriResolving] = useState(false)
   const [avatarUriError, setAvatarUriError] = useState<string | null>(null)
+  const lastResolvedAvatarUrl = useRef<string | null>(null)
 
   useFocusEffect(
     useCallback(() => {
@@ -103,15 +104,20 @@ export default function MyProfile() {
       setProfile(normalized)
       setPositionDraft(positions)
       if (normalized.avatar_url) {
-        setAvatarUriResolving(true)
-        setAvatarUriError(null)
-        const { uri, error } = await resolveProfileAvatarUriWithError(normalized.avatar_url)
-        setAvatarDisplayUri(uri)
-        setAvatarUriError(error)
-        setAvatarUriResolving(false)
+        if (normalized.avatar_url !== lastResolvedAvatarUrl.current) {
+          setAvatarUriResolving(true)
+          setAvatarUriError(null)
+          const { uri, error } = await resolveProfileAvatarUriWithError(normalized.avatar_url)
+          setAvatarDisplayUri(uri)
+          setAvatarUriError(error)
+          setAvatarUriResolving(false)
+          lastResolvedAvatarUrl.current = normalized.avatar_url
+        }
+        // else: same path as last time — keep existing avatarDisplayUri, skip the network call
       } else {
         setAvatarDisplayUri(null)
         setAvatarUriError(null)
+        lastResolvedAvatarUrl.current = null
       }
     }
     setLoading(false)
@@ -226,6 +232,31 @@ export default function MyProfile() {
     }
   }
 
+  async function deleteAvatar() {
+    if (!profile?.avatar_url) return
+    try {
+      setAvatarUploading(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not logged in')
+
+      if (!/^https?:\/\//i.test(profile.avatar_url)) {
+        await supabase.storage.from(AVATARS_BUCKET).remove([profile.avatar_url])
+      }
+
+      const { error } = await supabase.from('profiles').update({ avatar_url: null }).eq('id', user.id)
+      if (error) throw error
+
+      setProfile(prev => prev ? { ...prev, avatar_url: null } : prev)
+      setAvatarDisplayUri(null)
+      setAvatarUriError(null)
+      lastResolvedAvatarUrl.current = null
+    } catch (e: any) {
+      Alert.alert('Error', e.message)
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
   if (loading || !profile) return null
 
   const editDirty = !volleyballPositionsEqualUnordered(profile.position, positionDraft)
@@ -255,36 +286,59 @@ export default function MyProfile() {
 
         <View style={shared.card}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md }}>
-            <Pressable
-              onPress={pickAndUploadAvatar}
-              disabled={avatarUploading}
-              accessibilityRole="button"
-              accessibilityLabel="Change profile picture"
-              style={{
-                width: AVATAR_SIZE,
-                height: AVATAR_SIZE,
-                borderRadius: AVATAR_SIZE / 2,
-                overflow: 'hidden',
-                backgroundColor: theme.colors.border,
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderWidth: 2,
-                borderColor: theme.colors.border,
-                flexShrink: 0,
-              }}
-            >
-              {avatarUploading || avatarUriResolving ? (
-                <ActivityIndicator color={theme.colors.primary} />
-              ) : avatarDisplayUri ? (
-                <Image
-                  source={{ uri: avatarDisplayUri }}
-                  style={{ width: '100%', height: '100%' }}
-                  accessibilityIgnoresInvertColors
-                />
-              ) : (
-                <Ionicons name="person" size={40} color={theme.colors.subtext} />
+            <View style={{ position: 'relative', width: AVATAR_SIZE, height: AVATAR_SIZE, flexShrink: 0 }}>
+              <Pressable
+                onPress={pickAndUploadAvatar}
+                disabled={avatarUploading}
+                accessibilityRole="button"
+                accessibilityLabel="Change profile picture"
+                style={{
+                  width: AVATAR_SIZE,
+                  height: AVATAR_SIZE,
+                  borderRadius: AVATAR_SIZE / 2,
+                  overflow: 'hidden',
+                  backgroundColor: theme.colors.border,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderWidth: 2,
+                  borderColor: theme.colors.border,
+                }}
+              >
+                {avatarUploading || avatarUriResolving ? (
+                  <ActivityIndicator color={theme.colors.primary} />
+                ) : avatarDisplayUri ? (
+                  <Image
+                    source={{ uri: avatarDisplayUri }}
+                    style={{ width: '100%', height: '100%' }}
+                    accessibilityIgnoresInvertColors
+                  />
+                ) : (
+                  <Ionicons name="person" size={40} color={theme.colors.subtext} />
+                )}
+              </Pressable>
+              {section === 'edit' && profile.avatar_url && !avatarUploading && (
+                <Pressable
+                  onPress={deleteAvatar}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove profile picture"
+                  style={{
+                    position: 'absolute',
+                    top: -2,
+                    right: -2,
+                    width: 22,
+                    height: 22,
+                    borderRadius: 11,
+                    backgroundColor: theme.colors.subtext,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderWidth: 2,
+                    borderColor: theme.colors.card,
+                  }}
+                >
+                  <Ionicons name="close" size={12} color={theme.colors.white} />
+                </Pressable>
               )}
-            </Pressable>
+            </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={shared.heading}>
                 {profile.first_name && profile.last_name
