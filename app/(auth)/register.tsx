@@ -144,6 +144,7 @@ export default function Register() {
           onChangeText={setPassword}
           placeholder="••••••••"
           secureTextEntry
+          showPasswordToggle
           autoCapitalize="none"
           returnKeyType="go"
           onSubmitEditing={handleRegister}

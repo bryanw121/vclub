@@ -210,6 +210,7 @@ export default function Login() {
               onChangeText={setPassword}
               placeholder="••••••••"
               secureTextEntry
+              showPasswordToggle
               autoCapitalize="none"
               returnKeyType="go"
               onSubmitEditing={handleLogin}

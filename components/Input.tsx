@@ -1,5 +1,6 @@
-import { forwardRef } from 'react'
-import { TextInput, Text, View, TextInputProps } from 'react-native'
+import { forwardRef, useState } from 'react'
+import { TextInput, Text, View, TouchableOpacity, TextInputProps } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { shared, theme } from '../constants'
 
 type Props = {
@@ -8,6 +9,7 @@ type Props = {
   onChangeText: (text: string) => void
   placeholder?: string
   secureTextEntry?: boolean
+  showPasswordToggle?: boolean
   multiline?: boolean
   numberOfLines?: number
   error?: string
@@ -20,30 +22,48 @@ type Props = {
 }
 
 export const Input = forwardRef<TextInput, Props>(function Input(
-  { label, value, onChangeText, placeholder, secureTextEntry, multiline, numberOfLines,
+  { label, value, onChangeText, placeholder, secureTextEntry, showPasswordToggle, multiline, numberOfLines,
     error, returnKeyType, onSubmitEditing, blurOnSubmit, autoCapitalize, keyboardType, autoCorrect },
   ref
 ) {
+  const [visible, setVisible] = useState(false)
+  const isSecure = secureTextEntry && !visible
+
   return (
     <View style={shared.inputContainer}>
       {label && <Text style={shared.label}>{label}</Text>}
-      <TextInput
-        ref={ref}
-        style={[shared.input, multiline && shared.inputMultiline, !!error && shared.inputError]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={theme.colors.subtext}
-        secureTextEntry={secureTextEntry}
-        multiline={multiline}
-        numberOfLines={numberOfLines}
-        returnKeyType={returnKeyType}
-        onSubmitEditing={onSubmitEditing}
-        blurOnSubmit={blurOnSubmit}
-        autoCapitalize={autoCapitalize}
-        keyboardType={keyboardType}
-        autoCorrect={autoCorrect}
-      />
+      <View style={{ position: 'relative' }}>
+        <TextInput
+          ref={ref}
+          style={[shared.input, multiline && shared.inputMultiline, !!error && shared.inputError, showPasswordToggle && { paddingRight: 44 }]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={theme.colors.subtext}
+          secureTextEntry={isSecure}
+          multiline={multiline}
+          numberOfLines={numberOfLines}
+          returnKeyType={returnKeyType}
+          onSubmitEditing={onSubmitEditing}
+          blurOnSubmit={blurOnSubmit}
+          autoCapitalize={autoCapitalize}
+          keyboardType={keyboardType}
+          autoCorrect={autoCorrect}
+        />
+        {showPasswordToggle && (
+          <TouchableOpacity
+            onPress={() => setVisible(v => !v)}
+            style={{ position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center', padding: 4 }}
+            hitSlop={8}
+          >
+            <Ionicons
+              name={visible ? 'eye-off-outline' : 'eye-outline'}
+              size={20}
+              color={theme.colors.subtext}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
       {error && <Text style={shared.inputErrorText}>{error}</Text>}
     </View>
   )
