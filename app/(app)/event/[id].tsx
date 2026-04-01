@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react'
+import React, { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { Platform, View, Text, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal, Keyboard, KeyboardEvent, Switch } from 'react-native'
 import { GestureDetector, Gesture, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, interpolate, Extrapolation } from 'react-native-reanimated'
@@ -318,7 +318,10 @@ export default function EventDetail() {
   const [postingComment, setPostingComment] = useState(false)
   const [discussionDrawerOpen, setDiscussionDrawerOpen] = useState(false)
   const [discussionKeyboardInset, setDiscussionKeyboardInset] = useState(0)
+  const [discussionTabKeyboardInset, setDiscussionTabKeyboardInset] = useState(0)
+  const [discussionTabComposerHeight, setDiscussionTabComposerHeight] = useState(0)
   const discussionScrollRef = useRef<ScrollView>(null)
+  const discussionTabScrollRef = useRef<ScrollView>(null)
   const discussionSheetTranslateY = useSharedValue(0)
   const discussionBackdropOpacity = useSharedValue(0)
 
@@ -415,12 +418,64 @@ export default function EventDetail() {
   }, [discussionDrawerOpen])
 
   useEffect(() => {
+    if (activeTab !== 2) {
+      setDiscussionTabKeyboardInset(0)
+      return
+    }
+    if (Platform.OS === 'web') return
+
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
+    const onShow = (e: KeyboardEvent) => {
+      setDiscussionTabKeyboardInset(e.endCoordinates.height)
+    }
+    const onHide = () => {
+      setDiscussionTabKeyboardInset(0)
+    }
+    const subShow = Keyboard.addListener(showEvt, onShow)
+    const subHide = Keyboard.addListener(hideEvt, onHide)
+    return () => {
+      subShow.remove()
+      subHide.remove()
+      setDiscussionTabKeyboardInset(0)
+    }
+  }, [activeTab])
+
+  useEffect(() => {
+    if (discussionTabKeyboardInset <= 0) return
+    const t = setTimeout(() => {
+      discussionTabScrollRef.current?.scrollToEnd({ animated: true })
+    }, 64)
+    return () => clearTimeout(t)
+  }, [discussionTabKeyboardInset])
+
+  useEffect(() => {
     if (discussionKeyboardInset <= 0) return
     const t = setTimeout(() => {
       discussionScrollRef.current?.scrollToEnd({ animated: true })
     }, 64)
     return () => clearTimeout(t)
   }, [discussionKeyboardInset])
+
+  const scrollDiscussionToBottom = useCallback((animated: boolean) => {
+    // scrollToEnd can fail before layout; delay a frame.
+    requestAnimationFrame(() => {
+      discussionScrollRef.current?.scrollToEnd({ animated })
+      discussionTabScrollRef.current?.scrollToEnd({ animated })
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!discussionDrawerOpen) return
+    const t = setTimeout(() => scrollDiscussionToBottom(false), 0)
+    return () => clearTimeout(t)
+  }, [discussionDrawerOpen, scrollDiscussionToBottom])
+
+  useEffect(() => {
+    // When entering discussion or when comments update, keep the view pinned to the bottom (chat UX).
+    if (activeTab !== 2 && !discussionDrawerOpen) return
+    scrollDiscussionToBottom(false)
+  }, [activeTab, discussionDrawerOpen, comments.length, discussionTabComposerHeight, scrollDiscussionToBottom])
 
   const discussionSheetAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: discussionSheetTranslateY.value }],
@@ -619,6 +674,7 @@ export default function EventDetail() {
       setCommentDraft('')
       setPostAsAnnouncement(false)
       await refreshComments()
+      scrollDiscussionToBottom(true)
     } catch (e: any) {
       Alert.alert('Error', e.message)
     } finally {
@@ -1494,55 +1550,131 @@ export default function EventDetail() {
             </ScrollView>
 
             {/* Tab 2: Discussion */}
-            <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
+            <View style={[shared.screen, { flex: 1, minHeight: 0 }]}>
+              <ScrollView
+                ref={discussionTabScrollRef}
+                style={{ flex: 1 }}
+                contentContainerStyle={{
+                  flexGrow: 1,
+                  justifyContent: 'flex-end',
+                  paddingTop: theme.spacing.lg,
+                  paddingHorizontal: theme.spacing.lg,
+                  // Reserve space so the last message isn't hidden behind the composer.
+                  paddingBottom: theme.spacing.xs + discussionTabComposerHeight,
+                }}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
+                onContentSizeChange={() => {
+                  if (activeTab === 2) scrollDiscussionToBottom(false)
+                }}
+              >
+                {commentsLoading && comments.length === 0 ? (
+                  <View style={{ paddingVertical: theme.spacing.lg, alignItems: 'center' }}>
+                    <ActivityIndicator color={theme.colors.primary} />
+                  </View>
+                ) : comments.length === 0 ? (
+                  <Text style={shared.caption}>No messages yet. Be the first to comment.</Text>
+                ) : (
+                  <View style={{ gap: theme.spacing.xs }}>
+                    {comments.map(c => (
+                      <EventCommentRow key={c.id} comment={c} />
+                    ))}
+                  </View>
+                )}
+              </ScrollView>
+
               {userId ? (
-                <View style={{ gap: theme.spacing.sm, marginBottom: theme.spacing.lg }}>
-                  {isOwner && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.xs }}>
-                      <Text style={[shared.caption, { flex: 1, paddingRight: theme.spacing.sm }]}>
-                        Post as announcement
-                      </Text>
-                      <Switch
-                        value={postAsAnnouncement}
-                        onValueChange={setPostAsAnnouncement}
-                        trackColor={{ false: theme.colors.border, true: theme.colors.primary + '99' }}
-                        thumbColor={postAsAnnouncement ? theme.colors.white : theme.colors.card}
-                        ios_backgroundColor={theme.colors.border}
-                      />
+                <View
+                  style={{
+                    paddingHorizontal: theme.spacing.lg,
+                    paddingTop: theme.spacing.sm,
+                    // Let the whole chat jump with keyboard, but keep message/composer adjacency.
+                    paddingBottom:
+                      discussionTabKeyboardInset > 0
+                        ? discussionTabKeyboardInset + theme.spacing.sm
+                        : Math.max(insets.bottom, theme.spacing.md),
+                  }}
+                >
+                  <View
+                    onLayout={(e) => setDiscussionTabComposerHeight(Math.ceil(e.nativeEvent.layout.height))}
+                  >
+                    {isOwner && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.sm }}>
+                        <Text style={[shared.caption, { flex: 1, paddingRight: theme.spacing.sm }]}>
+                          Post as announcement
+                        </Text>
+                        <Switch
+                          value={postAsAnnouncement}
+                          onValueChange={setPostAsAnnouncement}
+                          trackColor={{ false: theme.colors.border, true: theme.colors.primary + '99' }}
+                          thumbColor={postAsAnnouncement ? theme.colors.white : theme.colors.card}
+                          ios_backgroundColor={theme.colors.border}
+                        />
+                      </View>
+                    )}
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Input
+                          value={commentDraft}
+                          onChangeText={setCommentDraft}
+                          placeholder="Add a comment..."
+                          multiline
+                          numberOfLines={4}
+                          blurOnSubmit={false}
+                          containerStyle={{ marginBottom: 0 }}
+                          inputStyle={{
+                            minHeight: 44,
+                            maxHeight: 120,
+                            paddingHorizontal: theme.spacing.md,
+                            ...Platform.select({
+                              ios: {
+                                paddingTop: theme.spacing.md,
+                                paddingBottom: theme.spacing.sm,
+                              },
+                              android: {
+                                paddingTop: theme.spacing.sm,
+                                paddingBottom: theme.spacing.sm,
+                                textAlignVertical: 'bottom',
+                              },
+                              default: {
+                                paddingVertical: theme.spacing.sm,
+                              },
+                            }),
+                          }}
+                          onFocus={() => {
+                            requestAnimationFrame(() => {
+                              discussionTabScrollRef.current?.scrollToEnd({ animated: true })
+                            })
+                          }}
+                          includeFontPadding={Platform.OS === 'android' ? false : undefined}
+                        />
+                      </View>
+                      <TouchableOpacity
+                        onPress={handlePostComment}
+                        disabled={!commentDraft.trim() || postingComment}
+                        accessibilityRole="button"
+                        accessibilityLabel="Send comment"
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: theme.radius.md,
+                          backgroundColor: theme.colors.primary,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: !commentDraft.trim() || postingComment ? 0.4 : 1,
+                        }}
+                      >
+                        {postingComment
+                          ? <ActivityIndicator size="small" color={theme.colors.white} />
+                          : <Ionicons name="send" size={20} color={theme.colors.white} />}
+                      </TouchableOpacity>
                     </View>
-                  )}
-                  <Input
-                    label="Add a comment"
-                    value={commentDraft}
-                    onChangeText={setCommentDraft}
-                    placeholder="Write a message…"
-                    multiline
-                    numberOfLines={3}
-                  />
-                  <Button
-                    label="Post"
-                    onPress={handlePostComment}
-                    loading={postingComment}
-                    disabled={!commentDraft.trim()}
-                  />
+                  </View>
                 </View>
               ) : (
-                <Text style={[shared.caption, shared.mb_lg]}>Sign in to join the discussion.</Text>
+                <Text style={[shared.caption, { paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.lg }]}>Sign in to join the discussion.</Text>
               )}
-              {commentsLoading && comments.length === 0 ? (
-                <View style={{ paddingVertical: theme.spacing.lg, alignItems: 'center' }}>
-                  <ActivityIndicator color={theme.colors.primary} />
-                </View>
-              ) : comments.length === 0 ? (
-                <Text style={shared.caption}>No messages yet. Be the first to comment.</Text>
-              ) : (
-                <View style={{ gap: theme.spacing.xs }}>
-                  {[...comments].reverse().map(c => (
-                    <EventCommentRow key={c.id} comment={c} />
-                  ))}
-                </View>
-              )}
-            </ScrollView>
+            </View>
           </Pager>
         </>
       )}
@@ -1612,9 +1744,12 @@ export default function EventDetail() {
                 <ScrollView
                   ref={discussionScrollRef}
                   style={{ flex: 1 }}
-                  contentContainerStyle={{ flexGrow: 1, paddingBottom: theme.spacing.md }}
+                  contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end', paddingBottom: theme.spacing.md }}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="interactive"
+                  onContentSizeChange={() => {
+                    if (discussionDrawerOpen) scrollDiscussionToBottom(false)
+                  }}
                 >
                   {comments.length === 0 ? (
                     <Text style={[shared.caption, { marginBottom: theme.spacing.sm }]}>No messages yet. Be the first to comment.</Text>
