@@ -8,6 +8,7 @@ import { EventWithDetails } from '../types'
 function EventCardInner({ event }: { event: EventWithDetails }) {
   const router = useRouter()
   const attendeeCount = eventAttendeeDisplayCount(event)
+  const waitlistedCount = event.event_attendees_waitlisted?.[0] ? Math.max(0, Number(event.event_attendees_waitlisted[0].count)) : 0
   const isOverfull = !!event.max_attendees && attendeeCount > event.max_attendees
   const spotsLeft = event.max_attendees ? Math.max(0, event.max_attendees - attendeeCount) : null
   const isFull = spotsLeft === 0
@@ -59,7 +60,9 @@ function EventCardInner({ event }: { event: EventWithDetails }) {
       )}
       <View style={shared.rowBetween}>
         <Text style={shared.caption}>by {event.profiles ? (event.profiles.first_name ? `${event.profiles.first_name} ${event.profiles.last_name?.[0] ?? ''}`.trim() : event.profiles.username) : 'unknown'}</Text>
-        <Text style={shared.caption}>{attendeeCount} going</Text>
+        <Text style={shared.caption}>
+          {attendeeCount} joining{waitlistedCount > 0 ? ` · ${waitlistedCount} requested` : ''}
+        </Text>
       </View>
     </TouchableOpacity>
   )

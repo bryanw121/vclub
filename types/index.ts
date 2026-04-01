@@ -138,6 +138,8 @@ export type EventWithDetails = Event & {
   event_attendees_attending?: EventAttendeeCountEmbed[]
   /** List/card queries only: attending +1 guests (excludes waitlisted guests). */
   event_guests_attending?: EventAttendeeCountEmbed[]
+  /** List/card queries only: waitlisted RSVPs count. */
+  event_attendees_waitlisted?: EventAttendeeCountEmbed[]
   event_tags?: { tag_id: string; tags: Tag }[]
   clubs?: { id: string; name: string; avatar_url: string | null } | null
 }

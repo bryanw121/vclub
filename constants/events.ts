@@ -61,7 +61,7 @@ export const EVENT_LIST_EVENT_COLUMNS =
   'id, created_by, club_id, title, location, event_date, max_attendees, created_at'
 
 /** Main Events tab + club upcoming: host, RSVP count, tags, club badge. */
-export const EVENT_CARD_LIST_SELECT = `${EVENT_LIST_EVENT_COLUMNS}, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees_attending(count), event_guests_attending(count), event_tags (tag_id, tags (id, name, category, display_order)), clubs (id, name, avatar_url)`
+export const EVENT_CARD_LIST_SELECT = `${EVENT_LIST_EVENT_COLUMNS}, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees_attending(count), event_guests_attending(count), event_attendees_waitlisted(count), event_tags (tag_id, tags (id, name, category, display_order)), clubs (id, name, avatar_url)`
 
 /** Hosted / history settings lists: host + RSVP count only (no tag/club embeds). */
-export const EVENT_CARD_LIST_SELECT_MINIMAL = `${EVENT_LIST_EVENT_COLUMNS}, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees_attending(count), event_guests_attending(count)`
+export const EVENT_CARD_LIST_SELECT_MINIMAL = `${EVENT_LIST_EVENT_COLUMNS}, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees_attending(count), event_guests_attending(count), event_attendees_waitlisted(count)`
