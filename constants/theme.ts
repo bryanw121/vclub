@@ -9,6 +9,8 @@ export const theme = {
     error: '#FF4444',
     success: '#00C853',
     white: '#FFFFFF',
+    /** Subtle tint for host announcement bubbles in event discussion. */
+    announcementHighlight: '#EDE8FF',
   },
   spacing: {
     xxs: 2,

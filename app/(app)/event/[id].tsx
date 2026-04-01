@@ -1,10 +1,11 @@
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { Platform, View, Text, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal } from 'react-native'
+import { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { Platform, View, Text, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal, Keyboard, KeyboardEvent, Switch } from 'react-native'
 import { GestureDetector, Gesture, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler'
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated'
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, interpolate, Extrapolation } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import * as Linking from 'expo-linking'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
 import { Button } from '../../../components/Button'
 import { Input } from '../../../components/Input'
@@ -14,6 +15,11 @@ import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWi
 import { profileDisplayName, profileInitial, eventAttendeeRows, normalizeVolleyballPositions } from '../../../utils'
 
 const EVENT_COMMENT_MAX_LEN = 2000
+
+function formatDiscussionBadgeCount(count: number): string {
+  if (count > 50) return '50+'
+  return String(count)
+}
 
 type RemoveModalState =
   | null
@@ -289,7 +295,8 @@ function DraggableGuestCard({ guest, adderUsername, teamColor, isPinned, isOwner
 export default function EventDetail() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
-  const { width: windowWidth } = useWindowDimensions()
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions()
+  const insets = useSafeAreaInsets()
   const isMobileWeb = Platform.OS === 'web' && windowWidth < 768
 
   const [event, setEvent] = useState<EventWithDetails | null>(null)
@@ -306,7 +313,13 @@ export default function EventDetail() {
   const [comments, setComments] = useState<EventCommentWithAuthor[]>([])
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentDraft, setCommentDraft] = useState('')
+  const [postAsAnnouncement, setPostAsAnnouncement] = useState(false)
   const [postingComment, setPostingComment] = useState(false)
+  const [discussionDrawerOpen, setDiscussionDrawerOpen] = useState(false)
+  const [discussionKeyboardInset, setDiscussionKeyboardInset] = useState(0)
+  const discussionScrollRef = useRef<ScrollView>(null)
+  const discussionSheetTranslateY = useSharedValue(0)
+  const discussionBackdropOpacity = useSharedValue(0)
 
   const [removeModal, setRemoveModal] = useState<RemoveModalState>(null)
   const [removingAttendee, setRemovingAttendee] = useState(false)
@@ -353,6 +366,102 @@ export default function EventDetail() {
     const t = setTimeout(() => setRemoveModalButtonsReady(true), 250)
     return () => clearTimeout(t)
   }, [removeModal])
+
+  const closeDiscussionDrawer = useCallback(() => {
+    setDiscussionDrawerOpen(false)
+  }, [])
+
+  const runDiscussionDismissAnimations = useCallback(() => {
+    discussionBackdropOpacity.value = withTiming(0, { duration: 220 })
+    discussionSheetTranslateY.value = withTiming(windowHeight, { duration: 260 }, (finished) => {
+      if (finished) runOnJS(closeDiscussionDrawer)()
+    })
+  }, [windowHeight, closeDiscussionDrawer])
+
+  useLayoutEffect(() => {
+    if (!discussionDrawerOpen) return
+    discussionBackdropOpacity.value = 0
+    discussionSheetTranslateY.value = windowHeight
+    discussionBackdropOpacity.value = withTiming(1, { duration: 260 })
+    discussionSheetTranslateY.value = withTiming(0, { duration: 320 })
+  }, [discussionDrawerOpen, windowHeight])
+
+  useEffect(() => {
+    if (!discussionDrawerOpen) {
+      setDiscussionKeyboardInset(0)
+      return
+    }
+    if (Platform.OS === 'web') return
+
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
+    const onShow = (e: KeyboardEvent) => {
+      setDiscussionKeyboardInset(e.endCoordinates.height)
+    }
+    const onHide = () => {
+      setDiscussionKeyboardInset(0)
+    }
+    const subShow = Keyboard.addListener(showEvt, onShow)
+    const subHide = Keyboard.addListener(hideEvt, onHide)
+    return () => {
+      subShow.remove()
+      subHide.remove()
+      setDiscussionKeyboardInset(0)
+    }
+  }, [discussionDrawerOpen])
+
+  useEffect(() => {
+    if (discussionKeyboardInset <= 0) return
+    const t = setTimeout(() => {
+      discussionScrollRef.current?.scrollToEnd({ animated: true })
+    }, 64)
+    return () => clearTimeout(t)
+  }, [discussionKeyboardInset])
+
+  const discussionSheetAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: discussionSheetTranslateY.value }],
+  }))
+
+  const discussionBackdropAnimStyle = useAnimatedStyle(() => ({
+    backgroundColor: `rgba(0,0,0,${discussionBackdropOpacity.value * 0.45})`,
+  }))
+
+  const discussionSheetPanGesture = useMemo(() => {
+    const sheetH = Math.round(windowHeight * 0.88)
+    const dismissThreshold = Math.min(110, sheetH * 0.22)
+    const flingVy = 650
+
+    const pan = Gesture.Pan()
+      .activeOffsetY(10)
+      .failOffsetX([-36, 36])
+      .onUpdate((e) => {
+        'worklet'
+        const t = e.translationY
+        const y = t > 0 ? t : t * 0.22
+        discussionSheetTranslateY.value = y
+        discussionBackdropOpacity.value = interpolate(y, [0, sheetH * 0.9], [1, 0], Extrapolation.CLAMP)
+      })
+      .onEnd((e) => {
+        'worklet'
+        const y = discussionSheetTranslateY.value
+        const vy = e.velocityY
+        if (y > dismissThreshold || vy > flingVy) {
+          runOnJS(runDiscussionDismissAnimations)()
+        } else {
+          discussionBackdropOpacity.value = withTiming(1, { duration: 180 })
+          discussionSheetTranslateY.value = withSpring(0, { damping: 26, stiffness: 320 })
+        }
+      })
+      .onFinalize((_e, success) => {
+        'worklet'
+        if (!success) {
+          discussionBackdropOpacity.value = withTiming(1, { duration: 160 })
+          discussionSheetTranslateY.value = withSpring(0, { damping: 26, stiffness: 320 })
+        }
+      })
+
+    return Platform.OS === 'web' ? pan.minDistance(4) : pan
+  }, [windowHeight, runDiscussionDismissAnimations])
 
   function attendeeRowsWithProfiles(eventAttendees: EventWithDetails['event_attendees']): EventAttendeeWithProfile[] {
     const ea = eventAttendees
@@ -407,7 +516,7 @@ export default function EventDetail() {
       void supabase
         .from('event_comments')
         .select(
-          'id, event_id, body, created_at, user_id, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url)',
+          'id, event_id, body, is_announcement, created_at, user_id, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url)',
         )
         .eq('event_id', fetchId)
         .order('created_at', { ascending: true })
@@ -471,7 +580,7 @@ export default function EventDetail() {
     const { data, error } = await supabase
       .from('event_comments')
       .select(
-        'id, event_id, body, created_at, user_id, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url)',
+        'id, event_id, body, is_announcement, created_at, user_id, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url)',
       )
       .eq('event_id', id)
       .order('created_at', { ascending: true })
@@ -496,9 +605,11 @@ export default function EventDetail() {
         event_id: id,
         user_id: userId,
         body,
+        is_announcement: Boolean(event?.created_by === userId && postAsAnnouncement),
       })
       if (error) throw error
       setCommentDraft('')
+      setPostAsAnnouncement(false)
       await refreshComments()
     } catch (e: any) {
       Alert.alert('Error', e.message)
@@ -1078,6 +1189,8 @@ export default function EventDetail() {
               waitlistCount: waitlistEntries.length,
             }
 
+            const discussionBadge = formatDiscussionBadgeCount(comments.length)
+
             return (
               <>
                 {/* Event info */}
@@ -1094,7 +1207,7 @@ export default function EventDetail() {
                 )}
                 {event.description && <Text style={[shared.body, shared.mb_lg]}>{event.description}</Text>}
 
-                {/* Join / Leave / Waitlist */}
+                {/* Join / Leave / Waitlist + discussion + guest */}
                 <View style={[shared.mb_lg, { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm }]}>
                   <View style={{ flex: 1 }}>
                     {status.isAttending ? (
@@ -1112,6 +1225,20 @@ export default function EventDetail() {
                       <Button label="Join event" onPress={() => handleToggleAttendance('join')} loading={joining} />
                     )}
                   </View>
+                  <TouchableOpacity
+                    onPress={() => setDiscussionDrawerOpen(true)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      comments.length === 0
+                        ? 'Open discussion, no comments yet'
+                        : `Open discussion, ${comments.length} comment${comments.length === 1 ? '' : 's'}`
+                    }
+                    style={[styles.discussionBubbleBtn, discussionBadge.length >= 3 && { minWidth: 52 }]}
+                  >
+                    <Ionicons name="chatbubble-outline" size={20} color={theme.colors.primary} />
+                    <Text style={styles.discussionBubbleCount}>{discussionBadge}</Text>
+                  </TouchableOpacity>
                   {(status.isAttending || status.isOwner) && (
                     <TouchableOpacity
                       onPress={() => setGuestModalVisible(true)}
@@ -1350,47 +1477,184 @@ export default function EventDetail() {
                     )}
                   </>
                 )}
-
-                <View style={shared.divider} />
-                <Text style={[shared.subheading, shared.mb_sm]}>Discussion</Text>
-                {commentsLoading && comments.length === 0 ? (
-                  <View style={{ paddingVertical: theme.spacing.lg, alignItems: 'center', marginBottom: theme.spacing.lg }}>
-                    <ActivityIndicator color={theme.colors.primary} />
-                  </View>
-                ) : comments.length === 0 ? (
-                  <Text style={[shared.caption, shared.mb_md]}>No messages yet. Be the first to comment.</Text>
-                ) : (
-                  <View style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.lg }}>
-                    {comments.map(c => (
-                      <EventCommentRow key={c.id} comment={c} />
-                    ))}
-                  </View>
-                )}
-                {userId ? (
-                  <View style={{ gap: theme.spacing.sm, marginBottom: theme.spacing.lg }}>
-                    <Input
-                      label="Add a comment"
-                      value={commentDraft}
-                      onChangeText={setCommentDraft}
-                      placeholder="Write a message…"
-                      multiline
-                      numberOfLines={3}
-                    />
-                    <Button
-                      label="Post"
-                      onPress={handlePostComment}
-                      loading={postingComment}
-                      disabled={!commentDraft.trim()}
-                    />
-                  </View>
-                ) : (
-                  <Text style={[shared.caption, shared.mb_lg]}>Sign in to join the discussion.</Text>
-                )}
               </>
             )
           })()}
         </ScrollView>
       )}
+
+      <Modal
+        visible={discussionDrawerOpen}
+        transparent
+        animationType="none"
+        onRequestClose={runDiscussionDismissAnimations}
+      >
+        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <Animated.View style={[StyleSheet.absoluteFillObject, discussionBackdropAnimStyle]} pointerEvents="box-none">
+            <Pressable style={StyleSheet.absoluteFillObject} onPress={runDiscussionDismissAnimations} />
+          </Animated.View>
+          <Animated.View
+            style={[
+              {
+                width: '100%',
+                height: Math.round(windowHeight * 0.88),
+                backgroundColor: theme.colors.card,
+                borderTopLeftRadius: theme.radius.lg,
+                borderTopRightRadius: theme.radius.lg,
+                borderWidth: 1,
+                borderBottomWidth: 0,
+                borderColor: theme.colors.border,
+                paddingHorizontal: theme.spacing.lg,
+                paddingTop: theme.spacing.sm,
+                paddingBottom:
+                  discussionKeyboardInset > 0
+                    ? theme.spacing.sm
+                    : Math.max(insets.bottom, theme.spacing.md),
+              },
+              discussionSheetAnimStyle,
+            ]}
+          >
+            <GestureDetector gesture={discussionSheetPanGesture}>
+              <View>
+                <View style={{ alignItems: 'center', marginBottom: theme.spacing.sm }}>
+                  <View
+                    style={{
+                      width: 36,
+                      height: 4,
+                      borderRadius: 2,
+                      backgroundColor: theme.colors.border,
+                    }}
+                  />
+                </View>
+                <View style={[shared.rowBetween, { marginBottom: theme.spacing.md }]}>
+                  <Text style={shared.subheading}>Discussion</Text>
+                  <TouchableOpacity
+                    onPress={runDiscussionDismissAnimations}
+                    hitSlop={12}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close discussion"
+                  >
+                    <Ionicons name="chevron-down" size={26} color={theme.colors.text} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </GestureDetector>
+            {commentsLoading && comments.length === 0 ? (
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: theme.spacing.xl }}>
+                <ActivityIndicator color={theme.colors.primary} />
+              </View>
+            ) : (
+              <View style={{ flex: 1, minHeight: 0, paddingBottom: discussionKeyboardInset }}>
+                <ScrollView
+                  ref={discussionScrollRef}
+                  style={{ flex: 1 }}
+                  contentContainerStyle={{ flexGrow: 1, paddingBottom: theme.spacing.md }}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="interactive"
+                >
+                  {comments.length === 0 ? (
+                    <Text style={[shared.caption, { marginBottom: theme.spacing.sm }]}>No messages yet. Be the first to comment.</Text>
+                  ) : (
+                    <View style={{ gap: theme.spacing.xs }}>
+                      {comments.map(c => (
+                        <EventCommentRow key={c.id} comment={c} />
+                      ))}
+                    </View>
+                  )}
+                </ScrollView>
+                {userId ? (
+                  <View style={{ paddingTop: theme.spacing.sm }}>
+                    {isOwner && (
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: theme.spacing.sm,
+                          paddingHorizontal: theme.spacing.xs,
+                        }}
+                      >
+                        <Text style={[shared.caption, { flex: 1, paddingRight: theme.spacing.sm }]}>
+                          Also post as announcement
+                        </Text>
+                        <Switch
+                          value={postAsAnnouncement}
+                          onValueChange={setPostAsAnnouncement}
+                          trackColor={{ false: theme.colors.border, true: theme.colors.primary + '99' }}
+                          thumbColor={postAsAnnouncement ? theme.colors.white : theme.colors.card}
+                          ios_backgroundColor={theme.colors.border}
+                          accessibilityLabel="Also post as announcement"
+                        />
+                      </View>
+                    )}
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Input
+                        value={commentDraft}
+                        onChangeText={setCommentDraft}
+                        placeholder="Add a comment..."
+                        multiline
+                        numberOfLines={4}
+                        blurOnSubmit={false}
+                        containerStyle={{ marginBottom: 0 }}
+                        inputStyle={{
+                          minHeight: 44,
+                          maxHeight: 120,
+                          paddingHorizontal: theme.spacing.md,
+                          ...Platform.select({
+                            ios: {
+                              paddingTop: theme.spacing.md,
+                              paddingBottom: theme.spacing.sm,
+                            },
+                            android: {
+                              paddingTop: theme.spacing.sm,
+                              paddingBottom: theme.spacing.sm,
+                              textAlignVertical: 'bottom',
+                            },
+                            default: {
+                              paddingVertical: theme.spacing.sm,
+                            },
+                          }),
+                        }}
+                        onFocus={() => {
+                          requestAnimationFrame(() => {
+                            discussionScrollRef.current?.scrollToEnd({ animated: true })
+                          })
+                        }}
+                        includeFontPadding={Platform.OS === 'android' ? false : undefined}
+                      />
+                    </View>
+                    <TouchableOpacity
+                      onPress={handlePostComment}
+                      disabled={!commentDraft.trim() || postingComment}
+                      accessibilityRole="button"
+                      accessibilityLabel="Send comment"
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: theme.radius.md,
+                        backgroundColor: theme.colors.primary,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: !commentDraft.trim() || postingComment ? 0.4 : 1,
+                      }}
+                    >
+                      {postingComment
+                        ? <ActivityIndicator size="small" color={theme.colors.white} />
+                        : <Ionicons name="send" size={20} color={theme.colors.white} />}
+                    </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={[shared.caption, { paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.xs }]}>
+                    Sign in to join the discussion.
+                  </Text>
+                )}
+              </View>
+            )}
+          </Animated.View>
+        </View>
+      </Modal>
 
       {/* Add guest modal */}
       <Modal visible={guestModalVisible} transparent animationType="fade" onRequestClose={() => setGuestModalVisible(false)}>
@@ -1532,6 +1796,24 @@ export default function EventDetail() {
 }
 
 const styles = StyleSheet.create({
+  discussionBubbleBtn: {
+    minWidth: 44,
+    height: 44,
+    paddingHorizontal: theme.spacing.xs,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  discussionBubbleCount: {
+    position: 'absolute',
+    fontSize: theme.font.size.xs,
+    fontWeight: theme.font.weight.semibold,
+    color: theme.colors.primary,
+    marginTop: 2,
+  },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',

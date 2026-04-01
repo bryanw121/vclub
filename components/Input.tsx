@@ -1,5 +1,5 @@
 import { forwardRef, useState } from 'react'
-import { TextInput, Text, View, TouchableOpacity, TextInputProps } from 'react-native'
+import { TextInput, Text, View, TouchableOpacity, TextInputProps, StyleProp, ViewStyle, TextStyle } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { shared, theme } from '../constants'
 
@@ -19,23 +19,34 @@ type Props = {
   autoCapitalize?: TextInputProps['autoCapitalize']
   keyboardType?: TextInputProps['keyboardType']
   autoCorrect?: boolean
+  containerStyle?: StyleProp<ViewStyle>
+  inputStyle?: StyleProp<TextStyle>
+  onFocus?: TextInputProps['onFocus']
+  includeFontPadding?: TextInputProps['includeFontPadding']
 }
 
 export const Input = forwardRef<TextInput, Props>(function Input(
   { label, value, onChangeText, placeholder, secureTextEntry, showPasswordToggle, multiline, numberOfLines,
-    error, returnKeyType, onSubmitEditing, blurOnSubmit, autoCapitalize, keyboardType, autoCorrect },
+    error, returnKeyType, onSubmitEditing, blurOnSubmit, autoCapitalize, keyboardType, autoCorrect,
+    containerStyle, inputStyle, onFocus, includeFontPadding },
   ref
 ) {
   const [visible, setVisible] = useState(false)
   const isSecure = secureTextEntry && !visible
 
   return (
-    <View style={shared.inputContainer}>
+    <View style={[shared.inputContainer, containerStyle]}>
       {label && <Text style={shared.label}>{label}</Text>}
       <View style={{ position: 'relative' }}>
         <TextInput
           ref={ref}
-          style={[shared.input, multiline && shared.inputMultiline, !!error && shared.inputError, showPasswordToggle && { paddingRight: 44 }]}
+          style={[
+            shared.input,
+            multiline && !inputStyle && shared.inputMultiline,
+            !!error && shared.inputError,
+            showPasswordToggle && { paddingRight: 44 },
+            inputStyle,
+          ]}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -49,6 +60,8 @@ export const Input = forwardRef<TextInput, Props>(function Input(
           autoCapitalize={autoCapitalize}
           keyboardType={keyboardType}
           autoCorrect={autoCorrect}
+          onFocus={onFocus}
+          includeFontPadding={includeFontPadding}
         />
         {showPasswordToggle && (
           <TouchableOpacity

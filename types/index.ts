@@ -76,6 +76,8 @@ export type EventComment = {
   event_id: string
   user_id: string
   body: string
+  /** True when the event host posted this as an announcement (highlighted in UI). */
+  is_announcement: boolean
   created_at: string
 }
 

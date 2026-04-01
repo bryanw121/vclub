@@ -35,13 +35,14 @@ export function EventCommentRow({ comment }: Props) {
 
   const name = p ? profileDisplayName(p) : 'Member'
   const initial = p ? profileInitial(p) : '?'
+  const isAnnouncement = comment.is_announcement
 
   function goProfile() {
     router.push(`/profile/${comment.user_id}` as any)
   }
 
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, isAnnouncement && styles.rowAnnouncement]}>
       <TouchableOpacity onPress={goProfile} style={styles.avatarOuter} accessibilityRole="button" accessibilityLabel={`${name} profile`}>
         {avatarUri ? (
           <Image source={{ uri: avatarUri }} style={styles.avatarImg} resizeMode="cover" />
@@ -52,6 +53,11 @@ export function EventCommentRow({ comment }: Props) {
         )}
       </TouchableOpacity>
       <View style={styles.content}>
+        {isAnnouncement && (
+          <View style={styles.announcementBadge}>
+            <Text style={styles.announcementBadgeText}>Announcement</Text>
+          </View>
+        )}
         <TouchableOpacity onPress={goProfile}>
           <Text style={styles.name} numberOfLines={1}>{name}</Text>
         </TouchableOpacity>
@@ -68,6 +74,27 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
+  },
+  rowAnnouncement: {
+    backgroundColor: theme.colors.announcementHighlight,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+    marginVertical: theme.spacing.xxs,
+  },
+  announcementBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: theme.colors.primary + '22',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xxs,
+    borderRadius: theme.radius.sm,
+    marginBottom: theme.spacing.xs,
+  },
+  announcementBadgeText: {
+    fontSize: theme.font.size.xs,
+    fontWeight: theme.font.weight.semibold,
+    color: theme.colors.primary,
+    letterSpacing: 0.3,
   },
   avatarOuter: {},
   avatarImg: {
