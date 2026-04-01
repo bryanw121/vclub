@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { View, Animated, PanResponder, Dimensions } from 'react-native'
 
 type Props = {
@@ -16,15 +16,16 @@ type Props = {
  */
 export function Pager({ page, onPageChange, children, swipeEnabled = true, pagerBlockedRef }: Props) {
   const count = (children as React.ReactNode[]).length
-  const translateX = useRef(new Animated.Value(-page * Dimensions.get('window').width)).current
+  const [containerWidth, setContainerWidth] = useState(Dimensions.get('window').width)
+  const translateX = useRef(new Animated.Value(-page * containerWidth)).current
   const activePage = useRef(page)
 
   // Keep refs current so panResponder closures always see the latest values.
   const countRef = useRef(count)
   countRef.current = count
 
-  const widthRef = useRef(Dimensions.get('window').width)
-  widthRef.current = Dimensions.get('window').width
+  const widthRef = useRef(containerWidth)
+  widthRef.current = containerWidth
 
   const onPageChangeRef = useRef(onPageChange)
   onPageChangeRef.current = onPageChange
@@ -82,18 +83,27 @@ export function Pager({ page, onPageChange, children, swipeEnabled = true, pager
     onPanResponderTerminate: () => { snapToRef.current(activePage.current) },
   })).current
 
-  const width = Dimensions.get('window').width
-
   return (
-    <View style={{ flex: 1, overflow: 'hidden' }} {...panResponder.panHandlers}>
+    <View
+      style={{ flex: 1, overflow: 'hidden' }}
+      onLayout={(e) => {
+        const w = e.nativeEvent.layout.width
+        if (w > 0 && w !== widthRef.current) {
+          widthRef.current = w
+          setContainerWidth(w)
+          translateX.setValue(-activePage.current * w)
+        }
+      }}
+      {...panResponder.panHandlers}
+    >
       <Animated.View style={{
         flex: 1,
         flexDirection: 'row',
-        width: width * count,
+        width: containerWidth * count,
         transform: [{ translateX }],
       }}>
         {(children as React.ReactNode[]).map((child, i) => (
-          <View key={i} style={{ width, flex: 1 }}>
+          <View key={i} style={{ width: containerWidth, flex: 1 }}>
             {child}
           </View>
         ))}

@@ -10,6 +10,7 @@ import { supabase } from '../../../lib/supabase'
 import { Button } from '../../../components/Button'
 import { Input } from '../../../components/Input'
 import { EventCommentRow } from '../../../components/EventCommentRow'
+import { Pager } from '../../../components/Pager'
 import { shared, theme, formatEventDate } from '../../../constants'
 import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile } from '../../../types'
 import { profileDisplayName, profileInitial, eventAttendeeRows, normalizeVolleyballPositions } from '../../../utils'
@@ -339,6 +340,9 @@ export default function EventDetail() {
   const [assignments, setAssignments] = useState<Record<string, TeamAssignment>>({})
   const [savingTeams, setSavingTeams] = useState(false)
 
+  const [activeTab, setActiveTab] = useState(0)
+  const innerPagerBlocked = useRef(false)
+
   // Drag-and-drop
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null)
   const [hoveredTeamKey, setHoveredTeamKey] = useState<string | null>(null)
@@ -462,6 +466,10 @@ export default function EventDetail() {
 
     return Platform.OS === 'web' ? pan.minDistance(4) : pan
   }, [windowHeight, runDiscussionDismissAnimations])
+
+  useEffect(() => {
+    innerPagerBlocked.current = draggingPlayerId !== null
+  }, [draggingPlayerId])
 
   function attendeeRowsWithProfiles(eventAttendees: EventWithDetails['event_attendees']): EventAttendeeWithProfile[] {
     const ea = eventAttendees
@@ -1059,6 +1067,23 @@ export default function EventDetail() {
     ? totalPlayers > 0
     : Object.values(assignments).some(a => a.team !== null)
 
+  const attendeeRows = event ? eventAttendeeRows(event) : []
+  const attendingEntries = attendeeRows.filter((a: any) => a.status !== 'waitlisted')
+  const waitlistEntries = [...attendeeRows.filter((a: any) => a.status === 'waitlisted')]
+    .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
+  const waitlistIdx = waitlistEntries.findIndex((a: any) => a.user_id === userId)
+  const totalAttending = attendingEntries.length + guests.length
+  const eventStatus: AttendanceStatus = {
+    count: totalAttending,
+    spotsLeft: event?.max_attendees ? event.max_attendees - totalAttending : null,
+    isFull: event?.max_attendees ? totalAttending >= event.max_attendees : false,
+    isAttending: attendingEntries.some((a: any) => a.user_id === userId),
+    isOwner: event?.created_by === userId,
+    isWaitlisted: waitlistIdx !== -1,
+    waitlistPosition: waitlistIdx !== -1 ? waitlistIdx + 1 : null,
+    waitlistCount: waitlistEntries.length,
+  }
+
   return (
     <View
       ref={containerRef}
@@ -1170,317 +1195,356 @@ export default function EventDetail() {
           <Text style={shared.errorText}>{loadError ?? 'Event not found'}</Text>
         </View>
       ) : (
-        <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
-          {(() => {
-            const attendeeRows = eventAttendeeRows(event)
-            const attendingEntries = attendeeRows.filter(a => a.status !== 'waitlisted')
-            const waitlistEntries = [...attendeeRows.filter(a => a.status === 'waitlisted')]
-              .sort((a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
-            const waitlistIdx = waitlistEntries.findIndex(a => a.user_id === userId)
-            const totalAttending = attendingEntries.length + guests.length
-            const status: AttendanceStatus = {
-              count: totalAttending,
-              spotsLeft: event.max_attendees ? event.max_attendees - totalAttending : null,
-              isFull: event.max_attendees ? totalAttending >= event.max_attendees : false,
-              isAttending: attendingEntries.some(a => a.user_id === userId),
-              isOwner: event.created_by === userId,
-              isWaitlisted: waitlistIdx !== -1,
-              waitlistPosition: waitlistIdx !== -1 ? waitlistIdx + 1 : null,
-              waitlistCount: waitlistEntries.length,
-            }
-
-            const discussionBadge = formatDiscussionBadgeCount(comments.length)
-
-            return (
-              <>
-                {/* Event info */}
-                <Text style={[shared.primaryText, shared.mb_xs]}>{formatEventDate(event.event_date, 'long')}</Text>
-                {event.location && <Text style={[shared.caption, shared.mb_xs]}>{event.location}</Text>}
-                {(event.event_tags?.length ?? 0) > 0 && (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: theme.spacing.sm }}>
-                    {[...(event.event_tags ?? [])].sort((a, b) => a.tags.display_order - b.tags.display_order).map(et => (
-                      <View key={et.tag_id} style={shared.tag}>
-                        <Text style={shared.tagText}>{et.tags.name}</Text>
-                      </View>
-                    ))}
-                  </View>
+        <>
+          {/* Tab bar */}
+          <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background }}>
+            {(['Description', 'People', 'Discussion'] as const).map((label, i) => (
+              <TouchableOpacity
+                key={label}
+                onPress={() => setActiveTab(i)}
+                style={{ flex: 1, alignItems: 'center', paddingVertical: 12 }}
+              >
+                <Text style={{
+                  fontSize: theme.font.size.sm,
+                  fontWeight: activeTab === i ? theme.font.weight.semibold : theme.font.weight.regular,
+                  color: activeTab === i ? theme.colors.primary : theme.colors.subtext,
+                }}>
+                  {label}
+                </Text>
+                {activeTab === i && (
+                  <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, backgroundColor: theme.colors.primary }} />
                 )}
-                {event.description && <Text style={[shared.body, shared.mb_lg]}>{event.description}</Text>}
+              </TouchableOpacity>
+            ))}
+          </View>
 
-                {/* Join / Leave / Waitlist + discussion + guest */}
-                <View style={[shared.mb_lg, { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm }]}>
-                  <View style={{ flex: 1 }}>
-                    {status.isAttending ? (
-                      <Button label="Leave event" onPress={() => handleToggleAttendance('leave')} loading={joining} variant="secondary" />
-                    ) : status.isWaitlisted ? (
-                      <View style={{ gap: theme.spacing.xs }}>
-                        <Button label="Leave Waitlist" onPress={handleLeaveWaitlist} loading={joining} variant="secondary" />
-                        <Text style={[shared.caption, { textAlign: 'center' }]}>
-                          You are #{status.waitlistPosition} on the waitlist
-                        </Text>
-                      </View>
-                    ) : status.isFull ? (
-                      <Button label="Join Waitlist" onPress={handleJoinWaitlist} loading={joining} />
-                    ) : (
-                      <Button label="Join event" onPress={() => handleToggleAttendance('join')} loading={joining} />
-                    )}
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => setDiscussionDrawerOpen(true)}
-                    hitSlop={8}
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      comments.length === 0
-                        ? 'Open discussion, no comments yet'
-                        : `Open discussion, ${comments.length} comment${comments.length === 1 ? '' : 's'}`
-                    }
-                    style={[styles.discussionBubbleBtn, discussionBadge.length >= 3 && { minWidth: 52 }]}
-                  >
-                    <Ionicons name="chatbubble-outline" size={20} color={theme.colors.primary} />
-                    <Text style={styles.discussionBubbleCount}>{discussionBadge}</Text>
-                  </TouchableOpacity>
-                  {(status.isAttending || status.isOwner) && (
-                    <TouchableOpacity
-                      onPress={() => setGuestModalVisible(true)}
-                      hitSlop={8}
-                      accessibilityLabel="Add a +1 guest"
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: theme.radius.md,
-                        borderWidth: 1,
-                        borderColor: theme.colors.border,
-                        backgroundColor: theme.colors.card,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <Ionicons name="person-add-outline" size={20} color={theme.colors.primary} />
-                    </TouchableOpacity>
+          <Pager page={activeTab} onPageChange={setActiveTab} pagerBlockedRef={innerPagerBlocked}>
+            {/* Tab 0: Description */}
+            <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
+              <Text style={[shared.primaryText, shared.mb_xs]}>{formatEventDate(event.event_date, 'long')}</Text>
+              {event.location && <Text style={[shared.caption, shared.mb_xs]}>{event.location}</Text>}
+              {(event.event_tags?.length ?? 0) > 0 && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: theme.spacing.sm }}>
+                  {[...(event.event_tags ?? [])].sort((a, b) => a.tags.display_order - b.tags.display_order).map(et => (
+                    <View key={et.tag_id} style={shared.tag}>
+                      <Text style={shared.tagText}>{et.tags.name}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {event.description
+                ? <Text style={[shared.body, shared.mb_lg]}>{event.description}</Text>
+                : <Text style={[shared.caption, shared.mb_lg]}>No description provided.</Text>
+              }
+
+              {/* Join / Leave / Waitlist */}
+              <View style={[shared.mb_lg, { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm }]}>
+                <View style={{ flex: 1 }}>
+                  {eventStatus.isAttending ? (
+                    <Button label="Leave event" onPress={() => handleToggleAttendance('leave')} loading={joining} variant="secondary" />
+                  ) : eventStatus.isWaitlisted ? (
+                    <View style={{ gap: theme.spacing.xs }}>
+                      <Button label="Leave Waitlist" onPress={handleLeaveWaitlist} loading={joining} variant="secondary" />
+                      <Text style={[shared.caption, { textAlign: 'center' }]}>
+                        You are #{eventStatus.waitlistPosition} on the waitlist
+                      </Text>
+                    </View>
+                  ) : eventStatus.isFull ? (
+                    <Button label="Join Waitlist" onPress={handleJoinWaitlist} loading={joining} />
+                  ) : (
+                    <Button label="Join event" onPress={() => handleToggleAttendance('join')} loading={joining} />
                   )}
                 </View>
+                {(eventStatus.isAttending || eventStatus.isOwner) && (
+                  <TouchableOpacity
+                    onPress={() => setGuestModalVisible(true)}
+                    hitSlop={8}
+                    accessibilityLabel="Add a +1 guest"
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: theme.radius.md,
+                      borderWidth: 1,
+                      borderColor: theme.colors.border,
+                      backgroundColor: theme.colors.card,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Ionicons name="person-add-outline" size={20} color={theme.colors.primary} />
+                  </TouchableOpacity>
+                )}
+              </View>
 
-                {/* Host */}
-                <View style={shared.divider} />
-                <Text style={[shared.subheading, shared.mb_sm]}>Host</Text>
-                <View style={[shared.card, shared.mb_lg]}>
-                  <Text style={shared.body}>{event.profiles ? profileDisplayName(event.profiles) : ''}</Text>
+              {/* Host */}
+              <View style={shared.divider} />
+              <Text style={[shared.subheading, shared.mb_sm]}>Host</Text>
+              <View style={[shared.card, shared.mb_lg]}>
+                <Text style={shared.body}>{event.profiles ? profileDisplayName(event.profiles) : ''}</Text>
+              </View>
+            </ScrollView>
+
+            {/* Tab 1: People */}
+            <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
+              {/* Going + Teams */}
+              <View style={[shared.rowBetween, shared.mb_sm]}>
+                <Text style={shared.subheading}>Going</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+                  <Text style={shared.caption}>
+                    {eventStatus.count}{event.max_attendees ? ` / ${event.max_attendees}` : ''} people
+                  </Text>
+                  {eventStatus.isOwner && attendees.length > 0 && (
+                    <View style={styles.stepper}>
+                      <TouchableOpacity
+                        style={[styles.stepBtn, numTeams <= 2 && styles.stepBtnDisabled]}
+                        onPress={() => setNumTeams(t => Math.max(2, t - 1))}
+                        disabled={numTeams <= 2}
+                      >
+                        <Text style={styles.stepBtnText}>−</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.stepLabel}>{numTeams} teams</Text>
+                      <TouchableOpacity
+                        style={[styles.stepBtn, numTeams >= Math.min(6, attendees.length + guests.length) && styles.stepBtnDisabled]}
+                        onPress={() => setNumTeams(t => Math.min(6, attendees.length + guests.length, t + 1))}
+                        disabled={numTeams >= Math.min(6, attendees.length + guests.length)}
+                      >
+                        <Text style={styles.stepBtnText}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
+              </View>
 
-                {/* ── Going + Teams (unified) ── */}
-                <View style={shared.divider} />
-                <View style={[shared.rowBetween, shared.mb_sm]}>
-                  <Text style={shared.subheading}>Going</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-                    <Text style={shared.caption}>
-                      {status.count}{event.max_attendees ? ` / ${event.max_attendees}` : ''} people
-                    </Text>
-                    {/* Team count stepper — host only */}
-                    {status.isOwner && attendees.length > 0 && (
-                      <View style={styles.stepper}>
-                        <TouchableOpacity
-                          style={[styles.stepBtn, numTeams <= 2 && styles.stepBtnDisabled]}
-                          onPress={() => setNumTeams(t => Math.max(2, t - 1))}
-                          disabled={numTeams <= 2}
-                        >
-                          <Text style={styles.stepBtnText}>−</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.stepLabel}>{numTeams} teams</Text>
-                        <TouchableOpacity
-                          style={[styles.stepBtn, numTeams >= Math.min(6, attendees.length) && styles.stepBtnDisabled]}
-                          onPress={() => setNumTeams(t => Math.min(6, attendees.length, t + 1))}
-                          disabled={numTeams >= Math.min(6, attendees.length + guests.length)}
-                        >
-                          <Text style={styles.stepBtnText}>+</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                </View>
+              {attendees.length === 0 && guests.length === 0
+                ? <Text style={shared.caption}>no one yet — be the first!</Text>
+                : (() => {
+                  function renderCard(profile: Profile) {
+                    const a = assignments[profile.id]
+                    const teamNum = a?.team ?? null
+                    const teamColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : null
+                    const card = (
+                      <DraggablePlayerCard
+                        profile={profile}
+                        teamColor={teamColor}
+                        isPinned={a?.pinned ?? false}
+                        isOwner={eventStatus.isOwner}
+                        onDragStart={(x, y) => handleDragStart(profile.id, x, y)}
+                        onDragMove={handleDragMove}
+                        onDragEnd={handleDragEnd}
+                        onRemove={() => openRemoveAttendeeModal(profile)}
+                        onTogglePin={() => togglePin(profile.id)}
+                      />
+                    )
+                    if (eventStatus.isOwner) {
+                      return <View key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>{card}</View>
+                    }
+                    return (
+                      <TouchableOpacity key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]} onPress={() => router.push(`/profile/${profile.id}` as any)}>
+                        {card}
+                      </TouchableOpacity>
+                    )
+                  }
 
-                {attendees.length === 0 && guests.length === 0
-                  ? <Text style={shared.caption}>no one yet — be the first!</Text>
-                  : (() => {
-                    function renderCard(profile: Profile) {
-                      const a = assignments[profile.id]
-                      const teamNum = a?.team ?? null
-                      const teamColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : null
-                      const card = (
-                        <DraggablePlayerCard
-                          profile={profile}
+                  function renderGuestCard(g: EventGuest) {
+                    const a = assignments[g.id]
+                    const teamNum = a?.team ?? null
+                    const teamColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : null
+                    return (
+                      <View key={g.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>
+                        <DraggableGuestCard
+                          guest={g}
+                          adderUsername={adderUsernames[g.added_by] ?? '?'}
                           teamColor={teamColor}
                           isPinned={a?.pinned ?? false}
-                          isOwner={status.isOwner}
-                          onDragStart={(x, y) => handleDragStart(profile.id, x, y)}
+                          isOwner={eventStatus.isOwner}
+                          onDragStart={(x, y) => handleDragStart(g.id, x, y)}
                           onDragMove={handleDragMove}
                           onDragEnd={handleDragEnd}
-                          onRemove={() => openRemoveAttendeeModal(profile)}
-                          onTogglePin={() => togglePin(profile.id)}
+                          onRemove={() => openRemoveGuestModal(g)}
+                          onTogglePin={() => togglePin(g.id)}
                         />
-                      )
-                      if (status.isOwner) {
-                        return <View key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>{card}</View>
-                      }
-                      return (
-                        <TouchableOpacity key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]} onPress={() => router.push(`/profile/${profile.id}` as any)}>
-                          {card}
-                        </TouchableOpacity>
-                      )
-                    }
+                      </View>
+                    )
+                  }
 
-                    function renderGuestCard(g: EventGuest) {
-                      const a = assignments[g.id]
-                      const teamNum = a?.team ?? null
-                      const teamColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : null
-                      return (
-                        <View key={g.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>
-                          <DraggableGuestCard
-                            guest={g}
-                            adderUsername={adderUsernames[g.added_by] ?? '?'}
-                            teamColor={teamColor}
-                            isPinned={a?.pinned ?? false}
-                            isOwner={status.isOwner}
-                            onDragStart={(x, y) => handleDragStart(g.id, x, y)}
-                            onDragMove={handleDragMove}
-                            onDragEnd={handleDragEnd}
-                            onRemove={() => openRemoveGuestModal(g)}
-                            onTogglePin={() => togglePin(g.id)}
-                          />
+                  if (!hasTeams) {
+                    return (
+                      <View
+                        ref={(r) => { teamZoneRefs.current['unassigned'] = r as View | null }}
+                        style={[styles.dropZone, hoveredTeamKey === 'unassigned' && styles.dropZoneActive]}
+                      >
+                        <View style={styles.playerGrid}>
+                          {attendees.map(renderCard)}
+                          {guests.map(renderGuestCard)}
                         </View>
-                      )
-                    }
+                      </View>
+                    )
+                  }
 
-                    if (!hasTeams) {
-                      return (
+                  const unassigned = attendees.filter(p => !assignments[p.id]?.team)
+                  const unassignedGuests = guests.filter(g => !assignments[g.id]?.team)
+                  return (
+                    <View style={{ gap: theme.spacing.sm }}>
+                      {Array.from({ length: numTeams }, (_, i) => i + 1).map(teamNum => {
+                        const teamPlayers = attendees.filter(p => assignments[p.id]?.team === teamNum)
+                        const teamGuests  = guests.filter(g => assignments[g.id]?.team === teamNum)
+                        const teamColor = TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length]
+                        const isHovered = hoveredTeamKey === String(teamNum)
+                        return (
+                          <View
+                            key={teamNum}
+                            ref={(r) => { teamZoneRefs.current[String(teamNum)] = r as View | null }}
+                            style={[styles.dropZone, isHovered && { backgroundColor: teamColor + '14', borderColor: teamColor + '60' }]}
+                          >
+                            <View style={styles.teamHeader}>
+                              <View style={[styles.teamDot, { backgroundColor: teamColor }]} />
+                              <Text style={[styles.teamHeading, { color: teamColor }]}>{TEAM_COLOR_NAMES[(teamNum - 1) % TEAM_COLOR_NAMES.length]} Team</Text>
+                            </View>
+                            {teamPlayers.length === 0 && teamGuests.length === 0
+                              ? <Text style={[shared.caption, { paddingHorizontal: theme.spacing.xs, paddingBottom: theme.spacing.xs }]}>No players</Text>
+                              : <View style={styles.playerGrid}>{teamPlayers.map(renderCard)}{teamGuests.map(renderGuestCard)}</View>
+                            }
+                          </View>
+                        )
+                      })}
+                      {(unassigned.length > 0 || unassignedGuests.length > 0) && (
                         <View
                           ref={(r) => { teamZoneRefs.current['unassigned'] = r as View | null }}
                           style={[styles.dropZone, hoveredTeamKey === 'unassigned' && styles.dropZoneActive]}
                         >
+                          <View style={styles.teamHeader}>
+                            <View style={[styles.teamDot, { backgroundColor: theme.colors.subtext }]} />
+                            <Text style={[styles.teamHeading, { color: theme.colors.subtext }]}>Unassigned</Text>
+                          </View>
                           <View style={styles.playerGrid}>
-                            {attendees.map(renderCard)}
-                            {guests.map(renderGuestCard)}
+                            {unassigned.map(renderCard)}
+                            {unassignedGuests.map(renderGuestCard)}
                           </View>
                         </View>
-                      )
-                    }
+                      )}
+                    </View>
+                  )
+                })()
+              }
 
-                    const unassigned = attendees.filter(p => !assignments[p.id]?.team)
-                    const unassignedGuests = guests.filter(g => !assignments[g.id]?.team)
-                    return (
-                      <View style={{ gap: theme.spacing.sm }}>
-                        {Array.from({ length: numTeams }, (_, i) => i + 1).map(teamNum => {
-                          const teamPlayers = attendees.filter(p => assignments[p.id]?.team === teamNum)
-                          const teamGuests  = guests.filter(g => assignments[g.id]?.team === teamNum)
-                          const teamColor = TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length]
-                          const isHovered = hoveredTeamKey === String(teamNum)
-                          return (
-                            <View
-                              key={teamNum}
-                              ref={(r) => { teamZoneRefs.current[String(teamNum)] = r as View | null }}
-                              style={[styles.dropZone, isHovered && { backgroundColor: teamColor + '14', borderColor: teamColor + '60' }]}
+              {/* Randomize + Save — host only */}
+              {eventStatus.isOwner && attendees.length > 0 && (
+                <>
+                  {(attendees.length + guests.length) % numTeams !== 0 && (
+                    <Text style={[shared.caption, { marginTop: theme.spacing.sm, color: theme.colors.error }]}>
+                      {attendees.length + guests.length} players can't be split into {numTeams} equal teams
+                    </Text>
+                  )}
+                  <View style={[shared.row, { gap: theme.spacing.sm, marginTop: theme.spacing.md }]}>
+                    <View style={{ flex: 1 }}>
+                      <Button label="Reset" onPress={resetTeams} variant="secondary" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Button label="Randomize" onPress={randomizeTeams} variant="secondary" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Button label="Save" onPress={saveTeams} loading={savingTeams} />
+                    </View>
+                  </View>
+                </>
+              )}
+
+              {/* Waitlist section */}
+              {(eventStatus.waitlistCount > 0 || waitlistGuests.length > 0 || (eventStatus.isFull && !eventStatus.isAttending && !eventStatus.isWaitlisted)) && (
+                <>
+                  <View style={shared.divider} />
+                  <View style={[shared.rowBetween, shared.mb_sm]}>
+                    <Text style={shared.subheading}>Waitlist</Text>
+                    <Text style={shared.caption}>{eventStatus.waitlistCount + waitlistGuests.length} waiting</Text>
+                  </View>
+                  {waitlistProfiles.length === 0 && waitlistGuests.length === 0 ? (
+                    <Text style={shared.caption}>No one on the waitlist yet</Text>
+                  ) : (
+                    <View style={{ gap: theme.spacing.xs }}>
+                      {waitlistProfiles.map((profile, idx) => (
+                        <View key={profile.id} style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }]}>
+                          <Text style={[shared.caption, { minWidth: 20, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }]}>#{idx + 1}</Text>
+                          <Text style={[shared.body, { flex: 1 }]}>{profileDisplayName(profile)}</Text>
+                          {eventStatus.isOwner && (
+                            <TouchableOpacity
+                              onPress={() => handleApproveFromWaitlist(profile.id)}
+                              style={{ paddingVertical: theme.spacing.xs, paddingHorizontal: theme.spacing.sm, backgroundColor: theme.colors.primary, borderRadius: theme.radius.md }}
                             >
-                              <View style={styles.teamHeader}>
-                                <View style={[styles.teamDot, { backgroundColor: teamColor }]} />
-                                <Text style={[styles.teamHeading, { color: teamColor }]}>{TEAM_COLOR_NAMES[(teamNum - 1) % TEAM_COLOR_NAMES.length]} Team</Text>
-                              </View>
-                              {teamPlayers.length === 0 && teamGuests.length === 0
-                                ? <Text style={[shared.caption, { paddingHorizontal: theme.spacing.xs, paddingBottom: theme.spacing.xs }]}>No players</Text>
-                                : <View style={styles.playerGrid}>{teamPlayers.map(renderCard)}{teamGuests.map(renderGuestCard)}</View>
-                              }
-                            </View>
-                          )
-                        })}
-                        {(unassigned.length > 0 || unassignedGuests.length > 0) && (
-                          <View
-                            ref={(r) => { teamZoneRefs.current['unassigned'] = r as View | null }}
-                            style={[styles.dropZone, hoveredTeamKey === 'unassigned' && styles.dropZoneActive]}
-                          >
-                            <View style={styles.teamHeader}>
-                              <View style={[styles.teamDot, { backgroundColor: theme.colors.subtext }]} />
-                              <Text style={[styles.teamHeading, { color: theme.colors.subtext }]}>Unassigned</Text>
-                            </View>
-                            <View style={styles.playerGrid}>
-                              {unassigned.map(renderCard)}
-                              {unassignedGuests.map(renderGuestCard)}
-                            </View>
-                          </View>
-                        )}
-                      </View>
-                    )
-                  })()
-                }
+                              <Text style={{ color: theme.colors.white, fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium }}>Approve</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ))}
+                      {waitlistGuests.map((g, idx) => (
+                        <View key={g.id} style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }]}>
+                          <Text style={[shared.caption, { minWidth: 20, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }]}>#{waitlistProfiles.length + idx + 1}</Text>
+                          <Text style={[shared.body, { flex: 1 }]}>{g.first_name} {g.last_name}</Text>
+                          <View style={shared.tag}><Text style={shared.tagText}>Guest</Text></View>
+                          {eventStatus.isOwner && (
+                            <TouchableOpacity onPress={() => openRemoveGuestModal(g)} hitSlop={8}>
+                              <Ionicons name="close" size={16} color={theme.colors.subtext} />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </>
+              )}
+            </ScrollView>
 
-                {/* Randomize + Save — host only */}
-                {status.isOwner && attendees.length > 0 && (
-                  <>
-                    {attendees.length % numTeams !== 0 && (
-                      <Text style={[shared.caption, { marginTop: theme.spacing.sm, color: theme.colors.error }]}>
-                        {attendees.length} players can't be split into {numTeams} equal teams
+            {/* Tab 2: Discussion */}
+            <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
+              {userId ? (
+                <View style={{ gap: theme.spacing.sm, marginBottom: theme.spacing.lg }}>
+                  {isOwner && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.xs }}>
+                      <Text style={[shared.caption, { flex: 1, paddingRight: theme.spacing.sm }]}>
+                        Post as announcement
                       </Text>
-                    )}
-                    <View style={[shared.row, { gap: theme.spacing.sm, marginTop: theme.spacing.md }]}>
-                      <View style={{ flex: 1 }}>
-                        <Button label="Reset" onPress={resetTeams} variant="secondary" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Button label="Randomize" onPress={randomizeTeams} variant="secondary" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Button label="Save" onPress={saveTeams} loading={savingTeams} />
-                      </View>
+                      <Switch
+                        value={postAsAnnouncement}
+                        onValueChange={setPostAsAnnouncement}
+                        trackColor={{ false: theme.colors.border, true: theme.colors.primary + '99' }}
+                        thumbColor={postAsAnnouncement ? theme.colors.white : theme.colors.card}
+                        ios_backgroundColor={theme.colors.border}
+                      />
                     </View>
-                  </>
-                )}
-
-                {/* Waitlist section */}
-                {(status.waitlistCount > 0 || waitlistGuests.length > 0 || (status.isFull && !status.isAttending && !status.isWaitlisted)) && (
-                  <>
-                    <View style={shared.divider} />
-                    <View style={[shared.rowBetween, shared.mb_sm]}>
-                      <Text style={shared.subheading}>Waitlist</Text>
-                      <Text style={shared.caption}>{status.waitlistCount + waitlistGuests.length} waiting</Text>
-                    </View>
-                    {waitlistProfiles.length === 0 && waitlistGuests.length === 0 ? (
-                      <Text style={shared.caption}>No one on the waitlist yet</Text>
-                    ) : (
-                      <View style={{ gap: theme.spacing.xs }}>
-                        {waitlistProfiles.map((profile, idx) => (
-                          <View key={profile.id} style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }]}>
-                            <Text style={[shared.caption, { minWidth: 20, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }]}>#{idx + 1}</Text>
-                            <Text style={[shared.body, { flex: 1 }]}>{profileDisplayName(profile)}</Text>
-                            {status.isOwner && (
-                              <TouchableOpacity
-                                onPress={() => handleApproveFromWaitlist(profile.id)}
-                                style={{ paddingVertical: theme.spacing.xs, paddingHorizontal: theme.spacing.sm, backgroundColor: theme.colors.primary, borderRadius: theme.radius.md }}
-                              >
-                                <Text style={{ color: theme.colors.white, fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium }}>Approve</Text>
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                        ))}
-                        {waitlistGuests.map((g, idx) => (
-                          <View key={g.id} style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }]}>
-                            <Text style={[shared.caption, { minWidth: 20, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }]}>#{waitlistProfiles.length + idx + 1}</Text>
-                            <Text style={[shared.body, { flex: 1 }]}>{g.first_name} {g.last_name}</Text>
-                            <View style={shared.tag}><Text style={shared.tagText}>Guest</Text></View>
-                            {status.isOwner && (
-                              <TouchableOpacity
-                                onPress={() => openRemoveGuestModal(g)}
-                                hitSlop={8}
-                              >
-                                <Ionicons name="close" size={16} color={theme.colors.subtext} />
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </>
-                )}
-              </>
-            )
-          })()}
-        </ScrollView>
+                  )}
+                  <Input
+                    label="Add a comment"
+                    value={commentDraft}
+                    onChangeText={setCommentDraft}
+                    placeholder="Write a message…"
+                    multiline
+                    numberOfLines={3}
+                  />
+                  <Button
+                    label="Post"
+                    onPress={handlePostComment}
+                    loading={postingComment}
+                    disabled={!commentDraft.trim()}
+                  />
+                </View>
+              ) : (
+                <Text style={[shared.caption, shared.mb_lg]}>Sign in to join the discussion.</Text>
+              )}
+              {commentsLoading && comments.length === 0 ? (
+                <View style={{ paddingVertical: theme.spacing.lg, alignItems: 'center' }}>
+                  <ActivityIndicator color={theme.colors.primary} />
+                </View>
+              ) : comments.length === 0 ? (
+                <Text style={shared.caption}>No messages yet. Be the first to comment.</Text>
+              ) : (
+                <View style={{ gap: theme.spacing.xs }}>
+                  {[...comments].reverse().map(c => (
+                    <EventCommentRow key={c.id} comment={c} />
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+          </Pager>
+        </>
       )}
 
       <Modal
