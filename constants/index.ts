@@ -9,5 +9,9 @@ export {
   EVENT_LIST_EVENT_COLUMNS,
   EVENT_CARD_LIST_SELECT,
   EVENT_CARD_LIST_SELECT_MINIMAL,
+  DEFAULT_DURATION_MINUTES,
+  DURATION_OPTIONS,
+  KUDO_TYPES,
+  KUDOS_MAX_PER_EVENT,
 } from './events'
-export type { VenueLocation, EventTemplate, RecurrenceCadence } from './events'
+export type { VenueLocation, EventTemplate, RecurrenceCadence, KudoTypeConfig } from './events'

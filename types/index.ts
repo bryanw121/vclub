@@ -39,9 +39,34 @@ export type Event = {
   description: string | null   // Optional — longer details about the event
   location: string | null      // Optional — venue name or address
   event_date: string           // ISO 8601 — when the event takes place
+  duration_minutes: number     // How long the event runs; default 120 (2 hours)
   max_attendees: number | null // Optional capacity cap; null means unlimited
   created_at: string           // ISO 8601 — when this row was inserted
   club_id: string | null       // Optional FK → clubs.id
+}
+
+/** Kudo categories for post-event peer recognition */
+export type KudoType =
+  | 'spike'
+  | 'block'
+  | 'serve'
+  | 'dig'
+  | 'set'
+  | 'pass'
+  | 'communication'
+
+/**
+ * `kudos` table
+ * One row per (event, giver, receiver, type). Given after an event ends.
+ * Unique constraint: (event_id, giver_id, receiver_id, kudo_type).
+ */
+export type Kudo = {
+  id: string
+  event_id: string
+  giver_id: string
+  receiver_id: string
+  kudo_type: KudoType
+  created_at: string
 }
 
 /**
@@ -153,6 +178,7 @@ export type CreateEventForm = {
   description: string
   location: string
   date: Date             // Stored as JS Date locally; converted to ISO string on submit
+  durationMinutes: number      // Event duration; default 120
   maxAttendees: number | null  // null = unlimited
 }
 

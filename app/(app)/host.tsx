@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
 import { DatePickerField } from '../../components/DatePickerField'
-import { shared, theme, LOCATIONS, DAY_LABELS_SHORT } from '../../constants'
+import { shared, theme, LOCATIONS, DAY_LABELS_SHORT, DURATION_OPTIONS, DEFAULT_DURATION_MINUTES } from '../../constants'
 import type { RecurrenceCadence } from '../../constants'
 import { cleanDate } from '../../utils'
 import type { CreateEventForm, Tag, UserEventTemplate } from '../../types'
@@ -23,6 +23,7 @@ const EMPTY_FORM: CreateEventForm = {
   description: '',
   location: '',
   date: roundToNearest5(),
+  durationMinutes: DEFAULT_DURATION_MINUTES,
   maxAttendees: null,
 }
 
@@ -173,6 +174,7 @@ export default function HostEventScreen() {
         description: data.description ?? '',
         location: data.location ?? '',
         date: new Date(data.event_date),
+        durationMinutes: data.duration_minutes ?? DEFAULT_DURATION_MINUTES,
         maxAttendees: data.max_attendees,
       })
       if (loc) {
@@ -282,6 +284,7 @@ export default function HostEventScreen() {
             description: form.description || null,
             location: form.location || null,
             event_date: cleanDate(form.date),
+            duration_minutes: form.durationMinutes,
             max_attendees: form.maxAttendees,
             club_id: selectedClubId,
           })
@@ -346,6 +349,7 @@ export default function HostEventScreen() {
           description: form.description || null,
           location: form.location || null,
           event_date: cleanDate(d),
+          duration_minutes: form.durationMinutes,
           max_attendees: form.maxAttendees,
           created_by: user.id,
           club_id: selectedClubId,
@@ -501,6 +505,34 @@ export default function HostEventScreen() {
           setField('date', d)
           if (!recurrence.enabled) setRecurrence(prev => ({ ...prev, endDate: defaultEndDate(d) }))
         }} />
+
+        {/* ── Duration ── */}
+        <View style={shared.inputContainer}>
+          <Text style={shared.label}>Duration</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
+            {DURATION_OPTIONS.map(opt => {
+              const active = form.durationMinutes === opt.minutes
+              return (
+                <TouchableOpacity
+                  key={opt.minutes}
+                  onPress={() => setField('durationMinutes', opt.minutes)}
+                  style={{
+                    paddingHorizontal: theme.spacing.md,
+                    paddingVertical: theme.spacing.xs,
+                    borderRadius: theme.radius.full,
+                    borderWidth: 1.5,
+                    borderColor: active ? theme.colors.primary : theme.colors.border,
+                    backgroundColor: active ? theme.colors.primary + '18' : 'transparent',
+                  }}
+                >
+                  <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: active ? theme.colors.primary : theme.colors.subtext }}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+        </View>
 
         {/* ── Recurrence — hidden in edit mode ── */}
         {!isEdit && <>

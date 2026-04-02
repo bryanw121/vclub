@@ -49,6 +49,40 @@ export const EVENT_TEMPLATES: EventTemplate[] = [
   },
 ]
 
+// ─── Duration ─────────────────────────────────────────────────────────────────
+
+export const DEFAULT_DURATION_MINUTES = 120
+
+export const DURATION_OPTIONS: { label: string; minutes: number }[] = [
+  { label: '30 min', minutes: 30  },
+  { label: '1h',     minutes: 60  },
+  { label: '1.5h',   minutes: 90  },
+  { label: '2h',     minutes: 120 },
+  { label: '2.5h',   minutes: 150 },
+  { label: '3h',     minutes: 180 },
+  { label: '4h',     minutes: 240 },
+]
+
+// ─── Kudos ────────────────────────────────────────────────────────────────────
+
+export const KUDOS_MAX_PER_EVENT = 5
+
+export type KudoTypeConfig = {
+  type: import('../types').KudoType
+  label: string
+  icon: string
+}
+
+export const KUDO_TYPES: KudoTypeConfig[] = [
+  { type: 'spike',         label: 'Spiking',        icon: 'flash-outline'               },
+  { type: 'block',         label: 'Blocking',        icon: 'shield-outline'              },
+  { type: 'serve',         label: 'Serving',         icon: 'radio-outline'               },
+  { type: 'dig',           label: 'Digging',         icon: 'arrow-down-circle-outline'   },
+  { type: 'set',           label: 'Setting',         icon: 'git-merge-outline'           },
+  { type: 'pass',          label: 'Passing',         icon: 'swap-horizontal-outline'     },
+  { type: 'communication', label: 'Communication',   icon: 'chatbubbles-outline'         },
+]
+
 // ─── Recurrence ───────────────────────────────────────────────────────────────
 
 export type RecurrenceCadence = 'weekly' | 'biweekly' | 'monthly'
@@ -58,7 +92,7 @@ export const DAY_LABELS_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as co
 // ─── Supabase list queries (EventCard / feeds) ─────────────────────────────────
 /** Core `events` columns for cards — omits `description` to shrink rows and JSON payload. */
 export const EVENT_LIST_EVENT_COLUMNS =
-  'id, created_by, club_id, title, location, event_date, max_attendees, created_at'
+  'id, created_by, club_id, title, location, event_date, duration_minutes, max_attendees, created_at'
 
 /** Main Events tab + club upcoming: host, RSVP count, tags, club badge. */
 export const EVENT_CARD_LIST_SELECT = `${EVENT_LIST_EVENT_COLUMNS}, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees_attending(count), event_guests_attending(count), event_attendees_waitlisted(count), event_tags (tag_id, tags (id, name, category, display_order)), clubs (id, name, avatar_url)`

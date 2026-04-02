@@ -43,7 +43,7 @@ const css = `
     outline: none;
     cursor: pointer;
     font-family: inherit !important;
-    font-size: ${theme.font.size.md}px !important;
+    font-size: max(16px, ${theme.font.size.md}px) !important;
     font-weight: ${theme.font.weight.medium} !important;
     color: ${theme.colors.text} !important;
   }
@@ -61,7 +61,7 @@ const css = `
     outline: none;
     cursor: pointer;
     font-family: inherit !important;
-    font-size: ${theme.font.size.md}px !important;
+    font-size: max(16px, ${theme.font.size.md}px) !important;
     font-weight: ${theme.font.weight.medium} !important;
     color: ${theme.colors.text} !important;
     padding: 0;

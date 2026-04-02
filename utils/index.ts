@@ -126,6 +126,10 @@ export function profileAvatarFieldIsHttpUrl(ref: string | null | undefined): boo
   return /^https?:\/\//i.test(ref.trim())
 }
 
+// Module-level cache: avatar_url path → { signedUrl, expiresAt }.
+// Prevents N duplicate Storage calls when the same user appears in multiple comment rows.
+const _avatarUrlCache = new Map<string, { uri: string; expiresAt: number }>()
+
 /** Resolves `avatar_url` to an `Image` URI (signed URL for storage paths). */
 export async function resolveProfileAvatarUri(ref: string | null | undefined): Promise<string | null> {
   const r = await resolveProfileAvatarUriWithError(ref)
@@ -141,10 +145,17 @@ export async function resolveProfileAvatarUriWithError(
   if (ref == null || ref === '') return { uri: null, error: null }
   const trimmed = ref.trim()
   if (profileAvatarFieldIsHttpUrl(trimmed)) return { uri: trimmed, error: null }
+
+  const cached = _avatarUrlCache.get(trimmed)
+  if (cached && Date.now() < cached.expiresAt) return { uri: cached.uri, error: null }
+
   const { data, error } = await supabase.storage
     .from(AVATARS_BUCKET)
     .createSignedUrl(trimmed, AVATAR_SIGNED_URL_TTL_SEC)
   if (error) return { uri: null, error: error.message }
   if (!data?.signedUrl) return { uri: null, error: 'No signed URL returned' }
+
+  // Cache for 1 hour less than the actual TTL to avoid serving near-expired URLs.
+  _avatarUrlCache.set(trimmed, { uri: data.signedUrl, expiresAt: Date.now() + (AVATAR_SIGNED_URL_TTL_SEC - 3600) * 1000 })
   return { uri: data.signedUrl, error: null }
 }

@@ -28,7 +28,13 @@
     },
     "web": {
       "bundler": "metro",
-      "favicon": "./assets/vclub.png"
+      "favicon": "./assets/vclub.png",
+      "name": "vclub",
+      "shortName": "vclub",
+      "themeColor": "#7C4DFF",
+      "backgroundColor": "#F9F9F9",
+      "display": "standalone",
+      "orientation": "portrait"
     },
     "plugins": [
       "expo-router",

@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { Platform, View, Text, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal, Keyboard, KeyboardEvent, Switch } from 'react-native'
+import { Platform, View, Text, Image, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal, Keyboard, KeyboardEvent, Switch } from 'react-native'
 import { GestureDetector, Gesture, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, interpolate, Extrapolation } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
@@ -11,15 +11,172 @@ import { Button } from '../../../components/Button'
 import { Input } from '../../../components/Input'
 import { EventCommentRow } from '../../../components/EventCommentRow'
 import { Pager } from '../../../components/Pager'
-import { shared, theme, formatEventDate } from '../../../constants'
-import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile } from '../../../types'
-import { profileDisplayName, profileInitial, eventAttendeeRows, normalizeVolleyballPositions } from '../../../utils'
+import { shared, theme, formatEventDate, KUDO_TYPES, KUDOS_MAX_PER_EVENT } from '../../../constants'
+import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, KudoType, Kudo } from '../../../types'
+import { profileDisplayName, profileInitial, resolveProfileAvatarUriWithError, eventAttendeeRows, normalizeVolleyballPositions } from '../../../utils'
 
 const EVENT_COMMENT_MAX_LEN = 2000
 
 function formatDiscussionBadgeCount(count: number): string {
   if (count > 50) return '50+'
   return String(count)
+}
+
+function formatEndTime(startIso: string, durationMinutes: number): string {
+  const normalized = /[Z+]/.test(startIso) ? startIso : startIso + 'Z'
+  const end = new Date(new Date(normalized).getTime() + durationMinutes * 60_000)
+  return end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
+function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`
+  const h = minutes / 60
+  return Number.isInteger(h) ? `${h}h` : `${h}h`
+}
+
+type KudosPersonCardProps = {
+  profile: Profile
+  hasGiven: boolean
+  disabled: boolean
+  teamColor: string | null
+  onPress: () => void
+}
+
+function KudosPersonCard({ profile, hasGiven, disabled, teamColor, onPress }: KudosPersonCardProps) {
+  const [avatarUri, setAvatarUri] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { uri } = await resolveProfileAvatarUriWithError(profile.avatar_url)
+      if (!cancelled) setAvatarUri(uri)
+    })()
+    return () => { cancelled = true }
+  }, [profile.avatar_url])
+
+  const activeColor = teamColor ?? theme.colors.primary
+  const initials = profileInitial(profile)
+  const displayName = profileDisplayName(profile)
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled}
+      style={[
+        styles.playerCardShell,
+        {
+          borderColor: hasGiven ? activeColor : theme.colors.border,
+          backgroundColor: hasGiven ? activeColor + '12' : theme.colors.card,
+          opacity: disabled ? 0.4 : 1,
+        },
+      ]}
+    >
+      <View style={[
+        styles.avatar,
+        {
+          borderColor: activeColor,
+          backgroundColor: activeColor + '18',
+          borderWidth: hasGiven ? 2 : 1.5,
+          overflow: 'hidden',
+        }
+      ]}>
+        {avatarUri ? (
+          <Image source={{ uri: avatarUri }} style={{ width: 40, height: 40 }} resizeMode="cover" />
+        ) : (
+          <Text style={[styles.avatarInitial, { color: activeColor }]}>{initials}</Text>
+        )}
+      </View>
+      <Text style={[styles.playerName, { color: hasGiven ? activeColor : theme.colors.text, flex: 1 }]} numberOfLines={1}>
+        {displayName}
+      </Text>
+      {hasGiven && <Ionicons name="checkmark-circle" size={16} color={activeColor} />}
+    </TouchableOpacity>
+  )
+}
+
+/**
+ * Isolated composer so local draft state doesn't re-render the whole event screen on every keystroke.
+ */
+type DiscussionComposerProps = {
+  isOwner: boolean
+  postingComment: boolean
+  announcementLabel?: string
+  onPost: (body: string, isAnnouncement: boolean) => Promise<void>
+  onFocusScroll: () => void
+}
+function DiscussionComposer({ isOwner, postingComment, announcementLabel = 'Post as announcement', onPost, onFocusScroll }: DiscussionComposerProps) {
+  const [draft, setDraft] = useState('')
+  const [isAnnouncement, setIsAnnouncement] = useState(false)
+
+  async function handlePost() {
+    const body = draft.trim()
+    if (!body) return
+    try {
+      await onPost(body, isAnnouncement)
+      setDraft('')
+      setIsAnnouncement(false)
+    } catch {
+      // parent already showed the alert; keep draft so user can edit
+    }
+  }
+
+  return (
+    <>
+      {isOwner && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.sm }}>
+          <Text style={[shared.caption, { flex: 1, paddingRight: theme.spacing.sm }]}>{announcementLabel}</Text>
+          <Switch
+            value={isAnnouncement}
+            onValueChange={setIsAnnouncement}
+            trackColor={{ false: theme.colors.border, true: theme.colors.primary + '99' }}
+            thumbColor={isAnnouncement ? theme.colors.white : theme.colors.card}
+            ios_backgroundColor={theme.colors.border}
+          />
+        </View>
+      )}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Input
+            value={draft}
+            onChangeText={setDraft}
+            placeholder="Add a comment..."
+            multiline
+            numberOfLines={4}
+            blurOnSubmit={false}
+            containerStyle={{ marginBottom: 0 }}
+            inputStyle={{
+              minHeight: 44,
+              maxHeight: 120,
+              paddingHorizontal: theme.spacing.md,
+              ...Platform.select({
+                ios: { paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm },
+                android: { paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.sm, textAlignVertical: 'bottom' },
+                default: { paddingVertical: theme.spacing.sm },
+              }),
+            }}
+            onFocus={() => { requestAnimationFrame(onFocusScroll) }}
+            includeFontPadding={Platform.OS === 'android' ? false : undefined}
+          />
+        </View>
+        <TouchableOpacity
+          onPress={handlePost}
+          disabled={!draft.trim() || postingComment}
+          accessibilityRole="button"
+          accessibilityLabel="Send comment"
+          style={{
+            width: 44, height: 44,
+            borderRadius: theme.radius.md,
+            backgroundColor: theme.colors.primary,
+            alignItems: 'center', justifyContent: 'center',
+            opacity: !draft.trim() || postingComment ? 0.4 : 1,
+          }}
+        >
+          {postingComment
+            ? <ActivityIndicator size="small" color={theme.colors.white} />
+            : <Ionicons name="send" size={20} color={theme.colors.white} />}
+        </TouchableOpacity>
+      </View>
+    </>
+  )
 }
 
 type RemoveModalState =
@@ -313,8 +470,6 @@ export default function EventDetail() {
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false)
   const [comments, setComments] = useState<EventCommentWithAuthor[]>([])
   const [commentsLoading, setCommentsLoading] = useState(false)
-  const [commentDraft, setCommentDraft] = useState('')
-  const [postAsAnnouncement, setPostAsAnnouncement] = useState(false)
   const [postingComment, setPostingComment] = useState(false)
   const [discussionDrawerOpen, setDiscussionDrawerOpen] = useState(false)
   const [discussionKeyboardInset, setDiscussionKeyboardInset] = useState(0)
@@ -345,6 +500,10 @@ export default function EventDetail() {
 
   const [activeTab, setActiveTab] = useState(0)
   const innerPagerBlocked = useRef(false)
+
+  const [myKudosGiven, setMyKudosGiven] = useState<Kudo[]>([])
+  const [kudosLoading, setKudosLoading] = useState(false)
+  const [selectedKudoType, setSelectedKudoType] = useState<KudoType | null>(null)
 
   // Drag-and-drop
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null)
@@ -476,6 +635,11 @@ export default function EventDetail() {
     if (activeTab !== 2 && !discussionDrawerOpen) return
     scrollDiscussionToBottom(false)
   }, [activeTab, discussionDrawerOpen, comments.length, discussionTabComposerHeight, scrollDiscussionToBottom])
+
+  useEffect(() => {
+    if (activeTab !== 3 || !isEventOver || !userId) return
+    fetchMyKudos()
+  }, [activeTab, userId])
 
   const discussionSheetAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: discussionSheetTranslateY.value }],
@@ -639,6 +803,66 @@ export default function EventDetail() {
     }
   }
 
+  async function fetchMyKudos() {
+    if (!userId) return
+    setKudosLoading(true)
+    const { data } = await supabase
+      .from('kudos')
+      .select('*')
+      .eq('event_id', id)
+      .eq('giver_id', userId)
+    setMyKudosGiven((data ?? []) as Kudo[])
+    setKudosLoading(false)
+  }
+
+  async function giveKudo(receiverId: string, kudoType: KudoType) {
+    if (!userId) return
+    const optimistic: Kudo = { id: '_opt_' + receiverId + kudoType, event_id: id, giver_id: userId, receiver_id: receiverId, kudo_type: kudoType, created_at: '' }
+    setMyKudosGiven(prev => [...prev, optimistic])
+    const { data, error } = await supabase.from('kudos').insert({
+      event_id: id,
+      giver_id: userId,
+      receiver_id: receiverId,
+      kudo_type: kudoType,
+    }).select('id, created_at').single()
+    if (error) {
+      setMyKudosGiven(prev => prev.filter(k => k.id !== optimistic.id))
+      Alert.alert('Error', error.message)
+      return
+    }
+    if (data) {
+      setMyKudosGiven(prev => prev.map(k => k.id === optimistic.id ? { ...k, id: data.id, created_at: data.created_at } : k))
+    }
+  }
+
+  async function revokeKudo(receiverId: string, kudoType: KudoType) {
+    if (!userId) return
+    const removed = myKudosGiven.find(k => k.receiver_id === receiverId && k.kudo_type === kudoType)
+    setMyKudosGiven(prev => prev.filter(k => !(k.receiver_id === receiverId && k.kudo_type === kudoType)))
+    const { error } = await supabase.from('kudos').delete()
+      .eq('event_id', id)
+      .eq('giver_id', userId)
+      .eq('receiver_id', receiverId)
+      .eq('kudo_type', kudoType)
+    if (error) {
+      if (removed) setMyKudosGiven(prev => [...prev, removed])
+      Alert.alert('Error', error.message)
+    }
+  }
+
+  async function resetKudos() {
+    if (!userId || myKudosGiven.length === 0) return
+    const snapshot = [...myKudosGiven]
+    setMyKudosGiven([])
+    const { error } = await supabase.from('kudos').delete()
+      .eq('event_id', id)
+      .eq('giver_id', userId)
+    if (error) {
+      setMyKudosGiven(snapshot)
+      Alert.alert('Error', error.message)
+    }
+  }
+
   async function refreshComments() {
     const { data, error } = await supabase
       .from('event_comments')
@@ -654,29 +878,26 @@ export default function EventDetail() {
     setComments((data ?? []) as unknown as EventCommentWithAuthor[])
   }
 
-  async function handlePostComment() {
+  async function handlePostComment(body: string, isAnnouncement: boolean) {
     if (!userId) return
-    const body = commentDraft.trim()
-    if (!body) return
     if (body.length > EVENT_COMMENT_MAX_LEN) {
       Alert.alert('Comment too long', `Please keep comments under ${EVENT_COMMENT_MAX_LEN} characters.`)
-      return
+      throw new Error('comment_too_long')
     }
+    setPostingComment(true)
     try {
-      setPostingComment(true)
       const { error } = await supabase.from('event_comments').insert({
         event_id: id,
         user_id: userId,
         body,
-        is_announcement: Boolean(event?.created_by === userId && postAsAnnouncement),
+        is_announcement: Boolean(event?.created_by === userId && isAnnouncement),
       })
       if (error) throw error
-      setCommentDraft('')
-      setPostAsAnnouncement(false)
       await refreshComments()
       scrollDiscussionToBottom(true)
     } catch (e: any) {
       Alert.alert('Error', e.message)
+      throw e
     } finally {
       setPostingComment(false)
     }
@@ -1118,6 +1339,9 @@ export default function EventDetail() {
   }
 
   const isOwner = event?.created_by === userId
+  const isEventOver = event
+    ? Date.now() > new Date(/[Z+]/.test(event.event_date) ? event.event_date : event.event_date + 'Z').getTime() + (event.duration_minutes ?? 120) * 60_000
+    : false
   const totalPlayers = attendees.length + guests.length
   const hasTeams = isOwner
     ? totalPlayers > 0
@@ -1254,10 +1478,10 @@ export default function EventDetail() {
         <>
           {/* Tab bar */}
           <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background }}>
-            {(['Description', 'People', 'Discussion'] as const).map((label, i) => (
+            {(['Description', 'People', 'Discussion', 'Kudos'] as const).map((label, i) => (
               <TouchableOpacity
                 key={label}
-                onPress={() => setActiveTab(i)}
+                onPress={() => { if (i !== 3) setSelectedKudoType(null); setActiveTab(i) }}
                 style={{ flex: 1, alignItems: 'center', paddingVertical: 12 }}
               >
                 <Text style={{
@@ -1274,10 +1498,20 @@ export default function EventDetail() {
             ))}
           </View>
 
-          <Pager page={activeTab} onPageChange={setActiveTab} pagerBlockedRef={innerPagerBlocked}>
+          <Pager
+            page={activeTab}
+            onPageChange={next => {
+              if (next !== 3) setSelectedKudoType(null)
+              setActiveTab(next)
+            }}
+            pagerBlockedRef={innerPagerBlocked}
+          >
             {/* Tab 0: Description */}
             <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
               <Text style={[shared.primaryText, shared.mb_xs]}>{formatEventDate(event.event_date, 'long')}</Text>
+              <Text style={[shared.caption, shared.mb_xs]}>
+                Ends {formatEndTime(event.event_date, event.duration_minutes ?? 120)} · {formatDuration(event.duration_minutes ?? 120)}
+              </Text>
               {event.location && <Text style={[shared.caption, shared.mb_xs]}>{event.location}</Text>}
               {(event.event_tags?.length ?? 0) > 0 && (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: theme.spacing.sm }}>
@@ -1559,8 +1793,7 @@ export default function EventDetail() {
                   justifyContent: 'flex-end',
                   paddingTop: theme.spacing.lg,
                   paddingHorizontal: theme.spacing.lg,
-                  // Reserve space so the last message isn't hidden behind the composer.
-                  paddingBottom: theme.spacing.xs + discussionTabComposerHeight,
+                  paddingBottom: theme.spacing.xs,
                 }}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="interactive"
@@ -1587,92 +1820,207 @@ export default function EventDetail() {
                 <View
                   style={{
                     paddingHorizontal: theme.spacing.lg,
-                    paddingTop: theme.spacing.sm,
-                    // Let the whole chat jump with keyboard, but keep message/composer adjacency.
+                    paddingTop: theme.spacing.xs,
                     paddingBottom:
                       discussionTabKeyboardInset > 0
                         ? discussionTabKeyboardInset + theme.spacing.sm
                         : Math.max(insets.bottom, theme.spacing.md),
                   }}
                 >
-                  <View
-                    onLayout={(e) => setDiscussionTabComposerHeight(Math.ceil(e.nativeEvent.layout.height))}
-                  >
-                    {isOwner && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.sm }}>
-                        <Text style={[shared.caption, { flex: 1, paddingRight: theme.spacing.sm }]}>
-                          Post as announcement
-                        </Text>
-                        <Switch
-                          value={postAsAnnouncement}
-                          onValueChange={setPostAsAnnouncement}
-                          trackColor={{ false: theme.colors.border, true: theme.colors.primary + '99' }}
-                          thumbColor={postAsAnnouncement ? theme.colors.white : theme.colors.card}
-                          ios_backgroundColor={theme.colors.border}
-                        />
-                      </View>
-                    )}
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Input
-                          value={commentDraft}
-                          onChangeText={setCommentDraft}
-                          placeholder="Add a comment..."
-                          multiline
-                          numberOfLines={4}
-                          blurOnSubmit={false}
-                          containerStyle={{ marginBottom: 0 }}
-                          inputStyle={{
-                            minHeight: 44,
-                            maxHeight: 120,
-                            paddingHorizontal: theme.spacing.md,
-                            ...Platform.select({
-                              ios: {
-                                paddingTop: theme.spacing.md,
-                                paddingBottom: theme.spacing.sm,
-                              },
-                              android: {
-                                paddingTop: theme.spacing.sm,
-                                paddingBottom: theme.spacing.sm,
-                                textAlignVertical: 'bottom',
-                              },
-                              default: {
-                                paddingVertical: theme.spacing.sm,
-                              },
-                            }),
-                          }}
-                          onFocus={() => {
-                            requestAnimationFrame(() => {
-                              discussionTabScrollRef.current?.scrollToEnd({ animated: true })
-                            })
-                          }}
-                          includeFontPadding={Platform.OS === 'android' ? false : undefined}
-                        />
-                      </View>
-                      <TouchableOpacity
-                        onPress={handlePostComment}
-                        disabled={!commentDraft.trim() || postingComment}
-                        accessibilityRole="button"
-                        accessibilityLabel="Send comment"
-                        style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: theme.radius.md,
-                          backgroundColor: theme.colors.primary,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          opacity: !commentDraft.trim() || postingComment ? 0.4 : 1,
-                        }}
-                      >
-                        {postingComment
-                          ? <ActivityIndicator size="small" color={theme.colors.white} />
-                          : <Ionicons name="send" size={20} color={theme.colors.white} />}
-                      </TouchableOpacity>
-                    </View>
+                  <View onLayout={(e) => setDiscussionTabComposerHeight(Math.ceil(e.nativeEvent.layout.height))}>
+                    <DiscussionComposer
+                      isOwner={isOwner}
+                      postingComment={postingComment}
+                      onPost={handlePostComment}
+                      onFocusScroll={() => discussionTabScrollRef.current?.scrollToEnd({ animated: true })}
+                    />
                   </View>
                 </View>
               ) : (
                 <Text style={[shared.caption, { paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.lg }]}>Sign in to join the discussion.</Text>
+              )}
+            </View>
+
+            {/* Tab 3: Kudos */}
+            <View style={[shared.screen, { flex: 1 }]}>
+              {!isEventOver ? (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl }}>
+                  <Ionicons name="time-outline" size={40} color={theme.colors.subtext} />
+                  <Text style={[shared.subheading, { marginTop: theme.spacing.md, textAlign: 'center' }]}>Not available yet</Text>
+                  <Text style={[shared.caption, { marginTop: theme.spacing.sm, textAlign: 'center' }]}>
+                    Kudos open after the event ends.
+                  </Text>
+                </View>
+              ) : !eventStatus.isAttending && !eventStatus.isOwner ? (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl }}>
+                  <Ionicons name="lock-closed-outline" size={40} color={theme.colors.subtext} />
+                  <Text style={[shared.subheading, { marginTop: theme.spacing.md, textAlign: 'center' }]}>Attendees only</Text>
+                  <Text style={[shared.caption, { marginTop: theme.spacing.sm, textAlign: 'center' }]}>
+                    Only people who attended this event can give kudos.
+                  </Text>
+                </View>
+              ) : kudosLoading ? (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  <ActivityIndicator color={theme.colors.primary} />
+                </View>
+              ) : selectedKudoType === null ? (
+                /* Step 1: Pick a kudo type */
+                <ScrollView contentContainerStyle={[shared.scrollContent, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
+                  <View style={[shared.rowBetween, { marginBottom: theme.spacing.xs }]}>
+                    <Text style={shared.subheading}>Give Kudos</Text>
+                    {myKudosGiven.length > 0 && (
+                      <TouchableOpacity onPress={resetKudos} hitSlop={8}>
+                        <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>Reset</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <Text style={[shared.caption, { marginBottom: theme.spacing.lg }]}>
+                    {myKudosGiven.length}/{KUDOS_MAX_PER_EVENT} given · What do you want to recognize?
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm }}>
+                    {KUDO_TYPES.map(kt => {
+                      const givenCount = myKudosGiven.filter(k => k.kudo_type === kt.type).length
+                      const atCap = myKudosGiven.length >= KUDOS_MAX_PER_EVENT && givenCount === 0
+                      return (
+                        <TouchableOpacity
+                          key={kt.type}
+                          onPress={() => !atCap ? setSelectedKudoType(kt.type) : null}
+                          disabled={atCap}
+                          style={{
+                            width: '47%',
+                            backgroundColor: givenCount > 0 ? theme.colors.primary + '12' : theme.colors.card,
+                            borderWidth: 1.5,
+                            borderColor: givenCount > 0 ? theme.colors.primary : theme.colors.border,
+                            borderRadius: theme.radius.lg,
+                            padding: theme.spacing.md,
+                            alignItems: 'center',
+                            gap: theme.spacing.xs,
+                            opacity: atCap ? 0.4 : 1,
+                          }}
+                        >
+                          <Ionicons
+                            name={kt.icon as any}
+                            size={28}
+                            color={givenCount > 0 ? theme.colors.primary : theme.colors.subtext}
+                          />
+                          <Text style={{
+                            fontSize: theme.font.size.sm,
+                            fontWeight: theme.font.weight.semibold,
+                            color: givenCount > 0 ? theme.colors.primary : theme.colors.text,
+                            textAlign: 'center',
+                          }}>
+                            {kt.label}
+                          </Text>
+                          {givenCount > 0 && (
+                            <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.primary }}>
+                              {givenCount} given
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      )
+                    })}
+                  </View>
+                </ScrollView>
+              ) : (
+                /* Step 2: Pick recipients for the selected kudo type */
+                <View style={{ flex: 1 }}>
+                  {/* Header */}
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: theme.spacing.sm,
+                    paddingHorizontal: theme.spacing.lg,
+                    paddingTop: theme.spacing.md,
+                    paddingBottom: theme.spacing.sm,
+                    borderBottomWidth: 1,
+                    borderBottomColor: theme.colors.border,
+                  }}>
+                    <TouchableOpacity onPress={() => setSelectedKudoType(null)} hitSlop={12}>
+                      <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
+                    </TouchableOpacity>
+                    <Ionicons
+                      name={(KUDO_TYPES.find(k => k.type === selectedKudoType)?.icon ?? 'star-outline') as any}
+                      size={18}
+                      color={theme.colors.primary}
+                    />
+                    <Text style={[shared.subheading, { flex: 1 }]}>
+                      {KUDO_TYPES.find(k => k.type === selectedKudoType)?.label}
+                    </Text>
+                    <Text style={shared.caption}>
+                      {myKudosGiven.length}/{KUDOS_MAX_PER_EVENT}
+                    </Text>
+                  </View>
+                  <Text style={[shared.caption, { paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm }]}>
+                    Who deserves it? Tap to give or remove.
+                  </Text>
+                  {attendees.filter(a => a.id !== userId).length === 0 ? (
+                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl }}>
+                      <Text style={shared.caption}>No other attendees to give kudos to.</Text>
+                    </View>
+                  ) : (
+                    <ScrollView
+                      contentContainerStyle={[shared.scrollContent, { paddingBottom: insets.bottom + theme.spacing.lg }]}
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      {(() => {
+                        const others = attendees.filter(a => a.id !== userId)
+                        function renderKudosCard(profile: Profile, teamColor: string | null) {
+                          const hasGiven = myKudosGiven.some(k => k.receiver_id === profile.id && k.kudo_type === selectedKudoType)
+                          const atCap = myKudosGiven.length >= KUDOS_MAX_PER_EVENT && !hasGiven
+                          return (
+                            <View key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>
+                              <KudosPersonCard
+                                profile={profile}
+                                hasGiven={hasGiven}
+                                disabled={atCap}
+                                teamColor={teamColor}
+                                onPress={() => hasGiven
+                                  ? revokeKudo(profile.id, selectedKudoType)
+                                  : giveKudo(profile.id, selectedKudoType)
+                                }
+                              />
+                            </View>
+                          )
+                        }
+                        if (!hasTeams) {
+                          return <View style={styles.playerGrid}>{others.map(p => renderKudosCard(p, null))}</View>
+                        }
+                        const unassigned = others.filter(p => !assignments[p.id]?.team)
+                        return (
+                          <View style={{ gap: theme.spacing.sm }}>
+                            {Array.from({ length: numTeams }, (_, i) => i + 1).map(teamNum => {
+                              const teamColor = TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length]
+                              const members = others.filter(p => assignments[p.id]?.team === teamNum)
+                              return (
+                                <View key={teamNum}>
+                                  <View style={styles.teamHeader}>
+                                    <View style={[styles.teamDot, { backgroundColor: teamColor }]} />
+                                    <Text style={[styles.teamHeading, { color: teamColor }]}>
+                                      {TEAM_COLOR_NAMES[(teamNum - 1) % TEAM_COLOR_NAMES.length]} Team
+                                    </Text>
+                                  </View>
+                                  {members.length === 0
+                                    ? <Text style={[shared.caption, { paddingHorizontal: theme.spacing.xs }]}>No players</Text>
+                                    : <View style={styles.playerGrid}>{members.map(p => renderKudosCard(p, teamColor))}</View>
+                                  }
+                                </View>
+                              )
+                            })}
+                            {unassigned.length > 0 && (
+                              <View>
+                                <View style={styles.teamHeader}>
+                                  <View style={[styles.teamDot, { backgroundColor: theme.colors.subtext }]} />
+                                  <Text style={[styles.teamHeading, { color: theme.colors.subtext }]}>Unassigned</Text>
+                                </View>
+                                <View style={styles.playerGrid}>{unassigned.map(p => renderKudosCard(p, null))}</View>
+                              </View>
+                            )}
+                          </View>
+                        )
+                      })()}
+                    </ScrollView>
+                  )}
+                </View>
               )}
             </View>
           </Pager>
@@ -1763,86 +2111,13 @@ export default function EventDetail() {
                 </ScrollView>
                 {userId ? (
                   <View style={{ paddingTop: theme.spacing.sm }}>
-                    {isOwner && (
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          marginBottom: theme.spacing.sm,
-                          paddingHorizontal: theme.spacing.xs,
-                        }}
-                      >
-                        <Text style={[shared.caption, { flex: 1, paddingRight: theme.spacing.sm }]}>
-                          Also post as announcement
-                        </Text>
-                        <Switch
-                          value={postAsAnnouncement}
-                          onValueChange={setPostAsAnnouncement}
-                          trackColor={{ false: theme.colors.border, true: theme.colors.primary + '99' }}
-                          thumbColor={postAsAnnouncement ? theme.colors.white : theme.colors.card}
-                          ios_backgroundColor={theme.colors.border}
-                          accessibilityLabel="Also post as announcement"
-                        />
-                      </View>
-                    )}
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Input
-                        value={commentDraft}
-                        onChangeText={setCommentDraft}
-                        placeholder="Add a comment..."
-                        multiline
-                        numberOfLines={4}
-                        blurOnSubmit={false}
-                        containerStyle={{ marginBottom: 0 }}
-                        inputStyle={{
-                          minHeight: 44,
-                          maxHeight: 120,
-                          paddingHorizontal: theme.spacing.md,
-                          ...Platform.select({
-                            ios: {
-                              paddingTop: theme.spacing.md,
-                              paddingBottom: theme.spacing.sm,
-                            },
-                            android: {
-                              paddingTop: theme.spacing.sm,
-                              paddingBottom: theme.spacing.sm,
-                              textAlignVertical: 'bottom',
-                            },
-                            default: {
-                              paddingVertical: theme.spacing.sm,
-                            },
-                          }),
-                        }}
-                        onFocus={() => {
-                          requestAnimationFrame(() => {
-                            discussionScrollRef.current?.scrollToEnd({ animated: true })
-                          })
-                        }}
-                        includeFontPadding={Platform.OS === 'android' ? false : undefined}
-                      />
-                    </View>
-                    <TouchableOpacity
-                      onPress={handlePostComment}
-                      disabled={!commentDraft.trim() || postingComment}
-                      accessibilityRole="button"
-                      accessibilityLabel="Send comment"
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: theme.radius.md,
-                        backgroundColor: theme.colors.primary,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        opacity: !commentDraft.trim() || postingComment ? 0.4 : 1,
-                      }}
-                    >
-                      {postingComment
-                        ? <ActivityIndicator size="small" color={theme.colors.white} />
-                        : <Ionicons name="send" size={20} color={theme.colors.white} />}
-                    </TouchableOpacity>
-                    </View>
+                    <DiscussionComposer
+                      isOwner={isOwner}
+                      postingComment={postingComment}
+                      announcementLabel="Also post as announcement"
+                      onPost={handlePostComment}
+                      onFocusScroll={() => discussionScrollRef.current?.scrollToEnd({ animated: true })}
+                    />
                   </View>
                 ) : (
                   <Text style={[shared.caption, { paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.xs }]}>
