@@ -170,6 +170,7 @@ export default function AppLayout() {
               <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
               <Stack.Screen name="profile/[id]" options={{ headerShown: false, gestureEnabled: true }} />
               <Stack.Screen name="club/[id]" options={{ headerShown: false, gestureEnabled: true }} />
+              <Stack.Screen name="notifications" options={{ title: 'Notifications', headerBackTitle: 'Back' }} />
             </Stack>
 
             {/* FAB backdrop */}
@@ -265,6 +266,7 @@ export default function AppLayout() {
       <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
       <Stack.Screen name="profile/[id]" options={{ headerShown: false, gestureEnabled: true }} />
       <Stack.Screen name="club/[id]" options={{ headerShown: false, gestureEnabled: true }} />
+      <Stack.Screen name="notifications" options={{ title: 'Notifications', headerBackTitle: 'Back' }} />
     </Stack>
   )
 }

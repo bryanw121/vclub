@@ -15,6 +15,8 @@ export default function SettingsIndexScreen() {
         <View style={shared.card}>
           <Row label="Account settings" onPress={() => router.push('/settings/account')} />
           <View style={shared.divider} />
+          <Row label="Notification settings" onPress={() => router.push('/settings/notifications')} />
+          <View style={shared.divider} />
           <Row label="Submit a feature request or bug" onPress={() => router.push('/settings/feedback')} />
         </View>
       </ScrollView>

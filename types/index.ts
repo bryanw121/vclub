@@ -26,6 +26,47 @@ export type Profile = {
   position: VolleyballPosition[]
   created_at: string    // ISO 8601 — when the account was created
   is_admin?: boolean  // default false; only true for club/platform admins
+  /** Per-channel toggles keyed by notification_type; omitted keys default to on server-side. */
+  notification_prefs?: NotificationPrefs | null
+}
+
+/** Values must stay in sync with `notifications.notification_type` check constraint in Supabase. */
+export const NOTIFICATION_TYPES = [
+  'event_announcement',
+  'kudos_received',
+  'event_material_change',
+  'waitlist_promoted',
+  'event_cancelled',
+] as const
+
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
+
+/** Stored in `profiles.notification_prefs` jsonb. */
+export type NotificationPrefs = {
+  in_app: Partial<Record<NotificationType, boolean>>
+  push: Partial<Record<NotificationType, boolean>>
+}
+
+/** Payload for `notifications.data` (ids for deep links; keep additive). */
+export type NotificationData = {
+  event_id?: string
+  comment_id?: string
+  kudo_id?: string
+  deep_link?: string
+}
+
+/**
+ * `notifications` table — per-user inbox (inserted by DB triggers only).
+ */
+export type Notification = {
+  id: string
+  user_id: string
+  notification_type: NotificationType
+  title: string
+  body: string
+  data: NotificationData
+  read_at: string | null
+  created_at: string
 }
 
 /**
@@ -43,6 +84,8 @@ export type Event = {
   max_attendees: number | null // Optional capacity cap; null means unlimited
   created_at: string           // ISO 8601 — when this row was inserted
   club_id: string | null       // Optional FK → clubs.id
+  /** Set when the host cancels the event (nullable until migration applied). */
+  cancelled_at?: string | null
 }
 
 /** Kudo categories for post-event peer recognition */

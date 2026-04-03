@@ -1,0 +1,153 @@
+import React, { useCallback } from 'react'
+import { useFocusEffect } from 'expo-router'
+import {
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native'
+import { Stack, useRouter } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
+import { useNotifications } from '../../hooks/useNotifications'
+import { shared, theme } from '../../constants'
+import type { Notification } from '../../types'
+
+export default function NotificationsScreen() {
+  const router = useRouter()
+  const { notifications, loading, error, refetch, markRead, markAllRead } = useNotifications()
+
+  useFocusEffect(
+    useCallback(() => {
+      void refetch(true)
+    }, [refetch]),
+  )
+
+  const openItem = useCallback(
+    async (item: Notification) => {
+      try {
+        if (!item.read_at) await markRead(item.id)
+      } catch {
+        /* still navigate */
+      }
+      const path = item.data?.deep_link
+      if (path) {
+        router.push(path as any)
+        return
+      }
+      if (item.data?.event_id) {
+        router.push(`/event/${item.data.event_id}` as any)
+      }
+    },
+    [markRead, router],
+  )
+
+  const handleMarkAll = useCallback(async () => {
+    try {
+      await markAllRead()
+    } catch {
+      /* ignore */
+    }
+  }, [markAllRead])
+
+  return (
+    <View style={shared.screen}>
+      <Stack.Screen
+        options={{
+          title: 'Notifications',
+          headerBackTitle: 'Back',
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => void handleMarkAll()}
+              style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs }}
+              hitSlop={8}
+            >
+              <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.semibold }}>
+                Read all
+              </Text>
+            </TouchableOpacity>
+          ),
+        }}
+      />
+
+      {error ? (
+        <View style={[shared.centered, { padding: theme.spacing.lg }]}>
+          <Text style={shared.errorText}>{error}</Text>
+          <TouchableOpacity onPress={() => void refetch(true)} style={{ marginTop: theme.spacing.md }}>
+            <Text style={shared.primaryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={notifications}
+          keyExtractor={item => item.id}
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={() => void refetch(true)} tintColor={theme.colors.primary} />
+          }
+          contentContainerStyle={{
+            padding: theme.spacing.lg,
+            paddingBottom: theme.spacing.xl,
+            flexGrow: 1,
+          }}
+          ListEmptyComponent={
+            loading ? (
+              <ActivityIndicator color={theme.colors.primary} style={{ marginTop: theme.spacing.xl }} />
+            ) : (
+              <View style={{ alignItems: 'center', paddingTop: theme.spacing.xl, gap: theme.spacing.sm }}>
+                <Ionicons name="notifications-off-outline" size={40} color={theme.colors.subtext} />
+                <Text style={[shared.caption, { textAlign: 'center' }]}>No notifications yet</Text>
+              </View>
+            )
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              onPress={() => void openItem(item)}
+              style={{
+                backgroundColor: theme.colors.card,
+                borderRadius: theme.radius.md,
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+                padding: theme.spacing.md,
+                marginBottom: theme.spacing.sm,
+                opacity: item.read_at ? 0.72 : 1,
+              }}
+            >
+              <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
+                {item.title}
+              </Text>
+              <Text
+                style={{
+                  fontSize: theme.font.size.sm,
+                  color: theme.colors.subtext,
+                  marginTop: theme.spacing.xs,
+                  lineHeight: 20,
+                }}
+                numberOfLines={3}
+              >
+                {item.body}
+              </Text>
+              <Text style={[shared.caption, { marginTop: theme.spacing.sm }]}>
+                {formatShortTime(item.created_at)}
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+      )}
+    </View>
+  )
+}
+
+function formatShortTime(iso: string): string {
+  try {
+    const d = new Date(/[Z+]/.test(iso) ? iso : iso + 'Z')
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  } catch {
+    return ''
+  }
+}

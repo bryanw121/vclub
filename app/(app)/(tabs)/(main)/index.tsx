@@ -1,11 +1,12 @@
 import React, { useState, useRef, useMemo, useCallback, memo, useEffect } from 'react'
-import { useFocusEffect } from 'expo-router'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { Platform, View, ScrollView, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions, ActivityIndicator } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useEvents } from '../../../../hooks/useEvents'
+import { useNotifications } from '../../../../hooks/useNotifications'
 import { EventCard } from '../../../../components/EventCard'
 import { shared, theme } from '../../../../constants'
-import { EventWithDetails } from '../../../../types'
+import { EventWithDetails, type Notification } from '../../../../types'
 import { useTabsContext } from '../../../../contexts/tabs'
 
 const TODAY = new Date().toISOString().split('T')[0]
@@ -33,7 +34,15 @@ function idxForMonth(month: string): number {
 
 type DateSection = { date: string; data: EventWithDetails[] }
 export default function EventsScreen() {
+  const router = useRouter()
   const { events, loading, error, refetch } = useEvents()
+  const {
+    notifications: notifItems,
+    unreadCount,
+    refetch: refetchNotifs,
+    markRead,
+    loading: notifLoading,
+  } = useNotifications()
   const { pagerBlocked, setTabBarHidden, tabBarHeight, eventsRefreshTick } = useTabsContext()
   const { width: windowWidth } = useWindowDimensions()
   const isMobile = Platform.OS !== 'web' || windowWidth < 768
@@ -90,6 +99,33 @@ export default function EventsScreen() {
   const goPrevMonth = useCallback(() => setCurMonthPage(p => p - 1), [])
   const goNextMonth = useCallback(() => setCurMonthPage(p => p + 1), [])
 
+  const openNotifItem = useCallback(
+    async (item: Notification) => {
+      setNotifOpen(false)
+      try {
+        if (!item.read_at) await markRead(item.id)
+      } catch {
+        /* ignore */
+      }
+      const path = item.data?.deep_link
+      if (path) {
+        router.push(path as any)
+        return
+      }
+      if (item.data?.event_id) {
+        router.push(`/event/${item.data.event_id}` as any)
+      }
+    },
+    [markRead, router],
+  )
+
+  const toggleNotifPanel = useCallback(() => {
+    setNotifOpen(o => {
+      if (!o) void refetchNotifs(true)
+      return !o
+    })
+  }, [refetchNotifs])
+
   if (error) {
     return <View style={shared.centered}><Text style={shared.errorText}>{error}</Text></View>
   }
@@ -107,10 +143,11 @@ export default function EventsScreen() {
             Events
           </Text>
           <TouchableOpacity
-            onPress={() => setNotifOpen(o => !o)}
+            onPress={toggleNotifPanel}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Notifications"
+            accessibilityHint={unreadCount > 0 ? `${unreadCount} unread` : undefined}
             style={{
               width: 36,
               height: 36,
@@ -120,11 +157,26 @@ export default function EventsScreen() {
               justifyContent: 'center',
             }}
           >
-            <Ionicons
-              name={notifOpen ? 'notifications' : 'notifications-outline'}
-              size={20}
-              color={notifOpen ? theme.colors.primary : theme.colors.subtext}
-            />
+            <View>
+              <Ionicons
+                name={notifOpen ? 'notifications' : 'notifications-outline'}
+                size={20}
+                color={notifOpen ? theme.colors.primary : theme.colors.subtext}
+              />
+              {unreadCount > 0 ? (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: -2,
+                    right: -4,
+                    minWidth: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: theme.colors.error,
+                  }}
+                />
+              ) : null}
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -219,7 +271,8 @@ export default function EventsScreen() {
             position: 'absolute',
             top: 48,
             right: theme.spacing.lg,
-            width: 260,
+            width: Math.min(320, windowWidth - theme.spacing.lg * 2),
+            maxHeight: 400,
             backgroundColor: theme.colors.card,
             borderRadius: theme.radius.md,
             borderWidth: 1,
@@ -231,17 +284,49 @@ export default function EventsScreen() {
             elevation: 6,
             overflow: 'hidden',
           }}>
-            <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, borderBottomWidth: 1, borderBottomColor: theme.colors.border }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, borderBottomWidth: 1, borderBottomColor: theme.colors.border }}>
               <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
                 Notifications
               </Text>
+              <TouchableOpacity onPress={() => { setNotifOpen(false); router.push('/notifications' as any) }} hitSlop={8}>
+                <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.semibold }}>See all</Text>
+              </TouchableOpacity>
             </View>
-            <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.lg, alignItems: 'center', gap: theme.spacing.sm }}>
-              <Ionicons name="notifications-off-outline" size={28} color={theme.colors.subtext} />
-              <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, textAlign: 'center' }}>
-                Notifications coming soon
-              </Text>
-            </View>
+            <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled">
+              {notifLoading && notifItems.length === 0 ? (
+                <View style={{ padding: theme.spacing.lg, alignItems: 'center' }}>
+                  <ActivityIndicator color={theme.colors.primary} />
+                </View>
+              ) : notifItems.length === 0 ? (
+                <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.lg, alignItems: 'center', gap: theme.spacing.sm }}>
+                  <Ionicons name="notifications-off-outline" size={28} color={theme.colors.subtext} />
+                  <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, textAlign: 'center' }}>
+                    You're all caught up
+                  </Text>
+                </View>
+              ) : (
+                notifItems.slice(0, 6).map(item => (
+                  <TouchableOpacity
+                    key={item.id}
+                    onPress={() => void openNotifItem(item)}
+                    style={{
+                      paddingHorizontal: theme.spacing.md,
+                      paddingVertical: theme.spacing.sm,
+                      borderBottomWidth: 1,
+                      borderBottomColor: theme.colors.border,
+                      opacity: item.read_at ? 0.65 : 1,
+                    }}
+                  >
+                    <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.semibold, color: theme.colors.text }} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, marginTop: 2 }} numberOfLines={2}>
+                      {item.body}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
           </View>
         </>
       )}
