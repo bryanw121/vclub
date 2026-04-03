@@ -7,6 +7,7 @@ export const theme = {
     subtext: '#6B6B6B',
     border: '#E5E5E5',
     error: '#FF4444',
+    warning: '#E07B00',
     success: '#00C853',
     white: '#FFFFFF',
     /** Subtle tint for host announcement bubbles in event discussion. */

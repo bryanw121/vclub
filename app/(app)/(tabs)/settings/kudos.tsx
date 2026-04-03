@@ -4,46 +4,46 @@ import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '../../../../lib/supabase'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
-import { shared, theme, KUDO_TYPES, KUDOS_MAX_PER_EVENT } from '../../../../constants'
+import { shared, theme, KUDO_TYPES } from '../../../../constants'
 import type { KudoType } from '../../../../types'
 
-type KudoSummary = {
-  kudo_type: KudoType
+type CheerSummary = {
+  cheer_type: KudoType
   count: number
 }
 
-export default function ProfileKudosScreen() {
-  useStackBackTitle('Kudos')
+export default function ProfileCheersScreen() {
+  useStackBackTitle('Cheers')
 
   const [loading, setLoading] = useState(true)
   const [totalReceived, setTotalReceived] = useState(0)
-  const [breakdown, setBreakdown] = useState<KudoSummary[]>([])
+  const [breakdown, setBreakdown] = useState<CheerSummary[]>([])
   const [totalGiven, setTotalGiven] = useState(0)
 
   useFocusEffect(
     useCallback(() => {
-      void fetchKudos()
+      void fetchCheers()
     }, []),
   )
 
-  async function fetchKudos() {
+  async function fetchCheers() {
     setLoading(true)
     const { data: { session } } = await supabase.auth.getSession()
     const userId = session?.user?.id
     if (!userId) { setLoading(false); return }
 
     const [receivedRes, givenRes] = await Promise.all([
-      supabase.from('kudos').select('kudo_type').eq('receiver_id', userId),
-      supabase.from('kudos').select('id', { count: 'exact', head: true }).eq('giver_id', userId),
+      supabase.from('cheers').select('cheer_type').eq('receiver_id', userId),
+      supabase.from('cheers').select('id', { count: 'exact', head: true }).eq('giver_id', userId),
     ])
 
-    const rows = (receivedRes.data ?? []) as { kudo_type: KudoType }[]
+    const rows = (receivedRes.data ?? []) as { cheer_type: KudoType }[]
     const counts: Partial<Record<KudoType, number>> = {}
     for (const row of rows) {
-      counts[row.kudo_type] = (counts[row.kudo_type] ?? 0) + 1
+      counts[row.cheer_type] = (counts[row.cheer_type] ?? 0) + 1
     }
     const summary = KUDO_TYPES
-      .map(kt => ({ kudo_type: kt.type, count: counts[kt.type] ?? 0 }))
+      .map(kt => ({ cheer_type: kt.type, count: counts[kt.type] ?? 0 }))
       .filter(s => s.count > 0)
       .sort((a, b) => b.count - a.count)
 
@@ -70,13 +70,13 @@ export default function ProfileKudosScreen() {
             <Text style={{ fontSize: theme.font.size.xxl, fontWeight: theme.font.weight.bold, color: theme.colors.primary }}>
               {totalReceived}
             </Text>
-            <Text style={[shared.caption, { textAlign: 'center' }]}>kudos received</Text>
+            <Text style={[shared.caption, { textAlign: 'center' }]}>cheers received</Text>
           </View>
           <View style={[shared.card, { flex: 1, alignItems: 'center', gap: theme.spacing.xs }]}>
             <Text style={{ fontSize: theme.font.size.xxl, fontWeight: theme.font.weight.bold, color: theme.colors.text }}>
               {totalGiven}
             </Text>
-            <Text style={[shared.caption, { textAlign: 'center' }]}>kudos given</Text>
+            <Text style={[shared.caption, { textAlign: 'center' }]}>cheers given</Text>
           </View>
         </View>
 
@@ -85,34 +85,42 @@ export default function ProfileKudosScreen() {
           <View style={[shared.card, { alignItems: 'center', gap: theme.spacing.sm, paddingVertical: theme.spacing.xl }]}>
             <Ionicons name="star-outline" size={36} color={theme.colors.subtext} />
             <Text style={[shared.caption, { textAlign: 'center' }]}>
-              No kudos received yet.{'\n'}Attend events and play great to earn some.
+              No cheers received yet.{'\n'}Attend events and play great to earn some.
             </Text>
           </View>
         ) : (
           <View style={shared.card}>
             <Text style={[shared.subheading, { marginBottom: theme.spacing.md }]}>Breakdown</Text>
-            <View style={{ gap: theme.spacing.sm }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm }}>
               {breakdown.map(item => {
-                const config = KUDO_TYPES.find(kt => kt.type === item.kudo_type)
+                const config = KUDO_TYPES.find(kt => kt.type === item.cheer_type)
                 if (!config) return null
-                const pct = totalReceived > 0 ? item.count / totalReceived : 0
                 return (
-                  <View key={item.kudo_type}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}>
-                        <Ionicons name={config.icon as any} size={15} color={theme.colors.primary} />
-                        <Text style={shared.body}>{config.label}</Text>
-                      </View>
-                      <Text style={[shared.caption, { fontWeight: theme.font.weight.semibold }]}>{item.count}</Text>
-                    </View>
-                    <View style={{ height: 6, borderRadius: theme.radius.full, backgroundColor: theme.colors.border }}>
-                      <View style={{
-                        height: 6,
-                        borderRadius: theme.radius.full,
-                        backgroundColor: theme.colors.primary,
-                        width: `${Math.round(pct * 100)}%`,
-                      }} />
-                    </View>
+                  <View
+                    key={item.cheer_type}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: theme.spacing.xs,
+                      paddingHorizontal: theme.spacing.md,
+                      paddingVertical: theme.spacing.sm,
+                      borderRadius: theme.radius.full,
+                      borderWidth: 1.5,
+                      borderColor: theme.colors.primary + '60',
+                      backgroundColor: theme.colors.primary + '0E',
+                    }}
+                  >
+                    <Ionicons name={config.icon as any} size={14} color={theme.colors.primary} />
+                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.text }}>
+                      {config.label}
+                    </Text>
+                    <Text style={{
+                      fontSize: theme.font.size.sm,
+                      fontWeight: theme.font.weight.bold,
+                      color: theme.colors.primary,
+                    }}>
+                      {item.count}
+                    </Text>
                   </View>
                 )
               })}

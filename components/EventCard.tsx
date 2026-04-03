@@ -1,12 +1,13 @@
 import React, { memo } from 'react'
 import { TouchableOpacity, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { useRouter } from 'expo-router'
+import { useRouter, usePathname } from 'expo-router'
 import { shared, theme, formatEventDate, eventAttendeeDisplayCount } from '../constants'
 import { EventWithDetails } from '../types'
 
 function EventCardInner({ event }: { event: EventWithDetails }) {
   const router = useRouter()
+  const pathname = usePathname()
   const attendeeCount = eventAttendeeDisplayCount(event)
   const waitlistedCount = event.event_attendees_waitlisted?.[0] ? Math.max(0, Number(event.event_attendees_waitlisted[0].count)) : 0
   const isOverfull = !!event.max_attendees && attendeeCount > event.max_attendees
@@ -17,7 +18,7 @@ function EventCardInner({ event }: { event: EventWithDetails }) {
   return (
     <TouchableOpacity
       style={[shared.card, shared.eventCard]}
-      onPress={() => router.push(`/event/${event.id}`)}
+      onPress={() => router.push(`/event/${event.id}?from=${encodeURIComponent(pathname)}` as any)}
     >
       <View style={[shared.rowBetween, shared.mb_xs]}>
         <Text style={[shared.subheading, shared.eventCardTitle]}>{event.title}</Text>

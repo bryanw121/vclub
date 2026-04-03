@@ -82,6 +82,7 @@ export default function NotificationsScreen() {
         <FlatList
           data={notifications}
           keyExtractor={item => item.id}
+          style={{ flex: 1, width: '100%' }}
           refreshControl={
             <RefreshControl refreshing={loading} onRefresh={() => void refetch(true)} tintColor={theme.colors.primary} />
           }
@@ -111,25 +112,28 @@ export default function NotificationsScreen() {
                 padding: theme.spacing.md,
                 marginBottom: theme.spacing.sm,
                 opacity: item.read_at ? 0.72 : 1,
+                overflow: 'hidden',
               }}
             >
-              <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
-                {item.title}
-              </Text>
-              <Text
-                style={{
-                  fontSize: theme.font.size.sm,
-                  color: theme.colors.subtext,
-                  marginTop: theme.spacing.xs,
-                  lineHeight: 20,
-                }}
-                numberOfLines={3}
-              >
-                {item.body}
-              </Text>
-              <Text style={[shared.caption, { marginTop: theme.spacing.sm }]}>
-                {formatShortTime(item.created_at)}
-              </Text>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }} numberOfLines={2}>
+                  {item.title}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: theme.font.size.sm,
+                    color: theme.colors.subtext,
+                    marginTop: theme.spacing.xs,
+                    lineHeight: 20,
+                  }}
+                  numberOfLines={3}
+                >
+                  {item.body}
+                </Text>
+                <Text style={[shared.caption, { marginTop: theme.spacing.sm }]}>
+                  {formatShortTime(item.created_at)}
+                </Text>
+              </View>
             </TouchableOpacity>
           )}
         />

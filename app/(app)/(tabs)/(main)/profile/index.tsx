@@ -394,9 +394,9 @@ export default function MyProfile() {
                 onPress={() => router.push('/settings/account')}
               />
               <MenuCard
-                title="Submit Feedback"
-                icon="chatbubble-ellipses-outline"
-                onPress={() => router.push('/settings/feedback')}
+                title="Notifications"
+                icon="notifications-outline"
+                onPress={() => router.push('/settings/notifications')}
               />
             </View>
             <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
@@ -406,7 +406,7 @@ export default function MyProfile() {
                 onPress={() => router.push('/settings/history')}
               />
               <MenuCard
-                title="Kudos"
+                title="Cheers"
                 icon="star-outline"
                 onPress={() => router.push('/settings/kudos')}
               />
@@ -416,7 +416,11 @@ export default function MyProfile() {
                 title="Hosted Events"
                 icon="calendar-outline"
                 onPress={() => router.push('/settings/hosted')}
-                style={{ flex: 1 }}
+              />
+              <MenuCard
+                title="Submit Feedback"
+                icon="chatbubble-ellipses-outline"
+                onPress={() => router.push('/settings/feedback')}
               />
             </View>
           </View>
@@ -495,9 +499,9 @@ function MenuCard({
       accessibilityRole="button"
       accessibilityLabel={title}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, flex: 1 }}>
         <Ionicons name={icon} size={20} color={theme.colors.subtext} />
-        <Text style={[shared.subheading, { marginTop: 0 }]}>{title}</Text>
+        <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text, flex: 1 }}>{title}</Text>
       </View>
     </Pressable>
   )

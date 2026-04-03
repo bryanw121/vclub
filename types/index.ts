@@ -99,16 +99,16 @@ export type KudoType =
   | 'communication'
 
 /**
- * `kudos` table
+ * `cheers` table
  * One row per (event, giver, receiver, type). Given after an event ends.
- * Unique constraint: (event_id, giver_id, receiver_id, kudo_type).
+ * Unique constraint: (event_id, giver_id, receiver_id, cheer_type).
  */
 export type Kudo = {
   id: string
   event_id: string
   giver_id: string
   receiver_id: string
-  kudo_type: KudoType
+  cheer_type: KudoType
   created_at: string
 }
 
