@@ -11,6 +11,7 @@ export default function FeedbackScreen() {
   useStackBackTitle('Submit feedback')
   const [kind, setKind] = useState<FeedbackKind>('feature')
   const [priority, setPriority] = useState<FeedbackPriority>('medium')
+  const [platform, setPlatform] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
@@ -21,23 +22,29 @@ export default function FeedbackScreen() {
     try {
       if (!title.trim()) return Alert.alert('Missing info', 'Please add a short title.')
       if (!description.trim()) return Alert.alert('Missing info', 'Please add a description.')
+      if (kind === 'bug' && !platform) return Alert.alert('Missing info', 'Please select the platform where you saw the bug.')
 
       setLoading(true)
       setFeedbackError(null)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not logged in')
 
+      const fullDescription = kind === 'bug' && platform
+        ? `Platform: ${platform}\n\n${description.trim()}`
+        : description.trim()
+
       const { error } = await supabase.from('feedback_submissions').insert({
         user_id: user.id,
         kind,
         priority,
         title: title.trim(),
-        description: description.trim(),
+        description: fullDescription,
       })
       if (error) throw error
 
       setKind('feature')
       setPriority('medium')
+      setPlatform(null)
       setTitle('')
       setDescription('')
       setFeedbackSubmitted(true)
@@ -68,12 +75,29 @@ export default function FeedbackScreen() {
           <Text style={shared.label}>Type</Text>
           <ChoiceRow<FeedbackKind>
             value={kind}
-            onChange={setKind}
+            onChange={v => { setKind(v); setPlatform(null) }}
             options={[
               { value: 'feature', label: 'Feature' },
               { value: 'bug', label: 'Bug' },
             ]}
           />
+
+          {kind === 'bug' && (
+            <>
+              <View style={shared.mt_md} />
+              <Text style={shared.label}>Platform</Text>
+              <ChoiceRow<string>
+                value={platform ?? ''}
+                onChange={setPlatform}
+                options={[
+                  { value: 'iOS', label: 'iOS' },
+                  { value: 'Android', label: 'Android' },
+                  { value: 'Mobile web', label: 'Mobile web' },
+                  { value: 'Desktop web', label: 'Desktop web' },
+                ]}
+              />
+            </>
+          )}
 
           <View style={shared.mt_md} />
 
@@ -134,7 +158,7 @@ function ChoiceRow<T extends string>({
   options: { value: T; label: string }[]
 }) {
   return (
-    <View style={{ flexDirection: 'row', gap: 8 }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
       {options.map(opt => {
         const active = opt.value === value
         return (

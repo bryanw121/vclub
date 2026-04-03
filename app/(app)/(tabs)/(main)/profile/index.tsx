@@ -411,18 +411,11 @@ export default function MyProfile() {
                 onPress={() => router.push('/settings/cheers')}
               />
             </View>
-            <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
-              <MenuCard
-                title="Hosted Events"
-                icon="calendar-outline"
-                onPress={() => router.push('/settings/hosted')}
-              />
-              <MenuCard
-                title="Submit Feedback"
-                icon="chatbubble-ellipses-outline"
-                onPress={() => router.push('/settings/feedback')}
-              />
-            </View>
+            <MenuCard
+              title="Submit Feedback"
+              icon="chatbubble-ellipses-outline"
+              onPress={() => router.push('/settings/feedback')}
+            />
           </View>
         )}
 
