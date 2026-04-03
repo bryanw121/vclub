@@ -408,7 +408,7 @@ export default function MyProfile() {
               <MenuCard
                 title="Cheers"
                 icon="star-outline"
-                onPress={() => router.push('/settings/kudos')}
+                onPress={() => router.push('/settings/cheers')}
               />
             </View>
             <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>

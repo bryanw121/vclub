@@ -5,19 +5,15 @@ import { useFocusEffect } from 'expo-router'
 import { supabase } from '../../../../lib/supabase'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { shared, theme, KUDO_TYPES } from '../../../../constants'
+import { CheerRadarChart } from '../../../../components/CheerRadarChart'
 import type { KudoType } from '../../../../types'
-
-type CheerSummary = {
-  cheer_type: KudoType
-  count: number
-}
 
 export default function ProfileCheersScreen() {
   useStackBackTitle('Cheers')
 
   const [loading, setLoading] = useState(true)
   const [totalReceived, setTotalReceived] = useState(0)
-  const [breakdown, setBreakdown] = useState<CheerSummary[]>([])
+  const [counts, setCounts] = useState<Partial<Record<KudoType, number>>>({})
   const [totalGiven, setTotalGiven] = useState(0)
 
   useFocusEffect(
@@ -38,17 +34,11 @@ export default function ProfileCheersScreen() {
     ])
 
     const rows = (receivedRes.data ?? []) as { cheer_type: KudoType }[]
-    const counts: Partial<Record<KudoType, number>> = {}
-    for (const row of rows) {
-      counts[row.cheer_type] = (counts[row.cheer_type] ?? 0) + 1
-    }
-    const summary = KUDO_TYPES
-      .map(kt => ({ cheer_type: kt.type, count: counts[kt.type] ?? 0 }))
-      .filter(s => s.count > 0)
-      .sort((a, b) => b.count - a.count)
+    const c: Partial<Record<KudoType, number>> = {}
+    for (const row of rows) c[row.cheer_type] = (c[row.cheer_type] ?? 0) + 1
 
     setTotalReceived(rows.length)
-    setBreakdown(summary)
+    setCounts(c)
     setTotalGiven(givenRes.count ?? 0)
     setLoading(false)
   }
@@ -64,6 +54,7 @@ export default function ProfileCheersScreen() {
   return (
     <View style={shared.screen}>
       <ScrollView contentContainerStyle={shared.scrollContentSubpage}>
+
         {/* Summary cards */}
         <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
           <View style={[shared.card, { flex: 1, alignItems: 'center', gap: theme.spacing.xs }]}>
@@ -80,8 +71,7 @@ export default function ProfileCheersScreen() {
           </View>
         </View>
 
-        {/* Breakdown */}
-        {breakdown.length === 0 ? (
+        {totalReceived === 0 ? (
           <View style={[shared.card, { alignItems: 'center', gap: theme.spacing.sm, paddingVertical: theme.spacing.xl }]}>
             <Ionicons name="star-outline" size={36} color={theme.colors.subtext} />
             <Text style={[shared.caption, { textAlign: 'center' }]}>
@@ -90,43 +80,11 @@ export default function ProfileCheersScreen() {
           </View>
         ) : (
           <View style={shared.card}>
-            <Text style={[shared.subheading, { marginBottom: theme.spacing.md }]}>Breakdown</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm }}>
-              {breakdown.map(item => {
-                const config = KUDO_TYPES.find(kt => kt.type === item.cheer_type)
-                if (!config) return null
-                return (
-                  <View
-                    key={item.cheer_type}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: theme.spacing.xs,
-                      paddingHorizontal: theme.spacing.md,
-                      paddingVertical: theme.spacing.sm,
-                      borderRadius: theme.radius.full,
-                      borderWidth: 1.5,
-                      borderColor: theme.colors.primary + '60',
-                      backgroundColor: theme.colors.primary + '0E',
-                    }}
-                  >
-                    <Ionicons name={config.icon as any} size={14} color={theme.colors.primary} />
-                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.text }}>
-                      {config.label}
-                    </Text>
-                    <Text style={{
-                      fontSize: theme.font.size.sm,
-                      fontWeight: theme.font.weight.bold,
-                      color: theme.colors.primary,
-                    }}>
-                      {item.count}
-                    </Text>
-                  </View>
-                )
-              })}
-            </View>
+            <Text style={[shared.subheading, { marginBottom: theme.spacing.sm }]}>Breakdown</Text>
+            <CheerRadarChart counts={counts} />
           </View>
         )}
+
       </ScrollView>
     </View>
   )

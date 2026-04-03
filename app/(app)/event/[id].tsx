@@ -1591,9 +1591,14 @@ export default function EventDetail() {
               {/* Host */}
               <View style={shared.divider} />
               <Text style={[shared.subheading, shared.mb_sm]}>Host</Text>
-              <View style={[shared.card, shared.mb_lg]}>
+              <TouchableOpacity
+                style={[shared.card, shared.mb_lg]}
+                onPress={() => !isOwner && event.profiles && router.push(`/profile/${event.profiles.id}` as any)}
+                activeOpacity={isOwner ? 1 : 0.7}
+                disabled={isOwner}
+              >
                 <Text style={shared.body}>{event.profiles ? profileDisplayName(event.profiles) : ''}</Text>
-              </View>
+              </TouchableOpacity>
             </ScrollView>
 
             {/* Tab 1: People */}

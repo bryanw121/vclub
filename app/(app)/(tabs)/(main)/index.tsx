@@ -41,6 +41,7 @@ export default function EventsScreen() {
     unreadCount,
     refetch: refetchNotifs,
     markRead,
+    markAllRead,
     loading: notifLoading,
   } = useNotifications()
   const { pagerBlocked, setTabBarHidden, tabBarHeight, eventsRefreshTick } = useTabsContext()
@@ -288,9 +289,16 @@ export default function EventsScreen() {
               <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
                 Notifications
               </Text>
-              <TouchableOpacity onPress={() => { setNotifOpen(false); router.push('/notifications' as any) }} hitSlop={8}>
-                <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.semibold }}>See all</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
+                {unreadCount > 0 && (
+                  <TouchableOpacity onPress={() => void markAllRead()} hitSlop={8}>
+                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, fontWeight: theme.font.weight.medium }}>Read all</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={() => { setNotifOpen(false); router.push('/notifications' as any) }} hitSlop={8}>
+                  <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.semibold }}>See all</Text>
+                </TouchableOpacity>
+              </View>
             </View>
             <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled">
               {notifLoading && notifItems.length === 0 ? (
