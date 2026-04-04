@@ -32,6 +32,8 @@ export type Profile = {
   selected_border?: 'bronze' | 'gold' | 'gradient' | null
   /** Currently equipped profile card background; null means default. */
   selected_card_bg?: CardBgType | null
+  /** Optional short bio, max 140 characters. */
+  bio?: string | null
 }
 
 /** Values must stay in sync with `notifications.notification_type` check constraint in Supabase. */

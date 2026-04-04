@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
-import { View, Text, Image, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native'
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '../../../lib/supabase'
 import { shared, theme } from '../../../constants'
 import { CheerRadarChart } from '../../../components/CheerRadarChart'
+import { BadgeIcon } from '../../../components/BadgeIcon'
+import { ProfileAvatar } from '../../../components/ProfileAvatar'
+import { BADGE_DEFINITIONS } from '../../../constants/badges'
 import { resolveProfileAvatarUriWithError } from '../../../utils'
-import type { CheerType, Profile } from '../../../types'
+import type { CheerType, Profile, UserBadge } from '../../../types'
 
 type CheerCounts = Partial<Record<CheerType, number>>
 
@@ -19,13 +22,19 @@ export default function UserProfileDetail() {
   const [avatarUri, setAvatarUri] = useState<string | null>(null)
   const [cheerCounts, setCheerCounts] = useState<CheerCounts>({})
   const [totalCheers, setTotalCheers] = useState(0)
+  const [displayBadges, setDisplayBadges] = useState<UserBadge[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
-      const [profileRes, cheersRes] = await Promise.all([
+      const [profileRes, cheersRes, badgesRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', id).single(),
         supabase.from('cheers').select('cheer_type').eq('receiver_id', id),
+        supabase.from('user_badges')
+          .select('id, user_id, badge_type, tier, awarded_at, display_order')
+          .eq('user_id', id)
+          .not('display_order', 'is', null)
+          .order('display_order', { ascending: true }),
       ])
 
       if (!profileRes.error && profileRes.data) {
@@ -42,6 +51,7 @@ export default function UserProfileDetail() {
       for (const row of rows) counts[row.cheer_type] = (counts[row.cheer_type] ?? 0) + 1
       setCheerCounts(counts)
       setTotalCheers(rows.length)
+      setDisplayBadges((badgesRes.data ?? []) as UserBadge[])
       setLoading(false)
     }
     void load()
@@ -54,10 +64,6 @@ export default function UserProfileDetail() {
 
   const displayName = profile
     ? ([profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.username)
-    : ''
-
-  const initial = profile
-    ? (profile.first_name?.charAt(0) ?? profile.username.charAt(0)).toUpperCase()
     : ''
 
   return (
@@ -87,23 +93,8 @@ export default function UserProfileDetail() {
           {/* Profile card */}
           <View style={shared.card}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md }}>
-              {/* Avatar */}
-              <View style={{
-                width: AVATAR_SIZE, height: AVATAR_SIZE,
-                borderRadius: AVATAR_SIZE / 2,
-                backgroundColor: theme.colors.border,
-                borderWidth: 2, borderColor: theme.colors.border,
-                alignItems: 'center', justifyContent: 'center',
-                overflow: 'hidden', flexShrink: 0,
-              }}>
-                {avatarUri ? (
-                  <Image source={{ uri: avatarUri }} style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }} />
-                ) : (
-                  <Text style={{ fontSize: theme.font.size.xl, fontWeight: theme.font.weight.bold, color: theme.colors.subtext }}>
-                    {initial}
-                  </Text>
-                )}
-              </View>
+              {/* Avatar with border */}
+              <ProfileAvatar uri={avatarUri} border={profile.selected_border ?? null} size={AVATAR_SIZE} />
 
               {/* Info */}
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -118,11 +109,25 @@ export default function UserProfileDetail() {
                       .join(' · ')}
                   </Text>
                 )}
+                {profile.bio ? (
+                  <Text style={[shared.body, { marginTop: theme.spacing.xs }]}>{profile.bio}</Text>
+                ) : null}
                 <Text style={[shared.caption, { marginTop: theme.spacing.xs }]}>
                   joined {new Date(profile.created_at).toLocaleDateString()}
                 </Text>
               </View>
             </View>
+
+            {/* Display badges — appended inside the profile card */}
+            {displayBadges.length > 0 && (
+              <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.md, justifyContent: 'center' }}>
+                {displayBadges.map(badge => {
+                  const def = BADGE_DEFINITIONS.find(d => d.type === badge.badge_type)
+                  if (!def) return null
+                  return <BadgeIcon key={badge.badge_type} def={def} tier={badge.tier} size="sm" />
+                })}
+              </View>
+            )}
           </View>
 
           {/* Cheers */}

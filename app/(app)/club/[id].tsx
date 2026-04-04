@@ -17,17 +17,9 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../../lib/supabase'
 import { shared, theme, CLUB_AVATARS_BUCKET, EVENT_CARD_LIST_SELECT } from '../../../constants'
+import { resolveClubAvatarUri } from '../../../utils'
 import { EventCard } from '../../../components/EventCard'
 import type { ClubWithDetails, EventWithDetails } from '../../../types'
-
-async function resolveClubAvatarUri(avatarUrl: string | null): Promise<string | null> {
-  if (!avatarUrl) return null
-  if (avatarUrl.startsWith('http')) return avatarUrl
-  const { data } = await supabase.storage
-    .from(CLUB_AVATARS_BUCKET)
-    .createSignedUrl(avatarUrl, 3600)
-  return data?.signedUrl ?? null
-}
 
 function MemberRow({
   member,

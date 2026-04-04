@@ -1,6 +1,6 @@
 import type { Profile, VolleyballPosition, EventAttendee, EventAttendeeCountEmbed } from '../types'
 import { supabase } from '../lib/supabase'
-import { AVATARS_BUCKET, AVATAR_SIGNED_URL_TTL_SEC } from '../constants/storage'
+import { AVATARS_BUCKET, CLUB_AVATARS_BUCKET, AVATAR_SIGNED_URL_TTL_SEC } from '../constants/storage'
 
 export function formatEventDate(dateString: string, style: 'short' | 'long' = 'short') {
   // Supabase `timestamp without time zone` returns strings with no timezone suffix
@@ -126,16 +126,49 @@ export function profileAvatarFieldIsHttpUrl(ref: string | null | undefined): boo
   return /^https?:\/\//i.test(ref.trim())
 }
 
-// Module-level cache: avatar_url path → { signedUrl, expiresAt }.
-// Prevents N duplicate Storage calls when the same user appears in multiple comment rows.
-const _avatarUrlCache = new Map<string, { uri: string; expiresAt: number }>()
+// ─── Shared signed-URL cache helpers ─────────────────────────────────────────
+// Each bucket gets its own cache + in-flight map.
+// In-flight deduplication: if N components simultaneously request the same
+// uncached path, they all await the same single Promise instead of each
+// firing their own createSignedUrl network call.
 
-/** Resolves `avatar_url` to an `Image` URI (signed URL for storage paths). */
+type CacheEntry = { uri: string; expiresAt: number }
+
+function makeSignedUrlResolver(
+  bucket: string,
+  ttlSec: number,
+  earlyExpirySec = 3600,
+) {
+  const cache = new Map<string, CacheEntry>()
+  const inFlight = new Map<string, Promise<string | null>>()
+
+  return async function resolve(path: string): Promise<string | null> {
+    const entry = cache.get(path)
+    if (entry && Date.now() < entry.expiresAt) return entry.uri
+
+    const pending = inFlight.get(path)
+    if (pending) return pending
+
+    const promise = (async () => {
+      const { data } = await supabase.storage.from(bucket).createSignedUrl(path, ttlSec)
+      inFlight.delete(path)
+      if (!data?.signedUrl) return null
+      cache.set(path, { uri: data.signedUrl, expiresAt: Date.now() + (ttlSec - earlyExpirySec) * 1000 })
+      return data.signedUrl
+    })()
+
+    inFlight.set(path, promise)
+    return promise
+  }
+}
+
+const _resolveProfilePath = makeSignedUrlResolver(AVATARS_BUCKET, AVATAR_SIGNED_URL_TTL_SEC)
+const _resolveClubPath    = makeSignedUrlResolver(CLUB_AVATARS_BUCKET, 3600, 300)
+
+/** Resolves `avatar_url` to an `Image` URI (signed URL for storage paths, HTTP URLs returned as-is). */
 export async function resolveProfileAvatarUri(ref: string | null | undefined): Promise<string | null> {
   const r = await resolveProfileAvatarUriWithError(ref)
-  if (r.error) {
-    console.warn('[vclub avatar]', r.error)
-  }
+  if (r.error) console.warn('[vclub avatar]', r.error)
   return r.uri
 }
 
@@ -145,17 +178,19 @@ export async function resolveProfileAvatarUriWithError(
   if (ref == null || ref === '') return { uri: null, error: null }
   const trimmed = ref.trim()
   if (profileAvatarFieldIsHttpUrl(trimmed)) return { uri: trimmed, error: null }
+  try {
+    const uri = await _resolveProfilePath(trimmed)
+    if (!uri) return { uri: null, error: 'No signed URL returned' }
+    return { uri, error: null }
+  } catch (e: any) {
+    return { uri: null, error: e?.message ?? 'Unknown error' }
+  }
+}
 
-  const cached = _avatarUrlCache.get(trimmed)
-  if (cached && Date.now() < cached.expiresAt) return { uri: cached.uri, error: null }
-
-  const { data, error } = await supabase.storage
-    .from(AVATARS_BUCKET)
-    .createSignedUrl(trimmed, AVATAR_SIGNED_URL_TTL_SEC)
-  if (error) return { uri: null, error: error.message }
-  if (!data?.signedUrl) return { uri: null, error: 'No signed URL returned' }
-
-  // Cache for 1 hour less than the actual TTL to avoid serving near-expired URLs.
-  _avatarUrlCache.set(trimmed, { uri: data.signedUrl, expiresAt: Date.now() + (AVATAR_SIGNED_URL_TTL_SEC - 3600) * 1000 })
-  return { uri: data.signedUrl, error: null }
+/** Resolves a club `avatar_url` storage path to a signed URL, with caching + in-flight deduplication. */
+export async function resolveClubAvatarUri(ref: string | null | undefined): Promise<string | null> {
+  if (ref == null || ref === '') return null
+  const trimmed = ref.trim()
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return _resolveClubPath(trimmed)
 }

@@ -43,17 +43,9 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { Stack, useRouter, useFocusEffect } from 'expo-router'
 import { supabase } from '../../../lib/supabase'
-import { shared, theme, CLUB_AVATARS_BUCKET } from '../../../constants'
+import { shared, theme } from '../../../constants'
+import { resolveClubAvatarUri } from '../../../utils'
 import type { ClubWithDetails } from '../../../types'
-
-async function resolveClubAvatarUri(avatarUrl: string | null): Promise<string | null> {
-  if (!avatarUrl) return null
-  if (avatarUrl.startsWith('http')) return avatarUrl
-  const { data } = await supabase.storage
-    .from(CLUB_AVATARS_BUCKET)
-    .createSignedUrl(avatarUrl, 3600)
-  return data?.signedUrl ?? null
-}
 
 type ClubCardProps = {
   club: ClubWithDetails

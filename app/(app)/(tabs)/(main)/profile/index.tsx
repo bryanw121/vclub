@@ -8,6 +8,7 @@ import {
   Pressable,
   ScrollView,
   Text,
+  TextInput,
   View,
 } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
@@ -53,7 +54,7 @@ const VOLLEYBALL_POSITION_OPTIONS: { value: VolleyballPosition; label: string }[
 const AVATAR_SIZE = 88
 
 function positionLabels(positions: VolleyballPosition[]): string {
-  if (positions.length === 0) return 'No positions set'
+  if (positions.length === 0) return ''
   return positions
     .map(p => VOLLEYBALL_POSITION_OPTIONS.find(o => o.value === p)?.label ?? p)
     .join(' · ')
@@ -283,6 +284,7 @@ export default function MyProfile() {
   const [loading, setLoading] = useState(true)
   const [section, setSection] = useState<Section>('menu')
   const [positionDraft, setPositionDraft] = useState<VolleyballPosition[]>([])
+  const [bioDraft, setBioDraft] = useState('')
   const [profileSaving, setProfileSaving] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarDisplayUri, setAvatarDisplayUri] = useState<string | null>(null)
@@ -306,7 +308,7 @@ export default function MyProfile() {
 
     const profileRes = await supabase
       .from('profiles')
-      .select('id, username, first_name, last_name, avatar_url, position, created_at, selected_border, selected_card_bg')
+      .select('id, username, first_name, last_name, avatar_url, position, created_at, selected_border, selected_card_bg, bio')
       .eq('id', userId)
       .single()
 
@@ -323,9 +325,11 @@ export default function MyProfile() {
         created_at: row.created_at as string,
         selected_border: (row as any).selected_border ?? null,
         selected_card_bg: (row as any).selected_card_bg ?? null,
+        bio: (row as any).bio ?? null,
       }
       setProfile(normalized)
       setPositionDraft(positions)
+      setBioDraft((row as any).bio ?? '')
       if (normalized.avatar_url) {
         if (normalized.avatar_url !== lastResolvedAvatarUrl.current) {
           setAvatarUriResolving(true)
@@ -349,6 +353,7 @@ export default function MyProfile() {
   function openEditProfile() {
     if (!profile) return
     setPositionDraft([...profile.position])
+    setBioDraft(profile.bio ?? '')
     setSection('edit')
   }
 
@@ -359,9 +364,10 @@ export default function MyProfile() {
       const { data: { session } } = await supabase.auth.getSession()
       const userId = session?.user?.id
       if (!userId) throw new Error('Not logged in')
-      const { error } = await supabase.from('profiles').update({ position: positionDraft }).eq('id', userId)
+      const trimmedBio = bioDraft.trim()
+      const { error } = await supabase.from('profiles').update({ position: positionDraft, bio: trimmedBio || null }).eq('id', userId)
       if (error) throw error
-      const updated = { ...profile, position: [...positionDraft] }
+      const updated = { ...profile, position: [...positionDraft], bio: trimmedBio || null }
       setProfile(updated)
       void checkBadges(updated)
       Alert.alert('Saved', 'Your profile was updated.')
@@ -450,7 +456,7 @@ export default function MyProfile() {
     </View>
   )
 
-  const editDirty = !volleyballPositionsEqualUnordered(profile.position, positionDraft)
+  const editDirty = !volleyballPositionsEqualUnordered(profile.position, positionDraft) || bioDraft !== (profile.bio ?? '')
   const displayedBadges = [1, 2, 3]
     .map(s => badges.find(b => b.display_order === s) ?? null)
     .filter(Boolean) as NonNullable<typeof badges[0]>[]
@@ -493,7 +499,12 @@ export default function MyProfile() {
                   @{profile.username}
                 </Text>
               ) : null}
-              <Text style={[shared.body, shared.mt_sm]}>{positionLabels(profile.position)}</Text>
+              {positionLabels(profile.position) ? (
+                <Text style={[shared.body, shared.mt_sm]}>{positionLabels(profile.position)}</Text>
+              ) : null}
+              {profile.bio ? (
+                <Text style={[shared.body, shared.mt_xs]}>{profile.bio}</Text>
+              ) : null}
               <Text style={[shared.caption, shared.mt_xs]}>
                 joined {new Date(profile.created_at).toLocaleDateString()}
               </Text>
@@ -502,11 +513,19 @@ export default function MyProfile() {
 
           {/* Displayed badges row */}
           {displayedBadges.length > 0 && (
-            <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.md, justifyContent: 'center' }}>
+            <View style={{
+              flexDirection: 'row',
+              gap: theme.spacing.sm,
+              marginTop: theme.spacing.md,
+              paddingTop: theme.spacing.md,
+              borderTopWidth: 1,
+              borderTopColor: theme.colors.border,
+              justifyContent: 'center',
+            }}>
               {displayedBadges.map(badge => {
                 const def = BADGE_DEFINITIONS.find(d => d.type === badge.badge_type)
                 if (!def) return null
-                return <BadgeIcon key={badge.badge_type} def={def} tier={badge.tier} size="sm" showLabel />
+                return <BadgeIcon key={badge.badge_type} def={def} tier={badge.tier} size="sm" />
               })}
             </View>
           )}
@@ -548,6 +567,35 @@ export default function MyProfile() {
         {section === 'edit' && (
           <View style={[shared.card, { marginTop: theme.spacing.md }]}>
             <Text style={shared.subheading}>Edit profile</Text>
+            <View style={shared.mt_md} />
+            <Text style={shared.label}>Bio</Text>
+            <View style={{
+              marginTop: theme.spacing.xs,
+              borderWidth: 1,
+              borderColor: theme.colors.border,
+              borderRadius: theme.radius.md,
+              paddingHorizontal: theme.spacing.sm,
+              paddingVertical: theme.spacing.xs,
+            }}>
+              <TextInput
+                value={bioDraft}
+                onChangeText={t => setBioDraft(t.slice(0, 140))}
+                placeholder="Tell the club a little about yourself…"
+                placeholderTextColor={theme.colors.subtext}
+                multiline
+                numberOfLines={3}
+                maxLength={140}
+                style={{
+                  fontSize: theme.font.size.md,
+                  color: theme.colors.text,
+                  minHeight: 64,
+                  textAlignVertical: 'top',
+                }}
+              />
+              <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, textAlign: 'right', marginTop: 2 }}>
+                {bioDraft.length}/140
+              </Text>
+            </View>
             <View style={shared.mt_md} />
             <Text style={shared.label}>Preferred positions</Text>
             <Text style={[shared.caption, shared.mt_xs]}>Tap any that apply.</Text>

@@ -39,7 +39,7 @@ export default function Register() {
       const { data: existingUsername } = await supabase
         .from('profiles')
         .select('id')
-        .eq('username', normalizedUsername)
+        .ilike('username', normalizedUsername)
         .single()
 
       if (existingUsername) {
