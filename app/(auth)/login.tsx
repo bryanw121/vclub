@@ -127,7 +127,7 @@ export default function Login() {
           style={{
             position: 'absolute',
             top: `${ball.top}%`,
-            ...(ball.right !== undefined ? { right: `${ball.right}%` } : { left: `${ball.left}%` }),
+            ...(ball.right !== undefined ? { right: `${ball.right}%` } : { left: `${ball.left ?? 0}%` }),
           }}
         >
           <Animated.Text style={{ fontSize: 64, opacity: 0.55, transform: [{ scale: scales[i] }] }}>

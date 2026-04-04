@@ -2,17 +2,17 @@ import React from 'react'
 import { View, Text } from 'react-native'
 import Svg, { Circle, Line, Polygon, Text as SvgText } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
-import { theme, KUDO_TYPES } from '../constants'
-import type { KudoType } from '../types'
+import { theme, CHEER_TYPES } from '../constants'
+import type { CheerType } from '../types'
 
-export type CheerCounts = Partial<Record<KudoType, number>>
+export type CheerCounts = Partial<Record<CheerType, number>>
 
 const CHART_SIZE = 280
 const CX = CHART_SIZE / 2
 const CY = CHART_SIZE / 2
 const R = 88
 const LABEL_R = 116
-const N = KUDO_TYPES.length
+const N = CHEER_TYPES.length
 
 const CHART_LABEL_OVERRIDES: Partial<Record<string, string>> = { Communication: 'Comm.' }
 
@@ -34,11 +34,11 @@ function buildRingPoints(level: number) {
 type Props = { counts: CheerCounts }
 
 export function CheerRadarChart({ counts }: Props) {
-  const values = KUDO_TYPES.map(kt => counts[kt.type] ?? 0)
+  const values = CHEER_TYPES.map(kt => counts[kt.type] ?? 0)
   const maxCount = Math.max(...values, 1)
   const normalized = values.map(v => v / maxCount)
 
-  const legend = KUDO_TYPES
+  const legend = CHEER_TYPES
     .map(kt => ({ ...kt, count: counts[kt.type] ?? 0 }))
     .filter(kt => kt.count > 0)
     .sort((a, b) => b.count - a.count)
@@ -53,7 +53,7 @@ export function CheerRadarChart({ counts }: Props) {
         ))}
 
         {/* Axis spokes */}
-        {KUDO_TYPES.map((kt, i) => {
+        {CHEER_TYPES.map((kt, i) => {
           const { x, y } = polarXY(R, i)
           return <Line key={kt.type} x1={CX} y1={CY} x2={x} y2={y} stroke={theme.colors.border} strokeWidth={1} />
         })}
@@ -70,7 +70,7 @@ export function CheerRadarChart({ counts }: Props) {
         })}
 
         {/* Labels */}
-        {KUDO_TYPES.map((kt, i) => {
+        {CHEER_TYPES.map((kt, i) => {
           const angle = angleAt(i)
           const { x, y } = polarXY(LABEL_R, i)
           const cos = Math.cos(angle)

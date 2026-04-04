@@ -22,7 +22,7 @@ type Props = {
   containerStyle?: StyleProp<ViewStyle>
   inputStyle?: StyleProp<TextStyle>
   onFocus?: TextInputProps['onFocus']
-  includeFontPadding?: TextInputProps['includeFontPadding']
+  includeFontPadding?: boolean
 }
 
 export const Input = forwardRef<TextInput, Props>(function Input(
@@ -61,7 +61,7 @@ export const Input = forwardRef<TextInput, Props>(function Input(
           keyboardType={keyboardType}
           autoCorrect={autoCorrect}
           onFocus={onFocus}
-          includeFontPadding={includeFontPadding}
+          {...(includeFontPadding !== undefined ? ({ includeFontPadding } as TextInputProps) : {})}
         />
         {showPasswordToggle && (
           <TouchableOpacity

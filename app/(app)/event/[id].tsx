@@ -11,8 +11,8 @@ import { Button } from '../../../components/Button'
 import { Input } from '../../../components/Input'
 import { EventCommentRow } from '../../../components/EventCommentRow'
 import { Pager } from '../../../components/Pager'
-import { shared, theme, formatEventDate, KUDO_TYPES, KUDOS_MAX_PER_EVENT } from '../../../constants'
-import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, KudoType, Kudo } from '../../../types'
+import { shared, theme, formatEventDate, CHEER_TYPES, CHEERS_MAX_PER_EVENT } from '../../../constants'
+import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, CheerType, Cheer } from '../../../types'
 import { profileDisplayName, profileInitial, resolveProfileAvatarUriWithError, eventAttendeeRows, normalizeVolleyballPositions } from '../../../utils'
 
 const EVENT_COMMENT_MAX_LEN = 2000
@@ -34,7 +34,7 @@ function formatDuration(minutes: number): string {
   return Number.isInteger(h) ? `${h}h` : `${h}h`
 }
 
-type KudosPersonCardProps = {
+type CheerPersonCardProps = {
   profile: Profile
   hasGiven: boolean
   disabled: boolean
@@ -42,7 +42,7 @@ type KudosPersonCardProps = {
   onPress: () => void
 }
 
-function KudosPersonCard({ profile, hasGiven, disabled, teamColor, onPress }: KudosPersonCardProps) {
+function CheerPersonCard({ profile, hasGiven, disabled, teamColor, onPress }: CheerPersonCardProps) {
   const [avatarUri, setAvatarUri] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
@@ -501,12 +501,12 @@ export default function EventDetail() {
   const [activeTab, setActiveTab] = useState(0)
   const innerPagerBlocked = useRef(false)
 
-  const [myKudosGiven, setMyKudosGiven] = useState<Kudo[]>([])
-  const [pendingCheers, setPendingCheers] = useState<{ receiverId: string; cheerType: KudoType }[]>([])
-  const [kudosLoading, setKudosLoading] = useState(false)
+  const [myCheersGiven, setMyCheersGiven] = useState<Cheer[]>([])
+  const [pendingCheers, setPendingCheers] = useState<{ receiverId: string; cheerType: CheerType }[]>([])
+  const [cheersLoading, setCheersLoading] = useState(false)
   const [submittingCheers, setSubmittingCheers] = useState(false)
   const [cheersSent, setCheersSent] = useState(false)
-  const [selectedKudoType, setSelectedKudoType] = useState<KudoType | null>(null)
+  const [selectedCheerType, setSelectedCheerType] = useState<CheerType | null>(null)
 
   // Drag-and-drop
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null)
@@ -641,7 +641,7 @@ export default function EventDetail() {
 
   useEffect(() => {
     if (activeTab !== 3 || !isEventOver || !userId) return
-    fetchMyKudos()
+    fetchMyCheers()
   }, [activeTab, userId])
 
   const discussionSheetAnimStyle = useAnimatedStyle(() => ({
@@ -806,41 +806,41 @@ export default function EventDetail() {
     }
   }
 
-  async function fetchMyKudos() {
+  async function fetchMyCheers() {
     if (!userId) return
-    setKudosLoading(true)
+    setCheersLoading(true)
     const { data } = await supabase
       .from('cheers')
       .select('*')
       .eq('event_id', id)
       .eq('giver_id', userId)
-    setMyKudosGiven((data ?? []) as Kudo[])
-    setKudosLoading(false)
+    setMyCheersGiven((data ?? []) as Cheer[])
+    setCheersLoading(false)
   }
 
   /** Toggle a cheer: if already pending → unstage; if already submitted → remove from DB; else → stage. */
-  function toggleCheer(receiverId: string, cheerType: KudoType) {
-    const totalGiven = myKudosGiven.length + pendingCheers.length
+  function toggleCheer(receiverId: string, cheerType: CheerType) {
+    const totalGiven = myCheersGiven.length + pendingCheers.length
     const isPending = pendingCheers.some(p => p.receiverId === receiverId && p.cheerType === cheerType)
-    const isSubmitted = myKudosGiven.some(k => k.receiver_id === receiverId && k.cheer_type === cheerType)
+    const isSubmitted = myCheersGiven.some(k => k.receiver_id === receiverId && k.cheer_type === cheerType)
 
     if (isPending) {
       setPendingCheers(prev => prev.filter(p => !(p.receiverId === receiverId && p.cheerType === cheerType)))
     } else if (isSubmitted) {
       void revokeSubmittedCheer(receiverId, cheerType)
-    } else if (totalGiven < KUDOS_MAX_PER_EVENT) {
+    } else if (totalGiven < CHEERS_MAX_PER_EVENT) {
       setPendingCheers(prev => [...prev, { receiverId, cheerType }])
     }
   }
 
-  async function revokeSubmittedCheer(receiverId: string, kudoType: KudoType) {
+  async function revokeSubmittedCheer(receiverId: string, cheerType: CheerType) {
     if (!userId) return
-    const removed = myKudosGiven.find(k => k.receiver_id === receiverId && k.cheer_type === kudoType)
-    setMyKudosGiven(prev => prev.filter(k => !(k.receiver_id === receiverId && k.cheer_type === kudoType)))
+    const removed = myCheersGiven.find(k => k.receiver_id === receiverId && k.cheer_type === cheerType)
+    setMyCheersGiven(prev => prev.filter(k => !(k.receiver_id === receiverId && k.cheer_type === cheerType)))
     const { error } = await supabase.from('cheers').delete()
-      .eq('event_id', id).eq('giver_id', userId).eq('receiver_id', receiverId).eq('cheer_type', kudoType)
+      .eq('event_id', id).eq('giver_id', userId).eq('receiver_id', receiverId).eq('cheer_type', cheerType)
     if (error) {
-      if (removed) setMyKudosGiven(prev => [...prev, removed])
+      if (removed) setMyCheersGiven(prev => [...prev, removed])
       Alert.alert('Error', error.message)
     }
   }
@@ -857,22 +857,22 @@ export default function EventDetail() {
     const { data, error } = await supabase.from('cheers').insert(rows).select()
     setSubmittingCheers(false)
     if (error) { Alert.alert('Error', error.message); return }
-    setMyKudosGiven(prev => [...prev, ...(data as Kudo[])])
+    setMyCheersGiven(prev => [...prev, ...(data as Cheer[])])
     setPendingCheers([])
     setCheersSent(true)
     setTimeout(() => setCheersSent(false), 3000)
   }
 
   async function resetCheers() {
-    if (!userId || (myKudosGiven.length === 0 && pendingCheers.length === 0)) return
-    const snapshotKudos = [...myKudosGiven]
-    setMyKudosGiven([])
+    if (!userId || (myCheersGiven.length === 0 && pendingCheers.length === 0)) return
+    const snapshotKudos = [...myCheersGiven]
+    setMyCheersGiven([])
     setPendingCheers([])
     if (snapshotKudos.length > 0) {
       const { error } = await supabase.from('cheers').delete()
         .eq('event_id', id).eq('giver_id', userId)
       if (error) {
-        setMyKudosGiven(snapshotKudos)
+        setMyCheersGiven(snapshotKudos)
         Alert.alert('Error', error.message)
       }
     }
@@ -1503,7 +1503,7 @@ export default function EventDetail() {
             {(['Description', 'People', 'Discussion', 'Cheers'] as const).map((label, i) => (
               <TouchableOpacity
                 key={label}
-                onPress={() => { if (i !== 3) { setSelectedKudoType(null); setPendingCheers([]) } setActiveTab(i) }}
+                onPress={() => { if (i !== 3) { setSelectedCheerType(null); setPendingCheers([]) } setActiveTab(i) }}
                 style={{ flex: 1, alignItems: 'center', paddingVertical: 12 }}
               >
                 <Text style={{
@@ -1523,7 +1523,7 @@ export default function EventDetail() {
           <Pager
             page={activeTab}
             onPageChange={next => {
-              if (next !== 3) { setSelectedKudoType(null); setPendingCheers([]) }
+              if (next !== 3) { setSelectedCheerType(null); setPendingCheers([]) }
               setActiveTab(next)
             }}
             pagerBlockedRef={innerPagerBlocked}
@@ -1868,14 +1868,14 @@ export default function EventDetail() {
               )}
             </View>
 
-            {/* Tab 3: Kudos */}
+            {/* Tab 3: Cheers */}
             <View style={[shared.screen, { flex: 1 }]}>
               {!isEventOver ? (
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl }}>
                   <Ionicons name="time-outline" size={40} color={theme.colors.subtext} />
                   <Text style={[shared.subheading, { marginTop: theme.spacing.md, textAlign: 'center' }]}>Not available yet</Text>
                   <Text style={[shared.caption, { marginTop: theme.spacing.sm, textAlign: 'center' }]}>
-                    Kudos open after the event ends.
+                    Cheers open after the event ends.
                   </Text>
                 </View>
               ) : !eventStatus.isAttending && !eventStatus.isOwner ? (
@@ -1883,38 +1883,38 @@ export default function EventDetail() {
                   <Ionicons name="lock-closed-outline" size={40} color={theme.colors.subtext} />
                   <Text style={[shared.subheading, { marginTop: theme.spacing.md, textAlign: 'center' }]}>Attendees only</Text>
                   <Text style={[shared.caption, { marginTop: theme.spacing.sm, textAlign: 'center' }]}>
-                    Only people who attended this event can give kudos.
+                    Only people who attended this event can give cheers.
                   </Text>
                 </View>
-              ) : kudosLoading ? (
+              ) : cheersLoading ? (
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                   <ActivityIndicator color={theme.colors.primary} />
                 </View>
-              ) : selectedKudoType === null ? (
+              ) : selectedCheerType === null ? (
                 /* Step 1: Pick a cheer type */
                 <ScrollView contentContainerStyle={[shared.scrollContent, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
                   <View style={[shared.rowBetween, { marginBottom: theme.spacing.xs }]}>
                     <Text style={shared.subheading}>Give Cheers</Text>
-                    {(myKudosGiven.length > 0 || pendingCheers.length > 0) && (
+                    {(myCheersGiven.length > 0 || pendingCheers.length > 0) && (
                       <TouchableOpacity onPress={resetCheers} hitSlop={8}>
                         <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>Reset</Text>
                       </TouchableOpacity>
                     )}
                   </View>
                   <Text style={[shared.caption, { marginBottom: theme.spacing.lg }]}>
-                    {myKudosGiven.length + pendingCheers.length}/{KUDOS_MAX_PER_EVENT} selected · What do you want to recognize?
+                    {myCheersGiven.length + pendingCheers.length}/{CHEERS_MAX_PER_EVENT} selected · What do you want to recognize?
                   </Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm }}>
-                    {KUDO_TYPES.map(kt => {
-                      const submittedCount = myKudosGiven.filter(k => k.cheer_type === kt.type).length
+                    {CHEER_TYPES.map(kt => {
+                      const submittedCount = myCheersGiven.filter(k => k.cheer_type === kt.type).length
                       const pendingCount = pendingCheers.filter(p => p.cheerType === kt.type).length
                       const totalCount = submittedCount + pendingCount
-                      const totalGiven = myKudosGiven.length + pendingCheers.length
-                      const atCap = totalGiven >= KUDOS_MAX_PER_EVENT && totalCount === 0
+                      const totalGiven = myCheersGiven.length + pendingCheers.length
+                      const atCap = totalGiven >= CHEERS_MAX_PER_EVENT && totalCount === 0
                       return (
                         <TouchableOpacity
                           key={kt.type}
-                          onPress={() => !atCap ? setSelectedKudoType(kt.type) : null}
+                          onPress={() => !atCap ? setSelectedCheerType(kt.type) : null}
                           disabled={atCap}
                           style={{
                             width: '47%',
@@ -1992,22 +1992,22 @@ export default function EventDetail() {
                     borderBottomWidth: 1,
                     borderBottomColor: theme.colors.border,
                   }}>
-                    <TouchableOpacity onPress={() => setSelectedKudoType(null)} hitSlop={12}>
+                    <TouchableOpacity onPress={() => setSelectedCheerType(null)} hitSlop={12}>
                       <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
                     </TouchableOpacity>
                     <Ionicons
-                      name={(KUDO_TYPES.find(k => k.type === selectedKudoType)?.icon ?? 'star-outline') as any}
+                      name={(CHEER_TYPES.find(k => k.type === selectedCheerType)?.icon ?? 'star-outline') as any}
                       size={18}
                       color={theme.colors.primary}
                     />
                     <Text style={[shared.subheading, { flex: 1 }]}>
-                      {KUDO_TYPES.find(k => k.type === selectedKudoType)?.label}
+                      {CHEER_TYPES.find(k => k.type === selectedCheerType)?.label}
                     </Text>
                     <Text style={shared.caption}>
-                      {myKudosGiven.length + pendingCheers.length}/{KUDOS_MAX_PER_EVENT}
+                      {myCheersGiven.length + pendingCheers.length}/{CHEERS_MAX_PER_EVENT}
                     </Text>
                   </View>
-                  {myKudosGiven.length + pendingCheers.length >= KUDOS_MAX_PER_EVENT ? (
+                  {myCheersGiven.length + pendingCheers.length >= CHEERS_MAX_PER_EVENT ? (
                     <View style={{
                       flexDirection: 'row',
                       alignItems: 'center',
@@ -2024,7 +2024,7 @@ export default function EventDetail() {
                     }}>
                       <Ionicons name="warning" size={16} color={theme.colors.warning} />
                       <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.warning, flex: 1 }}>
-                        Limit reached ({KUDOS_MAX_PER_EVENT} cheers max). Deselect someone to swap.
+                        Limit reached ({CHEERS_MAX_PER_EVENT} cheers max). Deselect someone to swap.
                       </Text>
                     </View>
                   ) : (
@@ -2043,19 +2043,19 @@ export default function EventDetail() {
                     >
                       {(() => {
                         const others = attendees.filter(a => a.id !== userId)
-                        const totalGiven = myKudosGiven.length + pendingCheers.length
+                        const totalGiven = myCheersGiven.length + pendingCheers.length
                         function renderCheerCard(profile: Profile, teamColor: string | null) {
-                          const hasGiven = myKudosGiven.some(k => k.receiver_id === profile.id && k.cheer_type === selectedKudoType)
-                            || pendingCheers.some(p => p.receiverId === profile.id && p.cheerType === selectedKudoType)
-                          const atCap = totalGiven >= KUDOS_MAX_PER_EVENT && !hasGiven
+                          const hasGiven = myCheersGiven.some(k => k.receiver_id === profile.id && k.cheer_type === selectedCheerType)
+                            || pendingCheers.some(p => p.receiverId === profile.id && p.cheerType === selectedCheerType)
+                          const atCap = totalGiven >= CHEERS_MAX_PER_EVENT && !hasGiven
                           return (
                             <View key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>
-                              <KudosPersonCard
+                              <CheerPersonCard
                                 profile={profile}
                                 hasGiven={hasGiven}
                                 disabled={atCap}
                                 teamColor={teamColor}
-                                onPress={() => toggleCheer(profile.id, selectedKudoType)}
+                                onPress={() => toggleCheer(profile.id, selectedCheerType!)}
                               />
                             </View>
                           )

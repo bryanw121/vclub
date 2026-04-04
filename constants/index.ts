@@ -11,7 +11,22 @@ export {
   EVENT_CARD_LIST_SELECT_MINIMAL,
   DEFAULT_DURATION_MINUTES,
   DURATION_OPTIONS,
-  KUDO_TYPES,
-  KUDOS_MAX_PER_EVENT,
+  CHEER_TYPES,
+  CHEERS_MAX_PER_EVENT,
 } from './events'
-export type { VenueLocation, EventTemplate, RecurrenceCadence, KudoTypeConfig } from './events'
+export type { VenueLocation, EventTemplate, RecurrenceCadence, CheerTypeConfig } from './events'
+export {
+  BETA_ACTIVE,
+  BADGE_DEFINITIONS,
+  BADGE_TIER_COLORS,
+  BADGE_SINGLE_COLOR,
+  BADGE_CATEGORY_GRADIENTS,
+  PROFILE_BORDERS,
+  badgeTierLabel,
+  badgeTierColor,
+  badgeTitle,
+  isBorderUnlocked,
+  CARD_BACKGROUNDS,
+  isCardBgUnlocked,
+} from './badges'
+export type { BadgeDef, BadgeTierDef, BadgeStat, ProfileBorderType, ProfileBorderDef, CardBgDef } from './badges'

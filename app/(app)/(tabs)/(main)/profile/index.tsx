@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentProps } from 'react'
 import {
   ActivityIndicator,
@@ -11,12 +11,26 @@ import {
   View,
 } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
+import { LinearGradient } from 'expo-linear-gradient'
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { supabase } from '../../../../../lib/supabase'
 import { Button } from '../../../../../components/Button'
-import { Input } from '../../../../../components/Input'
-import { shared, theme, AVATARS_BUCKET, AVATAR_MAX_FILE_BYTES } from '../../../../../constants'
+import { BadgeIcon } from '../../../../../components/BadgeIcon'
+import {
+  shared,
+  theme,
+  AVATARS_BUCKET,
+  AVATAR_MAX_FILE_BYTES,
+  BADGE_DEFINITIONS,
+} from '../../../../../constants'
 import {
   normalizeVolleyballPositions,
   resolveProfileAvatarUriWithError,
@@ -24,6 +38,7 @@ import {
 } from '../../../../../utils'
 import type { Profile, VolleyballPosition } from '../../../../../types'
 import { useTabsContext } from '../../../../../contexts/tabs'
+import { useBadges } from '../../../../../hooks/useBadges'
 
 type Section = 'menu' | 'edit'
 
@@ -39,11 +54,217 @@ const AVATAR_SIZE = 88
 
 function positionLabels(positions: VolleyballPosition[]): string {
   if (positions.length === 0) return 'No positions set'
-  const labels = positions.map(
-    p => VOLLEYBALL_POSITION_OPTIONS.find(o => o.value === p)?.label ?? p,
-  )
-  return labels.join(' · ')
+  return positions
+    .map(p => VOLLEYBALL_POSITION_OPTIONS.find(o => o.value === p)?.label ?? p)
+    .join(' · ')
 }
+
+// ─── Avatar with animated/styled border ───────────────────────────────────────
+
+/** Ring thickness in px. All border variants use the same outer container size. */
+const RING = 3
+const AVATAR_OUTER = AVATAR_SIZE + RING * 2  // 94 — consistent for all border types
+
+type AvatarProps = {
+  uri: string | null
+  loading: boolean
+  border: Profile['selected_border']
+  onPress: () => void
+  editMode: boolean
+  onDelete: () => void
+  hasAvatar: boolean
+}
+
+function AvatarInner({
+  uri, loading, onPress, editMode,
+}: Pick<AvatarProps, 'uri' | 'loading' | 'onPress' | 'editMode'>) {
+  return (
+    <Pressable
+      onPress={editMode ? onPress : undefined}
+      disabled={loading || !editMode}
+      accessibilityRole="button"
+      accessibilityLabel={editMode ? 'Change profile picture' : 'Profile picture'}
+      style={{
+        width: AVATAR_SIZE, height: AVATAR_SIZE,
+        borderRadius: AVATAR_SIZE / 2,
+        overflow: 'hidden',
+        backgroundColor: theme.colors.border,
+        alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      {loading ? (
+        <ActivityIndicator color={theme.colors.primary} />
+      ) : uri ? (
+        <Image source={{ uri }} style={{ width: '100%', height: '100%' }} accessibilityIgnoresInvertColors />
+      ) : (
+        <Ionicons name="person" size={40} color={theme.colors.subtext} />
+      )}
+    </Pressable>
+  )
+}
+
+/** Shared inner hole — cuts out center of gradient ring, hosts the avatar content. */
+function RingHole({ children, style }: { children: React.ReactNode; style?: object }) {
+  return (
+    <View style={[{
+      position: 'absolute',
+      top: RING, left: RING, right: RING, bottom: RING,
+      borderRadius: AVATAR_SIZE / 2,
+      overflow: 'hidden',
+      backgroundColor: theme.colors.card,
+      alignItems: 'center', justifyContent: 'center',
+    }, style]}>
+      {children}
+    </View>
+  )
+}
+
+/** Bronze border — warm gradient ring, no animation. */
+function BronzeBorder({ children }: { children: React.ReactNode }) {
+  return (
+    <View style={{ width: AVATAR_OUTER, height: AVATAR_OUTER, borderRadius: AVATAR_OUTER / 2, overflow: 'hidden' }}>
+      <LinearGradient
+        colors={['#C4873A', '#CD7F32', '#7A3B0A'] as [string, string, string]}
+        start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+      />
+      <RingHole>{children}</RingHole>
+    </View>
+  )
+}
+
+/** Gold border — rich gold gradient ring with a warm persistent glow. */
+function GoldBorder({ children }: { children: React.ReactNode }) {
+  return (
+    <View style={[
+      { width: AVATAR_OUTER, height: AVATAR_OUTER, borderRadius: AVATAR_OUTER / 2 },
+      Platform.select({
+        ios: { shadowColor: '#FFD700', shadowRadius: 10, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.72 },
+        android: { elevation: 8 },
+        web: { filter: 'drop-shadow(0 0 8px #FFD700BB)' } as any,
+      }),
+    ]}>
+      <View style={{ width: AVATAR_OUTER, height: AVATAR_OUTER, borderRadius: AVATAR_OUTER / 2, overflow: 'hidden' }}>
+        <LinearGradient
+          colors={['#FFE566', '#FFD700', '#C8860A'] as [string, string, string]}
+          start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        />
+        <RingHole>{children}</RingHole>
+      </View>
+    </View>
+  )
+}
+
+/**
+ * Legend border — spinning aurora gradient ring with pulsing glow.
+ * Outer container is exactly AVATAR_OUTER × AVATAR_OUTER (same as other borders).
+ * The spinning is achieved by rotating the outer ring container; the inner content
+ * counter-rotates so the avatar stays upright.
+ */
+function LegendBorder({ children }: { children: React.ReactNode }) {
+  const rot = useSharedValue(0)
+  const glowO = useSharedValue(0.45)
+
+  useEffect(() => {
+    rot.value = withRepeat(withTiming(360, { duration: 3200, easing: Easing.linear }), -1, false)
+    glowO.value = withRepeat(withTiming(0.9, { duration: 2000, easing: Easing.inOut(Easing.sin) }), -1, true)
+  }, [])
+
+  const spinStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${rot.value}deg` }] }))
+  const counterStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `-${rot.value}deg` }] }))
+  const glowStyle = useAnimatedStyle(() => ({ opacity: glowO.value }))
+
+  return (
+    <View style={{ width: AVATAR_OUTER, height: AVATAR_OUTER }}>
+      {/* Pulsing glow halo — absolute, overflow is intentional visual-only bleed */}
+      <Animated.View
+        pointerEvents="none"
+        style={[{
+          position: 'absolute',
+          top: -10, left: -10,
+          width: AVATAR_OUTER + 20, height: AVATAR_OUTER + 20,
+          borderRadius: (AVATAR_OUTER + 20) / 2,
+          backgroundColor: '#A78BFA18',
+          ...Platform.select({
+            ios: { shadowColor: '#A78BFA', shadowRadius: 18, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 1 },
+            android: { elevation: 14 },
+            web: { filter: 'blur(8px)' } as any,
+          }),
+        }, glowStyle]}
+      />
+
+      {/* Spinning gradient ring — overflow:hidden clips the gradient to a circle */}
+      <Animated.View style={[{
+        width: AVATAR_OUTER, height: AVATAR_OUTER,
+        borderRadius: AVATAR_OUTER / 2,
+        overflow: 'hidden',
+      }, spinStyle]}>
+        <LinearGradient
+          colors={['#A78BFA', '#38BDF8', '#34D399', '#FBBF24', '#F43F5E', '#A78BFA'] as [string, string, ...string[]]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        />
+        {/* Counter-rotate so avatar stays upright while ring spins */}
+        <Animated.View style={[{
+          position: 'absolute',
+          top: RING, left: RING, right: RING, bottom: RING,
+          borderRadius: AVATAR_SIZE / 2,
+          overflow: 'hidden',
+          backgroundColor: theme.colors.card,
+          alignItems: 'center', justifyContent: 'center',
+        }, counterStyle]}>
+          {children}
+        </Animated.View>
+      </Animated.View>
+    </View>
+  )
+}
+
+function ProfileAvatar(props: AvatarProps) {
+  const { border, editMode, onDelete, hasAvatar, loading } = props
+  const inner = <AvatarInner uri={props.uri} loading={props.loading} onPress={props.onPress} editMode={props.editMode} />
+
+  let bordered: React.ReactNode
+  if (!border) {
+    bordered = (
+      <View style={{ width: AVATAR_OUTER, height: AVATAR_OUTER, alignItems: 'center', justifyContent: 'center' }}>
+        {inner}
+      </View>
+    )
+  } else if (border === 'gradient') {
+    bordered = <LegendBorder>{inner}</LegendBorder>
+  } else if (border === 'gold') {
+    bordered = <GoldBorder>{inner}</GoldBorder>
+  } else {
+    bordered = <BronzeBorder>{inner}</BronzeBorder>
+  }
+
+  return (
+    <View style={{ width: AVATAR_OUTER, height: AVATAR_OUTER, flexShrink: 0 }}>
+      {bordered}
+      {/* Delete button rendered here — outside all ring clipping contexts */}
+      {editMode && hasAvatar && !loading && (
+        <Pressable
+          onPress={onDelete}
+          accessibilityRole="button"
+          accessibilityLabel="Remove profile picture"
+          style={{
+            position: 'absolute', top: 0, right: 0,
+            width: 22, height: 22, borderRadius: 11,
+            backgroundColor: theme.colors.subtext,
+            alignItems: 'center', justifyContent: 'center',
+            borderWidth: 2, borderColor: theme.colors.card,
+          }}
+        >
+          <Ionicons name="close" size={12} color={theme.colors.white} />
+        </Pressable>
+      )}
+    </View>
+  )
+}
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function MyProfile() {
   const router = useRouter()
@@ -61,7 +282,6 @@ export default function MyProfile() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [section, setSection] = useState<Section>('menu')
-
   const [positionDraft, setPositionDraft] = useState<VolleyballPosition[]>([])
   const [profileSaving, setProfileSaving] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
@@ -69,28 +289,24 @@ export default function MyProfile() {
   const [avatarUriResolving, setAvatarUriResolving] = useState(false)
   const [avatarUriError, setAvatarUriError] = useState<string | null>(null)
   const lastResolvedAvatarUrl = useRef<string | null>(null)
-  const lastFetchedAt = useRef(0)
+
+  const { badges, checkBadges, fetchBadges } = useBadges()
 
   useFocusEffect(
     useCallback(() => {
-      if (Date.now() - lastFetchedAt.current < 60_000) return
-      lastFetchedAt.current = Date.now()
       void fetchProfile()
-    }, []),
+      void fetchBadges(true)
+    }, [fetchBadges]),
   )
 
   async function fetchProfile() {
-    // Local session only — avoids a second round-trip to Auth (getUser hits the server).
     const { data: { session } } = await supabase.auth.getSession()
     const userId = session?.user?.id
-    if (!userId) {
-      setLoading(false)
-      return
-    }
+    if (!userId) { setLoading(false); return }
 
     const profileRes = await supabase
       .from('profiles')
-      .select('id, username, first_name, last_name, avatar_url, position, created_at')
+      .select('id, username, first_name, last_name, avatar_url, position, created_at, selected_border, selected_card_bg')
       .eq('id', userId)
       .single()
 
@@ -105,6 +321,8 @@ export default function MyProfile() {
         avatar_url: row.avatar_url ?? null,
         position: positions,
         created_at: row.created_at as string,
+        selected_border: (row as any).selected_border ?? null,
+        selected_card_bg: (row as any).selected_card_bg ?? null,
       }
       setProfile(normalized)
       setPositionDraft(positions)
@@ -118,12 +336,12 @@ export default function MyProfile() {
           setAvatarUriResolving(false)
           lastResolvedAvatarUrl.current = normalized.avatar_url
         }
-        // else: same path as last time — keep existing avatarDisplayUri, skip the network call
       } else {
         setAvatarDisplayUri(null)
         setAvatarUriError(null)
         lastResolvedAvatarUrl.current = null
       }
+      void checkBadges(normalized)
     }
     setLoading(false)
   }
@@ -141,18 +359,11 @@ export default function MyProfile() {
       const { data: { session } } = await supabase.auth.getSession()
       const userId = session?.user?.id
       if (!userId) throw new Error('Not logged in')
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({ position: positionDraft })
-        .eq('id', userId)
+      const { error } = await supabase.from('profiles').update({ position: positionDraft }).eq('id', userId)
       if (error) throw error
-
-      setProfile(prev =>
-        prev
-          ? { ...prev, position: [...positionDraft] }
-          : prev,
-      )
+      const updated = { ...profile, position: [...positionDraft] }
+      setProfile(updated)
+      void checkBadges(updated)
       Alert.alert('Saved', 'Your profile was updated.')
       setSection('menu')
     } catch (e: any) {
@@ -166,72 +377,43 @@ export default function MyProfile() {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (!perm.granted) {
-        Alert.alert(
-          'Permission needed',
-          'Allow photo library access to upload a profile picture.',
-        )
+        Alert.alert('Permission needed', 'Allow photo library access to upload a profile picture.')
         return
       }
-
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.85,
+        allowsEditing: true, aspect: [1, 1], quality: 0.85,
       })
       if (result.canceled) return
-
       const asset = result.assets[0]
       if (asset.fileSize != null && asset.fileSize > AVATAR_MAX_FILE_BYTES) {
-        Alert.alert(
-          'File too large',
-          'Profile photos must be 3 MB or smaller. Try another image or crop more.',
-        )
+        Alert.alert('File too large', 'Profile photos must be 3 MB or smaller.')
         return
       }
-
       const { data: { session } } = await supabase.auth.getSession()
       const userId = session?.user?.id
       if (!userId) throw new Error('Not logged in')
-
       setAvatarUploading(true)
       const ext = asset.mimeType?.includes('png') ? 'png' : 'jpg'
       const path = `${userId}/avatar.${ext}`
       const contentType = asset.mimeType ?? (ext === 'png' ? 'image/png' : 'image/jpeg')
-
       const response = await fetch(asset.uri)
       const arrayBuffer = await response.arrayBuffer()
       if (arrayBuffer.byteLength > AVATAR_MAX_FILE_BYTES) {
-        Alert.alert(
-          'File too large',
-          'Profile photos must be 3 MB or smaller. Try another image or crop more.',
-        )
+        Alert.alert('File too large', 'Profile photos must be 3 MB or smaller.')
         return
       }
-
-      const { error: uploadError } = await supabase.storage
-        .from(AVATARS_BUCKET)
-        .upload(path, arrayBuffer, { contentType, upsert: true })
+      const { error: uploadError } = await supabase.storage.from(AVATARS_BUCKET).upload(path, arrayBuffer, { contentType, upsert: true })
       if (uploadError) throw uploadError
-
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: path })
-        .eq('id', userId)
+      const { error: profileError } = await supabase.from('profiles').update({ avatar_url: path }).eq('id', userId)
       if (profileError) throw profileError
-
-      setProfile(prev => (prev ? { ...prev, avatar_url: path } : prev))
+      const updatedProfile = profile ? { ...profile, avatar_url: path } : null
+      setProfile(updatedProfile)
       const { uri: signed, error: signError } = await resolveProfileAvatarUriWithError(path)
       setAvatarDisplayUri(signed)
       setAvatarUriError(signError)
-      if (signError) {
-        Alert.alert(
-          'Photo uploaded',
-          'The file is in Storage and your profile was updated, but the app could not create a signed URL to show it. In Supabase → Storage → Policies, add SELECT for authenticated users on objects in the avatars bucket (same path rule as upload).',
-        )
-      } else {
-        Alert.alert('Saved', 'Profile picture updated.')
-      }
+      if (!signError && updatedProfile) void checkBadges(updatedProfile)
+      Alert.alert(signError ? 'Photo uploaded' : 'Saved', signError ? 'Uploaded but signed URL failed — check Storage SELECT policy.' : 'Profile picture updated.')
     } catch (e: any) {
       Alert.alert('Error', e.message)
     } finally {
@@ -246,14 +428,11 @@ export default function MyProfile() {
       const { data: { session } } = await supabase.auth.getSession()
       const userId = session?.user?.id
       if (!userId) throw new Error('Not logged in')
-
       if (!/^https?:\/\//i.test(profile.avatar_url)) {
         await supabase.storage.from(AVATARS_BUCKET).remove([profile.avatar_url])
       }
-
       const { error } = await supabase.from('profiles').update({ avatar_url: null }).eq('id', userId)
       if (error) throw error
-
       setProfile(prev => prev ? { ...prev, avatar_url: null } : prev)
       setAvatarDisplayUri(null)
       setAvatarUriError(null)
@@ -272,85 +451,37 @@ export default function MyProfile() {
   )
 
   const editDirty = !volleyballPositionsEqualUnordered(profile.position, positionDraft)
+  const displayedBadges = [1, 2, 3]
+    .map(s => badges.find(b => b.display_order === s) ?? null)
+    .filter(Boolean) as NonNullable<typeof badges[0]>[]
 
   return (
     <View style={shared.screen}>
       <ScrollView
-        contentContainerStyle={[
-          shared.scrollContent,
-          { paddingBottom: tabBarHeight + 32 },
-        ]}
+        contentContainerStyle={[shared.scrollContent, { paddingBottom: tabBarHeight + 32 }]}
         onScroll={handleScroll}
         scrollEventThrottle={100}
       >
         {section === 'edit' && (
           <View style={{ alignItems: 'flex-end', marginBottom: theme.spacing.sm }}>
-            <Pressable
-              onPress={() => setSection('menu')}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Back to profile menu"
-            >
+            <Pressable onPress={() => setSection('menu')} hitSlop={10} accessibilityRole="button">
               <Ionicons name="close" size={22} color={theme.colors.subtext} />
             </Pressable>
           </View>
         )}
 
+        {/* ── Profile card ── */}
         <View style={shared.card}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md }}>
-            <View style={{ position: 'relative', width: AVATAR_SIZE, height: AVATAR_SIZE, flexShrink: 0 }}>
-              <Pressable
-                onPress={pickAndUploadAvatar}
-                disabled={avatarUploading}
-                accessibilityRole="button"
-                accessibilityLabel="Change profile picture"
-                style={{
-                  width: AVATAR_SIZE,
-                  height: AVATAR_SIZE,
-                  borderRadius: AVATAR_SIZE / 2,
-                  overflow: 'hidden',
-                  backgroundColor: theme.colors.border,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderWidth: 2,
-                  borderColor: theme.colors.border,
-                }}
-              >
-                {avatarUploading || avatarUriResolving ? (
-                  <ActivityIndicator color={theme.colors.primary} />
-                ) : avatarDisplayUri ? (
-                  <Image
-                    source={{ uri: avatarDisplayUri }}
-                    style={{ width: '100%', height: '100%' }}
-                    accessibilityIgnoresInvertColors
-                  />
-                ) : (
-                  <Ionicons name="person" size={40} color={theme.colors.subtext} />
-                )}
-              </Pressable>
-              {section === 'edit' && profile.avatar_url && !avatarUploading && (
-                <Pressable
-                  onPress={deleteAvatar}
-                  accessibilityRole="button"
-                  accessibilityLabel="Remove profile picture"
-                  style={{
-                    position: 'absolute',
-                    top: -2,
-                    right: -2,
-                    width: 22,
-                    height: 22,
-                    borderRadius: 11,
-                    backgroundColor: theme.colors.subtext,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderWidth: 2,
-                    borderColor: theme.colors.card,
-                  }}
-                >
-                  <Ionicons name="close" size={12} color={theme.colors.white} />
-                </Pressable>
-              )}
-            </View>
+            <ProfileAvatar
+              uri={avatarUploading || avatarUriResolving ? null : avatarDisplayUri}
+              loading={avatarUploading || avatarUriResolving}
+              border={profile.selected_border}
+              onPress={pickAndUploadAvatar}
+              editMode={section === 'edit'}
+              onDelete={deleteAvatar}
+              hasAvatar={!!profile.avatar_url}
+            />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={shared.heading}>
                 {profile.first_name && profile.last_name
@@ -362,101 +493,79 @@ export default function MyProfile() {
                   @{profile.username}
                 </Text>
               ) : null}
-              <Text style={[shared.body, shared.mt_sm]}>
-                {positionLabels(profile.position)}
-              </Text>
+              <Text style={[shared.body, shared.mt_sm]}>{positionLabels(profile.position)}</Text>
               <Text style={[shared.caption, shared.mt_xs]}>
                 joined {new Date(profile.created_at).toLocaleDateString()}
               </Text>
             </View>
           </View>
-          <Text style={[shared.caption, shared.mt_sm]}>
-            Max 3 MB per photo (private storage).{' '}
-            {profile.avatar_url ? 'Tap photo to change.' : 'Tap to add a profile photo.'}
-          </Text>
-          {avatarUriError && profile.avatar_url ? (
+
+          {/* Displayed badges row */}
+          {displayedBadges.length > 0 && (
+            <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.md, justifyContent: 'center' }}>
+              {displayedBadges.map(badge => {
+                const def = BADGE_DEFINITIONS.find(d => d.type === badge.badge_type)
+                if (!def) return null
+                return <BadgeIcon key={badge.badge_type} def={def} tier={badge.tier} size="sm" showLabel />
+              })}
+            </View>
+          )}
+
+          {section === 'edit' && avatarUriError && profile.avatar_url ? (
             <Text style={[shared.errorText, shared.mt_xs]}>
-              Could not load image (signed URL failed). Fix Storage SELECT policy for the avatars bucket, or see the alert after upload.
+              Could not load image. Fix Storage SELECT policy for the avatars bucket.
             </Text>
           ) : null}
-
+          {section === 'edit' && (
+            <Text style={[shared.caption, shared.mt_sm]}>
+              Max 3 MB.{' '}{profile.avatar_url ? 'Tap photo to change.' : 'Tap to add a profile photo.'}
+            </Text>
+          )}
           <View style={{ alignSelf: 'stretch', marginTop: theme.spacing.md }}>
             <Button label="Edit profile" onPress={openEditProfile} variant="primary" />
           </View>
         </View>
 
+        {/* ── Menu ── */}
         {section === 'menu' && (
           <View style={{ gap: theme.spacing.md, marginTop: theme.spacing.md }}>
             <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
-              <MenuCard
-                title="Account Settings"
-                icon="settings-outline"
-                onPress={() => router.push('/settings/account')}
-              />
-              <MenuCard
-                title="Notifications"
-                icon="notifications-outline"
-                onPress={() => router.push('/settings/notifications')}
-              />
+              <MenuCard title="Account Settings" icon="settings-outline" onPress={() => router.push('/settings/account')} />
+              <MenuCard title="Notifications" icon="notifications-outline" onPress={() => router.push('/settings/notifications')} />
             </View>
             <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
-              <MenuCard
-                title="History"
-                icon="time-outline"
-                onPress={() => router.push('/settings/history')}
-              />
-              <MenuCard
-                title="Cheers"
-                icon="star-outline"
-                onPress={() => router.push('/settings/cheers')}
-              />
+              <MenuCard title="History" icon="time-outline" onPress={() => router.push('/settings/history')} />
+              <MenuCard title="Cheers" icon="star-outline" onPress={() => router.push('/settings/cheers')} />
             </View>
-            <MenuCard
-              title="Submit Feedback"
-              icon="chatbubble-ellipses-outline"
-              onPress={() => router.push('/settings/feedback')}
-            />
+            <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
+              <MenuCard title="Badges" icon="ribbon-outline" onPress={() => router.push('/settings/badges')} />
+              <MenuCard title="Submit Feedback" icon="chatbubble-ellipses-outline" onPress={() => router.push('/settings/feedback')} />
+            </View>
           </View>
         )}
 
+        {/* ── Edit section ── */}
         {section === 'edit' && (
           <View style={[shared.card, { marginTop: theme.spacing.md }]}>
             <Text style={shared.subheading}>Edit profile</Text>
             <View style={shared.mt_md} />
-
             <Text style={shared.label}>Preferred positions</Text>
-            <Text style={[shared.caption, shared.mt_xs]}>
-              Tap any that apply. You can choose more than one.
-            </Text>
+            <Text style={[shared.caption, shared.mt_xs]}>Tap any that apply.</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
-              <PositionOptionChip
-                label="Clear all"
-                active={positionDraft.length === 0}
-                onPress={() => setPositionDraft([])}
-              />
+              <PositionOptionChip label="Clear all" active={positionDraft.length === 0} onPress={() => setPositionDraft([])} />
               {VOLLEYBALL_POSITION_OPTIONS.map(opt => (
                 <PositionOptionChip
                   key={opt.value}
                   label={opt.label}
                   active={positionDraft.includes(opt.value)}
-                  onPress={() => {
-                    setPositionDraft(prev =>
-                      prev.includes(opt.value)
-                        ? prev.filter(p => p !== opt.value)
-                        : [...prev, opt.value],
-                    )
-                  }}
+                  onPress={() => setPositionDraft(prev =>
+                    prev.includes(opt.value) ? prev.filter(p => p !== opt.value) : [...prev, opt.value]
+                  )}
                 />
               ))}
             </View>
-
             <View style={shared.mt_md} />
-            <Button
-              label="Save profile"
-              onPress={saveProfileEdits}
-              loading={profileSaving}
-              disabled={profileSaving || !editDirty}
-            />
+            <Button label="Save profile" onPress={saveProfileEdits} loading={profileSaving} disabled={profileSaving || !editDirty} />
           </View>
         )}
       </ScrollView>
@@ -464,12 +573,9 @@ export default function MyProfile() {
   )
 }
 
-function MenuCard({
-  title,
-  icon,
-  onPress,
-  style,
-}: {
+// ─── MenuCard ─────────────────────────────────────────────────────────────────
+
+function MenuCard({ title, icon, onPress, style }: {
   title: string
   icon: ComponentProps<typeof Ionicons>['name']
   onPress: () => void
@@ -480,13 +586,7 @@ function MenuCard({
       onPress={onPress}
       style={({ pressed }) => [
         shared.card,
-        {
-          flex: 1,
-          margin: 0,
-          alignItems: 'flex-start',
-          opacity: pressed ? 0.88 : 1,
-          transform: [{ scale: pressed ? 0.98 : 1 }],
-        },
+        { flex: 1, margin: 0, alignItems: 'flex-start', opacity: pressed ? 0.88 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
         style,
       ]}
       accessibilityRole="button"
@@ -494,44 +594,35 @@ function MenuCard({
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, flex: 1 }}>
         <Ionicons name={icon} size={20} color={theme.colors.subtext} />
-        <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text, flex: 1 }}>{title}</Text>
+        <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text, flex: 1 }}>
+          {title}
+        </Text>
       </View>
     </Pressable>
   )
 }
 
-function PositionOptionChip({
-  label,
-  active,
-  onPress,
-}: {
-  label: string
-  active: boolean
-  onPress: () => void
-}) {
+// ─── PositionOptionChip ───────────────────────────────────────────────────────
+
+function PositionOptionChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       style={{
-        borderRadius: theme.radius.full,
-        borderWidth: 1,
+        borderRadius: theme.radius.full, borderWidth: 1,
         borderColor: active ? theme.colors.primary : theme.colors.border,
         backgroundColor: active ? theme.colors.primary + '14' : theme.colors.card,
-        paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.sm,
+        paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm,
         maxWidth: '100%',
       }}
     >
-      <Text
-        style={{
-          fontSize: theme.font.size.sm,
-          lineHeight: theme.font.lineHeight.tight,
-          fontWeight: active ? theme.font.weight.semibold : theme.font.weight.regular,
-          color: active ? theme.colors.primary : theme.colors.text,
-        }}
-      >
+      <Text style={{
+        fontSize: theme.font.size.sm, lineHeight: theme.font.lineHeight.tight,
+        fontWeight: active ? theme.font.weight.semibold : theme.font.weight.regular,
+        color: active ? theme.colors.primary : theme.colors.text,
+      }}>
         {label}
       </Text>
     </Pressable>

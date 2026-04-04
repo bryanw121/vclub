@@ -63,17 +63,17 @@ export const DURATION_OPTIONS: { label: string; minutes: number }[] = [
   { label: '4h',     minutes: 240 },
 ]
 
-// ─── Kudos ────────────────────────────────────────────────────────────────────
+// ─── Cheers ───────────────────────────────────────────────────────────────────
 
-export const KUDOS_MAX_PER_EVENT = 5
+export const CHEERS_MAX_PER_EVENT = 5
 
-export type KudoTypeConfig = {
-  type: import('../types').KudoType
+export type CheerTypeConfig = {
+  type: import('../types').CheerType
   label: string
   icon: string
 }
 
-export const KUDO_TYPES: KudoTypeConfig[] = [
+export const CHEER_TYPES: CheerTypeConfig[] = [
   { type: 'spike',         label: 'Spiking',        icon: 'flash-outline'               },
   { type: 'block',         label: 'Blocking',        icon: 'shield-outline'              },
   { type: 'serve',         label: 'Serving',         icon: 'radio-outline'               },

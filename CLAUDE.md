@@ -216,6 +216,40 @@ Test each surface mentally when building. If a component behaves differently acr
 - **Avoid N+1 patterns**: if you're iterating over a list and fetching per-item, restructure to a single `IN (...)` query or an embedded join instead.
 - **Count with PostgREST**: use `select('id', { count: 'exact', head: true })` for counts — don't fetch full rows just to call `.length`.
 
+## Environments & Deployment
+
+### Two Supabase projects
+- **Beta**: used during development, connected to the `beta` GitHub branch
+- **Prod**: connected to `main`, only receives changes after beta validation
+
+### Schema migrations (programmatic — no manual tracking)
+Never write migration SQL by hand. After any schema change in the Supabase beta dashboard, run:
+```bash
+supabase db diff --use-migra -f describe_your_change
+```
+This auto-generates a numbered `.sql` file in `supabase/migrations/`. Commit it alongside the code change.
+
+To promote to prod:
+```bash
+supabase link --project-ref <prod-ref>
+supabase db push
+```
+Supabase tracks applied migrations automatically via its internal `supabase_migrations` table.
+
+### GitHub branch → environment mapping
+| Branch | Environment | Supabase project |
+|--------|------------|-----------------|
+| `beta` | Beta | Beta project |
+| `main` | Production | Prod project |
+
+Merging `beta → main` triggers the prod build and `supabase db push` via GitHub Actions.
+
+### What is / isn't captured by migrations
+- ✅ Tables, columns, indexes, RLS policies, functions, triggers
+- ❌ Storage bucket creation (manual one-time setup)
+- ❌ Auth settings (email templates, OAuth providers)
+- ❌ Data (prod data is always separate from beta)
+
 ## Things to Avoid
 - Don't use `react-native-pager-view` — it's native-only. The custom `Pager` component is the cross-platform replacement.
 - Don't hardcode colors/spacing — always use `theme.*`

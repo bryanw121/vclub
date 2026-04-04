@@ -4,16 +4,16 @@ import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '../../../../lib/supabase'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
-import { shared, theme, KUDO_TYPES } from '../../../../constants'
+import { shared, theme, CHEER_TYPES } from '../../../../constants'
 import { CheerRadarChart } from '../../../../components/CheerRadarChart'
-import type { KudoType } from '../../../../types'
+import type { CheerType } from '../../../../types'
 
 export default function ProfileCheersScreen() {
   useStackBackTitle('Cheers')
 
   const [loading, setLoading] = useState(true)
   const [totalReceived, setTotalReceived] = useState(0)
-  const [counts, setCounts] = useState<Partial<Record<KudoType, number>>>({})
+  const [counts, setCounts] = useState<Partial<Record<CheerType, number>>>({})
   const [totalGiven, setTotalGiven] = useState(0)
 
   useFocusEffect(
@@ -33,8 +33,8 @@ export default function ProfileCheersScreen() {
       supabase.from('cheers').select('id', { count: 'exact', head: true }).eq('giver_id', userId),
     ])
 
-    const rows = (receivedRes.data ?? []) as { cheer_type: KudoType }[]
-    const c: Partial<Record<KudoType, number>> = {}
+    const rows = (receivedRes.data ?? []) as { cheer_type: CheerType }[]
+    const c: Partial<Record<CheerType, number>> = {}
     for (const row of rows) c[row.cheer_type] = (c[row.cheer_type] ?? 0) + 1
 
     setTotalReceived(rows.length)

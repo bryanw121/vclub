@@ -101,41 +101,50 @@ export default function NotificationsScreen() {
               </View>
             )
           }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              onPress={() => void openItem(item)}
-              style={{
-                backgroundColor: theme.colors.card,
-                borderRadius: theme.radius.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
-                padding: theme.spacing.md,
-                marginBottom: theme.spacing.sm,
-                opacity: item.read_at ? 0.72 : 1,
-                overflow: 'hidden',
-              }}
-            >
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }} numberOfLines={2}>
-                  {item.title}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: theme.font.size.sm,
-                    color: theme.colors.subtext,
-                    marginTop: theme.spacing.xs,
-                    lineHeight: 20,
-                  }}
-                  numberOfLines={3}
-                >
-                  {item.body}
-                </Text>
-                <Text style={[shared.caption, { marginTop: theme.spacing.sm }]}>
-                  {formatShortTime(item.created_at)}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          )}
+          renderItem={({ item }) => {
+            const isBadge = item.notification_type === 'badge_earned'
+            return (
+              <TouchableOpacity
+                onPress={() => void openItem(item)}
+                style={{
+                  backgroundColor: isBadge ? '#FFF9E6' : theme.colors.card,
+                  borderRadius: theme.radius.md,
+                  borderWidth: 1,
+                  borderColor: isBadge ? '#FFD700' : theme.colors.border,
+                  padding: theme.spacing.md,
+                  marginBottom: theme.spacing.sm,
+                  opacity: item.read_at ? 0.72 : 1,
+                  overflow: 'hidden',
+                  flexDirection: 'row',
+                  alignItems: 'flex-start',
+                  gap: theme.spacing.sm,
+                }}
+              >
+                {isBadge && (
+                  <Ionicons name="ribbon-outline" size={20} color="#FFD700" style={{ marginTop: 1 }} />
+                )}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }} numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: theme.font.size.sm,
+                      color: theme.colors.subtext,
+                      marginTop: theme.spacing.xs,
+                      lineHeight: 20,
+                    }}
+                    numberOfLines={3}
+                  >
+                    {item.body}
+                  </Text>
+                  <Text style={[shared.caption, { marginTop: theme.spacing.sm }]}>
+                    {formatShortTime(item.created_at)}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )
+          }}
         />
       )}
     </View>

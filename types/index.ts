@@ -28,15 +28,20 @@ export type Profile = {
   is_admin?: boolean  // default false; only true for club/platform admins
   /** Per-channel toggles keyed by notification_type; omitted keys default to on server-side. */
   notification_prefs?: NotificationPrefs | null
+  /** Currently equipped profile border; null means no border. */
+  selected_border?: 'bronze' | 'gold' | 'gradient' | null
+  /** Currently equipped profile card background; null means default. */
+  selected_card_bg?: CardBgType | null
 }
 
 /** Values must stay in sync with `notifications.notification_type` check constraint in Supabase. */
 export const NOTIFICATION_TYPES = [
   'event_announcement',
-  'kudos_received',
+  'cheers_received',
   'event_material_change',
   'waitlist_promoted',
   'event_cancelled',
+  'badge_earned',
 ] as const
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
@@ -51,8 +56,9 @@ export type NotificationPrefs = {
 export type NotificationData = {
   event_id?: string
   comment_id?: string
-  kudo_id?: string
+  cheer_id?: string
   deep_link?: string
+  badge_type?: string
 }
 
 /**
@@ -88,8 +94,8 @@ export type Event = {
   cancelled_at?: string | null
 }
 
-/** Kudo categories for post-event peer recognition */
-export type KudoType =
+/** Cheer categories for post-event peer recognition */
+export type CheerType =
   | 'spike'
   | 'block'
   | 'serve'
@@ -103,12 +109,12 @@ export type KudoType =
  * One row per (event, giver, receiver, type). Given after an event ends.
  * Unique constraint: (event_id, giver_id, receiver_id, cheer_type).
  */
-export type Kudo = {
+export type Cheer = {
   id: string
   event_id: string
   giver_id: string
   receiver_id: string
-  cheer_type: KudoType
+  cheer_type: CheerType
   created_at: string
 }
 
@@ -309,4 +315,36 @@ export type AttendanceStatus = {
   isWaitlisted: boolean       // true if the current user is on the waitlist
   waitlistPosition: number | null  // 1-based position on waitlist; null if not waitlisted
   waitlistCount: number       // total number of people on the waitlist
+}
+
+// ─── Badge Types ──────────────────────────────────────────────────────────────
+
+export type CardBgType = 'ember' | 'frost' | 'aurora'
+
+export type BadgeType =
+  | 'event_attendee'
+  | 'event_host'
+  | 'cheers_received'
+  | 'cheers_given'
+  | 'spike_cheer'
+  | 'serve_cheer'
+  | 'block_cheer'
+  | 'set_cheer'
+  | 'dig_pass_cheer'
+  | 'communication_cheer'
+  | 'beta_tester'
+  | 'tournament_director'
+  | 'profile_complete'
+
+/**
+ * `user_badges` table
+ * One row per (user, badge_type). Tier is upgraded in-place as the user levels up.
+ */
+export type UserBadge = {
+  id: string
+  user_id: string
+  badge_type: BadgeType
+  tier: number               // 1–5; most single-level badges are always 1
+  awarded_at: string         // ISO 8601 — when this tier was reached
+  display_order: number | null // 1, 2, or 3 if chosen for profile display; null otherwise
 }

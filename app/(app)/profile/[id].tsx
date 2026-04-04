@@ -6,9 +6,9 @@ import { supabase } from '../../../lib/supabase'
 import { shared, theme } from '../../../constants'
 import { CheerRadarChart } from '../../../components/CheerRadarChart'
 import { resolveProfileAvatarUriWithError } from '../../../utils'
-import type { KudoType, Profile } from '../../../types'
+import type { CheerType, Profile } from '../../../types'
 
-type CheerCounts = Partial<Record<KudoType, number>>
+type CheerCounts = Partial<Record<CheerType, number>>
 
 const AVATAR_SIZE = 80
 
@@ -37,7 +37,7 @@ export default function UserProfileDetail() {
         }
       }
 
-      const rows = (cheersRes.data ?? []) as { cheer_type: KudoType }[]
+      const rows = (cheersRes.data ?? []) as { cheer_type: CheerType }[]
       const counts: CheerCounts = {}
       for (const row of rows) counts[row.cheer_type] = (counts[row.cheer_type] ?? 0) + 1
       setCheerCounts(counts)
