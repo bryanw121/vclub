@@ -337,6 +337,7 @@ export type BadgeType =
   | 'beta_tester'
   | 'tournament_director'
   | 'profile_complete'
+  | 'vex_spirit'
 
 /**
  * `user_badges` table

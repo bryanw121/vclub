@@ -2849,6 +2849,11 @@ expo-asset@~12.0.12:
     "@expo/image-utils" "^0.8.8"
     expo-constants "~18.0.12"
 
+expo-calendar@~15.0.8:
+  version "15.0.8"
+  resolved "https://registry.yarnpkg.com/expo-calendar/-/expo-calendar-15.0.8.tgz#55b0b811cbf9285f9989340f26aa4bf5370f9c6b"
+  integrity sha512-i+ojy6zFnWSPb2DYp4L4W4U5iVI+NXnuHr3xysShoV8znNOmixP1TOYuJXt5Lpz+BpHCWseU31gV1E5SSkIKsw==
+
 expo-constants@~18.0.12, expo-constants@~18.0.13:
   version "18.0.13"
   resolved "https://registry.npmjs.org/expo-constants/-/expo-constants-18.0.13.tgz"

@@ -8,7 +8,6 @@ import {
   Pressable,
   ScrollView,
   Text,
-  TextInput,
   View,
 } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
@@ -18,12 +17,17 @@ import Animated, {
   useAnimatedStyle,
   withRepeat,
   withTiming,
+  withSpring,
+  runOnJS,
   Easing,
 } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect, useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../../../lib/supabase'
 import { Button } from '../../../../../components/Button'
+import { Input } from '../../../../../components/Input'
+import { Toast } from '../../../../../components/Toast'
 import { BadgeIcon } from '../../../../../components/BadgeIcon'
 import {
   shared,
@@ -271,18 +275,18 @@ export default function MyProfile() {
   const router = useRouter()
   const { setTabBarHidden, tabBarHeight } = useTabsContext()
   const lastScrollY = useRef(0)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [section, setSection] = useState<Section>('menu')
   const handleScroll = useCallback((e: any) => {
     if (Platform.OS !== 'web') return
+    if (section === 'edit') return
     const y: number = e.nativeEvent.contentOffset.y
     const diff = y - lastScrollY.current
     lastScrollY.current = y
     if (y <= 60) { setTabBarHidden(false); return }
     if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
-  }, [setTabBarHidden])
-
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [section, setSection] = useState<Section>('menu')
+  }, [section, setTabBarHidden])
   const [positionDraft, setPositionDraft] = useState<VolleyballPosition[]>([])
   const [bioDraft, setBioDraft] = useState('')
   const [profileSaving, setProfileSaving] = useState(false)
@@ -291,8 +295,48 @@ export default function MyProfile() {
   const [avatarUriResolving, setAvatarUriResolving] = useState(false)
   const [avatarUriError, setAvatarUriError] = useState<string | null>(null)
   const lastResolvedAvatarUrl = useRef<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; variant: 'error' | 'success' | 'info' } | null>(null)
+  const [pickingSlot, setPickingSlot] = useState<number | null>(null)
+  const [sheetMounted, setSheetMounted] = useState(false)
+  const sheetProgress = useSharedValue(0)
+  const insets = useSafeAreaInsets()
 
-  const { badges, checkBadges, fetchBadges } = useBadges()
+  const sheetTranslateStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: (1 - sheetProgress.value) * 400 }],
+  }))
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: sheetProgress.value,
+  }))
+
+  // Hide tab bar while in edit mode
+  useEffect(() => {
+    setTabBarHidden(section === 'edit')
+    return () => { if (section === 'edit') setTabBarHidden(false) }
+  }, [section, setTabBarHidden])
+
+  function openSheet(slot: number) {
+    setPickingSlot(slot)
+    setSheetMounted(true)
+    sheetProgress.value = 0
+    sheetProgress.value = withTiming(1, { duration: 280 })
+  }
+
+  function closeSheet() {
+    sheetProgress.value = withTiming(0, { duration: 220 }, (finished) => {
+      'worklet'
+      if (finished) {
+        runOnJS(setSheetMounted)(false)
+        runOnJS(setPickingSlot)(null)
+      }
+    })
+  }
+
+  function showToast(message: string, variant: 'error' | 'success' | 'info' = 'error') {
+    setToast({ message, variant })
+  }
+
+  const { badges, checkBadges, fetchBadges, setDisplaySlot } = useBadges()
+
 
   useFocusEffect(
     useCallback(() => {
@@ -393,7 +437,7 @@ export default function MyProfile() {
       if (result.canceled) return
       const asset = result.assets[0]
       if (asset.fileSize != null && asset.fileSize > AVATAR_MAX_FILE_BYTES) {
-        Alert.alert('File too large', 'Profile photos must be 3 MB or smaller.')
+        showToast('Photo must be smaller than 3 MB. Please try again.')
         return
       }
       const { data: { session } } = await supabase.auth.getSession()
@@ -406,7 +450,7 @@ export default function MyProfile() {
       const response = await fetch(asset.uri)
       const arrayBuffer = await response.arrayBuffer()
       if (arrayBuffer.byteLength > AVATAR_MAX_FILE_BYTES) {
-        Alert.alert('File too large', 'Profile photos must be 3 MB or smaller.')
+        showToast('Photo must be smaller than 3 MB. Please try again.')
         return
       }
       const { error: uploadError } = await supabase.storage.from(AVATARS_BUCKET).upload(path, arrayBuffer, { contentType, upsert: true })
@@ -462,14 +506,16 @@ export default function MyProfile() {
     .filter(Boolean) as NonNullable<typeof badges[0]>[]
 
   return (
-    <View style={shared.screen}>
+    <View style={[shared.screen, { position: 'relative' }]}>
       <ScrollView
         contentContainerStyle={[shared.scrollContent, { paddingBottom: tabBarHeight + 32 }]}
         onScroll={handleScroll}
         scrollEventThrottle={100}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         {section === 'edit' && (
-          <View style={{ alignItems: 'flex-end', marginBottom: theme.spacing.sm }}>
+          <View style={{ alignItems: 'flex-start', marginBottom: theme.spacing.sm }}>
             <Pressable onPress={() => setSection('menu')} hitSlop={10} accessibilityRole="button">
               <Ionicons name="close" size={22} color={theme.colors.subtext} />
             </Pressable>
@@ -479,15 +525,22 @@ export default function MyProfile() {
         {/* ── Profile card ── */}
         <View style={shared.card}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md }}>
-            <ProfileAvatar
-              uri={avatarUploading || avatarUriResolving ? null : avatarDisplayUri}
-              loading={avatarUploading || avatarUriResolving}
-              border={profile.selected_border}
-              onPress={pickAndUploadAvatar}
-              editMode={section === 'edit'}
-              onDelete={deleteAvatar}
-              hasAvatar={!!profile.avatar_url}
-            />
+            <View style={{ alignItems: 'center', gap: theme.spacing.xs }}>
+              <ProfileAvatar
+                uri={avatarUploading || avatarUriResolving ? null : avatarDisplayUri}
+                loading={avatarUploading || avatarUriResolving}
+                border={profile.selected_border}
+                onPress={pickAndUploadAvatar}
+                editMode={section === 'edit'}
+                onDelete={deleteAvatar}
+                hasAvatar={!!profile.avatar_url}
+              />
+              {section === 'edit' && (
+                <Text style={[shared.caption, { textAlign: 'center', maxWidth: AVATAR_OUTER }]}>
+                  Tap to {profile.avatar_url ? 'change' : 'add'} a photo.
+                </Text>
+              )}
+            </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={shared.heading}>
                 {profile.first_name && profile.last_name
@@ -502,14 +555,21 @@ export default function MyProfile() {
               {positionLabels(profile.position) ? (
                 <Text style={[shared.body, shared.mt_sm]}>{positionLabels(profile.position)}</Text>
               ) : null}
-              {profile.bio ? (
-                <Text style={[shared.body, shared.mt_xs]}>{profile.bio}</Text>
-              ) : null}
               <Text style={[shared.caption, shared.mt_xs]}>
                 joined {new Date(profile.created_at).toLocaleDateString()}
               </Text>
             </View>
           </View>
+
+          {profile.bio ? (
+            <Text style={[shared.body, { marginTop: theme.spacing.sm }]}>{profile.bio}</Text>
+          ) : null}
+
+          {section === 'edit' && avatarUriError && profile.avatar_url ? (
+            <Text style={[shared.errorText, shared.mt_xs]}>
+              Could not load image. Fix Storage SELECT policy for the avatars bucket.
+            </Text>
+          ) : null}
 
           {/* Displayed badges row */}
           {displayedBadges.length > 0 && (
@@ -530,19 +590,11 @@ export default function MyProfile() {
             </View>
           )}
 
-          {section === 'edit' && avatarUriError && profile.avatar_url ? (
-            <Text style={[shared.errorText, shared.mt_xs]}>
-              Could not load image. Fix Storage SELECT policy for the avatars bucket.
-            </Text>
-          ) : null}
-          {section === 'edit' && (
-            <Text style={[shared.caption, shared.mt_sm]}>
-              Max 3 MB.{' '}{profile.avatar_url ? 'Tap photo to change.' : 'Tap to add a profile photo.'}
-            </Text>
+          {section === 'menu' && (
+            <View style={{ alignSelf: 'stretch', marginTop: theme.spacing.md }}>
+              <Button label="Edit profile" onPress={openEditProfile} variant="primary" />
+            </View>
           )}
-          <View style={{ alignSelf: 'stretch', marginTop: theme.spacing.md }}>
-            <Button label="Edit profile" onPress={openEditProfile} variant="primary" />
-          </View>
         </View>
 
         {/* ── Menu ── */}
@@ -568,39 +620,26 @@ export default function MyProfile() {
           <View style={[shared.card, { marginTop: theme.spacing.md }]}>
             <Text style={shared.subheading}>Edit profile</Text>
             <View style={shared.mt_md} />
-            <Text style={shared.label}>Bio</Text>
-            <View style={{
-              marginTop: theme.spacing.xs,
-              borderWidth: 1,
-              borderColor: theme.colors.border,
-              borderRadius: theme.radius.md,
-              paddingHorizontal: theme.spacing.sm,
-              paddingVertical: theme.spacing.xs,
-            }}>
-              <TextInput
-                value={bioDraft}
-                onChangeText={t => setBioDraft(t.slice(0, 140))}
-                placeholder="Tell the club a little about yourself…"
-                placeholderTextColor={theme.colors.subtext}
-                multiline
-                numberOfLines={3}
-                maxLength={140}
-                style={{
-                  fontSize: theme.font.size.md,
-                  color: theme.colors.text,
-                  minHeight: 64,
-                  textAlignVertical: 'top',
-                }}
-              />
-              <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, textAlign: 'right', marginTop: 2 }}>
-                {bioDraft.length}/140
-              </Text>
-            </View>
+            <Input
+              label="Bio"
+              value={bioDraft}
+              onChangeText={t => setBioDraft(t.slice(0, 140))}
+              placeholder="Tell the club a little about yourself…"
+              multiline
+              numberOfLines={3}
+              maxLength={140}
+              autoCorrect={false}
+              containerStyle={{ marginBottom: 0 }}
+              inputStyle={{ padding: theme.spacing.md, paddingTop: theme.spacing.md }}
+            />
+            <Text style={[shared.caption, { textAlign: 'right', marginTop: theme.spacing.xs, color: bioDraft.length >= 130 ? theme.colors.error : theme.colors.subtext }]}>
+              {bioDraft.length}/140
+            </Text>
             <View style={shared.mt_md} />
             <Text style={shared.label}>Preferred positions</Text>
             <Text style={[shared.caption, shared.mt_xs]}>Tap any that apply.</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
-              <PositionOptionChip label="Clear all" active={positionDraft.length === 0} onPress={() => setPositionDraft([])} />
+              <PositionOptionChip label="Clear all" active={false} onPress={() => setPositionDraft([])} />
               {VOLLEYBALL_POSITION_OPTIONS.map(opt => (
                 <PositionOptionChip
                   key={opt.value}
@@ -613,10 +652,132 @@ export default function MyProfile() {
               ))}
             </View>
             <View style={shared.mt_md} />
+            <Text style={shared.label}>Display Badges</Text>
+            <Text style={[shared.caption, shared.mt_xs]}>Up to 3 badges shown on your profile. Tap a slot to pick a badge.</Text>
+
+            {/* Slots row */}
+            <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.sm }}>
+              {[1, 2, 3].map(slot => {
+                const badge = badges.find(b => b.display_order === slot)
+                const def = badge ? BADGE_DEFINITIONS.find(d => d.type === badge.badge_type) : null
+                return (
+                  <View key={slot} style={{ alignItems: 'center', gap: 4 }}>
+                    <View style={{ position: 'relative' }}>
+                      {def && badge ? (
+                        <>
+                          <BadgeIcon def={def} tier={badge.tier} size="sm" />
+                          <Pressable
+                            onPress={() => void setDisplaySlot(badge.badge_type, null)}
+                            hitSlop={8}
+                            style={{
+                              position: 'absolute', top: -4, right: -4,
+                              width: 18, height: 18, borderRadius: 9,
+                              backgroundColor: theme.colors.subtext,
+                              alignItems: 'center', justifyContent: 'center',
+                              borderWidth: 1.5, borderColor: theme.colors.card,
+                            }}
+                          >
+                            <Ionicons name="close" size={10} color="#fff" />
+                          </Pressable>
+                        </>
+                      ) : (
+                        <Pressable
+                          onPress={() => openSheet(slot)}
+                          style={({ pressed }) => ({
+                            width: 58, height: 58, borderRadius: 29,
+                            borderWidth: 2, borderColor: pressed ? theme.colors.primary : theme.colors.border,
+                            borderStyle: 'dashed',
+                            alignItems: 'center', justifyContent: 'center',
+                            backgroundColor: pressed ? theme.colors.primary + '0A' : 'transparent',
+                          })}
+                        >
+                          <Ionicons name="add" size={22} color={theme.colors.subtext} />
+                        </Pressable>
+                      )}
+                    </View>
+                    <Text style={[shared.caption, { color: theme.colors.subtext }]}>Slot {slot}</Text>
+                  </View>
+                )
+              })}
+            </View>
+
+            <View style={shared.mt_md} />
             <Button label="Save profile" onPress={saveProfileEdits} loading={profileSaving} disabled={profileSaving || !editDirty} />
           </View>
         )}
       </ScrollView>
+      <Toast
+        message={toast?.message ?? ''}
+        variant={toast?.variant ?? 'error'}
+        visible={!!toast}
+        onHide={() => setToast(null)}
+      />
+
+      {/* Badge picker bottom sheet */}
+      {sheetMounted && (
+        <>
+          <Animated.View
+            style={[{
+              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.4)',
+            }, backdropStyle]}
+          >
+            <Pressable style={{ flex: 1 }} onPress={closeSheet} />
+          </Animated.View>
+
+          <Animated.View style={[{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            backgroundColor: theme.colors.card,
+            borderTopLeftRadius: theme.radius.xl,
+            borderTopRightRadius: theme.radius.xl,
+            paddingTop: theme.spacing.sm,
+            paddingBottom: insets.bottom + theme.spacing.md,
+            paddingHorizontal: theme.spacing.md,
+            maxHeight: '70%',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -3 },
+            shadowOpacity: 0.12,
+            shadowRadius: 12,
+            elevation: 16,
+          }, sheetTranslateStyle]}>
+            <View style={{ alignItems: 'center', marginBottom: theme.spacing.md }}>
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: theme.colors.border }} />
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.md }}>
+              <Text style={shared.subheading}>Choose a badge for slot {pickingSlot}</Text>
+              <Pressable onPress={closeSheet} hitSlop={10}>
+                <Ionicons name="close-circle" size={24} color={theme.colors.subtext} />
+              </Pressable>
+            </View>
+
+            {badges.filter(b => b.tier > 0 && b.display_order !== pickingSlot).length === 0 ? (
+              <Text style={[shared.caption, { textAlign: 'center', paddingVertical: theme.spacing.xl }]}>
+                No earned badges available to add.
+              </Text>
+            ) : (
+              <ScrollView contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.md, paddingBottom: theme.spacing.md }}>
+                {badges.filter(b => b.tier > 0 && b.display_order !== pickingSlot).map(badge => {
+                  const def = BADGE_DEFINITIONS.find(d => d.type === badge.badge_type)
+                  if (!def) return null
+                  return (
+                    <Pressable
+                      key={badge.badge_type}
+                      onPress={() => {
+                        closeSheet()
+                        void setDisplaySlot(badge.badge_type, pickingSlot!)
+                      }}
+                      style={({ pressed }) => ({ opacity: pressed ? 0.65 : 1 })}
+                    >
+                      <BadgeIcon def={def} tier={badge.tier} size="sm" />
+                    </Pressable>
+                  )
+                })}
+              </ScrollView>
+            )}
+          </Animated.View>
+        </>
+      )}
     </View>
   )
 }

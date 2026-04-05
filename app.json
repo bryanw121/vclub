@@ -44,6 +44,12 @@
         {
           "photosPermission": "Allow vclub to access your photos to set your profile picture."
         }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow vclub to add events to your calendar."
+        }
       ]
     ]
   }

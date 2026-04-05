@@ -3,6 +3,7 @@ import type { BadgeType, CardBgType } from '../types'
 // ─── Category gradients (Discord-style: each badge type has its own palette) ──
 // Top color is used for glow; bottom for the gradient fill.
 export const BADGE_CATEGORY_GRADIENTS: Record<string, readonly [string, string]> = {
+  vex_spirit:          ['#7DBF8E', '#3D7A52'],
   event_attendee:      ['#4FC3F7', '#1565C0'],
   event_host:          ['#FF7043', '#BF360C'],
   cheers_received:     ['#FFD700', '#FF8F00'],
@@ -21,6 +22,10 @@ export const BADGE_CATEGORY_GRADIENTS: Record<string, readonly [string, string]>
 // ─── Beta flag ────────────────────────────────────────────────────────────────
 // Set to false when the beta period ends — beta_tester will no longer be granted.
 export const BETA_ACTIVE = true
+
+// ─── Vex Spirit flag ──────────────────────────────────────────────────────────
+// Keep true to award the Vex Spirit badge to all members.
+export const VEX_MEMBER_ACTIVE = true
 
 // ─── Tier color palette ───────────────────────────────────────────────────────
 export const BADGE_TIER_COLORS: Record<number, string> = {
@@ -49,6 +54,7 @@ export type BadgeStat =
   | 'beta_active'
   | 'tournament_hosted'
   | 'profile_complete'
+  | 'vex_member'
 
 // ─── Badge definitions ────────────────────────────────────────────────────────
 export type BadgeTierDef = {
@@ -60,7 +66,10 @@ export type BadgeTierDef = {
 
 export type BadgeDef = {
   type: BadgeType
-  icon: string // Ionicons name
+  /** Ionicons name — ignored when imageSource is set. */
+  icon: string
+  /** Remote image URL (Supabase Storage public URL). Renders instead of the icon when set. */
+  imageUri?: string
   description: string
   stat: BadgeStat
   tiers: BadgeTierDef[]
@@ -204,6 +213,15 @@ export const BADGE_DEFINITIONS: BadgeDef[] = [
     stat: 'profile_complete',
     tiers: [{ tier: 1, label: 'Profile Complete', threshold: 1 }],
   },
+  // ── Club mascot ──
+  {
+    type: 'vex_spirit',
+    icon: 'heart-outline',
+    imageUri: 'https://rmelsdqgrpfjzqisycdl.supabase.co/storage/v1/object/public/badges/vex.png',
+    description: 'The Vex — club mascot badge awarded to all members',
+    stat: 'vex_member',
+    tiers: [{ tier: 1, label: 'Vex Spirit', threshold: 1 }],
+  },
 ]
 
 // ─── Profile borders ──────────────────────────────────────────────────────────
@@ -273,6 +291,7 @@ export function badgeTitle(type: BadgeType): string {
     beta_tester:         'Beta Tester',
     tournament_director: 'Tournament Director',
     profile_complete:    'Profile Complete',
+    vex_spirit:          'The Vex',
   }
   return titles[type] ?? type
 }

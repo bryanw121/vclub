@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import { BADGE_DEFINITIONS, BETA_ACTIVE, badgeTierLabel } from '../constants/badges'
+import { BADGE_DEFINITIONS, BETA_ACTIVE, VEX_MEMBER_ACTIVE, badgeTierLabel } from '../constants/badges'
 import type { UserBadge, Profile } from '../types'
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
@@ -122,6 +122,9 @@ export async function checkAndAwardBadges(
     switch (def.stat) {
       case 'beta_active':
         statValue = BETA_ACTIVE ? 1 : 0
+        break
+      case 'vex_member':
+        statValue = VEX_MEMBER_ACTIVE ? 1 : 0
         break
       case 'tournament_hosted':
         statValue = stats.tournament_hosted ? 1 : 0

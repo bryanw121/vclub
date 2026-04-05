@@ -1,12 +1,21 @@
 import React, { useCallback, useState } from 'react'
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native'
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  runOnJS,
+} from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
@@ -34,12 +43,37 @@ export default function BadgesScreen() {
   const insets = useSafeAreaInsets()
   const cols = width >= 768 ? 6 : 4
 
-  const { badges, loading, fetchBadges, setDisplaySlot } = useBadges()
-  const [selecting, setSelecting] = useState(false)
+  const { badges, loading, fetchBadges } = useBadges()
   const [selectedBorder, setSelectedBorder] = useState<ProfileBorderType | null>(null)
   const [borderSaving, setBorderSaving] = useState(false)
   const [profileLoading, setProfileLoading] = useState(true)
   const [detailDef, setDetailDef] = useState<BadgeDef | null>(null)
+  const [detailMounted, setDetailMounted] = useState(false)
+  const detailProgress = useSharedValue(0)
+
+  const detailTranslateStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: (1 - detailProgress.value) * 400 }],
+  }))
+  const detailBackdropStyle = useAnimatedStyle(() => ({
+    opacity: detailProgress.value,
+  }))
+
+  function openDetail(def: BadgeDef) {
+    setDetailDef(def)
+    setDetailMounted(true)
+    detailProgress.value = 0
+    detailProgress.value = withTiming(1, { duration: 280 })
+  }
+
+  function closeDetail() {
+    detailProgress.value = withTiming(0, { duration: 220 }, (finished) => {
+      'worklet'
+      if (finished) {
+        runOnJS(setDetailMounted)(false)
+        runOnJS(setDetailDef)(null)
+      }
+    })
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -75,24 +109,7 @@ export default function BadgesScreen() {
     }
   }
 
-  async function toggleDisplay(badge: UserBadge) {
-    if (badge.display_order != null) {
-      // Already displayed — remove it
-      await setDisplaySlot(badge.badge_type, null)
-    } else {
-      // Find next free slot (1, 2, or 3)
-      const usedSlots = badges
-        .filter(b => b.display_order != null)
-        .map(b => b.display_order as number)
-      const next = [1, 2, 3].find(s => !usedSlots.includes(s))
-      if (next == null) return // all 3 slots full
-      await setDisplaySlot(badge.badge_type, next)
-    }
-  }
-
-  const displayedSlots = [1, 2, 3].map(s => badges.find(b => b.display_order === s) ?? null)
   const earnedBadges = badges.filter(b => b.tier > 0)
-  const displayedCount = badges.filter(b => b.display_order != null).length
 
   if (loading || profileLoading) {
     return (
@@ -107,74 +124,10 @@ export default function BadgesScreen() {
   return (
     <View style={shared.screen}>
       <ScrollView
-        contentContainerStyle={[shared.scrollContentSubpage, detailDef ? { paddingBottom: 260 + insets.bottom } : undefined]}>
-
-        {/* ── Displayed badges ── */}
-        <View style={shared.card}>
-          <View style={[shared.rowBetween, { marginBottom: theme.spacing.sm }]}>
-            <View>
-              <Text style={shared.subheading}>Display</Text>
-              <Text style={[shared.caption, { marginTop: 2 }]}>
-                {selecting ? 'Tap badges below to fill slots' : 'Shown on your profile'}
-              </Text>
-            </View>
-            {earnedBadges.length > 0 && (
-              <Pressable
-                onPress={() => setSelecting(s => !s)}
-                hitSlop={8}
-                style={{
-                  paddingHorizontal: theme.spacing.sm,
-                  paddingVertical: 4,
-                  borderRadius: theme.radius.full,
-                  backgroundColor: selecting ? theme.colors.primary : theme.colors.primary + '14',
-                }}
-              >
-                <Text style={{
-                  fontSize: theme.font.size.sm,
-                  fontWeight: theme.font.weight.semibold,
-                  color: selecting ? '#fff' : theme.colors.primary,
-                }}>
-                  {selecting ? 'Done' : 'Edit'}
-                </Text>
-              </Pressable>
-            )}
-          </View>
-
-          <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: theme.spacing.sm }}>
-            {displayedSlots.map((badge, i) => {
-              const def = badge ? BADGE_DEFINITIONS.find(d => d.type === badge.badge_type) : null
-              // Match the total height BadgeIcon renders: circle(68) + gap(8) + dots(10) + gap(8) + label(28) = 122
-              const SLOT_HEIGHT = 68 + 8 + 10 + 8 + 28
-              return (
-                <View key={i} style={{ alignItems: 'center', gap: theme.spacing.xs }}>
-                  <Text style={[shared.caption, { color: theme.colors.subtext }]}>Slot {i + 1}</Text>
-                  {def && badge ? (
-                    <BadgeIcon def={def} tier={badge.tier} size="lg" showLabel />
-                  ) : (
-                    <View style={{ height: SLOT_HEIGHT, alignItems: 'center', justifyContent: 'flex-start' }}>
-                      <View style={{
-                        width: 68, height: 68, borderRadius: 34,
-                        borderWidth: 2, borderColor: theme.colors.border,
-                        borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        <Ionicons name="add" size={24} color={theme.colors.subtext} />
-                      </View>
-                    </View>
-                  )}
-                </View>
-              )
-            })}
-          </View>
-
-          {displayedCount === 3 && !selecting && (
-            <Text style={[shared.caption, { textAlign: 'center', marginTop: theme.spacing.xs, color: theme.colors.subtext }]}>
-              Tap Edit to swap badges
-            </Text>
-          )}
-        </View>
+        contentContainerStyle={[shared.scrollContentSubpage, detailMounted ? { paddingBottom: 260 + insets.bottom } : undefined]}>
 
         {/* ── All badges grid ── */}
-        <View style={[shared.card, { marginTop: theme.spacing.md }]}>
+        <View style={shared.card}>
           <View style={[shared.rowBetween, { marginBottom: theme.spacing.md }]}>
             <Text style={shared.subheading}>Your Badges</Text>
             <Text style={[shared.caption, { color: theme.colors.subtext }]}>
@@ -182,40 +135,16 @@ export default function BadgesScreen() {
             </Text>
           </View>
 
-          {selecting && (
-            <View style={{
-              flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs,
-              backgroundColor: theme.colors.primary + '12',
-              borderRadius: theme.radius.sm,
-              padding: theme.spacing.sm,
-              marginBottom: theme.spacing.md,
-            }}>
-              <Ionicons name="information-circle-outline" size={16} color={theme.colors.primary} />
-              <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, flex: 1 }}>
-                Tap an earned badge to add or remove it from your display slots.{displayedCount === 3 ? ' All slots full — remove one first.' : ''}
-              </Text>
-            </View>
-          )}
-
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
             {BADGE_DEFINITIONS.map(def => {
               const badge = badges.find(b => b.badge_type === def.type)
-              const isDisplayed = badge?.display_order != null
-              const isEarned = (badge?.tier ?? 0) > 0
-              const allSlotsFull = displayedCount >= 3
               const isSelected = detailDef?.type === def.type
-
               return (
                 <Pressable
                   key={def.type}
                   onPress={() => {
-                    if (selecting) {
-                      if (!isEarned) return
-                      if (!isDisplayed && allSlotsFull) return
-                      void toggleDisplay(badge!)
-                    } else {
-                      setDetailDef(prev => prev?.type === def.type ? null : def)
-                    }
+                    if (isSelected) { closeDetail(); return }
+                    openDetail(def)
                   }}
                   style={({ pressed }) => ({
                     width: `${100 / cols}%` as any,
@@ -228,13 +157,7 @@ export default function BadgesScreen() {
                     borderRadius: theme.radius.md,
                   })}
                 >
-                  <BadgeIcon
-                    def={def}
-                    tier={badge?.tier}
-                    size="sm"
-                    showLabel
-                    slotNumber={isDisplayed ? badge!.display_order! : undefined}
-                  />
+                  <BadgeIcon def={def} tier={badge?.tier} size="sm" showLabel />
                 </Pressable>
               )
             })}
@@ -278,23 +201,32 @@ export default function BadgesScreen() {
 
       </ScrollView>
 
-      {/* ── Badge detail panel + backdrop ── */}
-      {detailDef && (
-        <>
+      {/* ── Badge detail panel + backdrop (Modal covers header + tab bar) ── */}
+      <Modal
+        visible={detailMounted && !!detailDef}
+        transparent
+        animationType="none"
+        statusBarTranslucent
+        onRequestClose={closeDetail}
+      >
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.4)' }, detailBackdropStyle]}>
           <Pressable
-            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-            onPress={() => setDetailDef(null)}
+            style={{ flex: 1 }}
+            onPress={closeDetail}
             accessibilityRole="button"
             accessibilityLabel="Close badge details"
           />
+        </Animated.View>
+        {detailDef && (
           <BadgeDetailPanel
             def={detailDef}
             badge={detailBadge ?? null}
-            onClose={() => setDetailDef(null)}
+            onClose={closeDetail}
             bottomInset={insets.bottom}
+            animStyle={detailTranslateStyle}
           />
-        </>
-      )}
+        )}
+      </Modal>
     </View>
   )
 }
@@ -306,9 +238,10 @@ type BadgeDetailPanelProps = {
   badge: UserBadge | null
   onClose: () => void
   bottomInset: number
+  animStyle: ReturnType<typeof useAnimatedStyle>
 }
 
-function BadgeDetailPanel({ def, badge, onClose, bottomInset }: BadgeDetailPanelProps) {
+function BadgeDetailPanel({ def, badge, onClose, bottomInset, animStyle }: BadgeDetailPanelProps) {
   const earnedTier = badge?.tier ?? 0
   const [topColor] = BADGE_CATEGORY_GRADIENTS[def.type] ?? ['#888', '#444']
   const isSingleTier = def.tiers.length === 1
@@ -328,7 +261,7 @@ function BadgeDetailPanel({ def, badge, onClose, bottomInset }: BadgeDetailPanel
   const unit = statUnit[def.stat]
 
   return (
-    <View style={{
+    <Animated.View style={[{
       position: 'absolute', bottom: 0, left: 0, right: 0,
       backgroundColor: theme.colors.card,
       borderTopLeftRadius: theme.radius.lg,
@@ -336,13 +269,12 @@ function BadgeDetailPanel({ def, badge, onClose, bottomInset }: BadgeDetailPanel
       paddingTop: theme.spacing.sm,
       paddingBottom: bottomInset + theme.spacing.md,
       paddingHorizontal: theme.spacing.md,
-      // Shadow above the panel
       shadowColor: '#000',
       shadowOffset: { width: 0, height: -3 },
       shadowOpacity: 0.12,
       shadowRadius: 12,
       elevation: 16,
-    }}>
+    }, animStyle]}>
       {/* Handle */}
       <View style={{ alignItems: 'center', marginBottom: theme.spacing.sm }}>
         <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: theme.colors.border }} />
@@ -422,7 +354,7 @@ function BadgeDetailPanel({ def, badge, onClose, bottomInset }: BadgeDetailPanel
           })}
         </View>
       )}
-    </View>
+    </Animated.View>
   )
 }
 

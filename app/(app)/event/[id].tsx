@@ -8,12 +8,15 @@ import * as Linking from 'expo-linking'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
 import { Button } from '../../../components/Button'
+import { ProfileAvatar } from '../../../components/ProfileAvatar'
 import { Input } from '../../../components/Input'
 import { EventCommentRow } from '../../../components/EventCommentRow'
 import { Pager } from '../../../components/Pager'
-import { shared, theme, formatEventDate, CHEER_TYPES, CHEERS_MAX_PER_EVENT } from '../../../constants'
+import * as Calendar from 'expo-calendar'
+import { shared, theme, formatEventDate, CHEER_TYPES, CHEERS_MAX_PER_EVENT, LOCATIONS } from '../../../constants'
 import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, CheerType, Cheer } from '../../../types'
 import { profileDisplayName, profileInitial, resolveProfileAvatarUriWithError, eventAttendeeRows, normalizeVolleyballPositions } from '../../../utils'
+import { LinkedText } from '../../../components/LinkedText'
 
 const EVENT_COMMENT_MAX_LEN = 2000
 
@@ -32,6 +35,63 @@ function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} min`
   const h = minutes / 60
   return Number.isInteger(h) ? `${h}h` : `${h}h`
+}
+
+function openInMaps(address: string) {
+  const encoded = encodeURIComponent(address)
+  if (Platform.OS === 'ios') {
+    // Try Apple Maps first; always works on iOS
+    void Linking.openURL(`maps:?q=${encoded}`)
+  } else if (Platform.OS === 'android') {
+    void Linking.openURL(`geo:0,0?q=${encoded}`)
+  } else {
+    void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encoded}`)
+  }
+}
+
+async function addToCalendar(title: string, startIso: string, durationMinutes: number, address?: string) {
+  const normalized = /[Z+]/.test(startIso) ? startIso : startIso + 'Z'
+  const startDate = new Date(normalized)
+  const endDate = new Date(startDate.getTime() + durationMinutes * 60_000)
+
+  if (Platform.OS === 'web') {
+    const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+    const params = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: title,
+      dates: `${fmt(startDate)}/${fmt(endDate)}`,
+      ...(address ? { location: address } : {}),
+    })
+    window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, '_blank', 'noopener,noreferrer')
+    return
+  }
+
+  const { status } = await Calendar.requestCalendarPermissionsAsync()
+  if (status !== 'granted') {
+    Alert.alert('Permission required', 'Please allow calendar access in Settings to add this event.')
+    return
+  }
+
+  const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT)
+  // Prefer the default calendar; fall back to the first writable one
+  const defaultCal =
+    calendars.find(c => c.allowsModifications && (c as any).isDefault) ??
+    calendars.find(c => c.allowsModifications)
+
+  if (!defaultCal) {
+    Alert.alert('No calendar found', 'Could not find a writable calendar on this device.')
+    return
+  }
+
+  await Calendar.createEventAsync(defaultCal.id, {
+    title,
+    startDate,
+    endDate,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    ...(address ? { location: address } : {}),
+  })
+
+  Alert.alert('Added to calendar', `"${title}" has been added to your calendar.`)
 }
 
 type CheerPersonCardProps = {
@@ -89,6 +149,39 @@ function CheerPersonCard({ profile, hasGiven, disabled, teamColor, onPress }: Ch
         {displayName}
       </Text>
       {hasGiven && <Ionicons name="checkmark-circle" size={16} color={activeColor} />}
+    </TouchableOpacity>
+  )
+}
+
+function HostCard({ profile, isOwner, onPress }: { profile: Profile; isOwner: boolean; onPress: () => void }) {
+  const [avatarUri, setAvatarUri] = useState<string | null>(null)
+  useEffect(() => {
+    if (!profile.avatar_url) return
+    let cancelled = false
+    resolveProfileAvatarUriWithError(profile.avatar_url).then(({ uri }) => {
+      if (!cancelled) setAvatarUri(uri)
+    })
+    return () => { cancelled = true }
+  }, [profile.avatar_url])
+
+  const initials = profileInitial(profile)
+  const displayName = profileDisplayName(profile)
+
+  return (
+    <TouchableOpacity
+      style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }]}
+      onPress={onPress}
+      activeOpacity={isOwner ? 1 : 0.7}
+      disabled={isOwner}
+    >
+      <View style={[styles.avatar, { borderColor: theme.colors.border, backgroundColor: theme.colors.background, borderWidth: 1.5, overflow: 'hidden' }]}>
+        {avatarUri
+          ? <Image source={{ uri: avatarUri }} style={{ width: 40, height: 40 }} resizeMode="cover" />
+          : <Text style={[styles.avatarInitial, { color: theme.colors.subtext }]}>{initials}</Text>
+        }
+      </View>
+      <Text style={shared.body}>{displayName}</Text>
+      {!isOwner && <Ionicons name="chevron-forward" size={16} color={theme.colors.subtext} style={{ marginLeft: 'auto' }} />}
     </TouchableOpacity>
   )
 }
@@ -253,6 +346,15 @@ type DraggableCardProps = {
 function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStart, onDragMove, onDragEnd, onRemove, onTogglePin }: DraggableCardProps) {
   const scale = useSharedValue(1)
   const opacity = useSharedValue(1)
+  const [avatarUri, setAvatarUri] = useState<string | null>(null)
+  useEffect(() => {
+    if (!profile.avatar_url) return
+    let cancelled = false
+    resolveProfileAvatarUriWithError(profile.avatar_url).then(({ uri }) => {
+      if (!cancelled) setAvatarUri(uri)
+    })
+    return () => { cancelled = true }
+  }, [profile.avatar_url])
 
   // Stable wrappers so the gesture closure never captures stale callbacks
   const cbRef = useRef({ onDragStart, onDragMove, onDragEnd, onTogglePin })
@@ -311,16 +413,18 @@ function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStar
         <Animated.View style={[{ flex: 1, minWidth: 0 }, animStyle]}>
           <GestureDetector gesture={tapGesture}>
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-              <View style={[
-                styles.avatar,
-                {
-                  borderColor: teamColor ?? theme.colors.border,
-                  backgroundColor: teamColor ? teamColor + '18' : theme.colors.background,
-                  borderWidth: teamColor ? 2 : 1.5,
-                }
-              ]}>
-                <Text style={[styles.avatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{playerInitial(profile)}</Text>
-              </View>
+              {teamColor ? (
+                // Team assigned — show team color ring, avatar inside
+                <View style={[styles.avatar, { borderColor: teamColor, backgroundColor: teamColor + '18', borderWidth: 2, overflow: 'hidden' }]}>
+                  {avatarUri
+                    ? <Image source={{ uri: avatarUri }} style={{ width: 40, height: 40 }} resizeMode="cover" />
+                    : <Text style={[styles.avatarInitial, { color: teamColor }]}>{playerInitial(profile)}</Text>
+                  }
+                </View>
+              ) : (
+                // No team — show profile border
+                <ProfileAvatar uri={avatarUri} border={profile.selected_border ?? null} size={34} />
+              )}
               <View style={{ flex: 1 }}>
                 <Text style={styles.playerName} numberOfLines={1}>{playerDisplayName(profile)}</Text>
               </View>
@@ -710,6 +814,7 @@ export default function EventDetail() {
       first_name: p.first_name,
       last_name: p.last_name,
       avatar_url: p.avatar_url,
+      selected_border: (p as any).selected_border ?? null,
       position: normalizeVolleyballPositions(p.position),
       created_at: '',
     }
@@ -725,7 +830,7 @@ export default function EventDetail() {
       const { data, error } = await supabase
         .from('events')
         .select(
-          `*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees (event_id, user_id, joined_at, team_number, team_pinned, status, profiles!event_attendees_user_id_fkey (id, username, first_name, last_name, avatar_url, position)), event_tags (tag_id, tags (id, name, category, display_order))`,
+          `*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url, selected_border), event_attendees (event_id, user_id, joined_at, team_number, team_pinned, status, profiles!event_attendees_user_id_fkey (id, username, first_name, last_name, avatar_url, position, selected_border)), event_tags (tag_id, tags (id, name, category, display_order))`,
         )
         .eq('id', fetchId)
         .single()
@@ -1530,24 +1635,109 @@ export default function EventDetail() {
           >
             {/* Tab 0: Description */}
             <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
-              <Text style={[shared.primaryText, shared.mb_xs]}>{formatEventDate(event.event_date, 'long')}</Text>
-              <Text style={[shared.caption, shared.mb_xs]}>
-                Ends {formatEndTime(event.event_date, event.duration_minutes ?? 120)} · {formatDuration(event.duration_minutes ?? 120)}
-              </Text>
-              {event.location && <Text style={[shared.caption, shared.mb_xs]}>{event.location}</Text>}
-              {(event.event_tags?.length ?? 0) > 0 && (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: theme.spacing.sm }}>
-                  {[...(event.event_tags ?? [])].sort((a, b) => a.tags.display_order - b.tags.display_order).map(et => (
-                    <View key={et.tag_id} style={shared.tag}>
-                      <Text style={shared.tagText}>{et.tags.name}</Text>
-                    </View>
-                  ))}
+
+              {/* ── Info rows ── */}
+              <View style={[shared.card, { gap: 0, marginBottom: theme.spacing.md }]}>
+
+                {/* Date / time row */}
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
+                  <View style={{ width: 22, alignItems: 'center', paddingTop: 2 }}>
+                    <Ionicons name="calendar-outline" size={20} color={theme.colors.subtext} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
+                      {formatEventDate(event.event_date, 'long')}
+                    </Text>
+                    <Text style={[shared.caption, { marginTop: 2 }]}>
+                      {formatDuration(event.duration_minutes ?? 120)} · ends {formatEndTime(event.event_date, event.duration_minutes ?? 120)}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => void addToCalendar(
+                        event.title,
+                        event.event_date,
+                        event.duration_minutes ?? 120,
+                        LOCATIONS.find(l => l.id === event.location)?.address,
+                      )}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      style={{ marginTop: theme.spacing.xs }}
+                    >
+                      <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
+                        Add to calendar
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              )}
-              {event.description
-                ? <Text style={[shared.body, shared.mb_lg]}>{event.description}</Text>
-                : <Text style={[shared.caption, shared.mb_lg]}>No description provided.</Text>
-              }
+
+                {/* Location row */}
+                {(() => {
+                  const venue = event.location ? LOCATIONS.find(l => l.id === event.location) : null
+                  const address = venue?.address
+                  if (!event.location) return null
+                  return (
+                    <>
+                      <View style={{ height: 1, backgroundColor: theme.colors.border }} />
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
+                        <View style={{ width: 22, alignItems: 'center', paddingTop: 2 }}>
+                          <Ionicons name="location-outline" size={20} color={theme.colors.subtext} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
+                            {venue ? venue.label : event.location}
+                          </Text>
+                          {address && (
+                            <Text style={[shared.caption, { marginTop: 2 }]}>{address}</Text>
+                          )}
+                          {address && (
+                            <TouchableOpacity
+                              onPress={() => openInMaps(address)}
+                              hitSlop={8}
+                              accessibilityRole="link"
+                              style={{ marginTop: theme.spacing.xs }}
+                            >
+                              <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
+                                Show in Maps
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    </>
+                  )
+                })()}
+
+                {/* Tags row */}
+                {(event.event_tags?.length ?? 0) > 0 && (
+                  <>
+                    <View style={{ height: 1, backgroundColor: theme.colors.border }} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
+                      <View style={{ width: 22, alignItems: 'center' }}>
+                        <Ionicons name="pricetag-outline" size={20} color={theme.colors.subtext} />
+                      </View>
+                      <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                        {[...(event.event_tags ?? [])].sort((a, b) => a.tags.display_order - b.tags.display_order).map(et => (
+                          <View key={et.tag_id} style={shared.tag}>
+                            <Text style={shared.tagText}>{et.tags.name}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  </>
+                )}
+
+                {/* Description row */}
+                {event.description ? (
+                  <>
+                    <View style={{ height: 1, backgroundColor: theme.colors.border }} />
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
+                      <View style={{ width: 22, alignItems: 'center', paddingTop: 2 }}>
+                        <Ionicons name="document-text-outline" size={20} color={theme.colors.subtext} />
+                      </View>
+                      <LinkedText text={event.description} style={{ flex: 1, fontSize: theme.font.size.sm, color: theme.colors.text, lineHeight: 20 }} />
+                    </View>
+                  </>
+                ) : null}
+              </View>
 
               {/* Join / Leave / Waitlist */}
               <View style={[shared.mb_lg, { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm }]}>
@@ -1589,16 +1779,17 @@ export default function EventDetail() {
               </View>
 
               {/* Host */}
-              <View style={shared.divider} />
-              <Text style={[shared.subheading, shared.mb_sm]}>Host</Text>
-              <TouchableOpacity
-                style={[shared.card, shared.mb_lg]}
-                onPress={() => !isOwner && event.profiles && router.push(`/profile/${event.profiles.id}` as any)}
-                activeOpacity={isOwner ? 1 : 0.7}
-                disabled={isOwner}
-              >
-                <Text style={shared.body}>{event.profiles ? profileDisplayName(event.profiles) : ''}</Text>
-              </TouchableOpacity>
+              {event.profiles && (
+                <>
+                  <View style={shared.divider} />
+                  <Text style={[shared.subheading, shared.mb_sm]}>Host</Text>
+                  <HostCard
+                    profile={event.profiles as Profile}
+                    isOwner={isOwner}
+                    onPress={() => !isOwner && event.profiles && router.push(`/profile/${event.profiles.id}` as any)}
+                  />
+                </>
+              )}
             </ScrollView>
 
             {/* Tab 1: People */}
