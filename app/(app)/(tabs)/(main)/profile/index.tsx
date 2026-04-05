@@ -702,7 +702,11 @@ export default function MyProfile() {
             </View>
 
             <View style={shared.mt_md} />
+<<<<<<< HEAD
             <Button label="Save profile" onPress={saveProfileEdits} loading={profileSaving} disabled={profileSaving || !editDirty} />
+=======
+            <Button label="Save profile" onPress={saveProfileEdits} loading={profileSaving} disabled={profileSaving} />
+>>>>>>> 8248a6f (Added a lot of aesthetic changes and added vex badge)
           </View>
         )}
       </ScrollView>
