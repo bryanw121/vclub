@@ -25,7 +25,6 @@ export function useStackBackTitle(screenTitle: string) {
       headerLeft: (props: HeaderBackButtonProps) => (
         <HeaderBackButton
           {...props}
-          canGoBack         // always render — we handle the action ourselves
           displayMode="minimal"
           tintColor={props.tintColor ?? theme.colors.primary}
           onPress={() => {
