@@ -1,4 +1,4 @@
-import { Text, Pressable } from 'react-native'
+import { Platform, Text, Pressable } from 'react-native'
 import * as Linking from 'expo-linking'
 import { theme } from '../constants/theme'
 
@@ -22,7 +22,13 @@ export function LinkedText({ text, style }: Props) {
             <Text
               key={i}
               style={{ color: theme.colors.primary, textDecorationLine: 'underline' }}
-              onPress={() => void Linking.openURL(part)}
+              onPress={() => {
+                if (Platform.OS === 'web') {
+                  window.open(part, '_blank', 'noopener,noreferrer')
+                } else {
+                  void Linking.openURL(part)
+                }
+              }}
               accessibilityRole="link"
             >
               {part}

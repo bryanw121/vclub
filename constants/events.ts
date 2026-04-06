@@ -6,7 +6,7 @@ export type VenueLocation = { id: string; label: string; address?: string }
 export const LOCATIONS: VenueLocation[] = [
   { id: 'roots',       label: 'Roots',       address: '15407 Long Vista Dr Suite 100, Austin, TX 78728'          },
   { id: 'volleyworld', label: 'VolleyWorld',  address: '21419 Martin Ln Suite 240, Pflugerville, TX 78660'        },
-  { id: 'crossover',  label: 'CrossOver',   address: '1717 Scottsdale Dr, Leander, TX 78641'                    },
+  { id: 'crossover',  label: 'Crossover',   address: '1717 Scottsdale Dr, Leander, TX 78641'                    },
   { id: 'other',      label: 'Other'                                                                             },
 ]
 

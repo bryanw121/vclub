@@ -35,12 +35,12 @@ export default function Register() {
       const normalizedUsername = username.toLowerCase().trim()
       const normalizedEmail = email.toLowerCase().trim()
 
-      // Check username availability first (highest priority error)
+      // Check username availability
       const { data: existingUsername } = await supabase
         .from('profiles')
         .select('id')
         .ilike('username', normalizedUsername)
-        .single()
+        .maybeSingle()
 
       if (existingUsername) {
         setErrors({ username: 'Username already taken' })
@@ -54,11 +54,19 @@ export default function Register() {
       })
 
       if (error) {
-        if (error.message.toLowerCase().includes('already')) {
-          setErrors({ email: 'Email already in use' })
+        const msg = error.message.toLowerCase()
+        if (msg.includes('already') || msg.includes('registered') || (error as any).code === 'user_already_exists') {
+          setErrors({ email: 'An account with this email already exists' })
         } else {
           setErrors({ password: error.message })
         }
+        return
+      }
+
+      // When email confirmation is on, Supabase silently returns a user with no
+      // identities instead of erroring (prevents email enumeration). Detect it here.
+      if (data.user && (data.user.identities?.length ?? 0) === 0) {
+        setErrors({ email: 'An account with this email already exists' })
         return
       }
 

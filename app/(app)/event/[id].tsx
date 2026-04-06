@@ -40,12 +40,11 @@ function formatDuration(minutes: number): string {
 function openInMaps(address: string) {
   const encoded = encodeURIComponent(address)
   if (Platform.OS === 'ios') {
-    // Try Apple Maps first; always works on iOS
     void Linking.openURL(`maps:?q=${encoded}`)
   } else if (Platform.OS === 'android') {
     void Linking.openURL(`geo:0,0?q=${encoded}`)
   } else {
-    void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encoded}`)
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encoded}`, '_blank', 'noopener,noreferrer')
   }
 }
 
@@ -153,7 +152,7 @@ function CheerPersonCard({ profile, hasGiven, disabled, teamColor, onPress }: Ch
   )
 }
 
-function HostCard({ profile, isOwner, onPress }: { profile: Profile; isOwner: boolean; onPress: () => void }) {
+function HostCard({ profile, isOwner, onPress, inline = false }: { profile: Profile; isOwner: boolean; onPress: () => void; inline?: boolean }) {
   const [avatarUri, setAvatarUri] = useState<string | null>(null)
   useEffect(() => {
     if (!profile.avatar_url) return
@@ -164,19 +163,21 @@ function HostCard({ profile, isOwner, onPress }: { profile: Profile; isOwner: bo
     return () => { cancelled = true }
   }, [profile.avatar_url])
 
-  const initials = profileInitial(profile)
   const displayName = profileDisplayName(profile)
 
   return (
     <TouchableOpacity
-      style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }]}
+      style={inline
+        ? { flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }
+        : [shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }]
+      }
       onPress={onPress}
       activeOpacity={isOwner ? 1 : 0.7}
       disabled={isOwner}
     >
-      <ProfileAvatar uri={avatarUri} border={profile.selected_border ?? null} size={40} />
-      <Text style={shared.body}>{displayName}</Text>
-      {!isOwner && <Ionicons name="chevron-forward" size={16} color={theme.colors.subtext} style={{ marginLeft: 'auto' }} />}
+      <ProfileAvatar uri={avatarUri} border={profile.selected_border ?? null} size={inline ? 32 : 40} />
+      <Text style={[shared.body, { flex: 1 }]}>{displayName}</Text>
+      {!isOwner && !inline && <Ionicons name="chevron-forward" size={16} color={theme.colors.subtext} style={{ marginLeft: 'auto' }} />}
     </TouchableOpacity>
   )
 }
@@ -601,6 +602,7 @@ export default function EventDetail() {
   const [savingTeams, setSavingTeams] = useState(false)
 
   const [activeTab, setActiveTab] = useState(0)
+  const [descFooterHeight, setDescFooterHeight] = useState(80)
   const innerPagerBlocked = useRef(false)
 
   const [myCheersGiven, setMyCheersGiven] = useState<Cheer[]>([])
@@ -1727,7 +1729,7 @@ export default function EventDetail() {
             {/* Tab 0: Description */}
             <ScrollView
               style={shared.screen}
-              contentContainerStyle={shared.scrollContent}
+              contentContainerStyle={[shared.scrollContent, { paddingBottom: descFooterHeight + Math.max(insets.bottom, theme.spacing.md) }]}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
             >
 
@@ -1765,10 +1767,10 @@ export default function EventDetail() {
                 </View>
 
                 {/* Location row */}
-                {(() => {
-                  const venue = event.location ? LOCATIONS.find(l => l.id === event.location) : null
+                {event.location ? (() => {
+                  const venue = LOCATIONS.find(l => l.label === event.location || l.id === event.location)
                   const address = venue?.address
-                  if (!event.location) return null
+                  const mapsQuery = venue && address ? `${venue.label} ${address}` : address ?? event.location
                   return (
                     <>
                       <View style={{ height: 1, backgroundColor: theme.colors.border }} />
@@ -1781,25 +1783,23 @@ export default function EventDetail() {
                             {venue ? venue.label : event.location}
                           </Text>
                           {address && (
-                            <Text style={[shared.caption, { marginTop: 2 }]}>{address}</Text>
+                            <Text selectable style={[shared.caption, { marginTop: 2 }]}>{address}</Text>
                           )}
-                          {address && (
-                            <TouchableOpacity
-                              onPress={() => openInMaps(address)}
-                              hitSlop={8}
-                              accessibilityRole="link"
-                              style={{ marginTop: theme.spacing.xs }}
-                            >
-                              <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
-                                Show in Maps
-                              </Text>
-                            </TouchableOpacity>
-                          )}
+                          <TouchableOpacity
+                            onPress={() => openInMaps(mapsQuery)}
+                            hitSlop={8}
+                            accessibilityRole="link"
+                            style={{ marginTop: theme.spacing.xs }}
+                          >
+                            <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
+                              Show in Maps
+                            </Text>
+                          </TouchableOpacity>
                         </View>
                       </View>
                     </>
                   )
-                })()}
+                })() : null}
 
                 {/* Tags row */}
                 {(event.event_tags?.length ?? 0) > 0 && (
@@ -1820,6 +1820,24 @@ export default function EventDetail() {
                   </>
                 )}
 
+                {/* Host row */}
+                {event.profiles && (
+                  <>
+                    <View style={{ height: 1, backgroundColor: theme.colors.border }} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
+                      <View style={{ width: 22, alignItems: 'center' }}>
+                        <Ionicons name="person-outline" size={20} color={theme.colors.subtext} />
+                      </View>
+                      <HostCard
+                        profile={event.profiles as Profile}
+                        isOwner={isOwner}
+                        onPress={() => !isOwner && event.profiles && router.push(`/profile/${event.profiles.id}` as any)}
+                        inline
+                      />
+                    </View>
+                  </>
+                )}
+
                 {/* Description row */}
                 {event.description ? (
                   <>
@@ -1834,57 +1852,6 @@ export default function EventDetail() {
                 ) : null}
               </View>
 
-              {/* Join / Leave / Waitlist */}
-              <View style={[shared.mb_lg, { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm }]}>
-                <View style={{ flex: 1 }}>
-                  {eventStatus.isAttending ? (
-                    <Button label="Leave event" onPress={() => handleToggleAttendance('leave')} loading={joining} variant="secondary" />
-                  ) : eventStatus.isWaitlisted ? (
-                    <View style={{ gap: theme.spacing.xs }}>
-                      <Button label="Leave Waitlist" onPress={handleLeaveWaitlist} loading={joining} variant="secondary" />
-                      <Text style={[shared.caption, { textAlign: 'center' }]}>
-                        You are #{eventStatus.waitlistPosition} on the waitlist
-                      </Text>
-                    </View>
-                  ) : eventStatus.isFull ? (
-                    <Button label="Join Waitlist" onPress={handleJoinWaitlist} loading={joining} />
-                  ) : (
-                    <Button label="Join event" onPress={() => handleToggleAttendance('join')} loading={joining} />
-                  )}
-                </View>
-                {(eventStatus.isAttending || eventStatus.isOwner) && (
-                  <TouchableOpacity
-                    onPress={() => setGuestModalVisible(true)}
-                    hitSlop={8}
-                    accessibilityLabel="Add a +1 guest"
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: theme.radius.md,
-                      borderWidth: 1,
-                      borderColor: theme.colors.border,
-                      backgroundColor: theme.colors.card,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Ionicons name="person-add-outline" size={20} color={theme.colors.primary} />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Host */}
-              {event.profiles && (
-                <>
-                  <View style={shared.divider} />
-                  <Text style={[shared.subheading, shared.mb_sm]}>Host</Text>
-                  <HostCard
-                    profile={event.profiles as Profile}
-                    isOwner={isOwner}
-                    onPress={() => !isOwner && event.profiles && router.push(`/profile/${event.profiles.id}` as any)}
-                  />
-                </>
-              )}
             </ScrollView>
 
             {/* Tab 1: People */}
@@ -2119,7 +2086,9 @@ export default function EventDetail() {
                     <ActivityIndicator color={theme.colors.primary} />
                   </View>
                 ) : comments.length === 0 ? (
-                  <Text style={shared.caption}>No messages yet. Be the first to comment.</Text>
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={shared.caption}>No messages yet. Be the first to comment.</Text>
+                  </View>
                 ) : (
                   <View style={{ gap: theme.spacing.xs }}>
                     {comments.map(c => (
@@ -2388,6 +2357,60 @@ export default function EventDetail() {
               )}
             </View>
           </Pager>
+
+          {/* Sticky footer — join/leave/waitlist/+1, only shown on Description tab */}
+          {activeTab === 0 && (
+            <View
+              onLayout={e => setDescFooterHeight(e.nativeEvent.layout.height)}
+              style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0,
+                paddingHorizontal: theme.spacing.lg,
+                paddingTop: theme.spacing.sm,
+                paddingBottom: Math.max(insets.bottom, theme.spacing.md),
+                backgroundColor: theme.colors.background,
+                borderTopWidth: 1,
+                borderTopColor: theme.colors.border,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm }}>
+                <View style={{ flex: 1 }}>
+                  {eventStatus.isAttending ? (
+                    <Button label="Leave event" onPress={() => handleToggleAttendance('leave')} loading={joining} variant="secondary" />
+                  ) : eventStatus.isWaitlisted ? (
+                    <View style={{ gap: theme.spacing.xs }}>
+                      <Button label="Leave Waitlist" onPress={handleLeaveWaitlist} loading={joining} variant="secondary" />
+                      <Text style={[shared.caption, { textAlign: 'center' }]}>
+                        You are #{eventStatus.waitlistPosition} on the waitlist
+                      </Text>
+                    </View>
+                  ) : eventStatus.isFull ? (
+                    <Button label="Join Waitlist" onPress={handleJoinWaitlist} loading={joining} />
+                  ) : (
+                    <Button label="Join event" onPress={() => handleToggleAttendance('join')} loading={joining} />
+                  )}
+                </View>
+                {(eventStatus.isAttending || eventStatus.isOwner) && (
+                  <TouchableOpacity
+                    onPress={() => setGuestModalVisible(true)}
+                    hitSlop={8}
+                    accessibilityLabel="Add a +1 guest"
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: theme.radius.md,
+                      borderWidth: 1,
+                      borderColor: theme.colors.border,
+                      backgroundColor: theme.colors.card,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Ionicons name="person-add-outline" size={20} color={theme.colors.primary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
         </>
       )}
 
