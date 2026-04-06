@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { theme, shared } from '../constants'
 import type { EventCommentWithAuthor } from '../types'
-import { resolveProfileAvatarUriWithError, profileDisplayName } from '../utils'
+import { resolveProfileAvatarUriSmall, profileDisplayName } from '../utils'
 import { ProfileAvatar } from './ProfileAvatar'
 
 function formatCommentTime(iso: string): string {
@@ -28,7 +28,7 @@ export function EventCommentRow({ comment }: Props) {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const { uri } = await resolveProfileAvatarUriWithError(p?.avatar_url)
+      const { uri } = await resolveProfileAvatarUriSmall(p?.avatar_url)
       if (!cancelled) setAvatarUri(uri)
     })()
     return () => { cancelled = true }

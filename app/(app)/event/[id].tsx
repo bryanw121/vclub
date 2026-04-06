@@ -15,7 +15,7 @@ import { Pager } from '../../../components/Pager'
 import * as Calendar from 'expo-calendar'
 import { shared, theme, formatEventDate, CHEER_TYPES, CHEERS_MAX_PER_EVENT, LOCATIONS } from '../../../constants'
 import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, CheerType, Cheer } from '../../../types'
-import { profileDisplayName, profileInitial, resolveProfileAvatarUriWithError, eventAttendeeRows, normalizeVolleyballPositions } from '../../../utils'
+import { profileDisplayName, profileInitial, resolveProfileAvatarUriWithError, resolveProfileAvatarUriSmall, eventAttendeeRows, normalizeVolleyballPositions } from '../../../utils'
 import { LinkedText } from '../../../components/LinkedText'
 
 const EVENT_COMMENT_MAX_LEN = 2000
@@ -106,7 +106,7 @@ function CheerPersonCard({ profile, hasGiven, disabled, teamColor, onPress }: Ch
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const { uri } = await resolveProfileAvatarUriWithError(profile.avatar_url)
+      const { uri } = await resolveProfileAvatarUriSmall(profile.avatar_url)
       if (!cancelled) setAvatarUri(uri)
     })()
     return () => { cancelled = true }
@@ -157,7 +157,7 @@ function HostCard({ profile, isOwner, onPress, inline = false }: { profile: Prof
   useEffect(() => {
     if (!profile.avatar_url) return
     let cancelled = false
-    resolveProfileAvatarUriWithError(profile.avatar_url).then(({ uri }) => {
+    resolveProfileAvatarUriSmall(profile.avatar_url).then(({ uri }) => {
       if (!cancelled) setAvatarUri(uri)
     })
     return () => { cancelled = true }
@@ -346,7 +346,7 @@ function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStar
   useEffect(() => {
     if (!profile.avatar_url) return
     let cancelled = false
-    resolveProfileAvatarUriWithError(profile.avatar_url).then(({ uri }) => {
+    resolveProfileAvatarUriSmall(profile.avatar_url).then(({ uri }) => {
       if (!cancelled) setAvatarUri(uri)
     })
     return () => { cancelled = true }

@@ -134,10 +134,13 @@ export function profileAvatarFieldIsHttpUrl(ref: string | null | undefined): boo
 
 type CacheEntry = { uri: string; expiresAt: number }
 
+type TransformOptions = { width?: number; height?: number; quality?: number; resize?: 'cover' | 'contain' | 'fill' }
+
 function makeSignedUrlResolver(
   bucket: string,
   ttlSec: number,
   earlyExpirySec = 3600,
+  transform?: TransformOptions,
 ) {
   const cache = new Map<string, CacheEntry>()
   const inFlight = new Map<string, Promise<string | null>>()
@@ -150,7 +153,9 @@ function makeSignedUrlResolver(
     if (pending) return pending
 
     const promise = (async () => {
-      const { data } = await supabase.storage.from(bucket).createSignedUrl(path, ttlSec)
+      const { data } = await supabase.storage.from(bucket).createSignedUrl(
+        path, ttlSec, transform ? { transform } : undefined,
+      )
       inFlight.delete(path)
       if (!data?.signedUrl) return null
       cache.set(path, { uri: data.signedUrl, expiresAt: Date.now() + (ttlSec - earlyExpirySec) * 1000 })
@@ -162,8 +167,9 @@ function makeSignedUrlResolver(
   }
 }
 
-const _resolveProfilePath = makeSignedUrlResolver(AVATARS_BUCKET, AVATAR_SIGNED_URL_TTL_SEC)
-const _resolveClubPath    = makeSignedUrlResolver(CLUB_AVATARS_BUCKET, 3600, 300)
+const _resolveProfilePath      = makeSignedUrlResolver(AVATARS_BUCKET, AVATAR_SIGNED_URL_TTL_SEC)
+const _resolveProfilePathSmall = makeSignedUrlResolver(AVATARS_BUCKET, AVATAR_SIGNED_URL_TTL_SEC, 3600, { width: 80, height: 80, quality: 70, resize: 'cover' })
+const _resolveClubPath         = makeSignedUrlResolver(CLUB_AVATARS_BUCKET, 3600, 300)
 
 /** Resolves `avatar_url` to an `Image` URI (signed URL for storage paths, HTTP URLs returned as-is). */
 export async function resolveProfileAvatarUri(ref: string | null | undefined): Promise<string | null> {
@@ -180,6 +186,22 @@ export async function resolveProfileAvatarUriWithError(
   if (profileAvatarFieldIsHttpUrl(trimmed)) return { uri: trimmed, error: null }
   try {
     const uri = await _resolveProfilePath(trimmed)
+    if (!uri) return { uri: null, error: 'No signed URL returned' }
+    return { uri, error: null }
+  } catch (e: any) {
+    return { uri: null, error: e?.message ?? 'Unknown error' }
+  }
+}
+
+/** Resolves `avatar_url` to a compressed 80×80 URI — use for small avatars in lists and cards. */
+export async function resolveProfileAvatarUriSmall(
+  ref: string | null | undefined,
+): Promise<{ uri: string | null; error: string | null }> {
+  if (ref == null || ref === '') return { uri: null, error: null }
+  const trimmed = ref.trim()
+  if (profileAvatarFieldIsHttpUrl(trimmed)) return { uri: trimmed, error: null }
+  try {
+    const uri = await _resolveProfilePathSmall(trimmed)
     if (!uri) return { uri: null, error: 'No signed URL returned' }
     return { uri, error: null }
   } catch (e: any) {
