@@ -159,7 +159,7 @@ export type EventComment = {
 
 /** Comment row from Supabase with joined author profile (`profiles` null if author row missing). */
 export type EventCommentWithAuthor = EventComment & {
-  profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url'> | null
+  profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'selected_border'> | null
 }
 
 /**

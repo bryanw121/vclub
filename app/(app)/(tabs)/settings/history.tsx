@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
 import { EventCard } from '../../../../components/EventCard'
@@ -14,6 +14,7 @@ export default function ProfileHistoryScreen() {
   useStackBackTitle('History')
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('attended')
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [attendedEvents, setAttendedEvents] = useState<EventWithDetails[]>([])
   const [hostedEvents, setHostedEvents] = useState<EventWithDetails[]>([])
@@ -29,8 +30,8 @@ export default function ProfileHistoryScreen() {
     if (historyFilter === 'hosted' && !hostedFetched) void fetchHosted()
   }, [historyFilter, hostedFetched])
 
-  async function fetchAttended() {
-    setLoading(true)
+  async function fetchAttended(opts?: { silent?: boolean }) {
+    if (!opts?.silent) setLoading(true)
     setError(null)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
@@ -51,8 +52,8 @@ export default function ProfileHistoryScreen() {
     setLoading(false)
   }
 
-  async function fetchHosted() {
-    setLoading(true)
+  async function fetchHosted(opts?: { silent?: boolean }) {
+    if (!opts?.silent) setLoading(true)
     setError(null)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
@@ -72,6 +73,16 @@ export default function ProfileHistoryScreen() {
     setLoading(false)
   }
 
+  async function handleRefresh() {
+    setRefreshing(true)
+    if (historyFilter === 'attended') {
+      await fetchAttended({ silent: true })
+    } else {
+      await fetchHosted({ silent: true })
+    }
+    setRefreshing(false)
+  }
+
   const events = historyFilter === 'attended' ? attendedEvents : hostedEvents
   const emptyMessage = historyFilter === 'attended'
     ? 'No past events attended.'
@@ -79,7 +90,10 @@ export default function ProfileHistoryScreen() {
 
   return (
     <View style={shared.screen}>
-      <ScrollView contentContainerStyle={shared.scrollContentSubpage}>
+      <ScrollView
+        contentContainerStyle={shared.scrollContentSubpage}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
+      >
         <View style={shared.card}>
           <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
             <HistoryChip

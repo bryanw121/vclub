@@ -16,8 +16,8 @@ type Props = {
 }
 
 // ─── Fixed dimensions ─────────────────────────────────────────────────────────
-const FRAME: Record<'sm' | 'lg', number> = { sm: 68, lg: 96 }
-const ICON:  Record<'sm' | 'lg', number> = { sm: 30, lg: 42 }
+const FRAME: Record<'sm' | 'lg', number> = { sm: 58, lg: 96 }
+const ICON:  Record<'sm' | 'lg', number> = { sm: 24, lg: 42 }
 const GAP:   Record<'sm' | 'lg', number> = { sm: 5,  lg: 8  }
 const DOTS_H     = 10
 const LABEL_LINE = 14

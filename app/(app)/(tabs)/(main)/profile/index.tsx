@@ -6,6 +6,7 @@ import {
   Image,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   View,
@@ -36,6 +37,8 @@ import {
   AVATAR_MAX_FILE_BYTES,
   BADGE_DEFINITIONS,
 } from '../../../../../constants'
+import { PROFILE_BORDERS, isBorderUnlocked } from '../../../../../constants/badges'
+import type { ProfileBorderDef, ProfileBorderType } from '../../../../../constants/badges'
 import {
   normalizeVolleyballPositions,
   resolveProfileAvatarUriWithError,
@@ -277,6 +280,7 @@ export default function MyProfile() {
   const lastScrollY = useRef(0)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [section, setSection] = useState<Section>('menu')
   const handleScroll = useCallback((e: any) => {
     if (Platform.OS !== 'web') return
@@ -290,6 +294,8 @@ export default function MyProfile() {
   const [positionDraft, setPositionDraft] = useState<VolleyballPosition[]>([])
   const [bioDraft, setBioDraft] = useState('')
   const [profileSaving, setProfileSaving] = useState(false)
+  const [borderDraft, setBorderDraft] = useState<ProfileBorderType | null>(null)
+  const [borderSaving, setBorderSaving] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarDisplayUri, setAvatarDisplayUri] = useState<string | null>(null)
   const [avatarUriResolving, setAvatarUriResolving] = useState(false)
@@ -298,6 +304,7 @@ export default function MyProfile() {
   const [toast, setToast] = useState<{ message: string; variant: 'error' | 'success' | 'info' } | null>(null)
   const [pickingSlot, setPickingSlot] = useState<number | null>(null)
   const [sheetMounted, setSheetMounted] = useState(false)
+  const [badgeGridWidth, setBadgeGridWidth] = useState(0)
   const sheetProgress = useSharedValue(0)
   const insets = useSafeAreaInsets()
 
@@ -337,6 +344,11 @@ export default function MyProfile() {
 
   const { badges, checkBadges, fetchBadges, setDisplaySlot } = useBadges()
 
+  async function handleProfileRefresh() {
+    setRefreshing(true)
+    await Promise.all([fetchProfile(), fetchBadges(true)])
+    setRefreshing(false)
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -398,7 +410,27 @@ export default function MyProfile() {
     if (!profile) return
     setPositionDraft([...profile.position])
     setBioDraft(profile.bio ?? '')
+    setBorderDraft(profile.selected_border ?? null)
     setSection('edit')
+  }
+
+  async function saveBorder(border: ProfileBorderType | null) {
+    if (borderSaving) return
+    const previous = borderDraft
+    setBorderDraft(border)
+    setProfile(prev => prev ? { ...prev, selected_border: border } : prev)
+    try {
+      setBorderSaving(true)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user?.id) return
+      const { error } = await supabase.from('profiles').update({ selected_border: border }).eq('id', session.user.id)
+      if (error) {
+        setBorderDraft(previous)
+        setProfile(prev => prev ? { ...prev, selected_border: previous } : prev)
+      }
+    } finally {
+      setBorderSaving(false)
+    }
   }
 
   async function saveProfileEdits() {
@@ -513,6 +545,11 @@ export default function MyProfile() {
         scrollEventThrottle={100}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        refreshControl={
+          section !== 'edit'
+            ? <RefreshControl refreshing={refreshing} onRefresh={handleProfileRefresh} tintColor={theme.colors.primary} />
+            : undefined
+        }
       >
         {section === 'edit' && (
           <View style={{ alignItems: 'flex-start', marginBottom: theme.spacing.sm }}>
@@ -615,95 +652,142 @@ export default function MyProfile() {
           </View>
         )}
 
-        {/* ── Edit section ── */}
+        {/* ── Edit sections ── */}
         {section === 'edit' && (
-          <View style={[shared.card, { marginTop: theme.spacing.md }]}>
-            <Text style={shared.subheading}>Edit profile</Text>
-            <View style={shared.mt_md} />
-            <Input
-              label="Bio"
-              value={bioDraft}
-              onChangeText={t => setBioDraft(t.slice(0, 140))}
-              placeholder="Tell the club a little about yourself…"
-              multiline
-              numberOfLines={3}
-              maxLength={140}
-              autoCorrect={false}
-              containerStyle={{ marginBottom: 0 }}
-              inputStyle={{ padding: theme.spacing.md, paddingTop: theme.spacing.md }}
-            />
-            <Text style={[shared.caption, { textAlign: 'right', marginTop: theme.spacing.xs, color: bioDraft.length >= 130 ? theme.colors.error : theme.colors.subtext }]}>
-              {bioDraft.length}/140
-            </Text>
-            <View style={shared.mt_md} />
-            <Text style={shared.label}>Preferred positions</Text>
-            <Text style={[shared.caption, shared.mt_xs]}>Tap any that apply.</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
-              <PositionOptionChip label="Clear all" active={false} onPress={() => setPositionDraft([])} />
-              {VOLLEYBALL_POSITION_OPTIONS.map(opt => (
-                <PositionOptionChip
-                  key={opt.value}
-                  label={opt.label}
-                  active={positionDraft.includes(opt.value)}
-                  onPress={() => setPositionDraft(prev =>
-                    prev.includes(opt.value) ? prev.filter(p => p !== opt.value) : [...prev, opt.value]
-                  )}
-                />
-              ))}
+          <>
+            {/* Bio */}
+            <View style={[shared.card, { marginTop: theme.spacing.md }]}>
+              <Text style={shared.subheading}>Bio</Text>
+              <View style={shared.mt_sm} />
+              <Input
+                value={bioDraft}
+                onChangeText={t => setBioDraft(t.slice(0, 140))}
+                placeholder="Tell the club a little about yourself…"
+                multiline
+                numberOfLines={3}
+                maxLength={140}
+                autoCorrect={false}
+                containerStyle={{ marginBottom: 0 }}
+                inputStyle={{ padding: theme.spacing.md, paddingTop: theme.spacing.md }}
+              />
+              <Text style={[shared.caption, { textAlign: 'right', marginTop: theme.spacing.xs, color: bioDraft.length >= 130 ? theme.colors.error : theme.colors.subtext }]}>
+                {bioDraft.length}/140
+              </Text>
             </View>
-            <View style={shared.mt_md} />
-            <Text style={shared.label}>Display Badges</Text>
-            <Text style={[shared.caption, shared.mt_xs]}>Up to 3 badges shown on your profile. Tap a slot to pick a badge.</Text>
 
-            {/* Slots row */}
-            <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.sm }}>
-              {[1, 2, 3].map(slot => {
-                const badge = badges.find(b => b.display_order === slot)
-                const def = badge ? BADGE_DEFINITIONS.find(d => d.type === badge.badge_type) : null
-                return (
-                  <View key={slot} style={{ alignItems: 'center', gap: 4 }}>
-                    <View style={{ position: 'relative' }}>
-                      {def && badge ? (
-                        <>
-                          <BadgeIcon def={def} tier={badge.tier} size="sm" />
-                          <Pressable
-                            onPress={() => void setDisplaySlot(badge.badge_type, null)}
-                            hitSlop={8}
-                            style={{
-                              position: 'absolute', top: -4, right: -4,
-                              width: 18, height: 18, borderRadius: 9,
-                              backgroundColor: theme.colors.subtext,
-                              alignItems: 'center', justifyContent: 'center',
-                              borderWidth: 1.5, borderColor: theme.colors.card,
-                            }}
-                          >
-                            <Ionicons name="close" size={10} color="#fff" />
-                          </Pressable>
-                        </>
-                      ) : (
-                        <Pressable
-                          onPress={() => openSheet(slot)}
-                          style={({ pressed }) => ({
-                            width: 58, height: 58, borderRadius: 29,
-                            borderWidth: 2, borderColor: pressed ? theme.colors.primary : theme.colors.border,
-                            borderStyle: 'dashed',
-                            alignItems: 'center', justifyContent: 'center',
-                            backgroundColor: pressed ? theme.colors.primary + '0A' : 'transparent',
-                          })}
-                        >
-                          <Ionicons name="add" size={22} color={theme.colors.subtext} />
-                        </Pressable>
+            {/* Positions */}
+            <View style={[shared.card, { marginTop: theme.spacing.md }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={shared.subheading}>Preferred Positions</Text>
+                {positionDraft.length > 0 && (
+                  <Pressable onPress={() => setPositionDraft([])} hitSlop={8}>
+                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>Clear</Text>
+                  </Pressable>
+                )}
+              </View>
+              <Text style={[shared.caption, shared.mt_xs]}>Rank up to 3 positions. Tap to add in order, tap again to remove.</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
+                {VOLLEYBALL_POSITION_OPTIONS.map(opt => {
+                  const rankIdx = positionDraft.indexOf(opt.value)
+                  const rank = rankIdx !== -1 ? rankIdx + 1 : undefined
+                  const atMax = positionDraft.length >= 3
+                  return (
+                    <PositionOptionChip
+                      key={opt.value}
+                      label={opt.label}
+                      rank={rank}
+                      onPress={() => setPositionDraft(prev =>
+                        prev.includes(opt.value)
+                          ? prev.filter(p => p !== opt.value)
+                          : atMax ? prev : [...prev, opt.value]
                       )}
-                    </View>
-                    <Text style={[shared.caption, { color: theme.colors.subtext }]}>Slot {slot}</Text>
-                  </View>
-                )
-              })}
+                    />
+                  )
+                })}
+              </View>
             </View>
 
-            <View style={shared.mt_md} />
-            <Button label="Save profile" onPress={saveProfileEdits} loading={profileSaving} disabled={profileSaving} />
-          </View>
+            {/* Display Badges */}
+            <View style={[shared.card, { marginTop: theme.spacing.md }]}>
+              <Text style={shared.subheading}>Display Badges</Text>
+              <Text style={[shared.caption, shared.mt_xs]}>Up to 3 badges shown on your profile. Tap a slot to pick.</Text>
+              <View style={{ flexDirection: 'row', gap: theme.spacing.lg, marginTop: theme.spacing.md, justifyContent: 'center' }}>
+                {[1, 2, 3].map(slot => {
+                  const badge = badges.find(b => b.display_order === slot)
+                  const def = badge ? BADGE_DEFINITIONS.find(d => d.type === badge.badge_type) : null
+                  return (
+                    <View key={slot} style={{ alignItems: 'center', gap: 4 }}>
+                      <View style={{ position: 'relative' }}>
+                        {def && badge ? (
+                          <>
+                            <BadgeIcon def={def} tier={badge.tier} size="sm" />
+                            <Pressable
+                              onPress={() => void setDisplaySlot(badge.badge_type, null)}
+                              hitSlop={8}
+                              style={{
+                                position: 'absolute', top: -4, right: -4,
+                                width: 18, height: 18, borderRadius: 9,
+                                backgroundColor: theme.colors.subtext,
+                                alignItems: 'center', justifyContent: 'center',
+                                borderWidth: 1.5, borderColor: theme.colors.card,
+                              }}
+                            >
+                              <Ionicons name="close" size={10} color="#fff" />
+                            </Pressable>
+                          </>
+                        ) : (
+                          <Pressable
+                            onPress={() => openSheet(slot)}
+                            style={({ pressed }) => ({
+                              width: 58, height: 58, borderRadius: 29,
+                              borderWidth: 2, borderColor: pressed ? theme.colors.primary : theme.colors.border,
+                              borderStyle: 'dashed',
+                              alignItems: 'center', justifyContent: 'center',
+                              backgroundColor: pressed ? theme.colors.primary + '0A' : 'transparent',
+                            })}
+                          >
+                            <Ionicons name="add" size={22} color={theme.colors.subtext} />
+                          </Pressable>
+                        )}
+                      </View>
+                      <Text style={[shared.caption, { color: theme.colors.subtext }]}>Slot {slot}</Text>
+                    </View>
+                  )
+                })}
+              </View>
+            </View>
+
+            {/* Profile Border */}
+            <View style={[shared.card, { marginTop: theme.spacing.md }]}>
+              <Text style={shared.subheading}>Profile Border</Text>
+              <Text style={[shared.caption, shared.mt_xs]}>Select a border for your avatar.</Text>
+              <View style={{ flexDirection: 'row', gap: theme.spacing.lg, marginTop: theme.spacing.md, flexWrap: 'wrap' }}>
+                <BorderSwatch
+                  label="None"
+                  selected={borderDraft === null}
+                  unlocked
+                  onPress={() => void saveBorder(null)}
+                />
+                {PROFILE_BORDERS.map(border => {
+                  const unlocked = isBorderUnlocked(border, badges.map(b => ({ badge_type: b.badge_type, tier: b.tier })))
+                  return (
+                    <BorderSwatch
+                      key={border.type}
+                      label={border.label}
+                      borderDef={border}
+                      selected={borderDraft === border.type}
+                      unlocked={unlocked}
+                      onPress={() => { if (unlocked) void saveBorder(border.type) }}
+                    />
+                  )
+                })}
+              </View>
+            </View>
+
+            <View style={{ marginTop: theme.spacing.md }}>
+              <Button label="Save profile" onPress={saveProfileEdits} loading={profileSaving} disabled={profileSaving} />
+            </View>
+          </>
         )}
       </ScrollView>
       <Toast
@@ -756,7 +840,10 @@ export default function MyProfile() {
                 No earned badges available to add.
               </Text>
             ) : (
-              <ScrollView contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.md, paddingBottom: theme.spacing.md }}>
+              <ScrollView
+                onLayout={e => setBadgeGridWidth(e.nativeEvent.layout.width)}
+                contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.md, paddingBottom: theme.spacing.md, justifyContent: 'center' }}
+              >
                 {badges.filter(b => b.tier > 0 && b.display_order !== pickingSlot).map(badge => {
                   const def = BADGE_DEFINITIONS.find(d => d.type === badge.badge_type)
                   if (!def) return null
@@ -773,6 +860,13 @@ export default function MyProfile() {
                     </Pressable>
                   )
                 })}
+                {/* Spacers force last row to start from left while full rows stay centered */}
+                {badgeGridWidth > 0 && (() => {
+                  const itemsPerRow = Math.floor((badgeGridWidth + theme.spacing.md) / (58 + theme.spacing.md))
+                  return Array.from({ length: Math.max(0, itemsPerRow - 1) }).map((_, i) => (
+                    <View key={`sp-${i}`} style={{ width: 58 }} />
+                  ))
+                })()}
               </ScrollView>
             )}
           </Animated.View>
@@ -813,13 +907,15 @@ function MenuCard({ title, icon, onPress, style }: {
 
 // ─── PositionOptionChip ───────────────────────────────────────────────────────
 
-function PositionOptionChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function PositionOptionChip({ label, rank, onPress }: { label: string; rank?: number; onPress: () => void }) {
+  const active = rank !== undefined
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       style={{
+        flexDirection: 'row', alignItems: 'center', gap: 5,
         borderRadius: theme.radius.full, borderWidth: 1,
         borderColor: active ? theme.colors.primary : theme.colors.border,
         backgroundColor: active ? theme.colors.primary + '14' : theme.colors.card,
@@ -827,10 +923,101 @@ function PositionOptionChip({ label, active, onPress }: { label: string; active:
         maxWidth: '100%',
       }}
     >
+      {active && (
+        <View style={{
+          width: 16, height: 16, borderRadius: 8,
+          backgroundColor: theme.colors.primary,
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Text style={{ fontSize: 9, fontWeight: theme.font.weight.bold, color: '#fff', lineHeight: 12 }}>
+            {rank}
+          </Text>
+        </View>
+      )}
       <Text style={{
         fontSize: theme.font.size.sm, lineHeight: theme.font.lineHeight.tight,
         fontWeight: active ? theme.font.weight.semibold : theme.font.weight.regular,
         color: active ? theme.colors.primary : theme.colors.text,
+      }}>
+        {label}
+      </Text>
+    </Pressable>
+  )
+}
+
+// ─── BorderSwatch ─────────────────────────────────────────────────────────────
+
+function BorderSwatch({ label, borderDef, selected, unlocked, onPress }: {
+  label: string
+  borderDef?: ProfileBorderDef
+  selected: boolean
+  unlocked: boolean
+  onPress: () => void
+}) {
+  const SIZE = 52
+  const RING = 3
+
+  function renderRing() {
+    if (!borderDef) {
+      return (
+        <View style={{
+          width: SIZE, height: SIZE, borderRadius: SIZE / 2,
+          borderWidth: 2, borderColor: theme.colors.border,
+          backgroundColor: theme.colors.background,
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Ionicons name="close" size={18} color={theme.colors.subtext} />
+        </View>
+      )
+    }
+    const outerSize = SIZE + RING * 2
+    const colors: [string, string, ...string[]] = borderDef.gradientColors
+      ? borderDef.gradientColors as [string, string, ...string[]]
+      : borderDef.type === 'gold'
+        ? ['#FFE066', borderDef.color, '#CC8800']
+        : [borderDef.color, borderDef.color]
+
+    return (
+      <View style={{ width: outerSize, height: outerSize, borderRadius: outerSize / 2, overflow: 'hidden', opacity: unlocked ? 1 : 0.3 }}>
+        <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: 'absolute', inset: 0 }} />
+        <View style={{
+          position: 'absolute', top: RING, left: RING, right: RING, bottom: RING,
+          borderRadius: SIZE / 2, backgroundColor: theme.colors.card,
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          {!unlocked && <Ionicons name="lock-closed" size={14} color={theme.colors.subtext} />}
+        </View>
+      </View>
+    )
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!unlocked}
+      accessibilityRole="radio"
+      accessibilityState={{ selected, disabled: !unlocked }}
+      style={({ pressed }) => ({ alignItems: 'center', gap: theme.spacing.xs, opacity: pressed && unlocked ? 0.7 : 1 })}
+    >
+      <View style={{ position: 'relative' }}>
+        {renderRing()}
+        {selected && unlocked && (
+          <View style={{
+            position: 'absolute', bottom: -2, right: -2,
+            width: 18, height: 18, borderRadius: 9,
+            backgroundColor: theme.colors.primary,
+            alignItems: 'center', justifyContent: 'center',
+            borderWidth: 2, borderColor: theme.colors.card,
+          }}>
+            <Ionicons name="checkmark" size={10} color="#fff" />
+          </View>
+        )}
+      </View>
+      <Text style={{
+        fontSize: theme.font.size.xs,
+        fontWeight: selected ? theme.font.weight.semibold : theme.font.weight.regular,
+        color: unlocked ? theme.colors.text : theme.colors.subtext,
+        opacity: unlocked ? 1 : 0.5,
       }}>
         {label}
       </Text>

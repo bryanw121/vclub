@@ -98,12 +98,14 @@ export default function BadgesScreen() {
 
   async function saveBorder(border: ProfileBorderType | null) {
     if (borderSaving) return
+    const previous = selectedBorder
+    setSelectedBorder(border)
     try {
       setBorderSaving(true)
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user?.id) return
-      await supabase.from('profiles').update({ selected_border: border }).eq('id', session.user.id)
-      setSelectedBorder(border)
+      const { error } = await supabase.from('profiles').update({ selected_border: border }).eq('id', session.user.id)
+      if (error) setSelectedBorder(previous)
     } finally {
       setBorderSaving(false)
     }

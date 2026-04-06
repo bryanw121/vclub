@@ -24,8 +24,8 @@ export const BADGE_CATEGORY_GRADIENTS: Record<string, readonly [string, string]>
 export const BETA_ACTIVE = true
 
 // ─── Vex Spirit flag ──────────────────────────────────────────────────────────
-// Keep true to award the Vex Spirit badge to all members.
-export const VEX_MEMBER_ACTIVE = true
+// false = never auto-awarded; grant manually via DB insert per user.
+export const VEX_MEMBER_ACTIVE = false
 
 // ─── Tier color palette ───────────────────────────────────────────────────────
 export const BADGE_TIER_COLORS: Record<number, string> = {

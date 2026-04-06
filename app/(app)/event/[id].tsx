@@ -1,9 +1,9 @@
 import React, { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { Platform, View, Text, Image, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal, Keyboard, KeyboardEvent, Switch } from 'react-native'
+import { Platform, View, Text, Image, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal, Keyboard, KeyboardEvent, Switch, RefreshControl } from 'react-native'
 import { GestureDetector, Gesture, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, interpolate, Extrapolation } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
+import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router'
 import * as Linking from 'expo-linking'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
@@ -174,12 +174,7 @@ function HostCard({ profile, isOwner, onPress }: { profile: Profile; isOwner: bo
       activeOpacity={isOwner ? 1 : 0.7}
       disabled={isOwner}
     >
-      <View style={[styles.avatar, { borderColor: theme.colors.border, backgroundColor: theme.colors.background, borderWidth: 1.5, overflow: 'hidden' }]}>
-        {avatarUri
-          ? <Image source={{ uri: avatarUri }} style={{ width: 40, height: 40 }} resizeMode="cover" />
-          : <Text style={[styles.avatarInitial, { color: theme.colors.subtext }]}>{initials}</Text>
-        }
-      </View>
+      <ProfileAvatar uri={avatarUri} border={profile.selected_border ?? null} size={40} />
       <Text style={shared.body}>{displayName}</Text>
       {!isOwner && <Ionicons name="chevron-forward" size={16} color={theme.colors.subtext} style={{ marginLeft: 'auto' }} />}
     </TouchableOpacity>
@@ -566,7 +561,10 @@ export default function EventDetail() {
   const [waitlistProfiles, setWaitlistProfiles] = useState<Profile[]>([])
   const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const lastFetchedAt = useRef<number>(0)
+  const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null)
   const [joining, setJoining] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [shareMenuVisible, setShareMenuVisible] = useState(false)
@@ -627,10 +625,27 @@ export default function EventDetail() {
   idRef.current = id
 
   useEffect(() => {
-    setComments([])
-    fetchEvent()
-    supabase.auth.getUser().then(({ data: { user } }) => setUserId(user?.id ?? null))
-  }, [id])
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      setUserId(user.id)
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, first_name, last_name, avatar_url, position, selected_border')
+        .eq('id', user.id)
+        .single()
+      if (data) setCurrentUserProfile(data as Profile)
+    })
+  }, [])
+
+  useFocusEffect(
+    useCallback(() => {
+      const stale = Date.now() - lastFetchedAt.current > 5_000
+      if (stale) {
+        setComments([])
+        void fetchEvent()
+      }
+    }, [id]),
+  )
 
   // After the remove modal renders, allow interaction after a short delay so the
   // ghost mouseup/pointerup from the X button click can't immediately dismiss it.
@@ -820,10 +835,10 @@ export default function EventDetail() {
     }
   }
 
-  async function fetchEvent() {
+  async function fetchEvent(opts?: { silent?: boolean }) {
     const fetchId = id
     try {
-      setLoading(true)
+      if (!opts?.silent) setLoading(true)
       setLoadError(null)
       setCommentsLoading(true)
 
@@ -851,7 +866,7 @@ export default function EventDetail() {
       void supabase
         .from('event_comments')
         .select(
-          'id, event_id, body, is_announcement, created_at, user_id, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url)',
+          'id, event_id, body, is_announcement, created_at, user_id, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url, selected_border)',
         )
         .eq('event_id', fetchId)
         .order('created_at', { ascending: true })
@@ -908,7 +923,15 @@ export default function EventDetail() {
       setCommentsLoading(false)
     } finally {
       setLoading(false)
+      lastFetchedAt.current = Date.now()
     }
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    setComments([])
+    await fetchEvent({ silent: true })
+    setRefreshing(false)
   }
 
   async function fetchMyCheers() {
@@ -987,7 +1010,7 @@ export default function EventDetail() {
     const { data, error } = await supabase
       .from('event_comments')
       .select(
-        'id, event_id, body, is_announcement, created_at, user_id, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url)',
+        'id, event_id, body, is_announcement, created_at, user_id, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url, selected_border)',
       )
       .eq('event_id', id)
       .order('created_at', { ascending: true })
@@ -1100,7 +1123,22 @@ export default function EventDetail() {
         : supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', userId)
       const { error } = await query
       if (error) throw error
-      await refreshAttendees()
+
+      if (action === 'join' && currentUserProfile) {
+        setAttendees(prev => [...prev, currentUserProfile])
+        setAssignments(prev => ({ ...prev, [userId]: { team: null, pinned: false } }))
+        setEvent(prev => prev ? {
+          ...prev,
+          event_attendees: [...(prev.event_attendees ?? []), { event_id: id, user_id: userId, joined_at: new Date().toISOString(), team_number: null, team_pinned: false, status: 'attending', profiles: currentUserProfile }],
+        } as EventWithDetails : prev)
+      } else if (action === 'leave') {
+        setAttendees(prev => prev.filter(p => p.id !== userId))
+        setAssignments(prev => { const next = { ...prev }; delete next[userId]; return next })
+        setEvent(prev => prev ? {
+          ...prev,
+          event_attendees: (prev.event_attendees ?? []).filter((a: any) => a.user_id !== userId),
+        } as EventWithDetails : prev)
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message)
     } finally {
@@ -1114,7 +1152,13 @@ export default function EventDetail() {
       setJoining(true)
       const { error } = await supabase.from('event_attendees').insert({ event_id: id, user_id: userId, status: 'waitlisted' })
       if (error) throw error
-      await refreshAttendees()
+      if (currentUserProfile) {
+        setWaitlistProfiles(prev => [...prev, currentUserProfile])
+        setEvent(prev => prev ? {
+          ...prev,
+          event_attendees: [...(prev.event_attendees ?? []), { event_id: id, user_id: userId, joined_at: new Date().toISOString(), team_number: null, team_pinned: false, status: 'waitlisted', profiles: currentUserProfile }],
+        } as EventWithDetails : prev)
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message)
     } finally {
@@ -1128,7 +1172,11 @@ export default function EventDetail() {
       setJoining(true)
       const { error } = await supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', userId)
       if (error) throw error
-      await refreshAttendees()
+      setWaitlistProfiles(prev => prev.filter(p => p.id !== userId))
+      setEvent(prev => prev ? {
+        ...prev,
+        event_attendees: (prev.event_attendees ?? []).filter((a: any) => a.user_id !== userId),
+      } as EventWithDetails : prev)
     } catch (e: any) {
       Alert.alert('Error', e.message)
     } finally {
@@ -1142,18 +1190,28 @@ export default function EventDetail() {
       setAddingGuest(true)
       const attendingCount = eventAttendeeRows(event ?? { event_attendees: [] }).filter(a => a.status !== 'waitlisted').length + guests.length
       const isFull = event?.max_attendees ? attendingCount >= event.max_attendees : false
-      const { error } = await supabase.from('event_guests').insert({
+      const status = isFull ? 'waitlisted' : 'attending'
+      const { data, error } = await supabase.from('event_guests').insert({
         event_id: id,
         added_by: userId,
         first_name: guestFirstName.trim(),
         last_name: guestLastName.trim(),
-        status: isFull ? 'waitlisted' : 'attending',
-      })
+        status,
+      }).select().single()
       if (error) throw error
+      const newGuest = data as EventGuest
+      if (status === 'attending') {
+        setGuests(prev => [...prev, newGuest])
+        setAssignments(prev => ({ ...prev, [newGuest.id]: { team: null, pinned: false } }))
+      } else {
+        setWaitlistGuests(prev => [...prev, newGuest])
+      }
+      if (currentUserProfile && !adderUsernames[userId]) {
+        setAdderUsernames(prev => ({ ...prev, [userId]: currentUserProfile.username }))
+      }
       setGuestFirstName('')
       setGuestLastName('')
       setGuestModalVisible(false)
-      await refreshAttendees()
     } catch (e: any) {
       Alert.alert('Error', e.message)
     } finally {
@@ -1214,8 +1272,20 @@ export default function EventDetail() {
           return
         }
       }
+      if (removeModal.kind === 'guest') {
+        setGuests(prev => prev.filter(g => g.id !== removeModal.guestId))
+        setWaitlistGuests(prev => prev.filter(g => g.id !== removeModal.guestId))
+        setAssignments(prev => { const next = { ...prev }; delete next[removeModal.guestId]; return next })
+      } else {
+        setAttendees(prev => prev.filter(p => p.id !== removeModal.userId))
+        setWaitlistProfiles(prev => prev.filter(p => p.id !== removeModal.userId))
+        setAssignments(prev => { const next = { ...prev }; delete next[removeModal.userId]; return next })
+        setEvent(prev => prev ? {
+          ...prev,
+          event_attendees: (prev.event_attendees ?? []).filter((a: any) => a.user_id !== removeModal.userId),
+        } as EventWithDetails : prev)
+      }
       setRemoveModal(null)
-      await refreshAttendees()
     } finally {
       setRemovingAttendee(false)
     }
@@ -1234,7 +1304,18 @@ export default function EventDetail() {
         .eq('event_id', id)
         .eq('user_id', waitlistUserId)
       if (error) throw error
-      await refreshAttendees()
+      const promoted = waitlistProfiles.find(p => p.id === waitlistUserId)
+      if (promoted) {
+        setWaitlistProfiles(prev => prev.filter(p => p.id !== waitlistUserId))
+        setAttendees(prev => [...prev, promoted])
+        setAssignments(prev => ({ ...prev, [waitlistUserId]: { team: null, pinned: false } }))
+        setEvent(prev => prev ? {
+          ...prev,
+          event_attendees: (prev.event_attendees ?? []).map((a: any) =>
+            a.user_id === waitlistUserId ? { ...a, status: 'attending' } : a
+          ),
+        } : prev)
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message)
     }
@@ -1373,7 +1454,17 @@ export default function EventDetail() {
         )
       )
 
-      await fetchEvent()
+      setEvent(prev => prev ? {
+        ...prev,
+        event_attendees: (prev.event_attendees ?? []).map((a: any) => {
+          const asgn = assignments[a.user_id]
+          return asgn ? { ...a, team_number: asgn.team, team_pinned: asgn.pinned } : a
+        }),
+      } : prev)
+      setGuests(prev => prev.map(g => {
+        const asgn = assignments[g.id]
+        return asgn ? { ...g, team_number: asgn.team ?? undefined, team_pinned: asgn.pinned } : g
+      }) as EventGuest[])
     } catch (e: any) {
       Alert.alert('Error saving teams', e.message)
     } finally {
@@ -1634,7 +1725,11 @@ export default function EventDetail() {
             pagerBlockedRef={innerPagerBlocked}
           >
             {/* Tab 0: Description */}
-            <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
+            <ScrollView
+              style={shared.screen}
+              contentContainerStyle={shared.scrollContent}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
+            >
 
               {/* ── Info rows ── */}
               <View style={[shared.card, { gap: 0, marginBottom: theme.spacing.md }]}>

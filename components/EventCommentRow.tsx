@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { theme, shared } from '../constants'
 import type { EventCommentWithAuthor } from '../types'
-import { resolveProfileAvatarUriWithError, profileDisplayName, profileInitial } from '../utils'
+import { resolveProfileAvatarUriWithError, profileDisplayName } from '../utils'
+import { ProfileAvatar } from './ProfileAvatar'
 
 function formatCommentTime(iso: string): string {
   const normalized = /[Z+]/.test(iso) ? iso : iso + 'Z'
@@ -34,7 +35,6 @@ export function EventCommentRow({ comment }: Props) {
   }, [p?.avatar_url])
 
   const name = p ? profileDisplayName(p) : 'Member'
-  const initial = p ? profileInitial(p) : '?'
   const isAnnouncement = comment.is_announcement
 
   function goProfile() {
@@ -43,14 +43,8 @@ export function EventCommentRow({ comment }: Props) {
 
   return (
     <View style={[styles.row, isAnnouncement && styles.rowAnnouncement]}>
-      <TouchableOpacity onPress={goProfile} style={styles.avatarOuter} accessibilityRole="button" accessibilityLabel={`${name} profile`}>
-        {avatarUri ? (
-          <Image source={{ uri: avatarUri }} style={styles.avatarImg} resizeMode="cover" />
-        ) : (
-          <View style={[styles.avatarImg, styles.avatarFallback]}>
-            <Text style={styles.avatarInitial}>{initial}</Text>
-          </View>
-        )}
+      <TouchableOpacity onPress={goProfile} accessibilityRole="button" accessibilityLabel={`${name} profile`}>
+        <ProfileAvatar uri={avatarUri} border={p?.selected_border ?? null} size={36} />
       </TouchableOpacity>
       <View style={styles.content}>
         {isAnnouncement && (
@@ -78,7 +72,6 @@ const styles = StyleSheet.create({
   rowAnnouncement: {
     backgroundColor: theme.colors.announcementHighlight,
     borderRadius: theme.radius.md,
-    paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.sm,
     marginVertical: theme.spacing.xxs,
   },
@@ -95,25 +88,6 @@ const styles = StyleSheet.create({
     fontWeight: theme.font.weight.semibold,
     color: theme.colors.primary,
     letterSpacing: 0.3,
-  },
-  avatarOuter: {},
-  avatarImg: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.card,
-  },
-  avatarFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInitial: {
-    fontSize: 13,
-    fontWeight: theme.font.weight.bold,
-    color: theme.colors.subtext,
-    letterSpacing: 0.5,
   },
   content: {
     flex: 1,
