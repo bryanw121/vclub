@@ -409,18 +409,7 @@ function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStar
         <Animated.View style={[{ flex: 1, minWidth: 0 }, animStyle]}>
           <GestureDetector gesture={tapGesture}>
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-              {teamColor ? (
-                // Team assigned — show team color ring, avatar inside
-                <View style={[styles.avatar, { borderColor: teamColor, backgroundColor: teamColor + '18', borderWidth: 2, overflow: 'hidden' }]}>
-                  {avatarUri
-                    ? <Image source={{ uri: avatarUri }} style={{ width: 40, height: 40 }} resizeMode="cover" />
-                    : <Text style={[styles.avatarInitial, { color: teamColor }]}>{playerInitial(profile)}</Text>
-                  }
-                </View>
-              ) : (
-                // No team — show profile border
-                <ProfileAvatar uri={avatarUri} border={profile.selected_border ?? null} size={34} />
-              )}
+              <ProfileAvatar uri={avatarUri} border={profile.selected_border ?? null} size={34} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.playerName} numberOfLines={1}>{playerDisplayName(profile)}</Text>
               </View>
@@ -1737,7 +1726,7 @@ export default function EventDetail() {
               <View style={[shared.card, { gap: 0, marginBottom: theme.spacing.md }]}>
 
                 {/* Date / time row */}
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md, paddingBottom: theme.spacing.md }}>
                   <View style={{ width: 22, alignItems: 'center', paddingTop: 2 }}>
                     <Ionicons name="calendar-outline" size={20} color={theme.colors.subtext} />
                   </View>
@@ -1774,7 +1763,7 @@ export default function EventDetail() {
                   return (
                     <>
                       <View style={{ height: 1, backgroundColor: theme.colors.border }} />
-                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md, paddingVertical: theme.spacing.md }}>
                         <View style={{ width: 22, alignItems: 'center', paddingTop: 2 }}>
                           <Ionicons name="location-outline" size={20} color={theme.colors.subtext} />
                         </View>
@@ -1805,7 +1794,7 @@ export default function EventDetail() {
                 {(event.event_tags?.length ?? 0) > 0 && (
                   <>
                     <View style={{ height: 1, backgroundColor: theme.colors.border }} />
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm }}>
                       <View style={{ width: 22, alignItems: 'center' }}>
                         <Ionicons name="pricetag-outline" size={20} color={theme.colors.subtext} />
                       </View>
@@ -1824,7 +1813,7 @@ export default function EventDetail() {
                 {event.profiles && (
                   <>
                     <View style={{ height: 1, backgroundColor: theme.colors.border }} />
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm }}>
                       <View style={{ width: 22, alignItems: 'center' }}>
                         <Ionicons name="person-outline" size={20} color={theme.colors.subtext} />
                       </View>
@@ -1842,7 +1831,7 @@ export default function EventDetail() {
                 {event.description ? (
                   <>
                     <View style={{ height: 1, backgroundColor: theme.colors.border }} />
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm }}>
                       <View style={{ width: 22, alignItems: 'center', paddingTop: 2 }}>
                         <Ionicons name="document-text-outline" size={20} color={theme.colors.subtext} />
                       </View>
