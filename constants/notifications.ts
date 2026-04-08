@@ -8,4 +8,5 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   waitlist_promoted: 'Waitlist',
   event_cancelled: 'Cancellations',
   badge_earned: 'Badge achievements',
+  cohost_added: 'Co-host invites',
 }

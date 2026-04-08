@@ -1,6 +1,7 @@
 import type { Profile, VolleyballPosition, EventAttendee, EventAttendeeCountEmbed } from '../types'
-import { supabase } from '../lib/supabase'
-import { AVATARS_BUCKET, CLUB_AVATARS_BUCKET, AVATAR_SIGNED_URL_TTL_SEC } from '../constants/storage'
+import { AVATARS_BUCKET, CLUB_AVATARS_BUCKET } from '../constants/storage'
+
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!
 
 export function formatEventDate(dateString: string, style: 'short' | 'long' = 'short') {
   // Supabase `timestamp without time zone` returns strings with no timezone suffix
@@ -120,61 +121,27 @@ export function volleyballPositionsEqualUnordered(a: VolleyballPosition[], b: Vo
   return [...a].sort().every((v, i) => v === sb[i])
 }
 
-/** `profiles.avatar_url` may hold a legacy full URL or a storage path for private buckets. */
+/** `profiles.avatar_url` may hold a legacy full HTTP URL or a storage object path. */
 export function profileAvatarFieldIsHttpUrl(ref: string | null | undefined): boolean {
   if (ref == null || ref === '') return false
   return /^https?:\/\//i.test(ref.trim())
 }
 
-// ─── Shared signed-URL cache helpers ─────────────────────────────────────────
-// Each bucket gets its own cache + in-flight map.
-// In-flight deduplication: if N components simultaneously request the same
-// uncached path, they all await the same single Promise instead of each
-// firing their own createSignedUrl network call.
+// ─── Avatar URL helpers (avatars bucket is public) ────────────────────────────
 
-type CacheEntry = { uri: string; expiresAt: number }
-
-type TransformOptions = { width?: number; height?: number; quality?: number; resize?: 'cover' | 'contain' | 'fill' }
-
-function makeSignedUrlResolver(
-  bucket: string,
-  ttlSec: number,
-  earlyExpirySec = 3600,
-  transform?: TransformOptions,
-) {
-  const cache = new Map<string, CacheEntry>()
-  const inFlight = new Map<string, Promise<string | null>>()
-
-  return async function resolve(path: string): Promise<string | null> {
-    const entry = cache.get(path)
-    if (entry && Date.now() < entry.expiresAt) return entry.uri
-
-    const pending = inFlight.get(path)
-    if (pending) return pending
-
-    const promise = (async () => {
-      const { data } = await supabase.storage.from(bucket).createSignedUrl(
-        path, ttlSec, transform ? { transform } : undefined,
-      )
-      inFlight.delete(path)
-      if (!data?.signedUrl) return null
-      cache.set(path, { uri: data.signedUrl, expiresAt: Date.now() + (ttlSec - earlyExpirySec) * 1000 })
-      return data.signedUrl
-    })()
-
-    inFlight.set(path, promise)
-    return promise
-  }
+/** Full-resolution public URL for a storage path in the avatars bucket. Synchronous — no network call. */
+function avatarPublicUrl(path: string): string {
+  return `${SUPABASE_URL}/storage/v1/object/public/${AVATARS_BUCKET}/${path}`
 }
 
-const _resolveProfilePath      = makeSignedUrlResolver(AVATARS_BUCKET, AVATAR_SIGNED_URL_TTL_SEC)
-const _resolveProfilePathSmall = makeSignedUrlResolver(AVATARS_BUCKET, AVATAR_SIGNED_URL_TTL_SEC, 3600, { width: 80, height: 80, quality: 70, resize: 'cover' })
-const _resolveClubPath         = makeSignedUrlResolver(CLUB_AVATARS_BUCKET, 3600, 300)
+/** 80×80 compressed render URL — use for small avatars in lists and cards. */
+function avatarSmallUrl(path: string): string {
+  return `${SUPABASE_URL}/storage/v1/render/image/public/${AVATARS_BUCKET}/${path}?width=80&height=80&quality=70&resize=cover`
+}
 
-/** Resolves `avatar_url` to an `Image` URI (signed URL for storage paths, HTTP URLs returned as-is). */
+/** Resolves `avatar_url` to an `Image` URI. Public bucket — returns immediately. */
 export async function resolveProfileAvatarUri(ref: string | null | undefined): Promise<string | null> {
   const r = await resolveProfileAvatarUriWithError(ref)
-  if (r.error) console.warn('[vclub avatar]', r.error)
   return r.uri
 }
 
@@ -184,13 +151,7 @@ export async function resolveProfileAvatarUriWithError(
   if (ref == null || ref === '') return { uri: null, error: null }
   const trimmed = ref.trim()
   if (profileAvatarFieldIsHttpUrl(trimmed)) return { uri: trimmed, error: null }
-  try {
-    const uri = await _resolveProfilePath(trimmed)
-    if (!uri) return { uri: null, error: 'No signed URL returned' }
-    return { uri, error: null }
-  } catch (e: any) {
-    return { uri: null, error: e?.message ?? 'Unknown error' }
-  }
+  return { uri: avatarPublicUrl(trimmed), error: null }
 }
 
 /** Resolves `avatar_url` to a compressed 80×80 URI — use for small avatars in lists and cards. */
@@ -200,19 +161,15 @@ export async function resolveProfileAvatarUriSmall(
   if (ref == null || ref === '') return { uri: null, error: null }
   const trimmed = ref.trim()
   if (profileAvatarFieldIsHttpUrl(trimmed)) return { uri: trimmed, error: null }
-  try {
-    const uri = await _resolveProfilePathSmall(trimmed)
-    if (!uri) return { uri: null, error: 'No signed URL returned' }
-    return { uri, error: null }
-  } catch (e: any) {
-    return { uri: null, error: e?.message ?? 'Unknown error' }
-  }
+  return { uri: avatarSmallUrl(trimmed), error: null }
 }
 
-/** Resolves a club `avatar_url` storage path to a signed URL, with caching + in-flight deduplication. */
-export async function resolveClubAvatarUri(ref: string | null | undefined): Promise<string | null> {
-  if (ref == null || ref === '') return null
+// ─── Club avatar/cover — public bucket ───────────────────────────────────────
+
+/** Resolves a club `avatar_url` or `cover_url` storage path to a public URL. */
+export function resolveClubAvatarUri(ref: string | null | undefined): Promise<string | null> {
+  if (ref == null || ref === '') return Promise.resolve(null)
   const trimmed = ref.trim()
-  if (/^https?:\/\//i.test(trimmed)) return trimmed
-  return _resolveClubPath(trimmed)
+  if (/^https?:\/\//i.test(trimmed)) return Promise.resolve(trimmed)
+  return Promise.resolve(`${SUPABASE_URL}/storage/v1/object/public/${CLUB_AVATARS_BUCKET}/${trimmed}`)
 }

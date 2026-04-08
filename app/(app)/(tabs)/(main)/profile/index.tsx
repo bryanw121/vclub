@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -37,6 +38,7 @@ import {
   AVATAR_MAX_FILE_BYTES,
   BADGE_DEFINITIONS,
 } from '../../../../../constants'
+
 import { PROFILE_BORDERS, isBorderUnlocked } from '../../../../../constants/badges'
 import type { ProfileBorderDef, ProfileBorderType } from '../../../../../constants/badges'
 import {
@@ -301,6 +303,7 @@ export default function MyProfile() {
   const [avatarUriResolving, setAvatarUriResolving] = useState(false)
   const [avatarUriError, setAvatarUriError] = useState<string | null>(null)
   const lastResolvedAvatarUrl = useRef<string | null>(null)
+  const [pendingAsset, setPendingAsset] = useState<ImagePicker.ImagePickerAsset | null>(null)
   const [toast, setToast] = useState<{ message: string; variant: 'error' | 'success' | 'info' } | null>(null)
   const [pickingSlot, setPickingSlot] = useState<number | null>(null)
   const [sheetMounted, setSheetMounted] = useState(false)
@@ -346,6 +349,7 @@ export default function MyProfile() {
 
   async function handleProfileRefresh() {
     setRefreshing(true)
+    lastResolvedAvatarUrl.current = null // force fresh signed URL on refresh
     await Promise.all([fetchProfile(), fetchBadges(true)])
     setRefreshing(false)
   }
@@ -464,7 +468,7 @@ export default function MyProfile() {
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true, aspect: [1, 1], quality: 0.85,
+        allowsEditing: true, aspect: [1, 1], quality: 0.6,
       })
       if (result.canceled) return
       const asset = result.assets[0]
@@ -472,12 +476,23 @@ export default function MyProfile() {
         showToast('Photo must be smaller than 3 MB. Please try again.')
         return
       }
+      setPendingAsset(asset)
+    } catch (e: any) {
+      Alert.alert('Error', e.message)
+    }
+  }
+
+  async function uploadPendingAsset() {
+    if (!pendingAsset) return
+    const asset = pendingAsset
+    setPendingAsset(null)
+    try {
       const { data: { session } } = await supabase.auth.getSession()
       const userId = session?.user?.id
       if (!userId) throw new Error('Not logged in')
       setAvatarUploading(true)
       const ext = asset.mimeType?.includes('png') ? 'png' : 'jpg'
-      const path = `${userId}/avatar.${ext}`
+      const path = `${userId}/avatar_${Date.now()}.${ext}`
       const contentType = asset.mimeType ?? (ext === 'png' ? 'image/png' : 'image/jpeg')
       const response = await fetch(asset.uri)
       const arrayBuffer = await response.arrayBuffer()
@@ -485,17 +500,20 @@ export default function MyProfile() {
         showToast('Photo must be smaller than 3 MB. Please try again.')
         return
       }
-      const { error: uploadError } = await supabase.storage.from(AVATARS_BUCKET).upload(path, arrayBuffer, { contentType, upsert: true })
+      if (profile?.avatar_url && !/^https?:\/\//i.test(profile.avatar_url)) {
+        await supabase.storage.from(AVATARS_BUCKET).remove([profile.avatar_url])
+      }
+      const { error: uploadError } = await supabase.storage.from(AVATARS_BUCKET).upload(path, arrayBuffer, { contentType })
       if (uploadError) throw uploadError
       const { error: profileError } = await supabase.from('profiles').update({ avatar_url: path }).eq('id', userId)
       if (profileError) throw profileError
       const updatedProfile = profile ? { ...profile, avatar_url: path } : null
       setProfile(updatedProfile)
-      const { uri: signed, error: signError } = await resolveProfileAvatarUriWithError(path)
-      setAvatarDisplayUri(signed)
-      setAvatarUriError(signError)
-      if (!signError && updatedProfile) void checkBadges(updatedProfile)
-      Alert.alert(signError ? 'Photo uploaded' : 'Saved', signError ? 'Uploaded but signed URL failed — check Storage SELECT policy.' : 'Profile picture updated.')
+      lastResolvedAvatarUrl.current = null
+      const { uri, error: resolveError } = await resolveProfileAvatarUriWithError(path)
+      setAvatarDisplayUri(uri)
+      setAvatarUriError(resolveError)
+      if (!resolveError && updatedProfile) void checkBadges(updatedProfile)
     } catch (e: any) {
       Alert.alert('Error', e.message)
     } finally {
@@ -796,6 +814,74 @@ export default function MyProfile() {
         visible={!!toast}
         onHide={() => setToast(null)}
       />
+
+      {/* Avatar preview modal */}
+      {pendingAsset && (
+        <Modal transparent animationType="fade" onRequestClose={() => setPendingAsset(null)}>
+          <View style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.75)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: theme.spacing.xl,
+          }}>
+            <View style={{
+              backgroundColor: theme.colors.card,
+              borderRadius: theme.radius.xl,
+              padding: theme.spacing.xl,
+              alignItems: 'center',
+              gap: theme.spacing.lg,
+              width: '100%',
+              maxWidth: 320,
+            }}>
+              <Text style={{ fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
+                Preview
+              </Text>
+              <View style={{
+                width: AVATAR_OUTER + 8, height: AVATAR_OUTER + 8,
+                borderRadius: (AVATAR_OUTER + 8) / 2,
+                overflow: 'hidden',
+                backgroundColor: theme.colors.border,
+              }}>
+                <Image
+                  source={{ uri: pendingAsset.uri }}
+                  style={{ width: AVATAR_OUTER + 8, height: AVATAR_OUTER + 8 }}
+                  resizeMode="cover"
+                />
+              </View>
+              <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, textAlign: 'center' }}>
+                This is how your profile picture will appear.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: theme.spacing.md, width: '100%' }}>
+                <Pressable
+                  onPress={() => setPendingAsset(null)}
+                  style={({ pressed }) => ({
+                    flex: 1, paddingVertical: theme.spacing.sm + 2,
+                    borderRadius: theme.radius.md,
+                    borderWidth: 1, borderColor: theme.colors.border,
+                    alignItems: 'center',
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <Text style={{ fontSize: theme.font.size.md, color: theme.colors.subtext, fontWeight: theme.font.weight.medium }}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={uploadPendingAsset}
+                  style={({ pressed }) => ({
+                    flex: 1, paddingVertical: theme.spacing.sm + 2,
+                    borderRadius: theme.radius.md,
+                    backgroundColor: theme.colors.primary,
+                    alignItems: 'center',
+                    opacity: pressed ? 0.85 : 1,
+                  })}
+                >
+                  <Text style={{ fontSize: theme.font.size.md, color: '#fff', fontWeight: theme.font.weight.semibold }}>Use Photo</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
 
       {/* Badge picker bottom sheet */}
       {sheetMounted && (

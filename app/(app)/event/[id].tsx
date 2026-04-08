@@ -14,7 +14,7 @@ import { EventCommentRow } from '../../../components/EventCommentRow'
 import { Pager } from '../../../components/Pager'
 import * as Calendar from 'expo-calendar'
 import { shared, theme, formatEventDate, CHEER_TYPES, CHEERS_MAX_PER_EVENT, LOCATIONS } from '../../../constants'
-import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, CheerType, Cheer } from '../../../types'
+import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile } from '../../../types'
 import { profileDisplayName, profileInitial, resolveProfileAvatarUriWithError, resolveProfileAvatarUriSmall, eventAttendeeRows, normalizeVolleyballPositions } from '../../../utils'
 import { LinkedText } from '../../../components/LinkedText'
 
@@ -601,6 +601,15 @@ export default function EventDetail() {
   const [cheersSent, setCheersSent] = useState(false)
   const [selectedCheerType, setSelectedCheerType] = useState<CheerType | null>(null)
 
+  // Cohosts
+  const [cohosts, setCohosts] = useState<EventCohostWithProfile[]>([])
+  const [cohostModalVisible, setCohostModalVisible] = useState(false)
+  const [cohostSearchQuery, setCohostSearchQuery] = useState('')
+  const [cohostSearchResults, setCohostSearchResults] = useState<Profile[]>([])
+  const [cohostSearching, setCohostSearching] = useState(false)
+  const [cohostAdding, setCohostAdding] = useState(false)
+  const [cohostRemoving, setCohostRemoving] = useState<string | null>(null)
+
   // Drag-and-drop
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null)
   const [hoveredTeamKey, setHoveredTeamKey] = useState<string | null>(null)
@@ -893,6 +902,13 @@ export default function EventDetail() {
         setAdderUsernames({})
       }
 
+      const { data: cohostRows } = await supabase
+        .from('event_cohosts')
+        .select('event_id, user_id, added_by, added_at, profiles!event_cohosts_user_id_fkey (id, username, first_name, last_name, avatar_url, selected_border)')
+        .eq('event_id', fetchId)
+        .order('added_at', { ascending: true })
+      setCohosts((cohostRows ?? []) as unknown as EventCohostWithProfile[])
+
       const map: Record<string, TeamAssignment> = {}
       let maxTeam = 1
       for (const a of attendingEntries) {
@@ -923,6 +939,81 @@ export default function EventDetail() {
     setComments([])
     await fetchEvent({ silent: true })
     setRefreshing(false)
+  }
+
+  async function searchCohostCandidates(query: string) {
+    const q = query.trim()
+    if (q.length < 2) { setCohostSearchResults([]); return }
+    setCohostSearching(true)
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, username, first_name, last_name, avatar_url, selected_border, position, created_at')
+      .or(`username.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
+      .neq('id', userId ?? '')
+      .neq('id', event?.created_by ?? '')
+      .limit(10)
+    const existing = new Set(cohosts.map(c => c.user_id))
+    setCohostSearchResults(((data ?? []) as Profile[]).filter(p => !existing.has(p.id)))
+    setCohostSearching(false)
+  }
+
+  async function addCohost(candidate: Profile) {
+    if (!event || cohosts.length >= 3) return
+    setCohostAdding(true)
+    try {
+      const { error } = await supabase.from('event_cohosts').insert({
+        event_id: event.id,
+        user_id: candidate.id,
+        added_by: userId,
+      })
+      if (error) throw error
+      const newCohost: EventCohostWithProfile = {
+        event_id: event.id,
+        user_id: candidate.id,
+        added_by: userId!,
+        added_at: new Date().toISOString(),
+        profiles: {
+          id: candidate.id,
+          username: candidate.username,
+          first_name: candidate.first_name,
+          last_name: candidate.last_name,
+          avatar_url: candidate.avatar_url,
+          selected_border: candidate.selected_border ?? null,
+        },
+      }
+      setCohosts(prev => [...prev, newCohost])
+      setCohostSearchResults([])
+      setCohostSearchQuery('')
+      // Notify the new cohost
+      await supabase.from('notifications').insert({
+        user_id: candidate.id,
+        notification_type: 'cohost_added',
+        title: 'You\'ve been added as a co-host',
+        body: `You are now a co-host for "${event.title}".`,
+        data: { event_id: event.id },
+      })
+    } catch (e: any) {
+      Alert.alert('Error', e.message)
+    } finally {
+      setCohostAdding(false)
+    }
+  }
+
+  async function removeCohost(cohostUserId: string) {
+    if (!event) return
+    setCohostRemoving(cohostUserId)
+    try {
+      const { error } = await supabase.from('event_cohosts')
+        .delete()
+        .eq('event_id', event.id)
+        .eq('user_id', cohostUserId)
+      if (error) throw error
+      setCohosts(prev => prev.filter(c => c.user_id !== cohostUserId))
+    } catch (e: any) {
+      Alert.alert('Error', e.message)
+    } finally {
+      setCohostRemoving(null)
+    }
   }
 
   async function fetchMyCheers() {
@@ -1024,7 +1115,7 @@ export default function EventDetail() {
         event_id: id,
         user_id: userId,
         body,
-        is_announcement: Boolean(event?.created_by === userId && isAnnouncement),
+        is_announcement: Boolean(isHostOrCohost && isAnnouncement),
       })
       if (error) throw error
       await refreshComments()
@@ -1546,11 +1637,13 @@ export default function EventDetail() {
   }
 
   const isOwner = event?.created_by === userId
+  const isCohost = cohosts.some(c => c.user_id === userId)
+  const isHostOrCohost = isOwner || isCohost
   const isEventOver = event
     ? Date.now() > new Date(/[Z+]/.test(event.event_date) ? event.event_date : event.event_date + 'Z').getTime() + (event.duration_minutes ?? 120) * 60_000
     : false
   const totalPlayers = attendees.length + guests.length
-  const hasTeams = isOwner
+  const hasTeams = isHostOrCohost
     ? totalPlayers > 0
     : Object.values(assignments).some(a => a.team !== null)
 
@@ -1565,7 +1658,7 @@ export default function EventDetail() {
     spotsLeft: event?.max_attendees ? event.max_attendees - totalAttending : null,
     isFull: event?.max_attendees ? totalAttending >= event.max_attendees : false,
     isAttending: attendingEntries.some((a: any) => a.user_id === userId),
-    isOwner: event?.created_by === userId,
+    isOwner: isHostOrCohost,
     isWaitlisted: waitlistIdx !== -1,
     waitlistPosition: waitlistIdx !== -1 ? waitlistIdx + 1 : null,
     waitlistCount: waitlistEntries.length,
@@ -1597,7 +1690,7 @@ export default function EventDetail() {
             <TouchableOpacity onPress={handleShare} style={{ padding: 8 }} hitSlop={8}>
               <Ionicons name="share-outline" size={22} color={theme.colors.primary} />
             </TouchableOpacity>
-            {isOwner && (<>
+            {isHostOrCohost && (<>
               <TouchableOpacity onPress={() => router.push(`/host?edit=${id}` as any)} style={{ padding: 8 }} hitSlop={8}>
                 <Ionicons name="create-outline" size={22} color={theme.colors.primary} />
               </TouchableOpacity>
@@ -1660,7 +1753,7 @@ export default function EventDetail() {
                 </>
               )}
             </View>
-            {isOwner && (<>
+            {isHostOrCohost && (<>
               <TouchableOpacity onPress={() => router.push(`/host?edit=${id}` as any)} style={{ padding: 4 }} hitSlop={8}>
                 <Ionicons name="create-outline" size={20} color={theme.colors.primary} />
               </TouchableOpacity>
@@ -1726,17 +1819,30 @@ export default function EventDetail() {
               <View style={[shared.card, { gap: 0, marginBottom: theme.spacing.md }]}>
 
                 {/* Date / time row */}
+                {(() => {
+                  const normalized = /[Z+]/.test(event.event_date) ? event.event_date : event.event_date + 'Z'
+                  const d = new Date(normalized)
+                  const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+                  const startStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                  const endStr = formatEndTime(event.event_date, event.duration_minutes ?? 120)
+                  const dur = formatDuration(event.duration_minutes ?? 120)
+                  return (
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md, paddingBottom: theme.spacing.md }}>
                   <View style={{ width: 22, alignItems: 'center', paddingTop: 2 }}>
                     <Ionicons name="calendar-outline" size={20} color={theme.colors.subtext} />
                   </View>
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, gap: theme.spacing.xs }}>
                     <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
-                      {formatEventDate(event.event_date, 'long')}
+                      {dateStr}
                     </Text>
-                    <Text style={[shared.caption, { marginTop: 2 }]}>
-                      {formatDuration(event.duration_minutes ?? 120)} · ends {formatEndTime(event.event_date, event.duration_minutes ?? 120)}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}>
+                      <Ionicons name="time-outline" size={13} color={theme.colors.text} />
+                      <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.text }}>
+                        {startStr} – {endStr}
+                      </Text>
+                      <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: theme.colors.border, marginHorizontal: 2 }} />
+                      <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>{dur}</Text>
+                    </View>
                     <TouchableOpacity
                       onPress={() => void addToCalendar(
                         event.title,
@@ -1746,7 +1852,6 @@ export default function EventDetail() {
                       )}
                       hitSlop={8}
                       accessibilityRole="button"
-                      style={{ marginTop: theme.spacing.xs }}
                     >
                       <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
                         Add to calendar
@@ -1754,6 +1859,8 @@ export default function EventDetail() {
                     </TouchableOpacity>
                   </View>
                 </View>
+                  )
+                })()}
 
                 {/* Location row */}
                 {event.location ? (() => {
@@ -1809,20 +1916,53 @@ export default function EventDetail() {
                   </>
                 )}
 
-                {/* Host row */}
+                {/* Host(s) row */}
                 {event.profiles && (
                   <>
                     <View style={{ height: 1, backgroundColor: theme.colors.border }} />
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm }}>
-                      <View style={{ width: 22, alignItems: 'center' }}>
-                        <Ionicons name="person-outline" size={20} color={theme.colors.subtext} />
+                    <View style={{ paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm, gap: theme.spacing.sm }}>
+                      {/* Primary host */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
+                        <View style={{ width: 22, alignItems: 'center' }}>
+                          <Ionicons name="person-outline" size={20} color={theme.colors.subtext} />
+                        </View>
+                        <HostCard
+                          profile={event.profiles as Profile}
+                          isOwner={isOwner}
+                          onPress={() => !isOwner && event.profiles && router.push(`/profile/${event.profiles.id}` as any)}
+                          inline
+                        />
+                        <View style={{ backgroundColor: theme.colors.primary + '18', borderRadius: theme.radius.sm, paddingHorizontal: 6, paddingVertical: 2 }}>
+                          <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }}>Host</Text>
+                        </View>
                       </View>
-                      <HostCard
-                        profile={event.profiles as Profile}
-                        isOwner={isOwner}
-                        onPress={() => !isOwner && event.profiles && router.push(`/profile/${event.profiles.id}` as any)}
-                        inline
-                      />
+                      {/* Cohosts */}
+                      {cohosts.map(c => (
+                        <View key={c.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
+                          <View style={{ width: 22 }} />
+                          <HostCard
+                            profile={c.profiles as unknown as Profile}
+                            isOwner={c.user_id === userId}
+                            onPress={() => c.user_id !== userId && router.push(`/profile/${c.user_id}` as any)}
+                            inline
+                          />
+                          <View style={{ backgroundColor: theme.colors.subtext + '18', borderRadius: theme.radius.sm, paddingHorizontal: 6, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: theme.colors.subtext }}>Co-host</Text>
+                          </View>
+                        </View>
+                      ))}
+                      {/* Manage cohosts — primary host only */}
+                      {isOwner && (
+                        <TouchableOpacity
+                          onPress={() => setCohostModalVisible(true)}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingLeft: 22 + theme.spacing.md, paddingTop: theme.spacing.xs }}
+                        >
+                          <Ionicons name="person-add-outline" size={14} color={theme.colors.primary} />
+                          <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
+                            {cohosts.length >= 3 ? 'Manage Co-hosts' : 'Manage Co-hosts'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </>
                 )}
@@ -2100,7 +2240,7 @@ export default function EventDetail() {
                 >
                   <View onLayout={(e) => setDiscussionTabComposerHeight(Math.ceil(e.nativeEvent.layout.height))}>
                     <DiscussionComposer
-                      isOwner={isOwner}
+                      isOwner={isHostOrCohost}
                       postingComment={postingComment}
                       onPost={handlePostComment}
                       onFocusScroll={() => discussionTabScrollRef.current?.scrollToEnd({ animated: true })}
@@ -2541,6 +2681,94 @@ export default function EventDetail() {
                   />
                 </View>
               </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Manage co-hosts modal */}
+      <Modal visible={cohostModalVisible} transparent animationType="fade" onRequestClose={() => { setCohostModalVisible(false); setCohostSearchQuery(''); setCohostSearchResults([]) }}>
+        <TouchableOpacity
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' }}
+          activeOpacity={1}
+          onPress={() => { setCohostModalVisible(false); setCohostSearchQuery(''); setCohostSearchResults([]) }}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={{ backgroundColor: theme.colors.card, borderRadius: theme.radius.lg, padding: theme.spacing.xl, width: 320, maxWidth: '92%', gap: theme.spacing.md }}>
+              <Text style={{ fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
+                Manage Co-hosts
+              </Text>
+              <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>
+                Up to 3 co-hosts. They can post announcements, edit the event, manage teams, and remove attendees.
+              </Text>
+
+              {/* Current cohosts */}
+              {cohosts.length > 0 && (
+                <View style={{ gap: theme.spacing.sm }}>
+                  {cohosts.map(c => {
+                    const p = c.profiles as unknown as Profile
+                    const name = profileDisplayName(p)
+                    return (
+                      <View key={c.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, backgroundColor: theme.colors.background, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
+                        <Text style={{ flex: 1, fontSize: theme.font.size.md, color: theme.colors.text }} numberOfLines={1}>{name}</Text>
+                        <TouchableOpacity
+                          onPress={() => removeCohost(c.user_id)}
+                          hitSlop={8}
+                          disabled={cohostRemoving === c.user_id}
+                        >
+                          {cohostRemoving === c.user_id
+                            ? <ActivityIndicator size="small" color={theme.colors.subtext} />
+                            : <Ionicons name="close" size={18} color={theme.colors.subtext} />
+                          }
+                        </TouchableOpacity>
+                      </View>
+                    )
+                  })}
+                </View>
+              )}
+
+              {/* Search to add */}
+              {cohosts.length < 3 && (
+                <>
+                  <Input
+                    placeholder="Search by name or username"
+                    value={cohostSearchQuery}
+                    onChangeText={(q) => {
+                      setCohostSearchQuery(q)
+                      void searchCohostCandidates(q)
+                    }}
+                  />
+                  {cohostSearching && <ActivityIndicator size="small" color={theme.colors.primary} />}
+                  {cohostSearchResults.length > 0 && (
+                    <View style={{ gap: theme.spacing.xs, maxHeight: 200 }}>
+                      <ScrollView nestedScrollEnabled>
+                        {cohostSearchResults.map(p => (
+                          <TouchableOpacity
+                            key={p.id}
+                            onPress={() => void addCohost(p)}
+                            disabled={cohostAdding}
+                            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: theme.spacing.sm, gap: theme.spacing.sm, borderBottomWidth: 1, borderBottomColor: theme.colors.border }}
+                          >
+                            <Text style={{ flex: 1, fontSize: theme.font.size.md, color: theme.colors.text }} numberOfLines={1}>
+                              {profileDisplayName(p)}
+                            </Text>
+                            <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>@{p.username}</Text>
+                            {cohostAdding
+                              ? <ActivityIndicator size="small" color={theme.colors.primary} />
+                              : <Ionicons name="add-circle-outline" size={20} color={theme.colors.primary} />
+                            }
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                  {cohostSearchQuery.length >= 2 && !cohostSearching && cohostSearchResults.length === 0 && (
+                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, textAlign: 'center' }}>No users found</Text>
+                  )}
+                </>
+              )}
+
+              <Button label="Done" onPress={() => { setCohostModalVisible(false); setCohostSearchQuery(''); setCohostSearchResults([]) }} />
             </View>
           </TouchableOpacity>
         </TouchableOpacity>

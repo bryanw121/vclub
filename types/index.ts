@@ -44,6 +44,7 @@ export const NOTIFICATION_TYPES = [
   'waitlist_promoted',
   'event_cancelled',
   'badge_earned',
+  'cohost_added',
 ] as const
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
@@ -179,6 +180,22 @@ export type EventGuest = {
 }
 
 /**
+ * `event_cohosts` table
+ * Up to 3 cohosts per event. Cohosts have the same permissions as the host.
+ */
+export type EventCohost = {
+  event_id: string
+  user_id: string
+  added_by: string
+  added_at: string
+}
+
+/** EventCohost with the cohost's profile embedded. */
+export type EventCohostWithProfile = EventCohost & {
+  profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'selected_border'>
+}
+
+/**
  * `feedback_submissions` table
  * Stores feature requests and bug reports submitted by users.
  */
@@ -276,6 +293,7 @@ export type Club = {
   membership_type: MembershipType
   created_by: string
   avatar_url: string | null
+  cover_url: string | null
   created_at: string
 }
 
