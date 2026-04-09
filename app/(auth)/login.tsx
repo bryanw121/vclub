@@ -1,12 +1,15 @@
 import { useState, useRef } from 'react'
-import { View, Text, TouchableOpacity, TextInput, Animated, Modal } from 'react-native'
+import { View, Text, TouchableOpacity, TextInput, Animated, Modal, ActivityIndicator } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import * as Linking from 'expo-linking'
+import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../lib/supabase'
+import { signInWithGoogle, sendEmailOtp, verifyEmailOtp } from '../../lib/socialAuth'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
-import { shared } from '../../constants'
+import { GoogleLogo } from '../../components/GoogleLogo'
+import { shared, theme } from '../../constants'
 
 function obfuscateEmail(email: string): string {
   const [local, domain] = email.split('@')
@@ -18,6 +21,7 @@ function obfuscateEmail(email: string): string {
 export default function Login() {
   const router = useRouter()
   const passwordRef = useRef<TextInput>(null)
+  const otpCodeRef = useRef<TextInput>(null)
 
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
@@ -28,6 +32,18 @@ export default function Login() {
   const [resetSent, setResetSent] = useState<string | null>(null)
   const [resetLoading, setResetLoading] = useState(false)
   const [resetError, setResetError] = useState('')
+
+  // ── OTP (magic code) mode ──────────────────────────────────────────────────
+  const [otpMode, setOtpMode] = useState(false)
+  const [otpEmail, setOtpEmail] = useState('')
+  const [otpCode, setOtpCode] = useState('')
+  const [otpCodeSent, setOtpCodeSent] = useState(false)
+  const [otpLoading, setOtpLoading] = useState(false)
+  const [otpError, setOtpError] = useState('')
+
+  // ── Social sign-in ─────────────────────────────────────────────────────────
+  const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null)
+  const [socialError, setSocialError] = useState('')
 
   // ── Minigame ──────────────────────────────────────────────────────────────
   const [score, setScore] = useState(0)
@@ -117,6 +133,62 @@ export default function Login() {
     }
   }
 
+  async function handleSocialSignIn(provider: 'google' | 'apple') {
+    setSocialError('')
+    setSocialLoading(provider)
+    try {
+      if (provider === 'google') await signInWithGoogle()
+      else await signInWithApple()
+    } catch (e: any) {
+      // Ignore user-cancelled errors
+      const msg: string = e?.message ?? ''
+      if (!msg.includes('cancel') && !msg.includes('dismiss') && !msg.includes('ERR_CANCELED')) {
+        setSocialError(msg || 'Sign-in failed. Please try again.')
+      }
+    } finally {
+      setSocialLoading(null)
+    }
+  }
+
+  async function handleSendOtp() {
+    const email = otpEmail.toLowerCase().trim()
+    if (!email) { setOtpError('Enter your email address'); return }
+    setOtpError('')
+    setOtpLoading(true)
+    try {
+      await sendEmailOtp(email)
+      setOtpCodeSent(true)
+      setTimeout(() => otpCodeRef.current?.focus(), 200)
+    } catch (e: any) {
+      setOtpError(e?.message ?? 'Failed to send code')
+    } finally {
+      setOtpLoading(false)
+    }
+  }
+
+  async function handleVerifyOtp() {
+    const code = otpCode.trim()
+    if (!code) { setOtpError('Enter the 6-digit code'); return }
+    setOtpError('')
+    setOtpLoading(true)
+    try {
+      await verifyEmailOtp(otpEmail.toLowerCase().trim(), code)
+      // Navigation is handled by useAuth / _layout.tsx on SIGNED_IN event
+    } catch (e: any) {
+      setOtpError(e?.message ?? 'Invalid or expired code')
+    } finally {
+      setOtpLoading(false)
+    }
+  }
+
+  function exitOtpMode() {
+    setOtpMode(false)
+    setOtpEmail('')
+    setOtpCode('')
+    setOtpCodeSent(false)
+    setOtpError('')
+  }
+
   return (
     <LinearGradient colors={['#4FC3F7', '#7C4DFF', '#E040FB']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={shared.authBackground}>
       {/* Minigame balls — behind the card */}
@@ -187,6 +259,56 @@ export default function Login() {
               <Text style={shared.authLinkText}>Back to sign in</Text>
             </TouchableOpacity>
           </>
+
+        ) : otpMode ? (
+          <>
+            <Text style={shared.authSubtitle}>
+              {otpCodeSent ? `code sent to ${obfuscateEmail(otpEmail)}` : 'sign in with a one-time code'}
+            </Text>
+
+            {!otpCodeSent ? (
+              <>
+                <Input
+                  label="Email"
+                  value={otpEmail}
+                  onChangeText={setOtpEmail}
+                  placeholder="you@example.com"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  returnKeyType="go"
+                  onSubmitEditing={handleSendOtp}
+                  error={otpError}
+                />
+                <Button label="Send code" onPress={handleSendOtp} loading={otpLoading} disabled={!otpEmail} />
+              </>
+            ) : (
+              <>
+                <Input
+                  ref={otpCodeRef}
+                  label="6-digit code"
+                  value={otpCode}
+                  onChangeText={text => setOtpCode(text.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="123456"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="number-pad"
+                  returnKeyType="go"
+                  onSubmitEditing={handleVerifyOtp}
+                  error={otpError}
+                />
+                <Button label="Verify code" onPress={handleVerifyOtp} loading={otpLoading} disabled={otpCode.length < 6} />
+                <TouchableOpacity style={shared.authLink} onPress={() => { setOtpCodeSent(false); setOtpCode(''); setOtpError('') }}>
+                  <Text style={shared.authLinkText}>Resend code</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            <TouchableOpacity style={shared.authLink} onPress={exitOtpMode}>
+              <Text style={shared.authLinkText}>Back to sign in</Text>
+            </TouchableOpacity>
+          </>
+
         ) : (
           <>
             <Text style={shared.authSubtitle}>sign in to continue</Text>
@@ -218,6 +340,56 @@ export default function Login() {
             />
 
             <Button label="Sign in" onPress={handleLogin} loading={loading} disabled={!identifier || !password} />
+
+            {/* ── Social sign-in ── */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: theme.spacing.md, gap: theme.spacing.sm }}>
+              <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
+              <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>or continue with</Text>
+              <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
+            </View>
+
+            {socialError ? (
+              <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.error, textAlign: 'center', marginBottom: theme.spacing.sm }}>
+                {socialError}
+              </Text>
+            ) : null}
+
+            <View style={{ gap: theme.spacing.sm }}>
+              <TouchableOpacity
+                onPress={() => void handleSocialSignIn('google')}
+                disabled={socialLoading !== null}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                  borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md,
+                  paddingVertical: 12, paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm,
+                  backgroundColor: theme.colors.card,
+                }}
+              >
+                {socialLoading === 'google' ? (
+                  <ActivityIndicator size="small" color={theme.colors.subtext} />
+                ) : (
+                  <GoogleLogo size={18} />
+                )}
+                <Text style={{ fontSize: theme.font.size.md, color: theme.colors.text, fontWeight: theme.font.weight.medium }}>
+                  Continue with Google
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => { setSocialError(''); setOtpEmail(identifier.includes('@') ? identifier : ''); setOtpMode(true) }}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                  borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md,
+                  paddingVertical: 12, paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm,
+                  backgroundColor: theme.colors.card,
+                }}
+              >
+                <Ionicons name="mail-outline" size={16} color={theme.colors.text} />
+                <Text style={{ fontSize: theme.font.size.md, color: theme.colors.text, fontWeight: theme.font.weight.medium }}>
+                  Sign in with email code
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity style={shared.authLink} onPress={() => { setForgotMode(true); setResetEmail(identifier.includes('@') ? identifier : '') }}>
               <Text style={shared.authLinkText}>Forgot password?</Text>

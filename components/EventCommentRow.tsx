@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { Platform, View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import * as Linking from 'expo-linking'
 import { useRouter } from 'expo-router'
 import { theme, shared } from '../constants'
 import type { EventCommentWithAuthor } from '../types'
@@ -18,9 +19,71 @@ function formatCommentTime(iso: string): string {
   })
 }
 
-type Props = { comment: EventCommentWithAuthor }
+// Splits body into plain text, URLs, and @mention segments for inline rendering.
+const SEGMENT_RE = /(https?:\/\/[^\s]+|@\w+)/g
 
-export function EventCommentRow({ comment }: Props) {
+function CommentBody({
+  body,
+  usernameToId,
+}: {
+  body: string
+  usernameToId?: Map<string, string>
+}) {
+  const router = useRouter()
+  const parts = body.split(SEGMENT_RE)
+
+  return (
+    <Text style={shared.body}>
+      {parts.map((part, i) => {
+        // URL
+        if (/^https?:\/\//.test(part)) {
+          return (
+            <Text
+              key={i}
+              style={styles.link}
+              onPress={() => {
+                if (Platform.OS === 'web') {
+                  window.open(part, '_blank', 'noopener,noreferrer')
+                } else {
+                  void Linking.openURL(part)
+                }
+              }}
+              accessibilityRole="link"
+            >
+              {part}
+            </Text>
+          )
+        }
+        // @mention — only tappable if the username resolves to a known profile
+        if (/^@\w+$/.test(part) && usernameToId) {
+          const username = part.slice(1)
+          const profileId = usernameToId.get(username)
+          if (profileId) {
+            return (
+              <Text
+                key={i}
+                style={styles.mention}
+                onPress={() => router.push(`/profile/${profileId}` as any)}
+                accessibilityRole="link"
+                accessibilityLabel={`View profile of ${username}`}
+              >
+                {part}
+              </Text>
+            )
+          }
+        }
+        return part
+      })}
+    </Text>
+  )
+}
+
+type Props = {
+  comment: EventCommentWithAuthor
+  usernameToId?: Map<string, string>
+}
+
+export function EventCommentRow({ comment, usernameToId }: Props) {
   const router = useRouter()
   const [avatarUri, setAvatarUri] = useState<string | null>(null)
   const p = comment.profiles
@@ -55,7 +118,7 @@ export function EventCommentRow({ comment }: Props) {
         <TouchableOpacity onPress={goProfile}>
           <Text style={styles.name} numberOfLines={1}>{name}</Text>
         </TouchableOpacity>
-        <Text style={shared.body}>{comment.body}</Text>
+        <CommentBody body={comment.body} usernameToId={usernameToId} />
         <Text style={styles.time}>{formatCommentTime(comment.created_at)}</Text>
       </View>
     </View>
@@ -103,5 +166,13 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     color: theme.colors.subtext,
     marginTop: theme.spacing.xs,
+  },
+  link: {
+    color: theme.colors.primary,
+    textDecorationLine: 'underline',
+  },
+  mention: {
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
 })

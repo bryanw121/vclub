@@ -22,6 +22,7 @@ type Props = {
   containerStyle?: StyleProp<ViewStyle>
   inputStyle?: StyleProp<TextStyle>
   onFocus?: TextInputProps['onFocus']
+  onSelectionChange?: TextInputProps['onSelectionChange']
   includeFontPadding?: boolean
   maxLength?: number
 }
@@ -29,7 +30,7 @@ type Props = {
 export const Input = forwardRef<TextInput, Props>(function Input(
   { label, value, onChangeText, placeholder, secureTextEntry, showPasswordToggle, multiline, numberOfLines,
     error, returnKeyType, onSubmitEditing, blurOnSubmit, autoCapitalize, keyboardType, autoCorrect,
-    containerStyle, inputStyle, onFocus, includeFontPadding, maxLength },
+    containerStyle, inputStyle, onFocus, onSelectionChange, includeFontPadding, maxLength },
   ref
 ) {
   const [visible, setVisible] = useState(false)
@@ -63,6 +64,7 @@ export const Input = forwardRef<TextInput, Props>(function Input(
           keyboardType={keyboardType}
           autoCorrect={autoCorrect}
           onFocus={onFocus}
+          onSelectionChange={onSelectionChange}
           {...(includeFontPadding !== undefined ? ({ includeFontPadding } as TextInputProps) : {})}
         />
         {showPasswordToggle && (

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useCallback, memo, useEffect } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
-import { Platform, View, ScrollView, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions, ActivityIndicator } from 'react-native'
+import { Platform, View, ScrollView, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions, ActivityIndicator, Modal } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useEvents } from '../../../../hooks/useEvents'
 import { useNotifications } from '../../../../hooks/useNotifications'
@@ -8,6 +8,7 @@ import { EventCard } from '../../../../components/EventCard'
 import { shared, theme } from '../../../../constants'
 import { EventWithDetails, type Notification } from '../../../../types'
 import { useTabsContext } from '../../../../contexts/tabs'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 const TODAY = new Date().toISOString().split('T')[0]
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
@@ -47,6 +48,7 @@ export default function EventsScreen() {
   const { pagerBlocked, setTabBarHidden, tabBarHeight, eventsRefreshTick } = useTabsContext()
   const { width: windowWidth } = useWindowDimensions()
   const isMobile = Platform.OS !== 'web' || windowWidth < 768
+  const insets = useSafeAreaInsets()
 
   useEffect(() => {
     if (eventsRefreshTick > 0) refetch(true) // force after creating/editing an event
@@ -262,15 +264,21 @@ export default function EventsScreen() {
       </ScrollView>
 
       {/* Notification popup */}
-      {notifOpen && (
-        <>
-          <Pressable
-            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-            onPress={() => setNotifOpen(false)}
-          />
-          <View style={{
+      <Modal
+        visible={notifOpen}
+        transparent
+        animationType="none"
+        onRequestClose={() => setNotifOpen(false)}
+        statusBarTranslucent
+      >
+        <Pressable
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+          onPress={() => setNotifOpen(false)}
+        />
+        <View
+          style={{
             position: 'absolute',
-            top: 48,
+            top: insets.top + 48,
             right: theme.spacing.lg,
             width: Math.min(320, windowWidth - theme.spacing.lg * 2),
             maxHeight: 400,
@@ -300,44 +308,84 @@ export default function EventsScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-            <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled">
-              {notifLoading && notifItems.length === 0 ? (
-                <View style={{ padding: theme.spacing.lg, alignItems: 'center' }}>
-                  <ActivityIndicator color={theme.colors.primary} />
-                </View>
-              ) : notifItems.length === 0 ? (
-                <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.lg, alignItems: 'center', gap: theme.spacing.sm }}>
-                  <Ionicons name="notifications-off-outline" size={28} color={theme.colors.subtext} />
-                  <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, textAlign: 'center' }}>
-                    You're all caught up
-                  </Text>
-                </View>
-              ) : (
-                notifItems.slice(0, 6).map(item => (
-                  <TouchableOpacity
-                    key={item.id}
-                    onPress={() => void openNotifItem(item)}
-                    style={{
-                      paddingHorizontal: theme.spacing.md,
-                      paddingVertical: theme.spacing.sm,
-                      borderBottomWidth: 1,
-                      borderBottomColor: theme.colors.border,
-                      opacity: item.read_at ? 0.65 : 1,
-                    }}
-                  >
-                    <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.semibold, color: theme.colors.text }} numberOfLines={1}>
-                      {item.title}
+            {/* On web, use native CSS overflow scroll to bypass RN Web's JS-based ScrollView
+                responder system, which conflicts with the Modal backdrop. On native, ScrollView
+                uses the platform's native scroll view and works fine. */}
+            {Platform.OS === 'web' ? (
+              <View style={{ maxHeight: 320, overflow: 'scroll' } as any}>
+                {notifLoading && notifItems.length === 0 ? (
+                  <View style={{ padding: theme.spacing.lg, alignItems: 'center' }}>
+                    <ActivityIndicator color={theme.colors.primary} />
+                  </View>
+                ) : notifItems.length === 0 ? (
+                  <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.lg, alignItems: 'center', gap: theme.spacing.sm }}>
+                    <Ionicons name="notifications-off-outline" size={28} color={theme.colors.subtext} />
+                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, textAlign: 'center' }}>
+                      You're all caught up
                     </Text>
-                    <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, marginTop: 2 }} numberOfLines={2}>
-                      {item.body}
+                  </View>
+                ) : (
+                  notifItems.slice(0, 15).map(item => (
+                    <TouchableOpacity
+                      key={item.id}
+                      onPress={() => void openNotifItem(item)}
+                      style={{
+                        paddingHorizontal: theme.spacing.md,
+                        paddingVertical: theme.spacing.sm,
+                        borderBottomWidth: 1,
+                        borderBottomColor: theme.colors.border,
+                        opacity: item.read_at ? 0.65 : 1,
+                      }}
+                    >
+                      <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.semibold, color: theme.colors.text }} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, marginTop: 2 }} numberOfLines={2}>
+                        {item.body}
+                      </Text>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+                {notifLoading && notifItems.length === 0 ? (
+                  <View style={{ padding: theme.spacing.lg, alignItems: 'center' }}>
+                    <ActivityIndicator color={theme.colors.primary} />
+                  </View>
+                ) : notifItems.length === 0 ? (
+                  <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.lg, alignItems: 'center', gap: theme.spacing.sm }}>
+                    <Ionicons name="notifications-off-outline" size={28} color={theme.colors.subtext} />
+                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, textAlign: 'center' }}>
+                      You're all caught up
                     </Text>
-                  </TouchableOpacity>
-                ))
-              )}
-            </ScrollView>
+                  </View>
+                ) : (
+                  notifItems.slice(0, 15).map(item => (
+                    <TouchableOpacity
+                      key={item.id}
+                      onPress={() => void openNotifItem(item)}
+                      style={{
+                        paddingHorizontal: theme.spacing.md,
+                        paddingVertical: theme.spacing.sm,
+                        borderBottomWidth: 1,
+                        borderBottomColor: theme.colors.border,
+                        opacity: item.read_at ? 0.65 : 1,
+                      }}
+                    >
+                      <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.semibold, color: theme.colors.text }} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, marginTop: 2 }} numberOfLines={2}>
+                        {item.body}
+                      </Text>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+            )}
           </View>
-        </>
-      )}
+      </Modal>
     </View>
   )
 }

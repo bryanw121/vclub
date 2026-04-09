@@ -45,6 +45,8 @@ export const NOTIFICATION_TYPES = [
   'event_cancelled',
   'badge_earned',
   'cohost_added',
+  'kudos_reminder',
+  'user_mentioned',
 ] as const
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
@@ -156,6 +158,15 @@ export type EventComment = {
   /** True when the event host posted this as an announcement (highlighted in UI). */
   is_announcement: boolean
   created_at: string
+  /** User IDs tagged in this comment via @mention. */
+  mentions: string[]
+}
+
+/** A user that can be @mentioned in an event discussion. */
+export type MentionUser = {
+  id: string
+  username: string
+  displayName: string
 }
 
 /** Comment row from Supabase with joined author profile (`profiles` null if author row missing). */

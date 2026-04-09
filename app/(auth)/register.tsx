@@ -1,11 +1,13 @@
 import { useState, useRef } from 'react'
-import { View, Text, TouchableOpacity, Alert, TextInput } from 'react-native'
+import { View, Text, TouchableOpacity, Alert, TextInput, ActivityIndicator } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { supabase } from '../../lib/supabase'
+import { signInWithGoogle } from '../../lib/socialAuth'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
-import { shared } from '../../constants'
+import { GoogleLogo } from '../../components/GoogleLogo'
+import { shared, theme } from '../../constants'
 
 export default function Register() {
   const router = useRouter()
@@ -21,6 +23,24 @@ export default function Register() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{ firstName?: string; lastName?: string; username?: string; email?: string; password?: string }>({})
+
+  const [socialLoading, setSocialLoading] = useState(false)
+  const [socialError, setSocialError] = useState('')
+
+  async function handleSocialSignIn(provider: 'google') {
+    setSocialError('')
+    setSocialLoading(true)
+    try {
+      if (provider === 'google') await signInWithGoogle()
+    } catch (e: any) {
+      const msg: string = e?.message ?? ''
+      if (!msg.includes('cancel') && !msg.includes('dismiss') && !msg.includes('ERR_CANCELED')) {
+        setSocialError(msg || 'Sign-in failed. Please try again.')
+      }
+    } finally {
+      setSocialLoading(false)
+    }
+  }
 
   async function handleRegister() {
     setErrors({})
@@ -94,6 +114,42 @@ export default function Register() {
           </View>
         </View>
         <Text style={shared.authSubtitle}>create your account</Text>
+
+        {/* ── Social sign-up ── */}
+        {socialError ? (
+          <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.error, textAlign: 'center', marginBottom: theme.spacing.sm }}>
+            {socialError}
+          </Text>
+        ) : null}
+
+        <View style={{ gap: theme.spacing.sm }}>
+          <TouchableOpacity
+            onPress={() => void handleSocialSignIn('google')}
+            disabled={socialLoading}
+            style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+              borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md,
+              paddingVertical: 12, paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm,
+              backgroundColor: theme.colors.card,
+            }}
+          >
+            {socialLoading ? (
+              <ActivityIndicator size="small" color={theme.colors.subtext} />
+            ) : (
+              <GoogleLogo size={18} />
+            )}
+            <Text style={{ fontSize: theme.font.size.md, color: theme.colors.text, fontWeight: theme.font.weight.medium }}>
+              Continue with Google
+            </Text>
+          </TouchableOpacity>
+
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: theme.spacing.md, gap: theme.spacing.sm }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
+          <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>or register with email</Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
+        </View>
 
         <Input
           label="First Name"

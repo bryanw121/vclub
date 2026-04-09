@@ -93,8 +93,11 @@ export default function RootLayout() {
   useEffect(() => {
     if (loading || splashVisible) return
     const inAuthGroup = segments[0] === '(auth)'
+    // Don't redirect away from reset-password — the recovery token creates a session
+    // but the user still needs to set a new password before entering the app.
+    const onResetPassword = segments[1] === 'reset-password'
     if (!session && !inAuthGroup) router.replace('/(auth)/login')
-    else if (session && inAuthGroup) router.replace('/(app)')
+    else if (session && inAuthGroup && !onResetPassword) router.replace('/(app)')
   }, [session, loading, splashVisible])
 
   return (

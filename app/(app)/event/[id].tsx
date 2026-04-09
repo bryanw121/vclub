@@ -14,7 +14,7 @@ import { EventCommentRow } from '../../../components/EventCommentRow'
 import { Pager } from '../../../components/Pager'
 import * as Calendar from 'expo-calendar'
 import { shared, theme, formatEventDate, CHEER_TYPES, CHEERS_MAX_PER_EVENT, LOCATIONS } from '../../../constants'
-import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile } from '../../../types'
+import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile, MentionUser } from '../../../types'
 import { profileDisplayName, profileInitial, resolveProfileAvatarUriWithError, resolveProfileAvatarUriSmall, eventAttendeeRows, normalizeVolleyballPositions } from '../../../utils'
 import { LinkedText } from '../../../components/LinkedText'
 
@@ -189,20 +189,69 @@ type DiscussionComposerProps = {
   isOwner: boolean
   postingComment: boolean
   announcementLabel?: string
-  onPost: (body: string, isAnnouncement: boolean) => Promise<void>
+  mentionableUsers: MentionUser[]
+  onPost: (body: string, isAnnouncement: boolean, mentionIds: string[]) => Promise<void>
   onFocusScroll: () => void
 }
-function DiscussionComposer({ isOwner, postingComment, announcementLabel = 'Post as announcement', onPost, onFocusScroll }: DiscussionComposerProps) {
+function DiscussionComposer({ isOwner, postingComment, announcementLabel = 'Post as announcement', mentionableUsers, onPost, onFocusScroll }: DiscussionComposerProps) {
   const [draft, setDraft] = useState('')
   const [isAnnouncement, setIsAnnouncement] = useState(false)
+  const [activeMention, setActiveMention] = useState<{ query: string; atIndex: number } | null>(null)
+  const cursorPosRef = useRef(0)
+
+  const suggestions = useMemo(() => {
+    if (!activeMention) return []
+    const q = activeMention.query.toLowerCase()
+    return mentionableUsers
+      .filter(u => !q || u.displayName.toLowerCase().includes(q) || u.username.toLowerCase().includes(q))
+      .slice(0, 6)
+  }, [activeMention, mentionableUsers])
+
+  function detectMention(text: string, cursor: number) {
+    const before = text.slice(0, cursor)
+    const match = before.match(/(^|\s)@(\w*)$/)
+    if (match) {
+      setActiveMention({ query: match[2], atIndex: before.lastIndexOf('@') })
+    } else {
+      setActiveMention(null)
+    }
+  }
+
+  function handleDraftChange(text: string) {
+    setDraft(text)
+    detectMention(text, cursorPosRef.current)
+  }
+
+  function handleSelectionChange(e: any) {
+    const pos: number = e.nativeEvent.selection.start
+    cursorPosRef.current = pos
+    detectMention(draft, pos)
+  }
+
+  function selectMention(user: MentionUser) {
+    if (!activeMention) return
+    const before = draft.slice(0, activeMention.atIndex)
+    const after = draft.slice(cursorPosRef.current)
+    const newDraft = `${before}@${user.username} ${after}`
+    setDraft(newDraft)
+    cursorPosRef.current = activeMention.atIndex + user.username.length + 2 // @name<space>
+    setActiveMention(null)
+  }
 
   async function handlePost() {
     const body = draft.trim()
     if (!body) return
+    // Collect IDs for all @username tokens found in the final text
+    const mentionIds = [...new Set(
+      [...body.matchAll(/@(\w+)/g)]
+        .map(m => mentionableUsers.find(u => u.username === m[1])?.id)
+        .filter((id): id is string => Boolean(id))
+    )]
     try {
-      await onPost(body, isAnnouncement)
+      await onPost(body, isAnnouncement, mentionIds)
       setDraft('')
       setIsAnnouncement(false)
+      setActiveMention(null)
     } catch {
       // parent already showed the alert; keep draft so user can edit
     }
@@ -222,12 +271,53 @@ function DiscussionComposer({ isOwner, postingComment, announcementLabel = 'Post
           />
         </View>
       )}
+
+      {/* @mention suggestion list */}
+      {suggestions.length > 0 && (
+        <View style={{
+          borderWidth: 1,
+          borderColor: theme.colors.border,
+          borderRadius: theme.radius.md,
+          backgroundColor: theme.colors.card,
+          marginBottom: theme.spacing.xs,
+          overflow: 'hidden',
+          maxHeight: 220,
+        }}>
+          <ScrollView keyboardShouldPersistTaps="always" bounces={false}>
+            {suggestions.map((u, idx) => (
+              <TouchableOpacity
+                key={u.id}
+                onPress={() => selectMention(u)}
+                accessibilityRole="button"
+                accessibilityLabel={`Mention ${u.displayName}`}
+                style={{
+                  paddingHorizontal: theme.spacing.md,
+                  paddingVertical: theme.spacing.sm,
+                  borderBottomWidth: idx < suggestions.length - 1 ? 1 : 0,
+                  borderBottomColor: theme.colors.border,
+                  minHeight: 44,
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
+                  {u.displayName}
+                </Text>
+                <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>
+                  @{u.username}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Input
             value={draft}
-            onChangeText={setDraft}
-            placeholder="Add a comment..."
+            onChangeText={handleDraftChange}
+            onSelectionChange={handleSelectionChange}
+            placeholder="Add a comment…"
             multiline
             numberOfLines={4}
             blurOnSubmit={false}
@@ -540,7 +630,7 @@ function DraggableGuestCard({ guest, adderUsername, teamColor, isPinned, isOwner
 }
 
 export default function EventDetail() {
-  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>()
+  const { id, from, tab } = useLocalSearchParams<{ id: string; from?: string; tab?: string }>()
   const router = useRouter()
   const { width: windowWidth, height: windowHeight } = useWindowDimensions()
   const insets = useSafeAreaInsets()
@@ -590,7 +680,10 @@ export default function EventDetail() {
   const [assignments, setAssignments] = useState<Record<string, TeamAssignment>>({})
   const [savingTeams, setSavingTeams] = useState(false)
 
-  const [activeTab, setActiveTab] = useState(0)
+  const [activeTab, setActiveTab] = useState(() => {
+    const t = parseInt(tab ?? '0', 10)
+    return isNaN(t) ? 0 : Math.max(0, Math.min(3, t))
+  })
   const [descFooterHeight, setDescFooterHeight] = useState(80)
   const innerPagerBlocked = useRef(false)
 
@@ -1103,7 +1196,7 @@ export default function EventDetail() {
     setComments((data ?? []) as unknown as EventCommentWithAuthor[])
   }
 
-  async function handlePostComment(body: string, isAnnouncement: boolean) {
+  async function handlePostComment(body: string, isAnnouncement: boolean, mentionIds: string[]) {
     if (!userId) return
     if (body.length > EVENT_COMMENT_MAX_LEN) {
       Alert.alert('Comment too long', `Please keep comments under ${EVENT_COMMENT_MAX_LEN} characters.`)
@@ -1116,6 +1209,7 @@ export default function EventDetail() {
         user_id: userId,
         body,
         is_announcement: Boolean(isHostOrCohost && isAnnouncement),
+        mentions: mentionIds,
       })
       if (error) throw error
       await refreshComments()
@@ -1639,6 +1733,31 @@ export default function EventDetail() {
   const isOwner = event?.created_by === userId
   const isCohost = cohosts.some(c => c.user_id === userId)
   const isHostOrCohost = isOwner || isCohost
+
+  // All profiles that can be @mentioned: attendees + cohosts + host, excluding self.
+  const mentionableUsers = useMemo<MentionUser[]>(() => {
+    const seen = new Set<string>()
+    const result: MentionUser[] = []
+    const add = (p: Profile | null | undefined) => {
+      if (!p || seen.has(p.id) || p.id === userId) return
+      seen.add(p.id)
+      result.push({ id: p.id, username: p.username, displayName: profileDisplayName(p) })
+    }
+    attendees.forEach(add)
+    cohosts.forEach(c => add(c.profiles as Profile))
+    if (event?.profiles) add(event.profiles as Profile)
+    return result
+  }, [attendees, cohosts, event, userId])
+
+  // username → profile ID map used by EventCommentRow to render tappable mentions.
+  const usernameToId = useMemo(() => {
+    const m = new Map<string, string>()
+    const add = (p: Profile | null | undefined) => { if (p?.username) m.set(p.username, p.id) }
+    attendees.forEach(add)
+    cohosts.forEach(c => add(c.profiles as Profile))
+    if (event?.profiles) add(event.profiles as Profile)
+    return m
+  }, [attendees, cohosts, event])
   const isEventOver = event
     ? Date.now() > new Date(/[Z+]/.test(event.event_date) ? event.event_date : event.event_date + 'Z').getTime() + (event.duration_minutes ?? 120) * 60_000
     : false
@@ -2221,7 +2340,7 @@ export default function EventDetail() {
                 ) : (
                   <View style={{ gap: theme.spacing.xs }}>
                     {comments.map(c => (
-                      <EventCommentRow key={c.id} comment={c} />
+                      <EventCommentRow key={c.id} comment={c} usernameToId={usernameToId} />
                     ))}
                   </View>
                 )}
@@ -2242,6 +2361,7 @@ export default function EventDetail() {
                     <DiscussionComposer
                       isOwner={isHostOrCohost}
                       postingComment={postingComment}
+                      mentionableUsers={mentionableUsers}
                       onPost={handlePostComment}
                       onFocusScroll={() => discussionTabScrollRef.current?.scrollToEnd({ animated: true })}
                     />
@@ -2620,7 +2740,7 @@ export default function EventDetail() {
                   ) : (
                     <View style={{ gap: theme.spacing.xs }}>
                       {comments.map(c => (
-                        <EventCommentRow key={c.id} comment={c} />
+                        <EventCommentRow key={c.id} comment={c} usernameToId={usernameToId} />
                       ))}
                     </View>
                   )}
@@ -2631,6 +2751,7 @@ export default function EventDetail() {
                       isOwner={isOwner}
                       postingComment={postingComment}
                       announcementLabel="Also post as announcement"
+                      mentionableUsers={mentionableUsers}
                       onPost={handlePostComment}
                       onFocusScroll={() => discussionScrollRef.current?.scrollToEnd({ animated: true })}
                     />

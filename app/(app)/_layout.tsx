@@ -166,7 +166,7 @@ export default function AppLayout() {
               }}
             >
               <Stack.Screen name="(tabs)" options={{ headerShown: false, headerBackTitle: 'Back' }} />
-              <Stack.Screen name="host" options={{ title: 'Host Event', headerBackTitle: 'Events', gestureEnabled: true }} />
+              <Stack.Screen name="host" options={{ title: 'Host Event', headerBackTitle: 'Events', gestureEnabled: true, presentation: 'modal', ...(Platform.OS === 'web' ? { animationEnabled: false } : {}) }} />
               <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
               <Stack.Screen name="profile/[id]" options={{ headerShown: false, gestureEnabled: true }} />
               <Stack.Screen name="club/[id]" options={{ headerShown: false, gestureEnabled: true }} />
@@ -262,7 +262,7 @@ export default function AppLayout() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false, headerBackTitle: 'Back' }} />
-      <Stack.Screen name="host" options={{ title: 'Host Event', headerBackTitle: 'Events', gestureEnabled: true }} />
+      <Stack.Screen name="host" options={{ title: 'Host Event', headerBackTitle: 'Events', gestureEnabled: true, presentation: 'modal' }} />
       <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
       <Stack.Screen name="profile/[id]" options={{ headerShown: false, gestureEnabled: true }} />
       <Stack.Screen name="club/[id]" options={{ headerShown: false, gestureEnabled: true }} />

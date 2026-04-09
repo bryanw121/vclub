@@ -126,67 +126,56 @@ export default function HostEventScreen() {
   const [ownedClubs, setOwnedClubs] = useState<{ id: string; name: string }[]>([])
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null)
 
-  // Edit loading
-  const [editLoading, setEditLoading] = useState(isEdit)
+  const [initialLoading, setInitialLoading] = useState(true)
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timeoutRef  = useRef<ReturnType<typeof setTimeout>  | null>(null)
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setUserId(user.id)
-    })
-    supabase
-      .from('tags')
-      .select('*')
-      .order('display_order', { ascending: true })
-      .then(({ data }) => setAvailableTags((data ?? []) as Tag[]))
+  useEffect(() => { void loadInitialData() }, [])
 
-    if (editId) loadEventForEdit(editId)
-  }, [])
+  async function loadInitialData() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) setUserId(user.id)
 
-  useEffect(() => {
-    if (!userId) return
-    supabase
-      .from('club_members')
-      .select('club_id, clubs (id, name)')
-      .eq('user_id', userId)
-      .eq('role', 'owner')
-      .then(({ data }) => {
-        setOwnedClubs(
-          ((data ?? []) as any[]).map((m: any) => m.clubs).filter(Boolean)
-        )
-      })
-  }, [userId])
+    const [tagsRes, clubsRes] = await Promise.all([
+      supabase.from('tags').select('id, name, category, display_order').order('display_order', { ascending: true }),
+      user
+        ? supabase.from('club_members').select('club_id, clubs (id, name)').eq('user_id', user.id).eq('role', 'owner')
+        : Promise.resolve({ data: null, error: null }),
+    ])
+
+    setAvailableTags((tagsRes.data ?? []) as Tag[])
+    setOwnedClubs(((clubsRes.data ?? []) as any[]).map((m: any) => m.clubs).filter(Boolean))
+
+    if (editId && user) await loadEventForEdit(editId)
+
+    setInitialLoading(false)
+  }
 
   async function loadEventForEdit(id: string) {
-    try {
-      const { data, error } = await supabase
-        .from('events')
-        .select('*, event_tags (tag_id)')
-        .eq('id', id)
-        .single()
-      if (error || !data) return
+    const { data, error } = await supabase
+      .from('events')
+      .select('*, event_tags (tag_id)')
+      .eq('id', id)
+      .single()
+    if (error || !data) return
 
-      const loc = LOCATIONS.find(l => l.label === data.location)
-      setForm({
-        title: data.title,
-        description: data.description ?? '',
-        location: data.location ?? '',
-        date: new Date(data.event_date),
-        durationMinutes: data.duration_minutes ?? DEFAULT_DURATION_MINUTES,
-        maxAttendees: data.max_attendees,
-      })
-      if (loc) {
-        setLocationId(loc.id)
-      } else if (data.location) {
-        setLocationId('other')
-      }
-      setSelectedTagIds((data.event_tags ?? []).map((et: any) => et.tag_id))
-      setSelectedClubId(data.club_id ?? null)
-    } finally {
-      setEditLoading(false)
+    const loc = LOCATIONS.find(l => l.label === data.location)
+    setForm({
+      title: data.title,
+      description: data.description ?? '',
+      location: data.location ?? '',
+      date: new Date(data.event_date),
+      durationMinutes: data.duration_minutes ?? DEFAULT_DURATION_MINUTES,
+      maxAttendees: data.max_attendees,
+    })
+    if (loc) {
+      setLocationId(loc.id)
+    } else if (data.location) {
+      setLocationId('other')
     }
+    setSelectedTagIds((data.event_tags ?? []).map((et: any) => et.tag_id))
+    setSelectedClubId(data.club_id ?? null)
   }
 
   useEffect(() => {
@@ -435,8 +424,15 @@ export default function HostEventScreen() {
   }
 
   // ── Form view ─────────────────────────────────────────────────────────────
-  if (editLoading) {
-    return <View style={shared.centered}><ActivityIndicator color={theme.colors.primary} /></View>
+  if (initialLoading) {
+    return (
+      <>
+        <Stack.Screen options={{ title: isEdit ? 'Edit Event' : 'Host Event' }} />
+        <View style={[shared.screen, shared.centered]}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </>
+    )
   }
 
   return (
@@ -455,7 +451,7 @@ export default function HostEventScreen() {
             <Text style={shared.modalEmoji}>🏐</Text>
             <Text style={shared.modalTitle}>{successMessage}</Text>
             <Text style={shared.modalBody}>{isEdit ? 'Your changes have been saved.' : 'Your event is now live for members to join.'}</Text>
-            <TouchableOpacity style={shared.modalButton} onPress={() => { setSuccessModal(false); router.back() }}>
+            <TouchableOpacity style={shared.modalButton} onPress={() => router.back()}>
               <Text style={shared.modalButtonText}>Done</Text>
             </TouchableOpacity>
           </View>

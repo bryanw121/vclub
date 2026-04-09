@@ -294,6 +294,8 @@ export default function MyProfile() {
     if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
   }, [section, setTabBarHidden])
   const [positionDraft, setPositionDraft] = useState<VolleyballPosition[]>([])
+  const [firstNameDraft, setFirstNameDraft] = useState('')
+  const [lastNameDraft, setLastNameDraft] = useState('')
   const [bioDraft, setBioDraft] = useState('')
   const [profileSaving, setProfileSaving] = useState(false)
   const [borderDraft, setBorderDraft] = useState<ProfileBorderType | null>(null)
@@ -412,6 +414,8 @@ export default function MyProfile() {
 
   function openEditProfile() {
     if (!profile) return
+    setFirstNameDraft(profile.first_name ?? '')
+    setLastNameDraft(profile.last_name ?? '')
     setPositionDraft([...profile.position])
     setBioDraft(profile.bio ?? '')
     setBorderDraft(profile.selected_border ?? null)
@@ -445,9 +449,22 @@ export default function MyProfile() {
       const userId = session?.user?.id
       if (!userId) throw new Error('Not logged in')
       const trimmedBio = bioDraft.trim()
-      const { error } = await supabase.from('profiles').update({ position: positionDraft, bio: trimmedBio || null }).eq('id', userId)
+      const trimmedFirst = firstNameDraft.trim()
+      const trimmedLast = lastNameDraft.trim()
+      const { error } = await supabase.from('profiles').update({
+        position: positionDraft,
+        bio: trimmedBio || null,
+        first_name: trimmedFirst || null,
+        last_name: trimmedLast || null,
+      }).eq('id', userId)
       if (error) throw error
-      const updated = { ...profile, position: [...positionDraft], bio: trimmedBio || null }
+      const updated = {
+        ...profile,
+        position: [...positionDraft],
+        bio: trimmedBio || null,
+        first_name: trimmedFirst || null,
+        last_name: trimmedLast || null,
+      }
       setProfile(updated)
       void checkBadges(updated)
       Alert.alert('Saved', 'Your profile was updated.')
@@ -673,6 +690,28 @@ export default function MyProfile() {
         {/* ── Edit sections ── */}
         {section === 'edit' && (
           <>
+            {/* Name */}
+            <View style={[shared.card, { marginTop: theme.spacing.md }]}>
+              <Text style={shared.subheading}>Name</Text>
+              <View style={shared.mt_sm} />
+              <Input
+                label="First Name"
+                value={firstNameDraft}
+                onChangeText={setFirstNameDraft}
+                placeholder="Jane"
+                autoCorrect={false}
+                autoCapitalize="words"
+              />
+              <Input
+                label="Last Name"
+                value={lastNameDraft}
+                onChangeText={setLastNameDraft}
+                placeholder="Smith"
+                autoCorrect={false}
+                autoCapitalize="words"
+              />
+            </View>
+
             {/* Bio */}
             <View style={[shared.card, { marginTop: theme.spacing.md }]}>
               <Text style={shared.subheading}>Bio</Text>

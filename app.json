@@ -14,9 +14,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.vclub.app"
     },
     "android": {
+      "package": "com.vclub.app",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -50,7 +52,8 @@
         {
           "calendarPermission": "Allow vclub to add events to your calendar."
         }
-      ]
+      ],
+      "expo-web-browser"
     ]
   }
 }
