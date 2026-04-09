@@ -1,5 +1,5 @@
 import { forwardRef, useState } from 'react'
-import { TextInput, Text, View, TouchableOpacity, TextInputProps, StyleProp, ViewStyle, TextStyle } from 'react-native'
+import { TextInput, Text, View, TouchableOpacity, TextInputProps, StyleProp, ViewStyle, TextStyle, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { shared, theme } from '../constants'
 
@@ -47,6 +47,8 @@ export const Input = forwardRef<TextInput, Props>(function Input(
             multiline && !inputStyle && shared.inputMultiline,
             !!error && shared.inputError,
             showPasswordToggle && { paddingRight: 44 },
+            // Prevent iOS Safari auto-zoom (triggered when font-size < 16px)
+            Platform.OS === 'web' && { fontSize: 16 },
             inputStyle,
           ]}
           value={value}
