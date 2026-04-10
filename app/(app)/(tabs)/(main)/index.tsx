@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useCallback, memo, useEffect } from '
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Platform, View, ScrollView, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions, ActivityIndicator, Modal, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { useEvents } from '../../../../hooks/useEvents'
+import { useMonthEvents } from '../../../../hooks/useMonthEvents'
 import { useNotifications } from '../../../../hooks/useNotifications'
 import { EventCard } from '../../../../components/EventCard'
 import { shared, theme } from '../../../../constants'
@@ -45,7 +45,7 @@ const FILTER_CHIPS: { id: FilterChip; label: string }[] = [
 type DateSection = { date: string; data: EventWithDetails[] }
 export default function EventsScreen() {
   const router = useRouter()
-  const { events, loading, error, refetch } = useEvents()
+  const { events, loading, loadMonth, invalidateMonth, loadedMonths, reachedEnd } = useMonthEvents()
   const {
     notifications: notifItems,
     unreadCount,
@@ -59,22 +59,58 @@ export default function EventsScreen() {
   const isMobile = Platform.OS !== 'web' || windowWidth < 768
   const insets = useSafeAreaInsets()
 
-  useEffect(() => {
-    if (eventsRefreshTick > 0) refetch(true) // force after creating/editing an event
-  }, [eventsRefreshTick, refetch])
-
-  const webFocusCount = useRef(0)
-  useFocusEffect(useCallback(() => {
-    webFocusCount.current += 1
-    if (webFocusCount.current > 1) refetch() // respects 60s staleness window
-  }, [refetch]))
-
   const [selectedDate, setSelectedDate] = useState<string>(TODAY)
   const [mode, setMode] = useState<'week' | 'month'>('week')
   const [activeFilter, setActiveFilter] = useState<FilterChip>('all')
   const [notifOpen, setNotifOpen] = useState(false)
   const [curWeekPage, setCurWeekPage] = useState(WEEK_CENTER)
   const [curMonthPage, setCurMonthPage] = useState(MONTH_CENTER)
+
+  // Derive which month(s) the calendar is currently showing
+  const visibleMonths = useMemo((): string[] => {
+    if (mode === 'month') return [monthForIdx(curMonthPage)]
+    // Week mode: a week can straddle two months — load both
+    const weekStart = weekForIdx(curWeekPage)
+    const weekEnd   = new Date(weekStart.getTime() + 6 * 86_400_000)
+    const m1 = weekStart.toISOString().substring(0, 7)
+    const m2 = weekEnd.toISOString().substring(0, 7)
+    return m1 === m2 ? [m1] : [m1, m2]
+  }, [mode, curWeekPage, curMonthPage])
+
+  // Load months as the user navigates the calendar
+  useEffect(() => {
+    visibleMonths.forEach(m => { void loadMonth(m) })
+  }, [visibleMonths, loadMonth])
+
+  // Force-reload visible months after create/edit
+  useEffect(() => {
+    if (eventsRefreshTick > 0) {
+      visibleMonths.forEach(m => {
+        invalidateMonth(m)
+        void loadMonth(m, true)
+      })
+    }
+  }, [eventsRefreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-check staleness when the tab regains focus
+  const webFocusCount = useRef(0)
+  useFocusEffect(useCallback(() => {
+    webFocusCount.current += 1
+    if (webFocusCount.current > 1) {
+      visibleMonths.forEach(m => { void loadMonth(m) })
+    }
+  }, [visibleMonths, loadMonth]))
+
+  // The month immediately after the last loaded month — what to fetch on scroll-to-bottom
+  const nextScrollMonth = useMemo(() => {
+    const last = loadedMonths[loadedMonths.length - 1] ?? TODAY.substring(0, 7)
+    const [y, m] = last.split('-').map(Number)
+    return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
+  }, [loadedMonths])
+
+  const handleScrollNearBottom = useCallback(() => {
+    if (!loading && !reachedEnd) void loadMonth(nextScrollMonth)
+  }, [loading, reachedEnd, loadMonth, nextScrollMonth])
 
   const blockPager   = useCallback(() => { pagerBlocked.current = true  }, [pagerBlocked])
   const unblockPager = useCallback(() => { pagerBlocked.current = false }, [pagerBlocked])
@@ -152,10 +188,6 @@ export default function EventsScreen() {
       return !o
     })
   }, [refetchNotifs])
-
-  if (error) {
-    return <View style={shared.centered}><Text style={shared.errorText}>{error}</Text></View>
-  }
 
   return (
     <View style={shared.screen}>
@@ -278,7 +310,13 @@ export default function EventsScreen() {
         ref={scrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => refetch(true)} tintColor={theme.colors.primary} />}
+        scrollEventThrottle={200}
+        onScroll={({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }) => {
+          if (contentSize.height - contentOffset.y - layoutMeasurement.height < 400) {
+            handleScrollNearBottom()
+          }
+        }}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => visibleMonths.forEach(m => { invalidateMonth(m); void loadMonth(m, true) })} tintColor={theme.colors.primary} />}
       >
         {loading && sections.length === 0 ? (
           <ActivityIndicator
@@ -315,6 +353,13 @@ export default function EventsScreen() {
               </View>
             </View>
           ))
+        )}
+        {/* Bottom load-more spinner — visible while fetching the next month on scroll */}
+        {loading && sections.length > 0 && (
+          <ActivityIndicator
+            style={{ marginVertical: theme.spacing.lg }}
+            color={theme.colors.primary}
+          />
         )}
       </ScrollView>
 

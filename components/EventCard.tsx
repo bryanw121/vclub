@@ -211,7 +211,7 @@ function EventCardInner({ event }: { event: EventWithDetails }) {
                   return (
                     <View key={p.user_id} style={{
                       width: 22, height: 22, borderRadius: 11,
-                      backgroundColor: theme.colors.primary + '28',
+                      backgroundColor: '#E8E2FF',
                       borderWidth: 1.5, borderColor: theme.colors.card,
                       marginLeft: i > 0 ? -6 : 0,
                       alignItems: 'center', justifyContent: 'center',
