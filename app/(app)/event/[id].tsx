@@ -1790,68 +1790,61 @@ export default function EventDetail() {
       pointerEvents={removeModal !== null ? 'none' : 'auto'}
       onLayout={() => { measureContainerOffset() }}
     >
-      <Stack.Screen options={{
-        headerShown: Platform.OS !== 'web',
-        title: event?.title ?? '',
-        headerStyle: { backgroundColor: theme.colors.background },
-        headerTintColor: theme.colors.primary,
-        gestureEnabled: true,
-        headerLeft: () => (
-          <TouchableOpacity onPress={goBack} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 8 }}>
-            <Ionicons name="chevron-back" size={22} color={theme.colors.primary} />
-            <Text style={{ color: theme.colors.primary, fontSize: theme.font.size.md }}>
-              {from ? decodeURIComponent(from).split('/').filter(Boolean).pop()?.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) ?? 'Back' : 'Events'}
-            </Text>
-          </TouchableOpacity>
-        ),
-        headerRight: () => (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-            <TouchableOpacity onPress={handleShare} style={{ padding: 8 }} hitSlop={8}>
-              <Ionicons name="share-outline" size={22} color={theme.colors.primary} />
-            </TouchableOpacity>
-            {isHostOrCohost && (<>
-              <TouchableOpacity onPress={() => router.push(`/host?edit=${id}` as any)} style={{ padding: 8 }} hitSlop={8}>
-                <Ionicons name="create-outline" size={22} color={theme.colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleDelete} style={{ padding: 8 }} hitSlop={8}>
-                {deleting
-                  ? <ActivityIndicator size="small" color={theme.colors.error} />
-                  : <Ionicons name="trash-outline" size={22} color={theme.colors.error} />
-                }
-              </TouchableOpacity>
-            </>)}
-          </View>
-        ),
-      }} />
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
 
-      {/* Web-only page header: back + title + delete */}
+      {/* Web-only page header: back + actions */}
       {Platform.OS === 'web' && (
         <View style={{
           flexDirection: 'row',
           alignItems: 'center',
-          paddingHorizontal: theme.spacing.lg,
-          paddingVertical: theme.spacing.md,
-          borderBottomWidth: 1,
-          borderBottomColor: theme.colors.border,
+          paddingHorizontal: theme.spacing.md,
+          paddingVertical: theme.spacing.xs,
           zIndex: 10,
           backgroundColor: theme.colors.background,
-          gap: theme.spacing.sm,
+          gap: 4,
         }}>
-          <TouchableOpacity
+          <Pressable
             onPress={goBack}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: theme.spacing.sm }}
+            style={({ pressed }) => ({
+              width: 36, height: 36, borderRadius: 18,
+              alignItems: 'center', justifyContent: 'center',
+              backgroundColor: pressed ? theme.colors.primary + '14' : 'transparent',
+              flexShrink: 0,
+              zIndex: 1,
+            })}
           >
-            <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
-            <Text style={{ color: theme.colors.primary, fontSize: theme.font.size.sm }}>Events</Text>
-          </TouchableOpacity>
-          <Text style={{ flex: 1, fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }} numberOfLines={1}>
+            <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
+          </Pressable>
+          {/* Absolutely centered title — unaffected by unequal button counts on each side */}
+          <Text
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              textAlign: 'center',
+              fontSize: 18,
+              fontWeight: theme.font.weight.bold,
+              color: theme.colors.primary,
+              letterSpacing: -0.3,
+              pointerEvents: 'none',
+            } as any}
+            numberOfLines={1}
+          >
             {event?.title ?? ''}
           </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+          <View style={{ flex: 1 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
             <View>
-              <TouchableOpacity onPress={handleShare} style={{ padding: 4 }} hitSlop={8}>
+              <Pressable
+                onPress={handleShare}
+                style={({ pressed }) => ({
+                  width: 36, height: 36, borderRadius: 18,
+                  alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: pressed ? theme.colors.primary + '14' : 'transparent',
+                })}
+              >
                 <Ionicons name="share-outline" size={20} color={theme.colors.primary} />
-              </TouchableOpacity>
+              </Pressable>
               {shareMenuVisible && (
                 <>
                   <TouchableOpacity
@@ -1873,15 +1866,29 @@ export default function EventDetail() {
               )}
             </View>
             {isHostOrCohost && (<>
-              <TouchableOpacity onPress={() => router.push(`/host?edit=${id}` as any)} style={{ padding: 4 }} hitSlop={8}>
+              <Pressable
+                onPress={() => router.push(`/host?edit=${id}` as any)}
+                style={({ pressed }) => ({
+                  width: 36, height: 36, borderRadius: 18,
+                  alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: pressed ? theme.colors.primary + '14' : 'transparent',
+                })}
+              >
                 <Ionicons name="create-outline" size={20} color={theme.colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleDelete} style={{ padding: 4 }} hitSlop={8}>
+              </Pressable>
+              <Pressable
+                onPress={handleDelete}
+                style={({ pressed }) => ({
+                  width: 36, height: 36, borderRadius: 18,
+                  alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: pressed ? theme.colors.error + '14' : 'transparent',
+                })}
+              >
                 {deleting
                   ? <ActivityIndicator size="small" color={theme.colors.error} />
                   : <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
                 }
-              </TouchableOpacity>
+              </Pressable>
             </>)}
           </View>
         </View>
@@ -1897,26 +1904,52 @@ export default function EventDetail() {
         </View>
       ) : (
         <>
-          {/* Tab bar */}
-          <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background }}>
-            {(['Description', 'People', 'Discussion', 'Cheers'] as const).map((label, i) => (
-              <TouchableOpacity
-                key={label}
-                onPress={() => { if (i !== 3) { setSelectedCheerType(null); setPendingCheers([]) } setActiveTab(i) }}
-                style={{ flex: 1, alignItems: 'center', paddingVertical: 12 }}
+          {/* Fixed header: title + tabs — no separator, blends with background */}
+          <View style={{ backgroundColor: theme.colors.background, paddingTop: Platform.OS !== 'web' ? insets.top + 52 : 0 }}>
+            {/* Centered event title — native only (web header already shows it) */}
+            {Platform.OS !== 'web' && (
+              <Text
+                style={{
+                  textAlign: 'center',
+                  fontSize: 26,
+                  fontWeight: theme.font.weight.bold,
+                  color: theme.colors.primary,
+                  paddingHorizontal: theme.spacing.xl,
+                  paddingTop: theme.spacing.sm,
+                  paddingBottom: theme.spacing.md,
+                  letterSpacing: -0.5,
+                  lineHeight: 32,
+                }}
+                numberOfLines={2}
               >
-                <Text style={{
-                  fontSize: theme.font.size.sm,
-                  fontWeight: activeTab === i ? theme.font.weight.semibold : theme.font.weight.regular,
-                  color: activeTab === i ? theme.colors.primary : theme.colors.subtext,
-                }}>
-                  {label}
-                </Text>
-                {activeTab === i && (
-                  <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, backgroundColor: theme.colors.primary }} />
-                )}
-              </TouchableOpacity>
-            ))}
+                {event.title}
+              </Text>
+            )}
+
+            {/* Tab labels */}
+            <View style={{ flexDirection: 'row' }}>
+              {(['Description', 'People', 'Discussion', 'Cheers'] as const).map((label, i) => (
+                <TouchableOpacity
+                  key={label}
+                  onPress={() => { if (i !== 3) { setSelectedCheerType(null); setPendingCheers([]) } setActiveTab(i) }}
+                  style={[
+                    { flex: 1, alignItems: 'center', paddingVertical: 14 },
+                    Platform.OS === 'web' && { outlineStyle: 'none' } as any,
+                  ]}
+                >
+                  <Text style={{
+                    fontSize: theme.font.size.sm,
+                    fontWeight: activeTab === i ? theme.font.weight.bold : theme.font.weight.regular,
+                    color: activeTab === i ? theme.colors.primary : theme.colors.subtext,
+                  }}>
+                    {label}
+                  </Text>
+                  {activeTab === i && (
+                    <View style={{ position: 'absolute', bottom: 0, left: 12, right: 12, height: 3, backgroundColor: theme.colors.primary, borderRadius: 2 }} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           <Pager
@@ -1934,6 +1967,64 @@ export default function EventDetail() {
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
             >
 
+              {/* ── Tags + capacity ── */}
+              <View style={{ marginBottom: theme.spacing.md }}>
+
+                {/* Tag chips */}
+                {(event.event_tags?.length ?? 0) > 0 && (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: theme.spacing.sm }}>
+                    {[...(event.event_tags ?? [])].sort((a, b) => a.tags.display_order - b.tags.display_order).map(et => {
+                      const name = et.tags.name.toLowerCase()
+                      const isOpenPlay   = name.includes('open play') || name.includes('open-play')
+                      const isTournament = name.includes('tournament')
+                      const bg     = isOpenPlay ? theme.colors.success + '1A' : isTournament ? theme.colors.warning + '1A' : theme.colors.primary + '1A'
+                      const border = isOpenPlay ? theme.colors.success + '40' : isTournament ? theme.colors.warning + '40' : theme.colors.primary + '40'
+                      const color  = isOpenPlay ? theme.colors.success : isTournament ? theme.colors.warning : theme.colors.primary
+                      return (
+                        <View key={et.tag_id} style={{ paddingHorizontal: 10, paddingVertical: 3, borderRadius: theme.radius.full, backgroundColor: bg, borderWidth: 1, borderColor: border }}>
+                          <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.semibold, color }}>{et.tags.name}</Text>
+                        </View>
+                      )
+                    })}
+                  </View>
+                )}
+
+                {/* Capacity bar + status badge */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, flexWrap: 'wrap' }}>
+                  {event.max_attendees ? (
+                    <View style={{ flex: 1, minWidth: 160, gap: 5 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: theme.font.size.sm, color: eventStatus.isFull ? theme.colors.error : theme.colors.subtext }}>
+                          {eventStatus.isFull ? 'Full' : `${eventStatus.spotsLeft} spot${eventStatus.spotsLeft !== 1 ? 's' : ''} left`}
+                        </Text>
+                        <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>{totalAttending}/{event.max_attendees}</Text>
+                      </View>
+                      <View style={{ height: 5, backgroundColor: theme.colors.border, borderRadius: 3 }}>
+                        <View style={{
+                          height: 5,
+                          width: `${Math.round(Math.min(1, totalAttending / event.max_attendees) * 100)}%`,
+                          backgroundColor: eventStatus.isFull ? theme.colors.error : (totalAttending / event.max_attendees) >= 0.85 ? theme.colors.warning : theme.colors.primary,
+                          borderRadius: 3,
+                        }} />
+                      </View>
+                    </View>
+                  ) : (
+                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>{totalAttending} attending</Text>
+                  )}
+                  {eventStatus.isAttending && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.full, backgroundColor: theme.colors.success + '1A', borderWidth: 1, borderColor: theme.colors.success + '40' }}>
+                      <Ionicons name="checkmark-circle" size={13} color={theme.colors.success} />
+                      <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: theme.colors.success }}>You're going</Text>
+                    </View>
+                  )}
+                  {eventStatus.isWaitlisted && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.full, backgroundColor: theme.colors.warning + '1A', borderWidth: 1, borderColor: theme.colors.warning + '40' }}>
+                      <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: theme.colors.warning }}>#{eventStatus.waitlistPosition} on waitlist</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
               {/* ── Info rows ── */}
               <View style={[shared.card, { gap: 0, marginBottom: theme.spacing.md }]}>
 
@@ -1947,16 +2038,16 @@ export default function EventDetail() {
                   const dur = formatDuration(event.duration_minutes ?? 120)
                   return (
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md, paddingBottom: theme.spacing.md }}>
-                  <View style={{ width: 22, alignItems: 'center', paddingTop: 2 }}>
-                    <Ionicons name="calendar-outline" size={20} color={theme.colors.subtext} />
+                  <View style={{ width: 36, height: 36, borderRadius: theme.radius.sm, backgroundColor: theme.colors.primary + '14', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Ionicons name="calendar-outline" size={18} color={theme.colors.primary} />
                   </View>
-                  <View style={{ flex: 1, gap: theme.spacing.xs }}>
+                  <View style={{ flex: 1, gap: theme.spacing.xs, paddingTop: 2 }}>
                     <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
                       {dateStr}
                     </Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}>
-                      <Ionicons name="time-outline" size={13} color={theme.colors.text} />
-                      <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.text }}>
+                      <Ionicons name="time-outline" size={13} color={theme.colors.subtext} />
+                      <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>
                         {startStr} – {endStr}
                       </Text>
                       <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: theme.colors.border, marginHorizontal: 2 }} />
@@ -1971,10 +2062,12 @@ export default function EventDetail() {
                       )}
                       hitSlop={8}
                       accessibilityRole="button"
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
                     >
                       <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
                         Add to calendar
                       </Text>
+                      <Ionicons name="arrow-forward" size={12} color={theme.colors.primary} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1990,10 +2083,10 @@ export default function EventDetail() {
                     <>
                       <View style={{ height: 1, backgroundColor: theme.colors.border }} />
                       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md, paddingVertical: theme.spacing.md }}>
-                        <View style={{ width: 22, alignItems: 'center', paddingTop: 2 }}>
-                          <Ionicons name="location-outline" size={20} color={theme.colors.subtext} />
+                        <View style={{ width: 36, height: 36, borderRadius: theme.radius.sm, backgroundColor: theme.colors.primary + '14', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Ionicons name="location-outline" size={18} color={theme.colors.primary} />
                         </View>
-                        <View style={{ flex: 1 }}>
+                        <View style={{ flex: 1, paddingTop: 2 }}>
                           <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
                             {venue ? venue.label : event.location}
                           </Text>
@@ -2004,11 +2097,12 @@ export default function EventDetail() {
                             onPress={() => openInMaps(mapsQuery)}
                             hitSlop={8}
                             accessibilityRole="link"
-                            style={{ marginTop: theme.spacing.xs }}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: theme.spacing.xs }}
                           >
                             <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
                               Show in Maps
                             </Text>
+                            <Ionicons name="arrow-forward" size={12} color={theme.colors.primary} />
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -2016,24 +2110,63 @@ export default function EventDetail() {
                   )
                 })() : null}
 
-                {/* Tags row */}
-                {(event.event_tags?.length ?? 0) > 0 && (
-                  <>
-                    <View style={{ height: 1, backgroundColor: theme.colors.border }} />
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm }}>
-                      <View style={{ width: 22, alignItems: 'center' }}>
-                        <Ionicons name="pricetag-outline" size={20} color={theme.colors.subtext} />
-                      </View>
-                      <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                        {[...(event.event_tags ?? [])].sort((a, b) => a.tags.display_order - b.tags.display_order).map(et => (
-                          <View key={et.tag_id} style={shared.tag}>
-                            <Text style={shared.tagText}>{et.tags.name}</Text>
+                {/* Difficulty row */}
+                {(() => {
+                  const diffTags = (event.event_tags ?? [])
+                    .filter(et => et.tags.category === 'skill_level')
+                    .sort((a, b) => a.tags.display_order - b.tags.display_order)
+                  if (diffTags.length === 0) return null
+                  return (
+                    <>
+                      <View style={{ height: 1, backgroundColor: theme.colors.border }} />
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, paddingVertical: theme.spacing.md }}>
+                        <View style={{ width: 36, height: 36, borderRadius: theme.radius.sm, backgroundColor: theme.colors.primary + '14', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Ionicons name="speedometer-outline" size={18} color={theme.colors.primary} />
+                        </View>
+                        <View style={{ flex: 1, gap: 6 }}>
+                          <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                            Difficulty
+                          </Text>
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                            {diffTags.map(et => (
+                              <View key={et.tag_id} style={{ paddingHorizontal: 10, paddingVertical: 3, borderRadius: theme.radius.full, backgroundColor: theme.colors.primary + '14', borderWidth: 1, borderColor: theme.colors.primary + '30' }}>
+                                <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }}>
+                                  {et.tags.name}
+                                </Text>
+                              </View>
+                            ))}
                           </View>
-                        ))}
+                        </View>
                       </View>
+                    </>
+                  )
+                })()}
+
+                {/* Price row */}
+                <>
+                  <View style={{ height: 1, backgroundColor: theme.colors.border }} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, paddingVertical: theme.spacing.md }}>
+                    <View style={{ width: 36, height: 36, borderRadius: theme.radius.sm, backgroundColor: theme.colors.primary + '14', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Ionicons name="cash-outline" size={18} color={theme.colors.primary} />
                     </View>
-                  </>
-                )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>
+                        Price
+                      </Text>
+                      {event.price != null && event.price > 0 ? (
+                        <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
+                          ${event.price % 1 === 0 ? event.price : event.price.toFixed(2)}
+                        </Text>
+                      ) : (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                          <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: theme.radius.full, backgroundColor: theme.colors.success + '1A', borderWidth: 1, borderColor: theme.colors.success + '40' }}>
+                            <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.semibold, color: theme.colors.success }}>Free</Text>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </>
 
                 {/* Host(s) row */}
                 {event.profiles && (
@@ -2042,8 +2175,8 @@ export default function EventDetail() {
                     <View style={{ paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm, gap: theme.spacing.sm }}>
                       {/* Primary host */}
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
-                        <View style={{ width: 22, alignItems: 'center' }}>
-                          <Ionicons name="person-outline" size={20} color={theme.colors.subtext} />
+                        <View style={{ width: 36, height: 36, borderRadius: theme.radius.sm, backgroundColor: theme.colors.primary + '14', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Ionicons name="person-outline" size={18} color={theme.colors.primary} />
                         </View>
                         <HostCard
                           profile={event.profiles as Profile}
@@ -2051,21 +2184,21 @@ export default function EventDetail() {
                           onPress={() => !isOwner && event.profiles && router.push(`/profile/${event.profiles.id}` as any)}
                           inline
                         />
-                        <View style={{ backgroundColor: theme.colors.primary + '18', borderRadius: theme.radius.sm, paddingHorizontal: 6, paddingVertical: 2 }}>
-                          <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }}>Host</Text>
+                        <View style={{ backgroundColor: theme.colors.primary, borderRadius: theme.radius.sm, paddingHorizontal: 8, paddingVertical: 3 }}>
+                          <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: theme.colors.white }}>Host</Text>
                         </View>
                       </View>
                       {/* Cohosts */}
                       {cohosts.map(c => (
                         <View key={c.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
-                          <View style={{ width: 22 }} />
+                          <View style={{ width: 36 }} />
                           <HostCard
                             profile={c.profiles as unknown as Profile}
                             isOwner={c.user_id === userId}
                             onPress={() => c.user_id !== userId && router.push(`/profile/${c.user_id}` as any)}
                             inline
                           />
-                          <View style={{ backgroundColor: theme.colors.subtext + '18', borderRadius: theme.radius.sm, paddingHorizontal: 6, paddingVertical: 2 }}>
+                          <View style={{ backgroundColor: theme.colors.subtext + '28', borderRadius: theme.radius.sm, paddingHorizontal: 8, paddingVertical: 3 }}>
                             <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: theme.colors.subtext }}>Co-host</Text>
                           </View>
                         </View>
@@ -2074,7 +2207,7 @@ export default function EventDetail() {
                       {isOwner && (
                         <TouchableOpacity
                           onPress={() => setCohostModalVisible(true)}
-                          style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingLeft: 22 + theme.spacing.md, paddingTop: theme.spacing.xs }}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingLeft: 36 + theme.spacing.md, paddingTop: theme.spacing.xs }}
                         >
                           <Ionicons name="person-add-outline" size={14} color={theme.colors.primary} />
                           <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
@@ -2091,10 +2224,10 @@ export default function EventDetail() {
                   <>
                     <View style={{ height: 1, backgroundColor: theme.colors.border }} />
                     <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm }}>
-                      <View style={{ width: 22, alignItems: 'center', paddingTop: 2 }}>
-                        <Ionicons name="document-text-outline" size={20} color={theme.colors.subtext} />
+                      <View style={{ width: 36, height: 36, borderRadius: theme.radius.sm, backgroundColor: theme.colors.primary + '14', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Ionicons name="document-text-outline" size={18} color={theme.colors.primary} />
                       </View>
-                      <LinkedText text={event.description} style={{ flex: 1, fontSize: theme.font.size.sm, color: theme.colors.text, lineHeight: 20 }} />
+                      <LinkedText text={event.description} style={{ flex: 1, fontSize: theme.font.size.sm, color: theme.colors.text, lineHeight: 20, paddingTop: 10 }} />
                     </View>
                   </>
                 ) : null}
@@ -2967,6 +3100,85 @@ export default function EventDetail() {
         </TouchableOpacity>
       </Modal>
 
+      {/* Floating nav — native only, overlays the content */}
+      {Platform.OS !== 'web' && (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            top: insets.top + 8,
+            left: theme.spacing.md,
+            right: theme.spacing.md,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            zIndex: 50,
+          }}
+        >
+          {/* Back pill */}
+          <Pressable
+            onPress={goBack}
+            style={({ pressed }) => [styles.floatBtn, pressed && { opacity: 0.75 }]}
+            hitSlop={8}
+          >
+            <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
+          </Pressable>
+
+          {/* Action pills */}
+          <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
+            <View style={{ position: 'relative' }}>
+              <Pressable
+                onPress={handleShare}
+                style={({ pressed }) => [styles.floatBtn, pressed && { opacity: 0.75 }]}
+                hitSlop={8}
+              >
+                <Ionicons name="share-outline" size={19} color={theme.colors.text} />
+              </Pressable>
+              {shareMenuVisible && (
+                <>
+                  <TouchableOpacity
+                    style={{ position: 'absolute', top: 0, left: -9999, width: 99999, height: 99999 }}
+                    onPress={() => setShareMenuVisible(false)}
+                  />
+                  <View style={[styles.shareMenu, { top: 44, right: 0 }]}>
+                    {!!(navigator as any)?.share && (
+                      <ShareMenuItem icon="share-social-outline" label="Share…" onPress={handleWebShare} />
+                    )}
+                    <ShareMenuItem
+                      icon={linkCopied ? 'checkmark' : 'link-outline'}
+                      label={linkCopied ? 'Copied!' : 'Copy link'}
+                      onPress={handleCopyLink}
+                      active={linkCopied}
+                    />
+                  </View>
+                </>
+              )}
+            </View>
+            {isHostOrCohost && (
+              <>
+                <Pressable
+                  onPress={() => router.push(`/host?edit=${id}` as any)}
+                  style={({ pressed }) => [styles.floatBtn, pressed && { opacity: 0.75 }]}
+                  hitSlop={8}
+                >
+                  <Ionicons name="create-outline" size={19} color={theme.colors.text} />
+                </Pressable>
+                <Pressable
+                  onPress={handleDelete}
+                  style={({ pressed }) => [styles.floatBtn, pressed && { opacity: 0.75 }]}
+                  hitSlop={8}
+                >
+                  {deleting
+                    ? <ActivityIndicator size="small" color={theme.colors.error} />
+                    : <Ionicons name="trash-outline" size={19} color={theme.colors.error} />
+                  }
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      )}
+
       {/* Drag ghost — floats above everything */}
       {draggingPlayerId && (() => {
         const profile = attendees.find(p => p.id === draggingPlayerId)
@@ -2995,6 +3207,19 @@ export default function EventDetail() {
 }
 
 const styles = StyleSheet.create({
+  floatBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
   discussionBubbleBtn: {
     minWidth: 44,
     height: 44,

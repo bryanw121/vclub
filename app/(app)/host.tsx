@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, ScrollView, Text, View, Pressable, TouchableOpacity, Switch, Modal, StyleSheet } from 'react-native'
+import { ActivityIndicator, ScrollView, Text, TextInput, View, Pressable, TouchableOpacity, Switch, Modal, StyleSheet, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '../../lib/supabase'
@@ -25,6 +25,7 @@ const EMPTY_FORM: CreateEventForm = {
   date: roundToNearest5(),
   durationMinutes: DEFAULT_DURATION_MINUTES,
   maxAttendees: null,
+  price: null,
 }
 
 const CADENCE_OPTIONS: { value: RecurrenceCadence; label: string }[] = [
@@ -127,6 +128,7 @@ export default function HostEventScreen() {
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null)
 
   const [initialLoading, setInitialLoading] = useState(true)
+  const [durationModalOpen, setDurationModalOpen] = useState(false)
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timeoutRef  = useRef<ReturnType<typeof setTimeout>  | null>(null)
@@ -168,6 +170,7 @@ export default function HostEventScreen() {
       date: new Date(data.event_date),
       durationMinutes: data.duration_minutes ?? DEFAULT_DURATION_MINUTES,
       maxAttendees: data.max_attendees,
+      price: data.price ?? null,
     })
     if (loc) {
       setLocationId(loc.id)
@@ -276,6 +279,7 @@ export default function HostEventScreen() {
             duration_minutes: form.durationMinutes,
             max_attendees: form.maxAttendees,
             club_id: selectedClubId,
+            price: form.price,
           })
           .eq('id', editId)
         if (error) throw error
@@ -342,6 +346,7 @@ export default function HostEventScreen() {
           max_attendees: form.maxAttendees,
           created_by: user.id,
           club_id: selectedClubId,
+          price: form.price,
         }))
 
         const { data: insertedEvents, error } = await supabase.from('events').insert(rows).select('id')
@@ -427,7 +432,7 @@ export default function HostEventScreen() {
   if (initialLoading) {
     return (
       <>
-        <Stack.Screen options={{ title: isEdit ? 'Edit Event' : 'Host Event' }} />
+        <Stack.Screen options={{ title: '' }} />
         <View style={[shared.screen, shared.centered]}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
@@ -438,7 +443,7 @@ export default function HostEventScreen() {
   return (
     <>
       <Stack.Screen options={{
-        title: 'Host Event',
+        title: '',
         headerLeft: () => (
           <TouchableOpacity onPress={goBack} style={{ paddingRight: 8 }}>
             <Ionicons name="chevron-back" size={24} color={theme.colors.primary} />
@@ -458,272 +463,341 @@ export default function HostEventScreen() {
         </TouchableOpacity>
       </Modal>
 
-      <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent} scrollEnabled={!holding}>
-        <Text style={[shared.subheading, shared.mb_md]}>{isEdit ? 'Edit event' : 'Host an event'}</Text>
+      <ScrollView style={shared.screen} contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }} scrollEnabled={!holding}>
 
-        <Input label="Title" value={form.title} onChangeText={v => setField('title', v)} placeholder="Event name" />
-        <Input label="Description" value={form.description} onChangeText={v => setField('description', v)} placeholder="What's this event about?" multiline numberOfLines={4} />
+        {/* Page title */}
+        <Text style={{ fontSize: 22, fontWeight: theme.font.weight.bold, color: theme.colors.text, marginBottom: theme.spacing.lg }}>
+          {isEdit ? 'Edit event' : 'Host an event'}
+        </Text>
 
-        {/* ── Location chips ── */}
-        <View style={shared.inputContainer}>
-          <Text style={shared.label}>Location</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
-            {LOCATIONS.map(loc => {
-              const active = locationId === loc.id
-              return (
-                <TouchableOpacity
-                  key={loc.id}
-                  onPress={() => selectLocation(loc.id)}
-                  style={{
-                    paddingHorizontal: theme.spacing.md,
-                    paddingVertical: theme.spacing.xs,
-                    borderRadius: theme.radius.full,
-                    borderWidth: 1.5,
-                    borderColor: active ? theme.colors.primary : theme.colors.border,
-                    backgroundColor: active ? theme.colors.primary + '18' : 'transparent',
-                  }}
-                >
-                  <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: active ? theme.colors.primary : theme.colors.subtext }}>
-                    {loc.label}
-                  </Text>
-                </TouchableOpacity>
-              )
-            })}
-          </View>
-          {locationId === 'other' && (
-            <View style={{ marginTop: theme.spacing.sm }}>
-              <Input label="" value={form.location} onChangeText={v => setField('location', v)} placeholder="Enter location" />
-            </View>
-          )}
+        {/* ── Section: Basic Info ── */}
+        <View style={hostStyles.sectionLabel}>
+          <Ionicons name="create-outline" size={14} color={theme.colors.subtext} />
+          <Text style={hostStyles.sectionLabelText}>Basic Info</Text>
+        </View>
+        <View style={[shared.card, { marginBottom: theme.spacing.lg, gap: 0 }]}>
+          <Input label="Title" value={form.title} onChangeText={v => setField('title', v)} placeholder="Event name" containerStyle={{ marginBottom: 0 }} />
+          <Input label="Description" value={form.description} onChangeText={v => setField('description', v)} placeholder="What's this event about?" multiline numberOfLines={4} containerStyle={{ marginBottom: 0, marginTop: theme.spacing.sm }} />
         </View>
 
-        <DatePickerField value={form.date} onChange={d => {
-          setField('date', d)
-          if (!recurrence.enabled) setRecurrence(prev => ({ ...prev, endDate: defaultEndDate(d) }))
-        }} />
-
-        {/* ── Duration ── */}
-        <View style={shared.inputContainer}>
-          <Text style={shared.label}>Duration</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
-            {DURATION_OPTIONS.map(opt => {
-              const active = form.durationMinutes === opt.minutes
-              return (
-                <TouchableOpacity
-                  key={opt.minutes}
-                  onPress={() => setField('durationMinutes', opt.minutes)}
-                  style={{
-                    paddingHorizontal: theme.spacing.md,
-                    paddingVertical: theme.spacing.xs,
-                    borderRadius: theme.radius.full,
-                    borderWidth: 1.5,
-                    borderColor: active ? theme.colors.primary : theme.colors.border,
-                    backgroundColor: active ? theme.colors.primary + '18' : 'transparent',
-                  }}
-                >
-                  <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: active ? theme.colors.primary : theme.colors.subtext }}>
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              )
-            })}
-          </View>
+        {/* ── Section: When & Where ── */}
+        <View style={hostStyles.sectionLabel}>
+          <Ionicons name="location-outline" size={14} color={theme.colors.subtext} />
+          <Text style={hostStyles.sectionLabelText}>When & Where</Text>
         </View>
+        <View style={[shared.card, { marginBottom: theme.spacing.lg, gap: theme.spacing.md }]}>
 
-        {/* ── Recurrence — hidden in edit mode ── */}
-        {!isEdit && <>
-        <View style={shared.inputContainer}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={shared.label}>Repeat</Text>
-            <Switch
-              value={recurrence.enabled}
-              onValueChange={v => setRecurrence(prev => ({ ...prev, enabled: v }))}
-              trackColor={{ false: theme.colors.border, true: theme.colors.primary + '80' }}
-              thumbColor={recurrence.enabled ? theme.colors.primary : theme.colors.subtext}
-            />
-          </View>
-
-          {recurrence.enabled && (
-            <View style={{ marginTop: theme.spacing.sm, gap: theme.spacing.md }}>
-              <View style={{ flexDirection: 'row', borderRadius: theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border, alignSelf: 'flex-start' }}>
-                {CADENCE_OPTIONS.map(opt => (
+          <View>
+            <Text style={shared.label}>Location</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
+              {LOCATIONS.map(loc => {
+                const active = locationId === loc.id
+                return (
                   <TouchableOpacity
-                    key={opt.value}
-                    onPress={() => setRecurrence(prev => ({ ...prev, cadence: opt.value }))}
-                    style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, backgroundColor: recurrence.cadence === opt.value ? theme.colors.primary : 'transparent' }}
+                    key={loc.id}
+                    onPress={() => selectLocation(loc.id)}
+                    style={[hostStyles.chip, active && hostStyles.chipActive]}
                   >
-                    <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: recurrence.cadence === opt.value ? theme.colors.white : theme.colors.subtext }}>
-                      {opt.label}
-                    </Text>
+                    <Text style={[hostStyles.chipText, active && hostStyles.chipTextActive]}>{loc.label}</Text>
                   </TouchableOpacity>
-                ))}
+                )
+              })}
+            </View>
+            {locationId === 'other' && (
+              <View style={{ marginTop: theme.spacing.sm }}>
+                <Input label="" value={form.location} onChangeText={v => setField('location', v)} placeholder="Enter location" containerStyle={{ marginBottom: 0 }} />
               </View>
+            )}
+          </View>
 
-              {showDayPicker && (
-                <View>
-                  <Text style={[shared.caption, { marginBottom: theme.spacing.xs }]}>On these days</Text>
-                  <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
-                    {DAY_LABELS_SHORT.map((label, i) => {
-                      const active = recurrence.days.includes(i)
-                      return (
-                        <TouchableOpacity
-                          key={i}
-                          onPress={() => toggleRecurrenceDay(i)}
-                          style={{
-                            width: 36, height: 36, borderRadius: 18,
-                            borderWidth: 1.5,
-                            borderColor: active ? theme.colors.primary : theme.colors.border,
-                            backgroundColor: active ? theme.colors.primary : 'transparent',
-                            alignItems: 'center', justifyContent: 'center',
-                          }}
-                        >
-                          <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: active ? theme.colors.white : theme.colors.subtext }}>
-                            {label}
-                          </Text>
-                        </TouchableOpacity>
-                      )
-                    })}
+          <View>
+            <DatePickerField value={form.date} onChange={d => {
+              setField('date', d)
+              if (!recurrence.enabled) setRecurrence(prev => ({ ...prev, endDate: defaultEndDate(d) }))
+            }} />
+          </View>
+
+          <View>
+            <Text style={shared.label}>Duration</Text>
+            <View style={{ alignItems: 'flex-start' }}>
+            <TouchableOpacity
+              onPress={() => setDurationModalOpen(true)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm + 2, backgroundColor: theme.colors.card }}
+            >
+              <Text style={{ fontSize: theme.font.size.md, color: theme.colors.text, fontWeight: theme.font.weight.medium }}>
+                {DURATION_OPTIONS.find(o => o.minutes === form.durationMinutes)?.label ?? 'Select'}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={theme.colors.subtext} />
+            </TouchableOpacity>
+            </View>
+            <Modal visible={durationModalOpen} transparent animationType="fade" onRequestClose={() => setDurationModalOpen(false)}>
+              <TouchableOpacity style={shared.modalOverlay} activeOpacity={1} onPress={() => setDurationModalOpen(false)}>
+                <View style={[shared.modalCard, { paddingVertical: 0, paddingHorizontal: 0, overflow: 'hidden', minWidth: 200 }]}>
+                  {DURATION_OPTIONS.map((opt, i) => {
+                    const active = form.durationMinutes === opt.minutes
+                    return (
+                      <TouchableOpacity
+                        key={opt.minutes}
+                        onPress={() => { setField('durationMinutes', opt.minutes); setDurationModalOpen(false) }}
+                        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: theme.colors.border }}
+                      >
+                        <Text style={{ fontSize: theme.font.size.md, color: active ? theme.colors.primary : theme.colors.text, fontWeight: active ? theme.font.weight.semibold : theme.font.weight.regular }}>
+                          {opt.label}
+                        </Text>
+                        {active && <Ionicons name="checkmark" size={16} color={theme.colors.primary} />}
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              </TouchableOpacity>
+            </Modal>
+          </View>
+
+          {/* Recurrence — hidden in edit mode */}
+          {!isEdit && (
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={shared.label}>Repeat</Text>
+                <Switch
+                  value={recurrence.enabled}
+                  onValueChange={v => setRecurrence(prev => ({ ...prev, enabled: v }))}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.primary + '80' }}
+                  thumbColor={recurrence.enabled ? theme.colors.primary : theme.colors.subtext}
+                />
+              </View>
+              {recurrence.enabled && (
+                <View style={{ marginTop: theme.spacing.sm, gap: theme.spacing.md }}>
+                  <View style={{ flexDirection: 'row', borderRadius: theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border, alignSelf: 'flex-start' }}>
+                    {CADENCE_OPTIONS.map(opt => (
+                      <TouchableOpacity
+                        key={opt.value}
+                        onPress={() => setRecurrence(prev => ({ ...prev, cadence: opt.value }))}
+                        style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, backgroundColor: recurrence.cadence === opt.value ? theme.colors.primary : 'transparent' }}
+                      >
+                        <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: recurrence.cadence === opt.value ? theme.colors.white : theme.colors.subtext }}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
+                  {showDayPicker && (
+                    <View>
+                      <Text style={[shared.caption, { marginBottom: theme.spacing.xs }]}>On these days</Text>
+                      <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
+                        {DAY_LABELS_SHORT.map((label, i) => {
+                          const active = recurrence.days.includes(i)
+                          return (
+                            <TouchableOpacity
+                              key={i}
+                              onPress={() => toggleRecurrenceDay(i)}
+                              style={{
+                                width: 36, height: 36, borderRadius: 18,
+                                borderWidth: 1.5,
+                                borderColor: active ? theme.colors.primary : theme.colors.border,
+                                backgroundColor: active ? theme.colors.primary : 'transparent',
+                                alignItems: 'center', justifyContent: 'center',
+                              }}
+                            >
+                              <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: active ? theme.colors.white : theme.colors.subtext }}>
+                                {label}
+                              </Text>
+                            </TouchableOpacity>
+                          )
+                        })}
+                      </View>
+                    </View>
+                  )}
+                  <View>
+                    <Text style={[shared.caption, { marginBottom: theme.spacing.xs }]}>Until</Text>
+                    <DatePickerField value={recurrence.endDate} onChange={d => setRecurrence(prev => ({ ...prev, endDate: d }))} />
+                  </View>
+                  {eventCount > 0 && (
+                    <Text style={[shared.caption, { color: theme.colors.primary }]}>
+                      {eventCount} event{eventCount !== 1 ? 's' : ''} will be created
+                    </Text>
+                  )}
                 </View>
               )}
-
-              <View>
-                <Text style={[shared.caption, { marginBottom: theme.spacing.xs }]}>Until</Text>
-                <DatePickerField value={recurrence.endDate} onChange={d => setRecurrence(prev => ({ ...prev, endDate: d }))} />
-              </View>
-
-              {eventCount > 0 && (
-                <Text style={[shared.caption, { color: theme.colors.primary }]}>
-                  {eventCount} event{eventCount !== 1 ? 's' : ''} will be created
-                </Text>
-              )}
             </View>
           )}
         </View>
 
-        </>}
-
-        {/* ── Max Attendees ── */}
-        <View style={shared.inputContainer}>
-          <Text style={shared.label}>Max Attendees (optional)</Text>
-          <View style={shared.stepper}>
-            <Pressable
-              style={[shared.stepperBtn, form.maxAttendees === null && shared.stepperBtnDisabled]}
-              onPressIn={() => startHold(decrementAttendees)}
-              onPressOut={stopHold}
-              disabled={form.maxAttendees === null}
-            >
-              <Text style={shared.stepperBtnText}>−</Text>
-            </Pressable>
-            <Text style={shared.stepperValue}>{form.maxAttendees === null ? 'Unlimited' : form.maxAttendees}</Text>
-            <Pressable style={shared.stepperBtn} onPressIn={() => startHold(incrementAttendees)} onPressOut={stopHold}>
-              <Text style={shared.stepperBtnText}>+</Text>
-            </Pressable>
-          </View>
+        {/* ── Section: Details ── */}
+        <View style={hostStyles.sectionLabel}>
+          <Ionicons name="options-outline" size={14} color={theme.colors.subtext} />
+          <Text style={hostStyles.sectionLabelText}>Details</Text>
         </View>
+        <View style={[shared.card, { marginBottom: theme.spacing.lg, gap: theme.spacing.md }]}>
 
-        {/* ── Tags ── */}
-        {availableTags.length > 0 && (() => {
-          const byCategory = availableTags.reduce<Record<string, Tag[]>>((acc, tag) => {
-            ;(acc[tag.category] ??= []).push(tag)
-            return acc
-          }, {})
-          return Object.entries(byCategory).map(([category, tags]) => (
-            <View key={category} style={shared.inputContainer}>
-              <Text style={shared.label}>
-                {category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-              </Text>
+          {/* Max attendees */}
+          <View>
+            <Text style={shared.label}>Capacity</Text>
+            <View style={shared.stepper}>
+              <Pressable
+                style={[shared.stepperBtn, form.maxAttendees === null && shared.stepperBtnDisabled]}
+                onPressIn={() => startHold(decrementAttendees)}
+                onPressOut={stopHold}
+                disabled={form.maxAttendees === null}
+              >
+                <Text style={shared.stepperBtnText}>−</Text>
+              </Pressable>
+              <Text style={shared.stepperValue}>{form.maxAttendees === null ? 'Unlimited' : form.maxAttendees}</Text>
+              <Pressable style={shared.stepperBtn} onPressIn={() => startHold(incrementAttendees)} onPressOut={stopHold}>
+                <Text style={shared.stepperBtnText}>+</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Price */}
+          <View>
+            <Text style={shared.label}>Price (optional)</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.background }}>
+              <View style={{ paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.sm + 2, borderRightWidth: 1, borderRightColor: theme.colors.border }}>
+                <Text style={{ fontSize: theme.font.size.md, color: theme.colors.subtext, fontWeight: theme.font.weight.medium }}>$</Text>
+              </View>
+              <TextInput
+                value={form.price != null ? String(form.price) : ''}
+                onChangeText={v => {
+                  const trimmed = v.replace(/[^0-9.]/g, '')
+                  if (trimmed === '' || trimmed === '.') { setField('price', null); return }
+                  const n = parseFloat(trimmed)
+                  setField('price', isNaN(n) ? null : n)
+                }}
+                placeholder="0.00  (leave blank for free)"
+                placeholderTextColor={theme.colors.subtext}
+                keyboardType="decimal-pad"
+                style={{
+                  flex: 1,
+                  paddingHorizontal: theme.spacing.sm,
+                  paddingVertical: theme.spacing.sm + 2,
+                  fontSize: theme.font.size.md,
+                  color: theme.colors.text,
+                  ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
+                }}
+              />
+            </View>
+          </View>
+
+          {/* Tags */}
+          {availableTags.length > 0 && (() => {
+            const byCategory = availableTags.reduce<Record<string, Tag[]>>((acc, tag) => {
+              ;(acc[tag.category] ??= []).push(tag)
+              return acc
+            }, {})
+            return Object.entries(byCategory).map(([category, tags]) => (
+              <View key={category}>
+                <Text style={shared.label}>
+                  {category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
+                  {tags.map(tag => {
+                    const active = selectedTagIds.includes(tag.id)
+                    return (
+                      <TouchableOpacity
+                        key={tag.id}
+                        onPress={() => toggleTag(tag.id)}
+                        style={[hostStyles.chip, active && hostStyles.chipActive]}
+                      >
+                        <Text style={[hostStyles.chipText, active && hostStyles.chipTextActive]}>{tag.name}</Text>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              </View>
+            ))
+          })()}
+
+          {/* Club */}
+          {ownedClubs.length > 0 && (
+            <View>
+              <Text style={shared.label}>Club (optional)</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
-                {tags.map(tag => {
-                  const active = selectedTagIds.includes(tag.id)
+                {ownedClubs.map(club => {
+                  const active = selectedClubId === club.id
                   return (
                     <TouchableOpacity
-                      key={tag.id}
-                      onPress={() => toggleTag(tag.id)}
-                      style={{
-                        paddingHorizontal: theme.spacing.md,
-                        paddingVertical: theme.spacing.xs,
-                        borderRadius: theme.radius.full,
-                        borderWidth: 1.5,
-                        borderColor: active ? theme.colors.primary : theme.colors.border,
-                        backgroundColor: active ? theme.colors.primary + '18' : 'transparent',
-                      }}
+                      key={club.id}
+                      onPress={() => setSelectedClubId(active ? null : club.id)}
+                      style={[hostStyles.chip, active && hostStyles.chipActive]}
                     >
-                      <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: active ? theme.colors.primary : theme.colors.subtext }}>
-                        {tag.name}
-                      </Text>
+                      <Text style={[hostStyles.chipText, active && hostStyles.chipTextActive]}>{club.name}</Text>
                     </TouchableOpacity>
                   )
                 })}
               </View>
             </View>
-          ))
-        })()}
+          )}
 
-        {/* ── Club (optional) — only shown if user owns clubs ── */}
-        {ownedClubs.length > 0 && (
-          <View style={shared.inputContainer}>
-            <Text style={shared.label}>Club (optional)</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
-              {ownedClubs.map(club => {
-                const active = selectedClubId === club.id
-                return (
-                  <TouchableOpacity
-                    key={club.id}
-                    onPress={() => setSelectedClubId(active ? null : club.id)}
-                    style={{
-                      paddingHorizontal: theme.spacing.md,
-                      paddingVertical: theme.spacing.xs,
-                      borderRadius: theme.radius.full,
-                      borderWidth: 1.5,
-                      borderColor: active ? theme.colors.primary : theme.colors.border,
-                      backgroundColor: active ? theme.colors.primary + '18' : 'transparent',
-                    }}
-                  >
-                    <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: active ? theme.colors.primary : theme.colors.subtext }}>
-                      {club.name}
-                    </Text>
-                  </TouchableOpacity>
-                )
-              })}
-            </View>
-          </View>
-        )}
-
-        {/* ── Save as Template — hidden in edit mode ── */}
-        {!isEdit && (
-          <View style={shared.inputContainer}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={shared.label}>Save as template</Text>
-              <Switch
-                value={saveAsTemplate}
-                onValueChange={setSaveAsTemplate}
-                trackColor={{ false: theme.colors.border, true: theme.colors.primary + '80' }}
-                thumbColor={saveAsTemplate ? theme.colors.primary : theme.colors.subtext}
-              />
-            </View>
-            {saveAsTemplate && (
-              <View style={{ marginTop: theme.spacing.sm }}>
-                <Input
-                  label=""
-                  value={templateName}
-                  onChangeText={setTemplateName}
-                  placeholder={form.title || 'Template name'}
+          {/* Save as template */}
+          {!isEdit && (
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={shared.label}>Save as template</Text>
+                <Switch
+                  value={saveAsTemplate}
+                  onValueChange={setSaveAsTemplate}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.primary + '80' }}
+                  thumbColor={saveAsTemplate ? theme.colors.primary : theme.colors.subtext}
                 />
               </View>
-            )}
-          </View>
-        )}
-
-        <View style={shared.mb_md}>
-          <Button
-            label={isEdit ? 'Save changes' : (eventCount > 1 ? `Create ${eventCount} events` : 'Create event')}
-            onPress={handleSubmit}
-            loading={loading}
-            disabled={!form.title || !userId}
-          />
+              {saveAsTemplate && (
+                <View style={{ marginTop: theme.spacing.sm }}>
+                  <Input
+                    label=""
+                    value={templateName}
+                    onChangeText={setTemplateName}
+                    placeholder={form.title || 'Template name'}
+                    containerStyle={{ marginBottom: 0 }}
+                  />
+                </View>
+              )}
+            </View>
+          )}
         </View>
+
+        <Button
+          label={isEdit ? 'Save changes' : (eventCount > 1 ? `Create ${eventCount} events` : 'Create event')}
+          onPress={handleSubmit}
+          loading={loading}
+          disabled={!form.title || !userId}
+        />
       </ScrollView>
     </>
   )
 }
+
+const hostStyles = StyleSheet.create({
+  sectionLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.xs,
+  },
+  sectionLabelText: {
+    fontSize: theme.font.size.xs,
+    fontWeight: theme.font.weight.semibold,
+    color: theme.colors.subtext,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  chip: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs + 2,
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
+  },
+  chipActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  chipText: {
+    fontSize: theme.font.size.sm,
+    fontWeight: theme.font.weight.medium,
+    color: theme.colors.subtext,
+  },
+  chipTextActive: {
+    color: theme.colors.white,
+  },
+})

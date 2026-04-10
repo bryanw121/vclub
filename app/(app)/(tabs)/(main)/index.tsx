@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useCallback, memo, useEffect } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
-import { Platform, View, ScrollView, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions, ActivityIndicator, Modal } from 'react-native'
+import { Platform, View, ScrollView, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions, ActivityIndicator, Modal, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useEvents } from '../../../../hooks/useEvents'
 import { useNotifications } from '../../../../hooks/useNotifications'
@@ -33,6 +33,15 @@ function idxForMonth(month: string): number {
   return MONTH_CENTER + (y - ry) * 12 + (m - rm)
 }
 
+type FilterChip = 'all' | 'open_play' | 'tournament' | 'not_full'
+
+const FILTER_CHIPS: { id: FilterChip; label: string }[] = [
+  { id: 'all',        label: 'All'        },
+  { id: 'open_play',  label: 'Open Play'  },
+  { id: 'tournament', label: 'Tournament' },
+  { id: 'not_full',   label: 'Not Full'   },
+]
+
 type DateSection = { date: string; data: EventWithDetails[] }
 export default function EventsScreen() {
   const router = useRouter()
@@ -62,6 +71,7 @@ export default function EventsScreen() {
 
   const [selectedDate, setSelectedDate] = useState<string>(TODAY)
   const [mode, setMode] = useState<'week' | 'month'>('week')
+  const [activeFilter, setActiveFilter] = useState<FilterChip>('all')
   const [notifOpen, setNotifOpen] = useState(false)
   const [curWeekPage, setCurWeekPage] = useState(WEEK_CENTER)
   const [curMonthPage, setCurMonthPage] = useState(MONTH_CENTER)
@@ -73,17 +83,31 @@ export default function EventsScreen() {
   const sectionYRef = useRef<Record<string, number>>({})
 
   const sections: DateSection[] = useMemo(() => {
+    const filtered = events.filter(event => {
+      if (activeFilter === 'all') return true
+      const tags = event.event_tags?.map(et => et.tags.name.toLowerCase()) ?? []
+      if (activeFilter === 'open_play')  return tags.some(t => t.includes('open play') || t.includes('open-play'))
+      if (activeFilter === 'tournament') return tags.some(t => t.includes('tournament'))
+      if (activeFilter === 'not_full') {
+        if (!event.max_attendees) return true
+        const count = event.event_attendees_attending?.[0]
+          ? Number(event.event_attendees_attending[0].count)
+          : 0
+        return count < event.max_attendees
+      }
+      return true
+    })
     const grouped: Record<string, EventWithDetails[]> = {}
-    for (const event of [...events].sort((a, b) => a.event_date.localeCompare(b.event_date))) {
+    for (const event of [...filtered].sort((a, b) => a.event_date.localeCompare(b.event_date))) {
       const date = event.event_date.split('T')[0]
       if (!grouped[date]) grouped[date] = []
       grouped[date].push(event)
     }
     for (const date of Object.keys(grouped)) {
-      grouped[date].sort((a, b) => (a.profiles?.username ?? '').localeCompare(b.profiles?.username ?? ''))
+      grouped[date].sort((a, b) => a.event_date.localeCompare(b.event_date))
     }
     return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([date, data]) => ({ date, data }))
-  }, [events])
+  }, [events, activeFilter])
 
   const markedDates = useMemo(() => buildMarkedDates(events, selectedDate), [events, selectedDate])
 
@@ -225,6 +249,29 @@ export default function EventsScreen() {
           )}
           <View style={[shared.divider, { marginHorizontal: theme.spacing.lg, marginBottom: 0 }]} />
         </View>
+
+        {/* Filter chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.xs, paddingBottom: theme.spacing.sm, gap: theme.spacing.xs }}
+          style={{ flexGrow: 0 }}
+        >
+          {FILTER_CHIPS.map(chip => {
+            const active = activeFilter === chip.id
+            return (
+              <TouchableOpacity
+                key={chip.id}
+                onPress={() => setActiveFilter(chip.id)}
+                style={[feedStyles.chip, active && feedStyles.chipActive]}
+              >
+                <Text style={[feedStyles.chipLabel, active && feedStyles.chipLabelActive]}>
+                  {chip.label}
+                </Text>
+              </TouchableOpacity>
+            )
+          })}
+        </ScrollView>
       </View>
 
       <ScrollView
@@ -239,25 +286,33 @@ export default function EventsScreen() {
             color={theme.colors.primary}
           />
         ) : sections.length === 0 ? (
-          <Text style={[shared.caption, { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md }]}>
-            no upcoming events — create one!
-          </Text>
+          <View style={{ alignItems: 'center', paddingTop: theme.spacing.xxl, gap: theme.spacing.sm }}>
+            <Ionicons name="calendar-outline" size={36} color={theme.colors.border} />
+            <Text style={shared.caption}>
+              {activeFilter === 'all' ? 'No upcoming events — create one!' : 'No events match this filter'}
+            </Text>
+            {activeFilter !== 'all' && (
+              <TouchableOpacity onPress={() => setActiveFilter('all')}>
+                <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
+                  Clear filter
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         ) : (
           sections.map(section => (
             <View key={section.date} onLayout={e => { sectionYRef.current[section.date] = e.nativeEvent.layout.y }}>
-              <View style={[shared.rowBetween, {
-                paddingHorizontal: theme.spacing.lg,
-                paddingTop: theme.spacing.md,
-                paddingBottom: theme.spacing.xs,
-              }]}>
-                <Text style={shared.subheading}>{formatDayLabel(section.date)}</Text>
-                <Text style={shared.caption}>{section.data.length} event{section.data.length !== 1 ? 's' : ''}</Text>
-              </View>
-              {section.data.map(item => (
-                <View key={item.id} style={{ paddingHorizontal: theme.spacing.lg }}>
-                  <EventCard event={item} />
+              <View style={feedStyles.sectionHeader}>
+                <Text style={feedStyles.sectionDate}>{formatDayLabel(section.date)}</Text>
+                <View style={feedStyles.sectionCount}>
+                  <Text style={feedStyles.sectionCountText}>{section.data.length}</Text>
                 </View>
-              ))}
+              </View>
+              <View style={{ paddingHorizontal: theme.spacing.lg }}>
+                {section.data.map(item => (
+                  <EventCard key={item.id} event={item} />
+                ))}
+              </View>
             </View>
           ))
         )}
@@ -457,7 +512,7 @@ const WeekStripContent = memo(function WeekStripContent({ weekDays, selectedDate
   const monthLabel = weekDays[3].toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
   return (
-    <View style={{ paddingBottom: theme.spacing.md }}>
+    <View style={{ paddingBottom: theme.spacing.xs }}>
       <Text style={[shared.caption, { textAlign: 'center', marginBottom: theme.spacing.sm }]}>{monthLabel}</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <TouchableOpacity onPress={onPrevWeek} style={{ padding: theme.spacing.xs }}>
@@ -760,6 +815,54 @@ function buildMarkedDates(events: EventWithDetails[], selectedDate: string) {
   }
   return marks
 }
+
+const feedStyles = StyleSheet.create({
+  chip: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 6,
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
+  },
+  chipActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  chipLabel: {
+    fontSize: theme.font.size.sm,
+    fontWeight: theme.font.weight.medium,
+    color: theme.colors.subtext,
+  },
+  chipLabelActive: {
+    color: theme.colors.white,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.xs,
+  },
+  sectionDate: {
+    fontSize: theme.font.size.md,
+    fontWeight: theme.font.weight.bold,
+    color: theme.colors.text,
+    letterSpacing: -0.2,
+  },
+  sectionCount: {
+    backgroundColor: theme.colors.primary + '18',
+    borderRadius: theme.radius.full,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+  },
+  sectionCountText: {
+    fontSize: 10,
+    fontWeight: theme.font.weight.semibold,
+    color: theme.colors.primary,
+  },
+})
 
 function formatDayLabel(dateString: string): string {
   if (dateString === TODAY) return 'Today'

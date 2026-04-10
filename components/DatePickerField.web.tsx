@@ -26,7 +26,6 @@ const css = `
     padding: ${theme.spacing.sm + 4}px ${theme.spacing.md}px;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
     cursor: pointer;
-    flex: 1;
   }
   .vclub-field-wrap:hover {
     border-color: ${theme.colors.primary}80;
@@ -119,7 +118,7 @@ export function DatePickerField({ value: date, onChange }: Props) {
       <style>{css}</style>
       <Text style={shared.label}>Date & Time</Text>
       {/* @ts-ignore */}
-      <div style={{ display: 'flex', gap: theme.spacing.sm }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.sm }}>
         {/* @ts-ignore */}
         <div className="vclub-field-wrap">
           <Ionicons name="calendar-outline" size={16} color={theme.colors.subtext} />

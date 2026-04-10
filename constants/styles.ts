@@ -94,9 +94,9 @@ export const shared = StyleSheet.create({
     padding: spacing.md,
   },
   pickerRow:     { flexDirection: 'row', alignItems: 'center' },
-  pickerItem:    { flex: 1, alignItems: 'flex-start', gap: spacing.xs },
+  pickerItem:    { alignItems: 'flex-start', gap: spacing.xs },
   pickerLabel:   { fontSize: font.size.xs, fontWeight: font.weight.medium, color: colors.subtext },
-  pickerDivider: { width: 1, height: 40, backgroundColor: colors.border, marginHorizontal: spacing.md },
+  pickerDivider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.sm },
 
   // ─── Stepper (create event) ───────────────────────────────
   stepper: {

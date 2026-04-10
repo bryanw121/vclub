@@ -9,6 +9,7 @@ export type VolleyballPosition =
   | 'outside_hitter'
   | 'defensive_specialist'
   | 'opposite_hitter'
+  | 'middle_blocker'
 
 /**
  * `profiles` table
@@ -97,6 +98,8 @@ export type Event = {
   club_id: string | null       // Optional FK → clubs.id
   /** Set when the host cancels the event (nullable until migration applied). */
   cancelled_at?: string | null
+  /** Entry fee in USD; null means free. */
+  price?: number | null
 }
 
 /** Cheer categories for post-event peer recognition */
@@ -259,6 +262,7 @@ export type CreateEventForm = {
   date: Date             // Stored as JS Date locally; converted to ISO string on submit
   durationMinutes: number      // Event duration; default 120
   maxAttendees: number | null  // null = unlimited
+  price: number | null         // null = free
 }
 
 /**

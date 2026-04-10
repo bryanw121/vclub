@@ -9,6 +9,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
   View,
 } from 'react-native'
@@ -56,6 +57,7 @@ const VOLLEYBALL_POSITION_OPTIONS: { value: VolleyballPosition; label: string }[
   { value: 'setter', label: 'Setter' },
   { value: 'libero', label: 'Libero' },
   { value: 'outside_hitter', label: 'Outside Hitter (OH)' },
+  { value: 'middle_blocker', label: 'Middle Blocker (MB)' },
   { value: 'defensive_specialist', label: 'Defensive Specialist (DS)' },
   { value: 'opposite_hitter', label: 'Opposite Hitter (OPP)' },
 ]
@@ -594,66 +596,60 @@ export default function MyProfile() {
           </View>
         )}
 
-        {/* ── Profile card ── */}
-        <View style={shared.card}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md }}>
-            <View style={{ alignItems: 'center', gap: theme.spacing.xs }}>
-              <ProfileAvatar
-                uri={avatarUploading || avatarUriResolving ? null : avatarDisplayUri}
-                loading={avatarUploading || avatarUriResolving}
-                border={profile.selected_border}
-                onPress={pickAndUploadAvatar}
-                editMode={section === 'edit'}
-                onDelete={deleteAvatar}
-                hasAvatar={!!profile.avatar_url}
-              />
-              {section === 'edit' && (
-                <Text style={[shared.caption, { textAlign: 'center', maxWidth: AVATAR_OUTER }]}>
-                  Tap to {profile.avatar_url ? 'change' : 'add'} a photo.
-                </Text>
-              )}
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={shared.heading}>
-                {profile.first_name && profile.last_name
-                  ? `${profile.first_name} ${profile.last_name}`
-                  : profile.username}
+        {/* ── Profile hero ── */}
+        <View style={profileStyles.heroCard}>
+          {/* Avatar centered */}
+          <View style={{ alignItems: 'center', gap: theme.spacing.xs }}>
+            <ProfileAvatar
+              uri={avatarUploading || avatarUriResolving ? null : avatarDisplayUri}
+              loading={avatarUploading || avatarUriResolving}
+              border={profile.selected_border}
+              onPress={pickAndUploadAvatar}
+              editMode={section === 'edit'}
+              onDelete={deleteAvatar}
+              hasAvatar={!!profile.avatar_url}
+            />
+            {section === 'edit' && (
+              <Text style={[shared.caption, { textAlign: 'center' }]}>
+                Tap to {profile.avatar_url ? 'change' : 'add'} a photo.
               </Text>
-              {profile.first_name && profile.last_name ? (
-                <Text style={[shared.caption, shared.mt_xs, { color: theme.colors.subtext }]}>
-                  @{profile.username}
-                </Text>
-              ) : null}
-              {positionLabels(profile.position) ? (
-                <Text style={[shared.body, shared.mt_sm]}>{positionLabels(profile.position)}</Text>
-              ) : null}
-              <Text style={[shared.caption, shared.mt_xs]}>
-                joined {new Date(profile.created_at).toLocaleDateString()}
-              </Text>
-            </View>
+            )}
           </View>
 
-          {profile.bio ? (
-            <Text style={[shared.body, { marginTop: theme.spacing.sm }]}>{profile.bio}</Text>
+          {/* Name + handle */}
+          <Text style={profileStyles.heroName}>
+            {profile.first_name && profile.last_name
+              ? `${profile.first_name} ${profile.last_name}`
+              : profile.username}
+          </Text>
+          {profile.first_name && profile.last_name && (
+            <Text style={profileStyles.heroHandle}>@{profile.username}</Text>
+          )}
+
+          {/* Positions */}
+          {positionLabels(profile.position) ? (
+            <Text style={profileStyles.heroPosition}>{positionLabels(profile.position)}</Text>
           ) : null}
 
+          {/* Bio */}
+          {profile.bio ? (
+            <Text style={profileStyles.heroBio}>{profile.bio}</Text>
+          ) : null}
+
+          {/* Joined */}
+          <Text style={profileStyles.heroJoined}>
+            Member since {new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+          </Text>
+
           {section === 'edit' && avatarUriError && profile.avatar_url ? (
-            <Text style={[shared.errorText, shared.mt_xs]}>
+            <Text style={[shared.errorText, shared.mt_xs, { textAlign: 'center' }]}>
               Could not load image. Fix Storage SELECT policy for the avatars bucket.
             </Text>
           ) : null}
 
           {/* Displayed badges row */}
           {displayedBadges.length > 0 && (
-            <View style={{
-              flexDirection: 'row',
-              gap: theme.spacing.sm,
-              marginTop: theme.spacing.md,
-              paddingTop: theme.spacing.md,
-              borderTopWidth: 1,
-              borderTopColor: theme.colors.border,
-              justifyContent: 'center',
-            }}>
+            <View style={profileStyles.badgeRow}>
               {displayedBadges.map(badge => {
                 const def = BADGE_DEFINITIONS.find(d => d.type === badge.badge_type)
                 if (!def) return null
@@ -671,19 +667,23 @@ export default function MyProfile() {
 
         {/* ── Menu ── */}
         {section === 'menu' && (
-          <View style={{ gap: theme.spacing.md, marginTop: theme.spacing.md }}>
-            <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
-              <MenuCard title="Account Settings" icon="settings-outline" onPress={() => router.push('/settings/account')} />
-              <MenuCard title="Notifications" icon="notifications-outline" onPress={() => router.push('/settings/notifications')} />
-            </View>
-            <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
-              <MenuCard title="History" icon="time-outline" onPress={() => router.push('/settings/history')} />
-              <MenuCard title="Cheers" icon="star-outline" onPress={() => router.push('/settings/cheers')} />
-            </View>
-            <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
-              <MenuCard title="Badges" icon="ribbon-outline" onPress={() => router.push('/settings/badges')} />
-              <MenuCard title="Submit Feedback" icon="chatbubble-ellipses-outline" onPress={() => router.push('/settings/feedback')} />
-            </View>
+          <View style={[shared.card, { gap: 0, marginTop: theme.spacing.md, padding: 0, overflow: 'hidden' }]}>
+            {([
+              { title: 'Account Settings', icon: 'settings-outline', route: '/settings/account' },
+              { title: 'Notifications',    icon: 'notifications-outline', route: '/settings/notifications' },
+              { title: 'History',          icon: 'time-outline', route: '/settings/history' },
+              { title: 'Cheers',           icon: 'star-outline', route: '/settings/cheers' },
+              { title: 'Badges',           icon: 'ribbon-outline', route: '/settings/badges' },
+              { title: 'Submit Feedback',  icon: 'chatbubble-ellipses-outline', route: '/settings/feedback' },
+            ] as const).map((item, idx, arr) => (
+              <MenuRow
+                key={item.route}
+                title={item.title}
+                icon={item.icon as any}
+                onPress={() => router.push(item.route as any)}
+                last={idx === arr.length - 1}
+              />
+            ))}
           </View>
         )}
 
@@ -1001,31 +1001,30 @@ export default function MyProfile() {
   )
 }
 
-// ─── MenuCard ─────────────────────────────────────────────────────────────────
+// ─── MenuRow ──────────────────────────────────────────────────────────────────
 
-function MenuCard({ title, icon, onPress, style }: {
+function MenuRow({ title, icon, onPress, last }: {
   title: string
   icon: ComponentProps<typeof Ionicons>['name']
   onPress: () => void
-  style?: object
+  last?: boolean
 }) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [
-        shared.card,
-        { flex: 1, margin: 0, alignItems: 'flex-start', opacity: pressed ? 0.88 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
-        style,
-      ]}
       accessibilityRole="button"
       accessibilityLabel={title}
+      style={({ pressed }) => [
+        profileStyles.menuRow,
+        !last && profileStyles.menuRowBorder,
+        pressed && { backgroundColor: theme.colors.background },
+      ]}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, flex: 1 }}>
-        <Ionicons name={icon} size={20} color={theme.colors.subtext} />
-        <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text, flex: 1 }}>
-          {title}
-        </Text>
+      <View style={profileStyles.menuRowIcon}>
+        <Ionicons name={icon} size={18} color={theme.colors.primary} />
       </View>
+      <Text style={profileStyles.menuRowTitle}>{title}</Text>
+      <Ionicons name="chevron-forward" size={16} color={theme.colors.subtext} />
     </Pressable>
   )
 }
@@ -1149,3 +1148,85 @@ function BorderSwatch({ label, borderDef, selected, unlocked, onPress }: {
     </Pressable>
   )
 }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const profileStyles = StyleSheet.create({
+  heroCard: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: theme.spacing.lg,
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    ...theme.shadow.sm,
+  },
+  heroName: {
+    fontSize: 20,
+    fontWeight: theme.font.weight.bold,
+    color: theme.colors.text,
+    marginTop: theme.spacing.xs,
+    textAlign: 'center',
+  },
+  heroHandle: {
+    fontSize: theme.font.size.sm,
+    color: theme.colors.subtext,
+    textAlign: 'center',
+  },
+  heroPosition: {
+    fontSize: theme.font.size.sm,
+    fontWeight: theme.font.weight.medium,
+    color: theme.colors.primary,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  heroBio: {
+    fontSize: theme.font.size.md,
+    color: theme.colors.text,
+    textAlign: 'center',
+    lineHeight: theme.font.lineHeight.normal,
+    marginTop: theme.spacing.xs,
+  },
+  heroJoined: {
+    fontSize: theme.font.size.xs,
+    color: theme.colors.subtext,
+    marginTop: 2,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
+    paddingTop: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
+    gap: theme.spacing.md,
+    backgroundColor: theme.colors.card,
+  },
+  menuRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  menuRowIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.primary + '14',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuRowTitle: {
+    flex: 1,
+    fontSize: theme.font.size.md,
+    fontWeight: theme.font.weight.medium,
+    color: theme.colors.text,
+  },
+})
