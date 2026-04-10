@@ -249,6 +249,10 @@ export type EventWithDetails = Event & {
   event_attendees_waitlisted?: EventAttendeeCountEmbed[]
   event_tags?: { tag_id: string; tags: Tag }[]
   clubs?: { id: string; name: string; avatar_url: string | null } | null
+  attendee_previews?: Array<{
+    user_id: string
+    profiles: Pick<Profile, 'id' | 'first_name' | 'last_name' | 'avatar_url'> | null
+  }>
 }
 
 // ─── Form Types ───────────────────────────────────────────────────────────────

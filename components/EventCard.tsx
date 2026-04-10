@@ -1,9 +1,16 @@
 import React, { memo } from 'react'
-import { TouchableOpacity, Text, View } from 'react-native'
+import { TouchableOpacity, Text, View, Image } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, usePathname } from 'expo-router'
 import { theme, eventAttendeeDisplayCount } from '../constants'
 import type { EventWithDetails, Tag } from '../types'
+
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''
+function avatarUri(ref: string | null | undefined): string | null {
+  if (!ref) return null
+  if (ref.startsWith('http')) return ref
+  return `${SUPABASE_URL}/storage/v1/render/image/public/avatars/${ref}?width=80&height=80&quality=70&resize=cover`
+}
 
 // ─── Tag color helpers ────────────────────────────────────────────────────────
 
@@ -49,8 +56,14 @@ function EventCardInner({ event }: { event: EventWithDetails }) {
     ? Math.min(1, attendeeCount / event.max_attendees)
     : 0
 
-  const tags = event.event_tags
-    ?.map(et => et.tags)
+  const eventTypeTags = event.event_tags
+    ?.filter(et => et.tags.category === 'event_type')
+    .map(et => et.tags)
+    .sort((a, b) => a.display_order - b.display_order) ?? []
+
+  const skillTags = event.event_tags
+    ?.filter(et => et.tags.category === 'skill_level')
+    .map(et => et.tags)
     .sort((a, b) => a.display_order - b.display_order) ?? []
 
   const { hour, ampm } = parseEventTime(event.event_date)
@@ -103,10 +116,10 @@ function EventCardInner({ event }: { event: EventWithDetails }) {
       {/* ── Content ── */}
       <View style={{ flex: 1, padding: theme.spacing.md, gap: 5 }}>
 
-        {/* Tags + club row */}
-        {(tags.length > 0 || event.clubs) && (
+        {/* Event type tags + club row */}
+        {(eventTypeTags.length > 0 || event.clubs) && (
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 }}>
-            {tags.map(tag => {
+            {eventTypeTags.map(tag => {
               const c = tagColors(tag)
               return (
                 <View key={tag.id} style={{
@@ -133,6 +146,28 @@ function EventCardInner({ event }: { event: EventWithDetails }) {
           </View>
         )}
 
+        {/* Skill level tags row */}
+        {skillTags.length > 0 && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+            {skillTags.map(tag => {
+              const c = tagColors(tag)
+              return (
+                <View key={tag.id} style={{
+                  paddingHorizontal: 6, paddingVertical: 1,
+                  borderRadius: theme.radius.full,
+                  backgroundColor: c.bg,
+                  borderWidth: 1,
+                  borderColor: c.border,
+                }}>
+                  <Text style={{ fontSize: 10, fontWeight: theme.font.weight.semibold, color: c.text }}>
+                    {tag.name}
+                  </Text>
+                </View>
+              )
+            })}
+          </View>
+        )}
+
         {/* Title */}
         <Text
           style={{ fontSize: 15, fontWeight: theme.font.weight.semibold, color: theme.colors.text, lineHeight: 20 }}
@@ -151,15 +186,62 @@ function EventCardInner({ event }: { event: EventWithDetails }) {
           </View>
         )}
 
-        {/* Host */}
-        <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext }}>
-          by {event.profiles
+        {/* Attendee preview + host */}
+        {(() => {
+          const previews = (event.attendee_previews ?? []).slice(0, 2)
+          const overflow = attendeeCount > previews.length ? attendeeCount - previews.length : 0
+          const hostName = event.profiles
             ? event.profiles.first_name
               ? `${event.profiles.first_name} ${event.profiles.last_name?.[0] ?? ''}`.trim()
               : event.profiles.username
-            : 'unknown'}
-          {waitlistedCount > 0 ? ` · ${waitlistedCount} waiting` : ''}
-        </Text>
+            : 'unknown'
+          if (previews.length === 0) {
+            return (
+              <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext }}>
+                by {hostName}{waitlistedCount > 0 ? ` · ${waitlistedCount} waiting` : ''}
+              </Text>
+            )
+          }
+          return (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+              <View style={{ flexDirection: 'row' }}>
+                {previews.map((p, i) => {
+                  const uri = avatarUri(p.profiles?.avatar_url)
+                  const initials = p.profiles?.first_name?.[0]?.toUpperCase() ?? '?'
+                  return (
+                    <View key={p.user_id} style={{
+                      width: 22, height: 22, borderRadius: 11,
+                      backgroundColor: theme.colors.primary + '28',
+                      borderWidth: 1.5, borderColor: theme.colors.card,
+                      marginLeft: i > 0 ? -6 : 0,
+                      alignItems: 'center', justifyContent: 'center',
+                      overflow: 'hidden',
+                    }}>
+                      {uri
+                        ? <Image source={{ uri }} style={{ width: 22, height: 22 }} />
+                        : <Text style={{ fontSize: 9, fontWeight: theme.font.weight.bold, color: theme.colors.primary }}>{initials}</Text>
+                      }
+                    </View>
+                  )
+                })}
+                {overflow > 0 && (
+                  <View style={{
+                    width: 22, height: 22, borderRadius: 11,
+                    backgroundColor: theme.colors.border,
+                    borderWidth: 1.5, borderColor: theme.colors.card,
+                    marginLeft: -6,
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Text style={{ fontSize: 8, fontWeight: theme.font.weight.semibold, color: theme.colors.subtext }}>+{overflow}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext }}>
+                by {hostName}{waitlistedCount > 0 ? ` · ${waitlistedCount} waiting` : ''}
+              </Text>
+            </View>
+          )
+        })()}
 
         {/* Capacity bar */}
         {event.max_attendees != null ? (

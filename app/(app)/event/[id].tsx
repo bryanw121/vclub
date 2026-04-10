@@ -1815,24 +1815,21 @@ export default function EventDetail() {
           >
             <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
           </Pressable>
-          {/* Absolutely centered title — unaffected by unequal button counts on each side */}
-          <Text
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              textAlign: 'center',
-              fontSize: 18,
-              fontWeight: theme.font.weight.bold,
-              color: theme.colors.primary,
-              letterSpacing: -0.3,
-              pointerEvents: 'none',
-            } as any}
-            numberOfLines={1}
-          >
-            {event?.title ?? ''}
-          </Text>
-          <View style={{ flex: 1 }} />
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', minWidth: 0 }}>
+            <Text
+              style={{
+                textAlign: 'center',
+                fontSize: 18,
+                fontWeight: theme.font.weight.bold,
+                color: theme.colors.primary,
+                letterSpacing: -0.3,
+              }}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {event?.title ?? ''}
+            </Text>
+          </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
             <View>
               <Pressable
@@ -1971,9 +1968,9 @@ export default function EventDetail() {
               <View style={{ marginBottom: theme.spacing.md }}>
 
                 {/* Tag chips */}
-                {(event.event_tags?.length ?? 0) > 0 && (
+                {(event.event_tags?.filter(et => et.tags.category !== 'skill_level').length ?? 0) > 0 && (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: theme.spacing.sm }}>
-                    {[...(event.event_tags ?? [])].sort((a, b) => a.tags.display_order - b.tags.display_order).map(et => {
+                    {[...(event.event_tags ?? [])].filter(et => et.tags.category !== 'skill_level').sort((a, b) => a.tags.display_order - b.tags.display_order).map(et => {
                       const name = et.tags.name.toLowerCase()
                       const isOpenPlay   = name.includes('open play') || name.includes('open-play')
                       const isTournament = name.includes('tournament')
