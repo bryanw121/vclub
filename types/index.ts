@@ -138,7 +138,8 @@ export type EventAttendee = {
   joined_at: string      // ISO 8601 — when the user joined
   team_number: number | null  // which team (1-based); null = unassigned
   team_pinned: boolean        // true if manually assigned by host; skipped during randomize
-  status: 'attending' | 'waitlisted'
+  status: 'attending' | 'waitlisted' | 'requested' | 'denied'
+  denial_reason?: string | null
 }
 
 /** `event_attendees` row with embedded `profiles` from the event detail query (`profiles!…user_id…`). */
@@ -354,6 +355,9 @@ export type AttendanceStatus = {
   isWaitlisted: boolean       // true if the current user is on the waitlist
   waitlistPosition: number | null  // 1-based position on waitlist; null if not waitlisted
   waitlistCount: number       // total number of people on the waitlist
+  isRequested: boolean        // true if the current user has a pending join request (paid events)
+  isDenied: boolean           // true if the current user's request was denied
+  denialReason: string | null // reason provided by host when denying; null if none given
 }
 
 // ─── Badge Types ──────────────────────────────────────────────────────────────

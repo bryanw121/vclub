@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, ScrollView, Switch, Text, View } from 'react-native'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
+import { Sentry } from '../../../../lib/sentry'
 import { shared, theme } from '../../../../constants'
 import { NOTIFICATION_TYPE_LABELS } from '../../../../constants/notifications'
 import {
@@ -40,7 +41,8 @@ export default function NotificationSettingsScreen() {
         push: { ...raw?.push },
       })
     } catch (e: any) {
-      setError(e.message ?? 'Could not load settings')
+      Sentry.captureException(e)
+      setError('Could not load notification settings. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -64,7 +66,8 @@ export default function NotificationSettingsScreen() {
         if (uErr) throw uErr
         setPrefs(next)
       } catch (e: any) {
-        setError(e.message ?? 'Could not save')
+        Sentry.captureException(e)
+        setError('Could not save settings. Please try again.')
       } finally {
         setSaving(false)
       }

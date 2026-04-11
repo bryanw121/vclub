@@ -640,6 +640,10 @@ export default function EventDetail() {
   const [event, setEvent] = useState<EventWithDetails | null>(null)
   const [attendees, setAttendees] = useState<Profile[]>([])
   const [waitlistProfiles, setWaitlistProfiles] = useState<Profile[]>([])
+  const [requestedProfiles, setRequestedProfiles] = useState<Profile[]>([])
+  const [denyModal, setDenyModal] = useState<{ userId: string; displayName: string } | null>(null)
+  const [denyReason, setDenyReason] = useState('')
+  const [processingRequest, setProcessingRequest] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -949,13 +953,17 @@ export default function EventDetail() {
       setEvent(data as EventWithDetails)
 
       const attendeeRows = attendeeRowsWithProfiles(data.event_attendees)
-      const attendingEntries = attendeeRows.filter(a => a.status !== 'waitlisted')
+      const attendingEntries = attendeeRows.filter(a => a.status === 'attending')
       const waitlistEntries = [...attendeeRows.filter(a => a.status === 'waitlisted')].sort(
+        (a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime(),
+      )
+      const requestedEntries = [...attendeeRows.filter(a => a.status === 'requested')].sort(
         (a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime(),
       )
 
       setAttendees(attendingEntries.map(profileFromAttendeeEmbed).filter(Boolean) as Profile[])
       setWaitlistProfiles(waitlistEntries.map(profileFromAttendeeEmbed).filter(Boolean) as Profile[])
+      setRequestedProfiles(requestedEntries.map(profileFromAttendeeEmbed).filter(Boolean) as Profile[])
 
       // Comments load in parallel with guests; do not block the main shell.
       void supabase
@@ -1088,7 +1096,8 @@ export default function EventDetail() {
         data: { event_id: event.id },
       })
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      sentryError('addCohost', e)
+      Alert.alert('Error', 'Something went wrong. Please try again.')
     } finally {
       setCohostAdding(false)
     }
@@ -1105,7 +1114,8 @@ export default function EventDetail() {
       if (error) throw error
       setCohosts(prev => prev.filter(c => c.user_id !== cohostUserId))
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      sentryError('removeCohost', e)
+      Alert.alert('Error', 'Something went wrong. Please try again.')
     } finally {
       setCohostRemoving(null)
     }
@@ -1222,7 +1232,8 @@ export default function EventDetail() {
       await refreshComments()
       scrollDiscussionToBottom(true)
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      sentryError('postComment', e)
+      Alert.alert('Error', 'Could not post comment. Please try again.')
       throw e
     } finally {
       setPostingComment(false)
@@ -1238,13 +1249,16 @@ export default function EventDetail() {
 
     setEvent(prev => prev ? { ...prev, event_attendees: rows ?? [] } : prev)
 
-    const attendingRows = (rows ?? []).filter((a: any) => a.status !== 'waitlisted')
+    const attendingRows = (rows ?? []).filter((a: any) => a.status === 'attending')
     const waitlistRows = [...(rows ?? []).filter((a: any) => a.status === 'waitlisted')]
+      .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
+    const requestedRows = [...(rows ?? []).filter((a: any) => a.status === 'requested')]
       .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
 
     const attendeeIds = attendingRows.map((a: any) => a.user_id)
     const waitlistIds = waitlistRows.map((a: any) => a.user_id)
-    const allProfileIds = [...new Set([...attendeeIds, ...waitlistIds])]
+    const requestedIds = requestedRows.map((a: any) => a.user_id)
+    const allProfileIds = [...new Set([...attendeeIds, ...waitlistIds, ...requestedIds])]
     const profilesMap = new Map<string, Profile>()
     if (allProfileIds.length > 0) {
       const { data: profiles } = await supabase
@@ -1255,6 +1269,7 @@ export default function EventDetail() {
     }
     setAttendees(attendeeIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
     setWaitlistProfiles(waitlistIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
+    setRequestedProfiles(requestedIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
 
     const map: Record<string, TeamAssignment> = {}
     let maxTeam = 1
@@ -1306,6 +1321,7 @@ export default function EventDetail() {
         : supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', userId)
       const { error } = await query
       if (error) throw error
+      sentryInfo(`event:${action}`, { eventTitle: event?.title })
 
       if (action === 'join' && currentUserProfile) {
         setAttendees(prev => [...prev, currentUserProfile])
@@ -1323,7 +1339,8 @@ export default function EventDetail() {
         } as EventWithDetails : prev)
       }
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      sentryError('handleToggleAttendance', e, { action })
+      Alert.alert('Error', 'Something went wrong. Please try again.')
     } finally {
       setJoining(false)
     }
@@ -1335,6 +1352,7 @@ export default function EventDetail() {
       setJoining(true)
       const { error } = await supabase.from('event_attendees').insert({ event_id: id, user_id: userId, status: 'waitlisted' })
       if (error) throw error
+      sentryInfo('event:join_waitlist', { eventTitle: event?.title })
       if (currentUserProfile) {
         setWaitlistProfiles(prev => [...prev, currentUserProfile])
         setEvent(prev => prev ? {
@@ -1343,7 +1361,8 @@ export default function EventDetail() {
         } as EventWithDetails : prev)
       }
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      sentryError('handleJoinWaitlist', e)
+      Alert.alert('Error', 'Something went wrong. Please try again.')
     } finally {
       setJoining(false)
     }
@@ -1355,12 +1374,166 @@ export default function EventDetail() {
       setJoining(true)
       const { error } = await supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', userId)
       if (error) throw error
+      sentryInfo('event:leave_waitlist', { eventTitle: event?.title })
       setWaitlistProfiles(prev => prev.filter(p => p.id !== userId))
       setEvent(prev => prev ? {
         ...prev,
         event_attendees: (prev.event_attendees ?? []).filter((a: any) => a.user_id !== userId),
       } as EventWithDetails : prev)
     } catch (e: any) {
+      sentryError('handleLeaveWaitlist', e)
+      Alert.alert('Error', 'Something went wrong. Please try again.')
+    } finally {
+      setJoining(false)
+    }
+  }
+
+  // ─── Paid event request flow ─────────────────────────────────────────────────
+
+  async function handleRequestToJoin() {
+    if (!userId) return
+    try {
+      setJoining(true)
+      const { error } = await supabase.from('event_attendees').insert({ event_id: id, user_id: userId, status: 'requested' })
+      if (error) throw error
+      sentryInfo('event:request_join', { eventTitle: event?.title })
+      if (event?.created_by && event.created_by !== userId) {
+        await supabase.from('notifications').insert({
+          user_id: event.created_by,
+          notification_type: 'join_request',
+          title: 'New join request',
+          body: `Someone requested to join "${event.title}"`,
+          data: { event_id: id, requester_id: userId },
+        })
+      }
+      setEvent(prev => prev ? {
+        ...prev,
+        event_attendees: [...(prev.event_attendees ?? []), { event_id: id, user_id: userId, joined_at: new Date().toISOString(), team_number: null, team_pinned: false, status: 'requested' }],
+      } as EventWithDetails : prev)
+    } catch (e: any) {
+      sentryError('handleRequestToJoin', e)
+      Alert.alert('Error', 'Something went wrong. Please try again.')
+    } finally {
+      setJoining(false)
+    }
+  }
+
+  async function handleCancelRequest() {
+    if (!userId) return
+    try {
+      setJoining(true)
+      const { error } = await supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', userId)
+      if (error) throw error
+      sentryInfo('event:cancel_request', { eventTitle: event?.title })
+      setEvent(prev => prev ? {
+        ...prev,
+        event_attendees: (prev.event_attendees ?? []).filter((a: any) => a.user_id !== userId),
+      } as EventWithDetails : prev)
+    } catch (e: any) {
+      sentryError('handleCancelRequest', e)
+      Alert.alert('Error', 'Something went wrong. Please try again.')
+    } finally {
+      setJoining(false)
+    }
+  }
+
+  async function handleApproveRequest(requestedUserId: string) {
+    try {
+      setProcessingRequest(requestedUserId)
+      const { error } = await supabase.from('event_attendees')
+        .update({ status: 'attending', denial_reason: null })
+        .eq('event_id', id).eq('user_id', requestedUserId)
+      if (error) throw error
+      sentryInfo('event:approve_request', { approvedUserId: requestedUserId, eventTitle: event?.title })
+      await supabase.from('notifications').insert({
+        user_id: requestedUserId,
+        notification_type: 'request_approved',
+        title: 'Request approved',
+        body: `Your request to join "${event?.title}" was approved`,
+        data: { event_id: id },
+      })
+      const profile = requestedProfiles.find(p => p.id === requestedUserId)
+      setRequestedProfiles(prev => prev.filter(p => p.id !== requestedUserId))
+      if (profile) {
+        setAttendees(prev => [...prev, profile])
+        setAssignments(prev => ({ ...prev, [requestedUserId]: { team: null, pinned: false } }))
+      }
+      setEvent(prev => prev ? {
+        ...prev,
+        event_attendees: (prev.event_attendees ?? []).map((a: any) =>
+          a.user_id === requestedUserId ? { ...a, status: 'attending', denial_reason: null } : a
+        ),
+      } as EventWithDetails : prev)
+    } catch (e: any) {
+      sentryError('handleApproveRequest', e, { requestedUserId })
+      Alert.alert('Error', 'Something went wrong. Please try again.')
+    } finally {
+      setProcessingRequest(null)
+    }
+  }
+
+  async function handleDenyRequest(requestedUserId: string, reason: string) {
+    try {
+      setProcessingRequest(requestedUserId)
+      const trimmedReason = reason.trim() || null
+      const { error } = await supabase.from('event_attendees')
+        .update({ status: 'denied', denial_reason: trimmedReason })
+        .eq('event_id', id).eq('user_id', requestedUserId)
+      if (error) throw error
+      sentryInfo('event:deny_request', { deniedUserId: requestedUserId, eventTitle: event?.title })
+      await supabase.from('notifications').insert({
+        user_id: requestedUserId,
+        notification_type: 'request_denied',
+        title: 'Request denied',
+        body: trimmedReason
+          ? `Your request to join "${event?.title}" was denied: ${trimmedReason}`
+          : `Your request to join "${event?.title}" was denied`,
+        data: { event_id: id, denial_reason: trimmedReason },
+      })
+      setRequestedProfiles(prev => prev.filter(p => p.id !== requestedUserId))
+      setEvent(prev => prev ? {
+        ...prev,
+        event_attendees: (prev.event_attendees ?? []).map((a: any) =>
+          a.user_id === requestedUserId ? { ...a, status: 'denied', denial_reason: trimmedReason } : a
+        ),
+      } as EventWithDetails : prev)
+      setDenyModal(null)
+      setDenyReason('')
+    } catch (e: any) {
+      sentryError('handleDenyRequest', e, { requestedUserId })
+      Alert.alert('Error', e.message)
+    } finally {
+      setProcessingRequest(null)
+    }
+  }
+
+  async function handleRerequest() {
+    if (!userId) return
+    try {
+      setJoining(true)
+      const { error: delErr } = await supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', userId)
+      if (delErr) throw delErr
+      const { error: insErr } = await supabase.from('event_attendees').insert({ event_id: id, user_id: userId, status: 'requested' })
+      if (insErr) throw insErr
+      sentryInfo('event:rerequest_join', { eventTitle: event?.title })
+      if (event?.created_by && event.created_by !== userId) {
+        await supabase.from('notifications').insert({
+          user_id: event.created_by,
+          notification_type: 'join_request',
+          title: 'New join request',
+          body: `Someone re-requested to join "${event.title}"`,
+          data: { event_id: id, requester_id: userId },
+        })
+      }
+      setEvent(prev => prev ? {
+        ...prev,
+        event_attendees: [
+          ...(prev.event_attendees ?? []).filter((a: any) => a.user_id !== userId),
+          { event_id: id, user_id: userId, joined_at: new Date().toISOString(), team_number: null, team_pinned: false, status: 'requested' },
+        ],
+      } as EventWithDetails : prev)
+    } catch (e: any) {
+      sentryError('handleRerequest', e)
       Alert.alert('Error', e.message)
     } finally {
       setJoining(false)
@@ -1371,7 +1544,7 @@ export default function EventDetail() {
     if (!userId || !guestFirstName.trim() || !guestLastName.trim()) return
     try {
       setAddingGuest(true)
-      const attendingCount = eventAttendeeRows(event ?? { event_attendees: [] }).filter(a => a.status !== 'waitlisted').length + guests.length
+      const attendingCount = eventAttendeeRows(event ?? { event_attendees: [] }).filter(a => a.status === 'attending').length + guests.length
       const isFull = event?.max_attendees ? attendingCount >= event.max_attendees : false
       const status = isFull ? 'waitlisted' : 'attending'
       const { data, error } = await supabase.from('event_guests').insert({
@@ -1396,7 +1569,8 @@ export default function EventDetail() {
       setGuestLastName('')
       setGuestModalVisible(false)
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      sentryError('handleAddGuest', e)
+      Alert.alert('Error', 'Something went wrong. Please try again.')
     } finally {
       setAddingGuest(false)
     }
@@ -1426,6 +1600,7 @@ export default function EventDetail() {
       if (removeModal.kind === 'guest') {
         const { data, error } = await supabase.from('event_guests').delete().eq('id', removeModal.guestId).select()
         if (error) {
+          sentryError('confirmRemoveFromModal:guest', error, { guestId: removeModal.guestId })
           Alert.alert('Error', error.message)
           return
         }
@@ -1444,10 +1619,12 @@ export default function EventDetail() {
           .eq('user_id', removeModal.userId)
           .select()
         if (error) {
+          sentryError('confirmRemoveFromModal:attendee', error, { removedUserId: removeModal.userId })
           Alert.alert('Error', error.message)
           return
         }
         if (!data?.length) {
+          sentryError('confirmRemoveFromModal:attendee', new Error('Delete returned empty — missing RLS policy'), { removedUserId: removeModal.userId })
           Alert.alert(
             'Could not remove',
             'Nothing was deleted. As host, add the Supabase policy so hosts can remove other attendees — run supabase/event_host_remove_attendees.sql in the SQL editor.'
@@ -1475,7 +1652,7 @@ export default function EventDetail() {
   }
 
   async function handleApproveFromWaitlist(waitlistUserId: string) {
-    const attendingCount = eventAttendeeRows(event ?? { event_attendees: [] }).filter(a => a.status !== 'waitlisted').length
+    const attendingCount = eventAttendeeRows(event ?? { event_attendees: [] }).filter(a => a.status === 'attending').length
     if (event?.max_attendees && attendingCount >= event.max_attendees) {
       Alert.alert('Event full', 'The event is still full. Remove an attendee first or increase the capacity.')
       return
@@ -1500,7 +1677,8 @@ export default function EventDetail() {
         } : prev)
       }
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      sentryError('handleApproveFromWaitlist', e, { promotedUserId: waitlistUserId })
+      Alert.alert('Error', 'Something went wrong. Please try again.')
     }
   }
 
@@ -1536,7 +1714,8 @@ export default function EventDetail() {
       if (error) throw error
       router.replace('/(app)/(tabs)')
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      sentryError('confirmDelete', e)
+      Alert.alert('Error', 'Could not delete event. Please try again.')
     } finally {
       setDeleting(false)
     }
@@ -1649,7 +1828,8 @@ export default function EventDetail() {
         return asgn ? { ...g, team_number: asgn.team ?? undefined, team_pinned: asgn.pinned } : g
       }) as EventGuest[])
     } catch (e: any) {
-      Alert.alert('Error saving teams', e.message)
+      sentryError('saveTeams', e)
+      Alert.alert('Error', 'Could not save teams. Please try again.')
     } finally {
       setSavingTeams(false)
     }
@@ -1787,11 +1967,13 @@ export default function EventDetail() {
     : Object.values(assignments).some(a => a.team !== null)
 
   const attendeeRows = event ? eventAttendeeRows(event) : []
-  const attendingEntries = attendeeRows.filter((a: any) => a.status !== 'waitlisted')
+  const attendingEntries = attendeeRows.filter((a: any) => a.status === 'attending')
   const waitlistEntries = [...attendeeRows.filter((a: any) => a.status === 'waitlisted')]
     .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
   const waitlistIdx = waitlistEntries.findIndex((a: any) => a.user_id === userId)
   const totalAttending = attendingEntries.length + guests.length
+  const myRequestEntry = attendeeRows.find((a: any) => a.user_id === userId && (a.status === 'requested' || a.status === 'denied'))
+  const isPaidEvent = (event?.price ?? 0) > 0
   const eventStatus: AttendanceStatus = {
     count: totalAttending,
     spotsLeft: event?.max_attendees ? event.max_attendees - totalAttending : null,
@@ -1801,13 +1983,16 @@ export default function EventDetail() {
     isWaitlisted: waitlistIdx !== -1,
     waitlistPosition: waitlistIdx !== -1 ? waitlistIdx + 1 : null,
     waitlistCount: waitlistEntries.length,
+    isRequested: myRequestEntry?.status === 'requested',
+    isDenied: myRequestEntry?.status === 'denied',
+    denialReason: myRequestEntry?.status === 'denied' ? (myRequestEntry.denial_reason ?? null) : null,
   }
 
   return (
     <View
       ref={containerRef}
       style={{ flex: 1 }}
-      pointerEvents={removeModal !== null ? 'none' : 'auto'}
+      pointerEvents={(removeModal !== null || denyModal !== null) ? 'none' : 'auto'}
       onLayout={() => { measureContainerOffset() }}
     >
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
@@ -2417,6 +2602,43 @@ export default function EventDetail() {
                 </>
               )}
 
+              {/* Requested section — host/cohost only, paid events */}
+              {isHostOrCohost && requestedProfiles.length > 0 && (
+                <>
+                  <View style={shared.divider} />
+                  <View style={[shared.rowBetween, shared.mb_sm]}>
+                    <Text style={shared.subheading}>Requested</Text>
+                    <Text style={shared.caption}>{requestedProfiles.length} pending</Text>
+                  </View>
+                  <View style={{ gap: theme.spacing.xs }}>
+                    {requestedProfiles.map(profile => (
+                      <View key={profile.id} style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }]}>
+                        <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push(`/profile/${profile.id}` as any)}>
+                          <Text style={shared.body}>{profileDisplayName(profile)}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleApproveRequest(profile.id)}
+                          disabled={processingRequest === profile.id}
+                          style={{ paddingVertical: theme.spacing.xs, paddingHorizontal: theme.spacing.sm, backgroundColor: theme.colors.success, borderRadius: theme.radius.md }}
+                        >
+                          {processingRequest === profile.id
+                            ? <ActivityIndicator size="small" color={theme.colors.white} />
+                            : <Text style={{ color: theme.colors.white, fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium }}>Approve</Text>
+                          }
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => { setDenyModal({ userId: profile.id, displayName: profileDisplayName(profile) }); setDenyReason('') }}
+                          disabled={processingRequest === profile.id}
+                          style={{ paddingVertical: theme.spacing.xs, paddingHorizontal: theme.spacing.sm, backgroundColor: theme.colors.error + '18', borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.colors.error + '40' }}
+                        >
+                          <Text style={{ color: theme.colors.error, fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium }}>Deny</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
+
               {/* Waitlist section */}
               {(eventStatus.waitlistCount > 0 || waitlistGuests.length > 0 || (eventStatus.isFull && !eventStatus.isAttending && !eventStatus.isWaitlisted)) && (
                 <>
@@ -2796,6 +3018,20 @@ export default function EventDetail() {
                         You are #{eventStatus.waitlistPosition} on the waitlist
                       </Text>
                     </View>
+                  ) : eventStatus.isRequested ? (
+                    <View style={{ gap: theme.spacing.xs }}>
+                      <Button label="Cancel Request" onPress={handleCancelRequest} loading={joining} variant="secondary" />
+                      <Text style={[shared.caption, { textAlign: 'center' }]}>Pending host approval</Text>
+                    </View>
+                  ) : eventStatus.isDenied ? (
+                    <View style={{ gap: theme.spacing.xs }}>
+                      <Button label="Request Again" onPress={handleRerequest} loading={joining} />
+                      <Text style={[shared.caption, { textAlign: 'center', color: theme.colors.error }]}>
+                        Request denied{eventStatus.denialReason ? `: "${eventStatus.denialReason}"` : ''}
+                      </Text>
+                    </View>
+                  ) : isPaidEvent ? (
+                    <Button label="Request to Join" onPress={handleRequestToJoin} loading={joining} />
                   ) : eventStatus.isFull ? (
                     <Button label="Join Waitlist" onPress={handleJoinWaitlist} loading={joining} />
                   ) : (
@@ -3057,6 +3293,39 @@ export default function EventDetail() {
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Deny request modal */}
+      <Modal visible={denyModal !== null} transparent animationType="fade" onRequestClose={() => { setDenyModal(null); setDenyReason('') }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Pressable style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }]} onPress={() => { setDenyModal(null); setDenyReason('') }} />
+          <View style={[shared.card, { width: '85%', maxWidth: 360, gap: theme.spacing.md, zIndex: 1 }]}>
+            <Text style={shared.subheading}>Deny request</Text>
+            {denyModal && (
+              <Text style={shared.caption}>Denying {denyModal.displayName}'s request to join. They can re-request after seeing this.</Text>
+            )}
+            <Input
+              placeholder="Reason (optional)"
+              value={denyReason}
+              onChangeText={setDenyReason}
+              multiline
+              inputStyle={{ minHeight: 72 }}
+            />
+            <View style={[shared.row, { gap: theme.spacing.sm }]}>
+              <View style={{ flex: 1 }}>
+                <Button label="Cancel" onPress={() => { setDenyModal(null); setDenyReason('') }} variant="secondary" disabled={processingRequest !== null} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button
+                  label="Deny"
+                  onPress={() => { if (denyModal) void handleDenyRequest(denyModal.userId, denyReason) }}
+                  loading={processingRequest !== null}
+                  variant="danger"
+                />
+              </View>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* Remove attendee / guest — host confirmation

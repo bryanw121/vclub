@@ -92,7 +92,7 @@ export const DAY_LABELS_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as co
 // ─── Supabase list queries (EventCard / feeds) ─────────────────────────────────
 /** Core `events` columns for cards — omits `description` to shrink rows and JSON payload. */
 export const EVENT_LIST_EVENT_COLUMNS =
-  'id, created_by, club_id, title, location, event_date, duration_minutes, max_attendees, created_at'
+  'id, created_by, club_id, title, location, event_date, duration_minutes, max_attendees, created_at, price'
 
 /** Main Events tab + club upcoming: host, RSVP count, tags, club badge. */
 export const EVENT_CARD_LIST_SELECT = `${EVENT_LIST_EVENT_COLUMNS}, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees_attending(count), event_guests_attending(count), event_attendees_waitlisted(count), attendee_previews:event_attendees_attending(user_id, profiles!event_attendees_user_id_fkey(id, first_name, last_name, avatar_url)), event_tags (tag_id, tags (id, name, category, display_order)), clubs (id, name, avatar_url)`

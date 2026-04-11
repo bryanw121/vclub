@@ -38,6 +38,13 @@ export default function TabsLayout() {
   const fabAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
 
+  // In a mobile browser the home indicator area is already covered by the browser
+  // chrome, so applying the full safe-area-inset-bottom creates a visible gap
+  // between the tab bar and the URL bar. Zero it out unless in standalone mode.
+  const isWebBrowser = Platform.OS === 'web' && typeof window !== 'undefined' &&
+    !(window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true)
+  const bottomInset = isWebBrowser ? 0 : (insets.bottom || theme.spacing.md)
+
   const tabBarTranslateY = useRef(new Animated.Value(0)).current;
   const tabBarNaturalHeight = useRef(60);
   const [tabBarHeight, setTabBarHeight] = useState(60);
@@ -104,7 +111,7 @@ export default function TabsLayout() {
     setTimeout(() => router.push(path as any), 160);
   }
 
-  const fabBottom = (insets.bottom || theme.spacing.md) + 64;
+  const fabBottom = bottomInset + 64;
   const onSettingsOrUserProfile =
     pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname);
   const showFab = activeTabIndex === 0 && !onSettingsOrUserProfile;
@@ -228,7 +235,7 @@ export default function TabsLayout() {
             borderTopColor: theme.colors.border,
             backgroundColor: theme.colors.card,
             paddingTop: theme.spacing.sm,
-            paddingBottom: insets.bottom || theme.spacing.md,
+            paddingBottom: bottomInset,
           }}>
             {MOBILE_NAV_TABS.map((tab) => {
               const active = activeTabIndex === tab.pageIndex;

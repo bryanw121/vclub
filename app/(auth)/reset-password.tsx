@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, TextInput } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { supabase } from '../../lib/supabase'
+import { Sentry } from '../../lib/sentry'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
 import { shared } from '../../constants'
@@ -46,7 +47,8 @@ export default function ResetPassword() {
       setDone(true)
       setTimeout(() => router.replace('/(app)/(tabs)'), 2000)
     } catch (e: any) {
-      setError(e.message)
+      Sentry.captureException(e)
+      setError('Could not reset password. Please try again.')
     } finally {
       setLoading(false)
     }

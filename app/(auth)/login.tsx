@@ -105,25 +105,14 @@ export default function Login() {
       let email = normalized
 
       if (!isEmail) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('username', normalized)
-          .single()
+        const { data: resolvedEmail } = await supabase
+          .rpc('get_email_by_username', { p_username: normalized })
 
-        if (!data) {
+        if (!resolvedEmail) {
           setErrors({ identifier: 'Username not found' })
           return
         }
-
-        const { data: userData } = await supabase
-          .rpc('get_email_by_user_id', { user_id: data.id })
-
-        if (!userData) {
-          setErrors({ identifier: 'Account not found' })
-          return
-        }
-        email = userData
+        email = resolvedEmail
       }
 
       const { error } = await supabase.auth.signInWithPassword({ email, password })

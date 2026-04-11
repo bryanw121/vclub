@@ -3,6 +3,7 @@ import { ActivityIndicator, ScrollView, Text, TextInput, View, Pressable, Toucha
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '../../lib/supabase'
+import { Sentry } from '../../lib/sentry'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
 import { DatePickerField } from '../../components/DatePickerField'
@@ -96,7 +97,7 @@ export default function HostEventScreen() {
   const [view, setView] = useState<'form' | 'templates'>(modeParam === 'templates' ? 'templates' : 'form')
   const [form, setForm] = useState<CreateEventForm>({
     ...EMPTY_FORM,
-    maxAttendees: maxAttendeesParam ? parseInt(maxAttendeesParam, 10) : null,
+    maxAttendees: (() => { const n = parseInt(maxAttendeesParam ?? '', 10); return Number.isFinite(n) && n > 0 ? n : null })(),
   })
   const [locationId, setLocationId] = useState('')
   const [recurrence, setRecurrence] = useState({
@@ -382,7 +383,8 @@ export default function HostEventScreen() {
         setSelectedClubId(null)
       }
     } catch (e: any) {
-      setSuccessMessage(e.message)
+      Sentry.captureException(e)
+      setSuccessMessage('Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }

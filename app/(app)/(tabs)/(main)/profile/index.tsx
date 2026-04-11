@@ -28,6 +28,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../../../lib/supabase'
+import { Sentry } from '../../../../../lib/sentry'
 import { Button } from '../../../../../components/Button'
 import { Input } from '../../../../../components/Input'
 import { Toast } from '../../../../../components/Toast'
@@ -472,7 +473,8 @@ export default function MyProfile() {
       Alert.alert('Saved', 'Your profile was updated.')
       setSection('menu')
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      Sentry.captureException(e)
+      Alert.alert('Error', 'Could not save profile. Please try again.')
     } finally {
       setProfileSaving(false)
     }
@@ -497,7 +499,8 @@ export default function MyProfile() {
       }
       setPendingAsset(asset)
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      Sentry.captureException(e)
+      Alert.alert('Error', 'Could not select photo. Please try again.')
     }
   }
 
@@ -534,7 +537,8 @@ export default function MyProfile() {
       setAvatarUriError(resolveError)
       if (!resolveError && updatedProfile) void checkBadges(updatedProfile)
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      Sentry.captureException(e)
+      Alert.alert('Error', 'Could not upload photo. Please try again.')
     } finally {
       setAvatarUploading(false)
     }
@@ -557,7 +561,8 @@ export default function MyProfile() {
       setAvatarUriError(null)
       lastResolvedAvatarUrl.current = null
     } catch (e: any) {
-      Alert.alert('Error', e.message)
+      Sentry.captureException(e)
+      Alert.alert('Error', 'Could not remove photo. Please try again.')
     } finally {
       setAvatarUploading(false)
     }
