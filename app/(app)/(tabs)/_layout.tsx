@@ -43,6 +43,7 @@ export default function TabsLayout() {
   // between the tab bar and the URL bar. Zero it out unless in standalone mode.
   const isWebBrowser = Platform.OS === 'web' && typeof window !== 'undefined' &&
     !(window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true)
+  const topInset = isWebBrowser ? 0 : insets.top
   const bottomInset = isWebBrowser ? 0 : (insets.bottom || theme.spacing.md)
 
   const tabBarTranslateY = useRef(new Animated.Value(0)).current;
@@ -125,7 +126,7 @@ export default function TabsLayout() {
       setTabBarHidden,
       tabBarHeight,
     }}>
-      <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: insets.top }}>
+      <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: topInset }}>
         <Stack
           screenOptions={({ route }) => {
             const isMain = route.name === "(main)";

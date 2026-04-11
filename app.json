@@ -30,6 +30,7 @@
     },
     "web": {
       "bundler": "metro",
+      "output": "static",
       "favicon": "./assets/vclub.png",
       "name": "vclub",
       "shortName": "vclub",
