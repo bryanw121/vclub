@@ -104,7 +104,7 @@ export default function TabsLayout() {
     setTimeout(() => router.push(path as any), 160);
   }
 
-  const fabBottom = Platform.OS === 'web' ? 64 + 12 : (insets.bottom || theme.spacing.md) + 64;
+  const fabBottom = (insets.bottom || theme.spacing.md) + 64;
   const onSettingsOrUserProfile =
     pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname);
   const showFab = activeTabIndex === 0 && !onSettingsOrUserProfile;
@@ -118,7 +118,7 @@ export default function TabsLayout() {
       setTabBarHidden,
       tabBarHeight,
     }}>
-      <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: Platform.OS === 'web' ? ('env(safe-area-inset-top)' as any) : insets.top }}>
+      <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: insets.top }}>
         <Stack
           screenOptions={({ route }) => {
             const isMain = route.name === "(main)";
@@ -228,7 +228,7 @@ export default function TabsLayout() {
             borderTopColor: theme.colors.border,
             backgroundColor: theme.colors.card,
             paddingTop: theme.spacing.sm,
-            paddingBottom: Platform.OS === 'web' ? ('max(env(safe-area-inset-bottom), 12px)' as any) : (insets.bottom || theme.spacing.md),
+            paddingBottom: insets.bottom || theme.spacing.md,
           }}>
             {MOBILE_NAV_TABS.map((tab) => {
               const active = activeTabIndex === tab.pageIndex;

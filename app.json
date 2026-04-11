@@ -53,7 +53,8 @@
           "calendarPermission": "Allow vclub to add events to your calendar."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "@sentry/react-native"
     ]
   }
 }

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { Stack, useRouter, usePathname } from 'expo-router'
 import { theme } from '../../constants'
 import { WebNavContext } from '../../contexts/webNav'
+import { SentryErrorBoundary } from '../../components/SentryErrorBoundary'
 
 const FAB_OPTIONS = [
   { label: 'Open Play',     path: '/host?maxAttendees=18' },
@@ -72,6 +73,7 @@ export default function AppLayout() {
   if (Platform.OS === 'web' && windowWidth >= SIDEBAR_BREAKPOINT) {
     return (
       <WebNavContext.Provider value={{ activeTab: sidebarActive, goToTab }}>
+        <SentryErrorBoundary>
         <View style={{ flex: 1, flexDirection: 'row', backgroundColor: theme.colors.background }}>
 
           {/* Sidebar */}
@@ -247,12 +249,14 @@ export default function AppLayout() {
           </View>
 
         </View>
+        </SentryErrorBoundary>
       </WebNavContext.Provider>
     )
   }
 
   // ── Mobile: plain Stack — WebNavContext not needed on mobile ─────────────
   return (
+    <SentryErrorBoundary>
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: theme.colors.background },
@@ -268,5 +272,6 @@ export default function AppLayout() {
       <Stack.Screen name="club/[id]" options={{ headerShown: false, gestureEnabled: true }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications', headerBackTitle: 'Back' }} />
     </Stack>
+    </SentryErrorBoundary>
   )
 }

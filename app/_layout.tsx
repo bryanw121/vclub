@@ -3,9 +3,14 @@ import { Animated, Image, Text, View } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 import { theme } from '../constants'
+import { initSentry, Sentry } from '../lib/sentry'
+import { SentryErrorBoundary } from '../components/SentryErrorBoundary'
+
+initSentry()
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!
 const AVATARS_BUCKET = 'avatars'
@@ -47,7 +52,7 @@ function AppSplash({ opacity }: { opacity: Animated.Value }) {
   )
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const { session, loading } = useAuth()
   const router = useRouter()
   const segments = useSegments()
@@ -89,6 +94,15 @@ export default function RootLayout() {
     // Token refreshes (wasLoggedIn → isLoggedIn): do nothing
   }, [loading, session])
 
+  // Keep Sentry user context in sync with auth state
+  useEffect(() => {
+    if (session?.user?.id) {
+      Sentry.setUser({ id: session.user.id })
+    } else {
+      Sentry.setUser(null)
+    }
+  }, [session])
+
   // Navigate only after splash is gone
   useEffect(() => {
     if (loading || splashVisible) return
@@ -101,6 +115,8 @@ export default function RootLayout() {
   }, [session, loading, splashVisible])
 
   return (
+    <SentryErrorBoundary>
+    <SafeAreaProvider>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack
         screenOptions={{
@@ -120,5 +136,9 @@ export default function RootLayout() {
         </View>
       )}
     </GestureHandlerRootView>
+    </SafeAreaProvider>
+    </SentryErrorBoundary>
   )
 }
+
+export default Sentry.wrap(RootLayout)
