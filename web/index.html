@@ -16,18 +16,25 @@
     <style id="expo-reset">
       html, body {
         height: 100%;
-        /* Use dvh so the app fills the full dynamic viewport (hides Safari toolbar) */
-        height: 100dvh;
-      }
-      body {
-        overflow: hidden;
-        /* No padding here — app uses useSafeAreaInsets() to handle safe areas */
+        margin: 0;
+        padding: 0;
         background-color: #F9F9F9;
       }
+      body {
+        /* Do NOT set overflow: hidden here — it prevents Safari from detecting
+           scroll events, which stops the URL bar from ever collapsing. */
+      }
       #root {
+        /* position: fixed locks the app to the full viewport without relying on
+           body overflow:hidden, so Safari still sees the page as potentially
+           scrollable and will collapse the URL bar when the user scrolls. */
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
         display: flex;
-        height: 100%;
-        flex: 1;
+        overflow: hidden;
       }
       /* Expo injects a wrapper div inside #root — it must also stretch full height */
       #root > div {

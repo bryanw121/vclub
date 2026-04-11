@@ -1740,6 +1740,16 @@ export default function EventDetail() {
     }
   }
 
+  // ─── Sentry helpers ──────────────────────────────────────────────────────────
+  function sentryInfo(message: string, extra?: Record<string, unknown>) {
+    Sentry.captureMessage(message, { level: 'info', extra: { userId, eventId: id, ...extra } })
+  }
+  function sentryError(context: string, e: any, extra?: Record<string, unknown>) {
+    Sentry.captureException(e instanceof Error ? e : new Error(e?.message ?? String(e)), {
+      extra: { context, userId, eventId: id, ...extra },
+    })
+  }
+
   const isOwner = event?.created_by === userId
   const isCohost = cohosts.some(c => c.user_id === userId)
   const isHostOrCohost = isOwner || isCohost
