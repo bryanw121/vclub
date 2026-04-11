@@ -46,8 +46,11 @@ export const NOTIFICATION_TYPES = [
   'event_cancelled',
   'badge_earned',
   'cohost_added',
-  'kudos_reminder',
+  'cheers_reminder',
   'user_mentioned',
+  'join_request',
+  'request_approved',
+  'request_denied',
 ] as const
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]

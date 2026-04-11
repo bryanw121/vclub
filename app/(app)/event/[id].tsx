@@ -1922,7 +1922,7 @@ export default function EventDetail() {
 
   // ─── Sentry helpers ──────────────────────────────────────────────────────────
   function sentryInfo(message: string, extra?: Record<string, unknown>) {
-    Sentry.captureMessage(message, { level: 'info', extra: { userId, eventId: id, ...extra } })
+    Sentry.addBreadcrumb({ category: 'event', message, level: 'info', data: { userId, eventId: id, ...extra } })
   }
   function sentryError(context: string, e: any, extra?: Record<string, unknown>) {
     Sentry.captureException(e instanceof Error ? e : new Error(e?.message ?? String(e)), {

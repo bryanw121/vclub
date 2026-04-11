@@ -3,10 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-    <!-- viewport-fit=cover: extend into notch/home-indicator areas on iOS Safari -->
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
-    <!-- Prevent double-tap zoom on mobile web -->
-    <meta name="touch-action" content="manipulation" />
+    <!-- viewport-fit=cover: extend layout into notch/Dynamic Island/home-indicator -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <!-- PWA / home screen -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -14,20 +12,40 @@
     <meta name="theme-color" content="#F9F9F9" />
     <title>vclub</title>
     <style id="expo-reset">
-      html, body {
+      html {
+        height: 100%;
+      }
+      body {
         height: 100%;
         margin: 0;
         padding: 0;
         background-color: #F9F9F9;
+        /*
+         * overflow-y: scroll (NOT hidden) is required for Safari to treat the
+         * document as scrollable, which is the prerequisite for the URL bar to
+         * collapse when the user scrolls. With overflow:hidden, Safari locks
+         * the bar open permanently.
+         */
+        overflow-y: scroll;
+        -webkit-overflow-scrolling: touch;
+        /* Prevent rubber-band bounce on the body itself */
+        overscroll-behavior-y: none;
       }
-      body {
-        /* Do NOT set overflow: hidden here — it prevents Safari from detecting
-           scroll events, which stops the URL bar from ever collapsing. */
+      /*
+       * 1px of virtual content gives the body a non-zero scroll range.
+       * Without this, overflow-y:scroll has nothing to scroll and Safari
+       * still won't collapse the URL bar.
+       */
+      body::after {
+        content: '';
+        display: block;
+        height: 1px;
       }
       #root {
-        /* position: fixed locks the app to the full viewport without relying on
-           body overflow:hidden, so Safari still sees the page as potentially
-           scrollable and will collapse the URL bar when the user scrolls. */
+        /*
+         * position:fixed keeps the app pinned to the full viewport regardless
+         * of the body scroll position, so the 1px body scroll is invisible.
+         */
         position: fixed;
         top: 0;
         left: 0;
@@ -36,7 +54,7 @@
         display: flex;
         overflow: hidden;
       }
-      /* Expo injects a wrapper div inside #root — it must also stretch full height */
+      /* Expo injects a wrapper div inside #root that must also stretch full height */
       #root > div {
         height: 100%;
         display: flex;

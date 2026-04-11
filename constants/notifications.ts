@@ -9,4 +9,9 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   event_cancelled: 'Cancellations',
   badge_earned: 'Badge achievements',
   cohost_added: 'Co-host invites',
+  cheers_reminder: 'Cheers reminders',
+  user_mentioned: 'Mentions',
+  join_request: 'Join requests',
+  request_approved: 'Request approved',
+  request_denied: 'Request denied',
 }
