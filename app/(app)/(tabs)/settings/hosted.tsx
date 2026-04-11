@@ -46,7 +46,7 @@ export default function ProfileHostedEventsScreen() {
           {events.length === 0 ? (
             <Text style={shared.caption}>No upcoming hosted events.</Text>
           ) : (
-            events.map(event => <EventCard key={event.id} event={event} />)
+            events.map(event => <EventCard key={event.id} event={event} from="/settings/hosted" />)
           )}
         </View>
       </ScrollView>

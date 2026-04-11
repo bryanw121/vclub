@@ -7,6 +7,7 @@ import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-rou
 import * as Linking from 'expo-linking'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
+import { Sentry } from '../../../lib/sentry'
 import { Button } from '../../../components/Button'
 import { ProfileAvatar } from '../../../components/ProfileAvatar'
 import { Input } from '../../../components/Input'
@@ -692,6 +693,7 @@ export default function EventDetail() {
   const [cheersLoading, setCheersLoading] = useState(false)
   const [submittingCheers, setSubmittingCheers] = useState(false)
   const [cheersSent, setCheersSent] = useState(false)
+  const [cheerSubmitError, setCheerSubmitError] = useState<string | null>(null)
   const [selectedCheerType, setSelectedCheerType] = useState<CheerType | null>(null)
 
   // Cohosts
@@ -1151,6 +1153,7 @@ export default function EventDetail() {
   async function submitCheers() {
     if (!userId || pendingCheers.length === 0) return
     setSubmittingCheers(true)
+    setCheerSubmitError(null)
     const rows = pendingCheers.map(p => ({
       event_id: id,
       giver_id: userId,
@@ -1159,8 +1162,12 @@ export default function EventDetail() {
     }))
     const { data, error } = await supabase.from('cheers').insert(rows).select()
     setSubmittingCheers(false)
-    if (error) { Alert.alert('Error', error.message); return }
-    setMyCheersGiven(prev => [...prev, ...(data as Cheer[])])
+    if (error) {
+      Sentry.captureException(error, { extra: { context: 'submitCheers', eventId: id } })
+      setCheerSubmitError(error.message)
+      return
+    }
+    setMyCheersGiven(prev => [...prev, ...(data ?? [])])
     setPendingCheers([])
     setCheersSent(true)
     setTimeout(() => setCheersSent(false), 3000)
@@ -1721,10 +1728,13 @@ export default function EventDetail() {
   }))
 
   function goBack() {
-    if (from) {
-      router.replace(decodeURIComponent(from) as any)
-    } else if (router.canGoBack()) {
+    // Use back() first — it cleanly pops the event screen off the stack, preventing stale
+    // screens from causing subsequent pushes to load the wrong event.
+    // Fall back to replace(from) only for direct URL access where canGoBack() is false.
+    if (router.canGoBack()) {
       router.back()
+    } else if (from) {
+      router.replace(decodeURIComponent(from) as any)
     } else {
       router.replace('/(app)/(tabs)')
     }
@@ -2603,7 +2613,21 @@ export default function EventDetail() {
                       </Text>
                     </View>
                   ) : pendingCheers.length > 0 ? (
-                    <View style={{ marginTop: theme.spacing.lg }}>
+                    <View style={{ marginTop: theme.spacing.lg, gap: theme.spacing.sm }}>
+                      {cheerSubmitError && (
+                        <View style={{
+                          flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm,
+                          paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm,
+                          borderRadius: theme.radius.md,
+                          backgroundColor: theme.colors.error + '18',
+                          borderWidth: 1, borderColor: theme.colors.error + '50',
+                        }}>
+                          <Ionicons name="alert-circle-outline" size={16} color={theme.colors.error} />
+                          <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.error, flex: 1 }}>
+                            {cheerSubmitError}
+                          </Text>
+                        </View>
+                      )}
                       <Button
                         label={submittingCheers ? 'Submitting…' : `Submit Cheers (${pendingCheers.length})`}
                         onPress={submitCheers}

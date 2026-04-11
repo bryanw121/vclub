@@ -1,33 +1,49 @@
+import { Platform } from 'react-native'
 import * as Sentry from '@sentry/react-native'
 
 const DSN = process.env.EXPO_PUBLIC_SENTRY_DSN
 const APP_ENV = process.env.EXPO_PUBLIC_APP_ENV ?? 'production'
+const isWeb = Platform.OS === 'web'
 
 export function initSentry() {
   if (!DSN) return
 
-  Sentry.init({
-    dsn: DSN,
-    environment: APP_ENV,
+  try {
+    Sentry.init({
+      dsn: DSN,
+      environment: APP_ENV,
 
-    // Sample all traces in beta; 20% in production to stay within free tier
-    tracesSampleRate: APP_ENV === 'beta' ? 1.0 : 0.2,
+      // Proxy through our own domain so ad blockers don't intercept Sentry requests
+      tunnel: isWeb ? '/api/tunnel' : undefined,
 
-    // Performance features
-    enableAppStartTracking: true,
-    enableNativeFramesTracking: true,
-    enableStallTracking: true,
+      // Sample all traces in beta; 20% in production to stay within free tier
+      tracesSampleRate: APP_ENV === 'beta' ? 1.0 : 0.2,
 
-    integrations: [
-      Sentry.reactNativeTracingIntegration({
-        traceFetch: true,
-        traceXHR: true,
-      }),
-    ],
+      // Native-only performance features — skip on web to avoid silent init failure
+      enableAppStartTracking: !isWeb,
+      enableNativeFramesTracking: !isWeb,
+      enableStallTracking: !isWeb,
 
-    // Log Sentry internals to console only in dev
-    debug: __DEV__,
-  })
+      integrations: isWeb
+        ? [] // reactNativeTracingIntegration is native-only; fetch tracing not needed on web
+        : [
+            Sentry.reactNativeTracingIntegration({
+              traceFetch: true,
+              traceXHR: true,
+            }),
+          ],
+
+      debug: __DEV__,
+    })
+
+    if (__DEV__) {
+      console.log(`[Sentry] initialized — env: ${APP_ENV}, dsn prefix: ${DSN?.slice(0, 30)}`)
+      Sentry.captureMessage('Sentry init test')
+    }
+  } catch (e) {
+    // Never let Sentry init crash the app
+    console.warn('[Sentry] init failed:', e)
+  }
 }
 
 export { Sentry }

@@ -40,7 +40,7 @@ function parseEventTime(dateString: string): { hour: string; ampm: string } {
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-function EventCardInner({ event }: { event: EventWithDetails }) {
+function EventCardInner({ event, from: fromOverride }: { event: EventWithDetails; from?: string }) {
   const router = useRouter()
   const pathname = usePathname()
 
@@ -77,7 +77,7 @@ function EventCardInner({ event }: { event: EventWithDetails }) {
   return (
     <TouchableOpacity
       activeOpacity={0.72}
-      onPress={() => router.push(`/event/${event.id}?from=${encodeURIComponent(pathname)}` as any)}
+      onPress={() => router.push(`/event/${event.id}?from=${encodeURIComponent(fromOverride ?? pathname)}` as any)}
       style={{
         flexDirection: 'row',
         backgroundColor: theme.colors.card,
@@ -274,4 +274,4 @@ function EventCardInner({ event }: { event: EventWithDetails }) {
   )
 }
 
-export const EventCard = memo(EventCardInner)
+export const EventCard = memo(EventCardInner) as typeof EventCardInner

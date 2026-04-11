@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
 import { EventCard } from '../../../../components/EventCard'
@@ -12,7 +13,15 @@ const HISTORY_LIMIT = 20
 
 export default function ProfileHistoryScreen() {
   useStackBackTitle('History')
-  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('attended')
+  const router = useRouter()
+  const { filter } = useLocalSearchParams<{ filter?: HistoryFilter }>()
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>(filter === 'hosted' ? 'hosted' : 'attended')
+
+  // Keep URL in sync with active filter so router.back() restores the correct tab on remount
+  function switchFilter(next: HistoryFilter) {
+    setHistoryFilter(next)
+    router.setParams({ filter: next })
+  }
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -99,12 +108,12 @@ export default function ProfileHistoryScreen() {
             <HistoryChip
               label="Attended"
               active={historyFilter === 'attended'}
-              onPress={() => setHistoryFilter('attended')}
+              onPress={() => switchFilter('attended')}
             />
             <HistoryChip
               label="Hosted"
               active={historyFilter === 'hosted'}
-              onPress={() => setHistoryFilter('hosted')}
+              onPress={() => switchFilter('hosted')}
             />
           </View>
 
@@ -117,7 +126,13 @@ export default function ProfileHistoryScreen() {
           ) : events.length === 0 ? (
             <Text style={shared.caption}>{emptyMessage}</Text>
           ) : (
-            events.map(event => <EventCard key={event.id} event={event} />)
+            events.map(event => (
+              <EventCard
+                key={event.id}
+                event={event}
+                from={`/settings/history?filter=${historyFilter}`}
+              />
+            ))
           )}
         </View>
       </ScrollView>
