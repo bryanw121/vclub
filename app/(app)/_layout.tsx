@@ -1,10 +1,17 @@
-import { useRef, useState } from 'react'
-import { Animated, Platform, Pressable, View, Text, TouchableOpacity, useWindowDimensions } from 'react-native'
+import { useEffect, useRef, useState } from 'react'
+import { Animated, Image, Platform, Pressable, View, Text, TouchableOpacity, useWindowDimensions } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Stack, useRouter, usePathname } from 'expo-router'
-import { theme } from '../../constants'
+import { theme, BADGE_DEFINITIONS } from '../../constants'
 import { WebNavContext } from '../../contexts/webNav'
 import { SentryErrorBoundary } from '../../components/SentryErrorBoundary'
+
+// Collect every badge image URL defined in code and prefetch them so the
+// badges screen renders instantly without a network loading flash.
+const BADGE_IMAGE_URLS: string[] = BADGE_DEFINITIONS.flatMap(def => [
+  ...(def.imageUri ? [def.imageUri] : []),
+  ...(def.tierImageUris ? Object.values(def.tierImageUris) : []),
+])
 
 const FAB_OPTIONS = [
   { label: 'Open Play',     path: '/host?maxAttendees=18' },
@@ -45,6 +52,11 @@ export default function AppLayout() {
   const router = useRouter()
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return
+    BADGE_IMAGE_URLS.forEach(url => { void Image.prefetch(url) })
+  }, [])
   const [fabOpen, setFabOpen] = useState(false)
   const fabAnim = useRef(new Animated.Value(0)).current
   const { width: windowWidth } = useWindowDimensions()

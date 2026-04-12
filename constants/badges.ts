@@ -70,6 +70,8 @@ export type BadgeDef = {
   icon: string
   /** Remote image URL (Supabase Storage public URL). Renders instead of the icon when set. */
   imageUri?: string
+  /** Per-tier image URLs. When set, the image for the earned tier is shown; falls back to imageUri or icon. */
+  tierImageUris?: Record<number, string>
   description: string
   stat: BadgeStat
   tiers: BadgeTierDef[]
@@ -130,6 +132,11 @@ export const BADGE_DEFINITIONS: BadgeDef[] = [
     icon: 'flash-outline',
     description: 'Receive spiking cheers',
     stat: 'spike_cheers',
+    tierImageUris: {
+      1: 'https://rmelsdqgrpfjzqisycdl.supabase.co/storage/v1/object/public/badges/spike_tier1_bronze.png?v=2',
+      2: 'https://rmelsdqgrpfjzqisycdl.supabase.co/storage/v1/object/public/badges/spike_tier2_silver.png?v=2',
+      3: 'https://rmelsdqgrpfjzqisycdl.supabase.co/storage/v1/object/public/badges/spike_tier3_gold.png?v=2',
+    },
     tiers: [
       { tier: 1, label: 'Spiker',   threshold: 5 },
       { tier: 2, label: 'Bouncer',  threshold: 15 },

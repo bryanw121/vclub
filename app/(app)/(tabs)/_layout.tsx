@@ -112,7 +112,7 @@ export default function TabsLayout() {
     setTimeout(() => router.push(path as any), 160);
   }
 
-  const fabBottom = bottomInset + 64;
+  const fabBottom = bottomInset + 70;
   const onSettingsOrUserProfile =
     pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname);
   const showFab = activeTabIndex === 0 && !onSettingsOrUserProfile;
@@ -235,7 +235,7 @@ export default function TabsLayout() {
             borderTopWidth: 1,
             borderTopColor: theme.colors.border,
             backgroundColor: theme.colors.card,
-            paddingTop: theme.spacing.sm,
+            paddingTop: theme.spacing.md,
             paddingBottom: bottomInset,
           }}>
             {MOBILE_NAV_TABS.map((tab) => {
@@ -244,15 +244,15 @@ export default function TabsLayout() {
                 <TouchableOpacity
                   key={tab.name}
                   onPress={() => handleTabPress(tab.pageIndex)}
-                  style={{ flex: 1, alignItems: "center", gap: 3 }}
+                  style={{ flex: 1, alignItems: "center", gap: 4 }}
                 >
                   <Ionicons
                     name={tab.icon}
-                    size={24}
+                    size={27}
                     color={active ? theme.colors.primary : theme.colors.subtext}
                   />
                   <Text style={{
-                    fontSize: 10,
+                    fontSize: 11,
                     color: active ? theme.colors.primary : theme.colors.subtext,
                     fontWeight: active ? theme.font.weight.medium : theme.font.weight.regular,
                   }}>

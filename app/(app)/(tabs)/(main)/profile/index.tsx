@@ -39,6 +39,7 @@ import {
   AVATARS_BUCKET,
   AVATAR_MAX_FILE_BYTES,
   BADGE_DEFINITIONS,
+  badgeTitle,
 } from '../../../../../constants'
 
 import { PROFILE_BORDERS, isBorderUnlocked } from '../../../../../constants/badges'
@@ -285,6 +286,8 @@ export default function MyProfile() {
   const lastScrollY = useRef(0)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  // Incremented on every local save so stale in-flight fetches don't overwrite newer state.
+  const profileGenRef = useRef(0)
   const [refreshing, setRefreshing] = useState(false)
   const [section, setSection] = useState<Section>('menu')
   const handleScroll = useCallback((e: any) => {
@@ -367,6 +370,7 @@ export default function MyProfile() {
   )
 
   async function fetchProfile() {
+    const gen = profileGenRef.current
     const { data: { session } } = await supabase.auth.getSession()
     const userId = session?.user?.id
     if (!userId) { setLoading(false); return }
@@ -376,6 +380,9 @@ export default function MyProfile() {
       .select('id, username, first_name, last_name, avatar_url, position, created_at, selected_border, selected_card_bg, bio')
       .eq('id', userId)
       .single()
+
+    // A local save happened while this fetch was in-flight — discard stale result.
+    if (profileGenRef.current !== gen) return
 
     if (!profileRes.error) {
       const row = profileRes.data as Partial<Profile>
@@ -448,6 +455,7 @@ export default function MyProfile() {
     if (!profile) return
     try {
       setProfileSaving(true)
+      profileGenRef.current += 1
       const { data: { session } } = await supabase.auth.getSession()
       const userId = session?.user?.id
       if (!userId) throw new Error('Not logged in')
@@ -812,7 +820,9 @@ export default function MyProfile() {
                           </Pressable>
                         )}
                       </View>
-                      <Text style={[shared.caption, { color: theme.colors.subtext }]}>Slot {slot}</Text>
+                      <Text style={[shared.caption, { color: theme.colors.subtext }]} numberOfLines={1}>
+                        {def ? badgeTitle(def.type) : `Slot ${slot}`}
+                      </Text>
                     </View>
                   )
                 })}

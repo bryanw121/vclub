@@ -12,6 +12,7 @@ export default function FeedbackScreen() {
   const [kind, setKind] = useState<FeedbackKind>('feature')
   const [priority, setPriority] = useState<FeedbackPriority>('medium')
   const [platform, setPlatform] = useState<string | null>(null)
+  const [deviceType, setDeviceType] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
@@ -29,8 +30,11 @@ export default function FeedbackScreen() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not logged in')
 
-      const fullDescription = kind === 'bug' && platform
-        ? `Platform: ${platform}\n\n${description.trim()}`
+      const bugMeta = kind === 'bug'
+        ? [platform && `Platform: ${platform}`, deviceType.trim() && `Device: ${deviceType.trim()}`].filter(Boolean).join('\n')
+        : ''
+      const fullDescription = bugMeta
+        ? `${bugMeta}\n\n${description.trim()}`
         : description.trim()
 
       const { error } = await supabase.from('feedback_submissions').insert({
@@ -45,6 +49,7 @@ export default function FeedbackScreen() {
       setKind('feature')
       setPriority('medium')
       setPlatform(null)
+      setDeviceType('')
       setTitle('')
       setDescription('')
       setFeedbackSubmitted(true)
@@ -95,6 +100,13 @@ export default function FeedbackScreen() {
                   { value: 'Mobile web', label: 'Mobile web' },
                   { value: 'Desktop web', label: 'Desktop web' },
                 ]}
+              />
+              <View style={shared.mt_md} />
+              <Input
+                label="Device (optional)"
+                value={deviceType}
+                onChangeText={setDeviceType}
+                placeholder="e.g. iPhone 15 Pro, Samsung Galaxy S23"
               />
             </>
           )}

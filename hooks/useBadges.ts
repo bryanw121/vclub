@@ -1,10 +1,39 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Platform } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { collectBadgeStats, checkAndAwardBadges } from '../utils/badges'
 import type { UserBadge, Profile } from '../types'
 
 const BADGE_SELECT = 'id, user_id, badge_type, tier, awarded_at, display_order'
-const STALE_MS = 60_000
+
+// Badges change infrequently — cache for 10 minutes in memory, persist to
+// AsyncStorage so the next app launch shows badges instantly with no flash.
+const STALE_MS = 10 * 60_000
+const CACHE_KEY = 'useBadges:cache'
+
+type CacheEntry = { userId: string; badges: UserBadge[]; fetchedAt: number }
+
+// AsyncStorage is only available on native; on web we skip persistence.
+async function readCache(): Promise<CacheEntry | null> {
+  if (Platform.OS === 'web') return null
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
+    const raw = await AsyncStorage.getItem(CACHE_KEY)
+    return raw ? (JSON.parse(raw) as CacheEntry) : null
+  } catch {
+    return null
+  }
+}
+
+async function writeCache(entry: CacheEntry): Promise<void> {
+  if (Platform.OS === 'web') return
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
+    await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(entry))
+  } catch {
+    // Non-critical — ignore write failures
+  }
+}
 
 export function useBadges() {
   const [badges, setBadges] = useState<UserBadge[]>([])
@@ -13,9 +42,21 @@ export function useBadges() {
 
   const fetchBadges = useCallback(async (force = false) => {
     if (!force && Date.now() - lastFetchedAt.current < STALE_MS) return
+
     const { data: { session } } = await supabase.auth.getSession()
     const userId = session?.user?.id
     if (!userId) { setLoading(false); return }
+
+    // On a non-forced fetch, check AsyncStorage before hitting the network
+    if (!force) {
+      const cached = await readCache()
+      if (cached && cached.userId === userId && Date.now() - cached.fetchedAt < STALE_MS) {
+        setBadges(cached.badges)
+        lastFetchedAt.current = cached.fetchedAt
+        setLoading(false)
+        return
+      }
+    }
 
     const { data } = await supabase
       .from('user_badges')
@@ -23,9 +64,11 @@ export function useBadges() {
       .eq('user_id', userId)
       .order('display_order', { ascending: true, nullsFirst: false })
 
-    setBadges((data ?? []) as UserBadge[])
+    const fetched = (data ?? []) as UserBadge[]
+    setBadges(fetched)
     lastFetchedAt.current = Date.now()
     setLoading(false)
+    void writeCache({ userId, badges: fetched, fetchedAt: lastFetchedAt.current })
   }, [])
 
   /** Collect stats, compare against thresholds, award anything new. */
@@ -60,12 +103,15 @@ export function useBadges() {
     if (!userId) return
 
     // Optimistic local update
-    setBadges(prev => prev.map(b => {
-      if (b.badge_type === badgeType) return { ...b, display_order: slot }
-      // Clear any other badge that was in the same slot
-      if (slot !== null && b.display_order === slot) return { ...b, display_order: null }
-      return b
-    }))
+    setBadges(prev => {
+      const next = prev.map(b => {
+        if (b.badge_type === badgeType) return { ...b, display_order: slot }
+        if (slot !== null && b.display_order === slot) return { ...b, display_order: null }
+        return b
+      })
+      void writeCache({ userId, badges: next, fetchedAt: lastFetchedAt.current })
+      return next
+    })
 
     // Persist: clear the slot first, then assign
     if (slot !== null) {
@@ -84,7 +130,27 @@ export function useBadges() {
   }, [])
 
   useEffect(() => {
-    void fetchBadges(true)
+    // Load from AsyncStorage immediately so badges appear without a network round-trip,
+    // then refresh from the network if the cached data is stale.
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession()
+      const userId = session?.user?.id
+      if (!userId) { setLoading(false); return }
+
+      const cached = await readCache()
+      if (cached && cached.userId === userId) {
+        setBadges(cached.badges)
+        lastFetchedAt.current = cached.fetchedAt
+        setLoading(false)
+        // Still refresh in the background if stale
+        if (Date.now() - cached.fetchedAt >= STALE_MS) {
+          void fetchBadges(true)
+        }
+      } else {
+        void fetchBadges(true)
+      }
+    }
+    void init()
   }, [fetchBadges])
 
   return { badges, loading, fetchBadges, checkBadges, setDisplaySlot }

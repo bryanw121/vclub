@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useCallback, memo, useEffect } from 'react'
+import React, { useState, useRef, useMemo, useCallback, memo, useEffect, useLayoutEffect } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Platform, View, ScrollView, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions, ActivityIndicator, Modal, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
@@ -94,12 +94,14 @@ export default function EventsScreen() {
 
   // Re-check staleness when the tab regains focus
   const webFocusCount = useRef(0)
+  const visibleMonthsRef = useRef(visibleMonths)
+  visibleMonthsRef.current = visibleMonths
   useFocusEffect(useCallback(() => {
     webFocusCount.current += 1
     if (webFocusCount.current > 1) {
-      visibleMonths.forEach(m => { void loadMonth(m) })
+      visibleMonthsRef.current.forEach(m => { void loadMonth(m) })
     }
-  }, [visibleMonths, loadMonth]))
+  }, [loadMonth]))
 
   // The month immediately after the last loaded month — what to fetch on scroll-to-bottom
   const nextScrollMonth = useMemo(() => {
@@ -508,7 +510,6 @@ function usePager(
     translateX.stopAnimation()
     Animated.spring(translateX, { toValue, useNativeDriver: false, tension: 60, friction: 11 })
       .start(() => {
-        translateX.setValue(-widthRef.current)
         if (onComplete) {
           internalNavRef.current = true
           onComplete()
@@ -721,9 +722,10 @@ function WeekPager({ curWeekPage, selectedDate, markedDates, onSelectDate, onPre
 
   const { panResponder, snapToPrev, snapToNext, internalNavRef } = usePager(widthRef, translateX, onPrevRef, onNextRef)
 
-  useEffect(() => {
-    if (internalNavRef.current) { internalNavRef.current = false; return }
-    translateX.stopAnimation()
+  useLayoutEffect(() => {
+    const fromSwipe = internalNavRef.current
+    internalNavRef.current = false
+    if (!fromSwipe) translateX.stopAnimation()
     if (widthRef.current > 0) translateX.setValue(-widthRef.current)
   }, [curWeekPage])
 
@@ -779,9 +781,10 @@ function MonthPager({ curMonthPage, selectedDate, markedDates, onSelectDate, onP
 
   const { panResponder, snapToPrev, snapToNext, internalNavRef } = usePager(widthRef, translateX, onPrevRef, onNextRef)
 
-  useEffect(() => {
-    if (internalNavRef.current) { internalNavRef.current = false; return }
-    translateX.stopAnimation()
+  useLayoutEffect(() => {
+    const fromSwipe = internalNavRef.current
+    internalNavRef.current = false
+    if (!fromSwipe) translateX.stopAnimation()
     if (widthRef.current > 0) translateX.setValue(-widthRef.current)
   }, [curMonthPage])
 

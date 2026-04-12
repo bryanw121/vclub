@@ -18,8 +18,7 @@ type Props = {
 // ─── Fixed dimensions ─────────────────────────────────────────────────────────
 const FRAME: Record<'sm' | 'lg', number> = { sm: 58, lg: 96 }
 const ICON:  Record<'sm' | 'lg', number> = { sm: 24, lg: 42 }
-const GAP:   Record<'sm' | 'lg', number> = { sm: 5,  lg: 8  }
-const DOTS_H     = 10
+const GAP:   Record<'sm' | 'lg', number> = { sm: 9,  lg: 12 }
 const LABEL_LINE = 14
 const LABEL_H    = LABEL_LINE * 2
 
@@ -35,17 +34,22 @@ export function BadgeIcon({ def, tier, size = 'sm', showLabel = false, slotNumbe
   const [topColor, bottomColor] = BADGE_CATEGORY_GRADIENTS[def.type] ?? ['#888', '#444']
   const label = earned ? badgeTierLabel(def, tier!) : def.tiers[0].label
 
+  // Resolve image URI: per-tier image takes precedence over a single imageUri
+  const resolvedImageUri = (earned && def.tierImageUris?.[tier!]) || def.imageUri
+  // Tiered image badges (e.g. spike) render larger since they're detailed artwork
+  const imageScale = def.tierImageUris ? 1.4 : 1.2
+
   return (
     <View style={{ alignItems: 'center', gap }}>
 
       {/* ── Icon area ── */}
       <View style={{ width: fs, height: fs, alignItems: 'center', justifyContent: 'center' }}>
 
-        {def.imageUri ? (
+        {resolvedImageUri ? (
           // Image badge — renders larger as a free-form sticker using image transparency
           <Image
-            source={{ uri: def.imageUri }}
-            style={{ width: fs * 1.2, height: fs * 1.2, opacity: earned ? 1 : 0.25 }}
+            source={{ uri: resolvedImageUri }}
+            style={{ width: fs * imageScale, height: fs * imageScale, opacity: earned ? 1 : 0.25 }}
             resizeMode="contain"
           />
         ) : (
@@ -90,20 +94,6 @@ export function BadgeIcon({ def, tier, size = 'sm', showLabel = false, slotNumbe
         )}
       </View>
 
-      {/* ── Tier dots ── */}
-      <View style={{ height: DOTS_H, flexDirection: 'row', gap: 3, alignItems: 'center', justifyContent: 'center' }}>
-        {isTiered && def.tiers.map((_, i) => {
-          const lit = earned && i < (tier ?? 0)
-          return (
-            <View key={i} style={{
-              width: lit ? 6 : 4, height: lit ? 6 : 4,
-              borderRadius: 3,
-              backgroundColor: lit ? topColor : theme.colors.border,
-              opacity: lit ? 1 : 0.5,
-            }} />
-          )
-        })}
-      </View>
 
       {/* ── Label ── */}
       {showLabel && (
