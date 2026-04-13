@@ -1,0 +1,304 @@
+import React, { useCallback, useEffect, useState } from 'react'
+import {
+  View, Text, FlatList, TouchableOpacity, TextInput,
+  ActivityIndicator, Image, Modal, Pressable,
+} from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
+import { useRouter, useFocusEffect, Stack } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { supabase } from '../../../lib/supabase'
+import { theme, shared } from '../../../constants'
+import { useConversations } from '../../../hooks/useConversations'
+import { useTabsContext } from '../../../contexts/tabs'
+import type { ConversationRow, Profile } from '../../../types'
+
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''
+function resolveAvatarUri(ref: string | null | undefined): string | null {
+  if (!ref) return null
+  if (/^https?:\/\//i.test(ref)) return ref
+  return `${SUPABASE_URL}/storage/v1/render/image/public/avatars/${ref}?width=120&height=120&quality=70&resize=cover`
+}
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'now'
+  if (mins < 60) return `${mins}m`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d`
+  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
+function lastMessagePreview(row: ConversationRow, myId: string): string {
+  if (!row.last_message_at) return 'No messages yet'
+  if (row.last_message_deleted_at) return 'Deleted message'
+  const prefix = row.last_sender_id === myId ? 'You: ' : ''
+  if (row.last_message_image_url && !row.last_message_content) return `${prefix}📷 Image`
+  return `${prefix}${row.last_message_content ?? ''}`
+}
+
+function conversationTitle(row: ConversationRow): string {
+  if (row.type === 'club') return row.club_name ?? 'Club Chat'
+  const parts = [row.other_user_first_name, row.other_user_last_name].filter(Boolean)
+  return parts.length ? parts.join(' ') : (row.other_user_username ?? 'Direct Message')
+}
+
+// ── User search for starting a new DM ─────────────────────────────────────────
+function NewDMModal({ visible, onDismiss, onSelect }: {
+  visible: boolean
+  onDismiss: () => void
+  onSelect: (userId: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<Profile[]>([])
+  const [searching, setSearching] = useState(false)
+
+  useEffect(() => {
+    if (!query.trim()) { setResults([]); return }
+    const t = setTimeout(async () => {
+      setSearching(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, first_name, last_name, avatar_url')
+        .or(`username.ilike.%${query.trim()}%,first_name.ilike.%${query.trim()}%,last_name.ilike.%${query.trim()}%`)
+        .neq('id', user?.id ?? '')
+        .limit(20)
+      setResults((data ?? []) as Profile[])
+      setSearching(false)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [query])
+
+  function handleDismiss() {
+    setQuery('')
+    setResults([])
+    onDismiss()
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleDismiss}>
+      <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <View style={{
+          flexDirection: 'row', alignItems: 'center',
+          paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.lg, paddingBottom: theme.spacing.md,
+          borderBottomWidth: 1, borderBottomColor: theme.colors.border,
+          gap: theme.spacing.md,
+        }}>
+          <TextInput
+            autoFocus
+            placeholder="Search by name or username…"
+            placeholderTextColor={theme.colors.subtext}
+            value={query}
+            onChangeText={setQuery}
+            style={{
+              flex: 1, height: 40,
+              backgroundColor: theme.colors.card,
+              borderRadius: theme.radius.lg,
+              paddingHorizontal: 14,
+              fontSize: theme.font.size.md,
+              color: theme.colors.text,
+            }}
+          />
+          <TouchableOpacity onPress={handleDismiss}>
+            <Text style={{ color: theme.colors.primary, fontSize: theme.font.size.md }}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+
+        {searching ? (
+          <View style={{ padding: theme.spacing.xl, alignItems: 'center' }}>
+            <ActivityIndicator color={theme.colors.primary} />
+          </View>
+        ) : (
+          <FlatList
+            data={results}
+            keyExtractor={p => p.id}
+            renderItem={({ item }) => {
+              const name = [item.first_name, item.last_name].filter(Boolean).join(' ') || item.username
+              return (
+                <TouchableOpacity
+                  onPress={() => {
+                    handleDismiss()
+                    onSelect(item.id)
+                  }}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md,
+                    paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md,
+                    borderBottomWidth: 1, borderBottomColor: theme.colors.border,
+                  }}
+                >
+                  <View style={{
+                    width: 44, height: 44, borderRadius: 22,
+                    backgroundColor: theme.colors.border,
+                    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+                  }}>
+                    {resolveAvatarUri(item.avatar_url) ? (
+                      <Image source={{ uri: resolveAvatarUri(item.avatar_url)! }} style={{ width: 44, height: 44 }} />
+                    ) : (
+                      <Ionicons name="person" size={22} color={theme.colors.subtext} />
+                    )}
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.medium, color: theme.colors.text }}>
+                      {name}
+                    </Text>
+                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>@{item.username}</Text>
+                  </View>
+                </TouchableOpacity>
+              )
+            }}
+            ListEmptyComponent={query.trim() ? (
+              <Text style={[shared.caption, { textAlign: 'center', padding: theme.spacing.xl }]}>
+                No users found
+              </Text>
+            ) : null}
+          />
+        )}
+      </View>
+    </Modal>
+  )
+}
+
+// ── Chat list screen ───────────────────────────────────────────────────────────
+export default function ChatScreen() {
+  const router = useRouter()
+  const insets = useSafeAreaInsets()
+  const { tabBarHeight } = useTabsContext()
+  const { conversations, loading, refetch } = useConversations()
+  const [myId, setMyId] = useState<string | null>(null)
+  const [newDMVisible, setNewDMVisible] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setMyId(user?.id ?? null))
+  }, [])
+
+  useFocusEffect(useCallback(() => {
+    void refetch()
+  }, [refetch]))
+
+  async function openDM(otherUserId: string) {
+    const { data: convId } = await supabase.rpc('find_or_create_dm', { other_user_id: otherUserId })
+    if (convId) router.push(`/chat/${convId}` as any)
+  }
+
+  function openConversation(row: ConversationRow) {
+    router.push(`/chat/${row.conversation_id}` as any)
+  }
+
+  function renderRow({ item }: { item: ConversationRow }) {
+    const title = conversationTitle(item)
+    const preview = myId ? lastMessagePreview(item, myId) : ''
+    const time = timeAgo(item.last_message_at)
+    const hasUnread = (item.unread_count ?? 0) > 0
+    const avatarUrl = resolveAvatarUri(item.type === 'dm' ? item.other_user_avatar_url : item.club_avatar_url)
+    const isClub = item.type === 'club'
+
+    return (
+      <TouchableOpacity
+        onPress={() => openConversation(item)}
+        style={{
+          flexDirection: 'row', alignItems: 'center',
+          paddingHorizontal: theme.spacing.lg,
+          paddingVertical: theme.spacing.md,
+          gap: theme.spacing.md,
+          borderBottomWidth: 1, borderBottomColor: theme.colors.border,
+        }}
+      >
+        {/* Avatar */}
+        <View style={{
+          width: 52, height: 52, borderRadius: isClub ? 14 : 26,
+          backgroundColor: theme.colors.border,
+          alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+          flexShrink: 0,
+        }}>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={{ width: 52, height: 52 }} />
+          ) : (
+            <Ionicons name={isClub ? 'people' : 'person'} size={26} color={theme.colors.subtext} />
+          )}
+        </View>
+
+        {/* Content */}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <Text
+              style={{ fontSize: theme.font.size.md, fontWeight: hasUnread ? theme.font.weight.bold : theme.font.weight.medium, color: theme.colors.text, flex: 1 }}
+              numberOfLines={1}
+            >
+              {title}
+            </Text>
+            <Text style={{ fontSize: theme.font.size.xs, color: hasUnread ? theme.colors.primary : theme.colors.subtext, flexShrink: 0 }}>
+              {time}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+            <Text
+              style={{ flex: 1, fontSize: theme.font.size.sm, color: hasUnread ? theme.colors.text : theme.colors.subtext, fontWeight: hasUnread ? theme.font.weight.medium : theme.font.weight.regular }}
+              numberOfLines={1}
+            >
+              {preview}
+            </Text>
+            {hasUnread && (
+              <View style={{
+                minWidth: 20, height: 20, borderRadius: 10,
+                backgroundColor: theme.colors.primary,
+                alignItems: 'center', justifyContent: 'center',
+                paddingHorizontal: 5, flexShrink: 0,
+              }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#fff' }}>
+                  {item.unread_count > 99 ? '99+' : item.unread_count}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    )
+  }
+
+  return (
+    <View style={[shared.screen, { paddingTop: insets.top }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      {/* Header */}
+      <View style={{
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md,
+        borderBottomWidth: 1, borderBottomColor: theme.colors.border,
+      }}>
+        <Text style={shared.heading}>Messages</Text>
+        <TouchableOpacity onPress={() => setNewDMVisible(true)} hitSlop={8}>
+          <Ionicons name="create-outline" size={24} color={theme.colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      {loading ? (
+        <View style={shared.centered}>
+          <ActivityIndicator color={theme.colors.primary} />
+        </View>
+      ) : conversations.length === 0 ? (
+        <View style={shared.centered}>
+          <Ionicons name="chatbubbles-outline" size={48} color={theme.colors.border} />
+          <Text style={[shared.body, { marginTop: theme.spacing.md, color: theme.colors.subtext, textAlign: 'center' }]}>
+            No messages yet.{'\n'}Tap the compose icon to start a conversation.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={conversations}
+          keyExtractor={r => r.conversation_id}
+          renderItem={renderRow}
+          contentContainerStyle={{ paddingBottom: tabBarHeight + 16 }}
+        />
+      )}
+
+      <NewDMModal
+        visible={newDMVisible}
+        onDismiss={() => setNewDMVisible(false)}
+        onSelect={openDM}
+      />
+    </View>
+  )
+}

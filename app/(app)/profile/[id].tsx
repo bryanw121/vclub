@@ -31,7 +31,7 @@ export default function UserProfileDetail() {
         supabase.from('profiles').select('*').eq('id', id).single(),
         supabase.from('cheers').select('cheer_type').eq('receiver_id', id),
         supabase.from('user_badges')
-          .select('id, user_id, badge_type, tier, awarded_at, display_order')
+          .select('id, user_id, badge_type, tier, awarded_at, display_order, display_tier')
           .eq('user_id', id)
           .not('display_order', 'is', null)
           .order('display_order', { ascending: true }),
@@ -62,6 +62,11 @@ export default function UserProfileDetail() {
     else router.replace('/(app)/(tabs)')
   }
 
+  async function openDM() {
+    const { data: convId } = await supabase.rpc('find_or_create_dm', { other_user_id: id })
+    if (convId) router.push(`/chat/${convId}` as any)
+  }
+
   const displayName = profile
     ? ([profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.username)
     : ''
@@ -80,6 +85,10 @@ export default function UserProfileDetail() {
         <TouchableOpacity onPress={goBack} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
           <Text style={{ color: theme.colors.primary, fontSize: theme.font.size.sm }}>Back</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={openDM} style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Ionicons name="chatbubble-outline" size={20} color={theme.colors.primary} />
+          <Text style={{ color: theme.colors.primary, fontSize: theme.font.size.sm }}>Message</Text>
         </TouchableOpacity>
       </View>
 
@@ -124,7 +133,7 @@ export default function UserProfileDetail() {
                 {displayBadges.map(badge => {
                   const def = BADGE_DEFINITIONS.find(d => d.type === badge.badge_type)
                   if (!def) return null
-                  return <BadgeIcon key={badge.badge_type} def={def} tier={badge.tier} size="sm" />
+                  return <BadgeIcon key={badge.badge_type} def={def} tier={badge.display_tier ?? badge.tier} size="sm" />
                 })}
               </View>
             )}

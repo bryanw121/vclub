@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { collectBadgeStats, checkAndAwardBadges } from '../utils/badges'
 import type { UserBadge, Profile } from '../types'
 
-const BADGE_SELECT = 'id, user_id, badge_type, tier, awarded_at, display_order'
+const BADGE_SELECT = 'id, user_id, badge_type, tier, awarded_at, display_order, display_tier'
 
 // Badges change infrequently — cache for 10 minutes in memory, persist to
 // AsyncStorage so the next app launch shows badges instantly with no flash.
@@ -97,6 +97,7 @@ export function useBadges() {
   const setDisplaySlot = useCallback(async (
     badgeType: string,
     slot: number | null,
+    displayTier?: number | null,
   ) => {
     const { data: { session } } = await supabase.auth.getSession()
     const userId = session?.user?.id
@@ -105,7 +106,7 @@ export function useBadges() {
     // Optimistic local update
     setBadges(prev => {
       const next = prev.map(b => {
-        if (b.badge_type === badgeType) return { ...b, display_order: slot }
+        if (b.badge_type === badgeType) return { ...b, display_order: slot, display_tier: displayTier ?? null }
         if (slot !== null && b.display_order === slot) return { ...b, display_order: null }
         return b
       })
@@ -124,7 +125,7 @@ export function useBadges() {
     }
     await supabase
       .from('user_badges')
-      .update({ display_order: slot })
+      .update({ display_order: slot, display_tier: displayTier ?? null })
       .eq('user_id', userId)
       .eq('badge_type', badgeType)
   }, [])

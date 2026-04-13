@@ -5,6 +5,7 @@ import { Stack, useRouter, usePathname } from 'expo-router'
 import { theme, BADGE_DEFINITIONS } from '../../constants'
 import { WebNavContext } from '../../contexts/webNav'
 import { SentryErrorBoundary } from '../../components/SentryErrorBoundary'
+import { useChatUnread } from '../../hooks/useChatUnread'
 
 // Collect every badge image URL defined in code and prefetch them so the
 // badges screen renders instantly without a network loading flash.
@@ -38,11 +39,13 @@ const TABS = [
   { name: 'Events',  icon: 'calendar-outline'     as const, path: '/'        },
   { name: 'Clubs',   icon: 'people-outline'        as const, path: '/clubs'   },
   { name: 'Profile', icon: 'person-circle-outline' as const, path: '/profile' },
+  { name: 'Chat',    icon: 'chatbubbles-outline'   as const, path: '/chat'    },
 ]
 
 const SIDEBAR_BREAKPOINT = 768
 
 function tabIndexFromPath(path: string): number {
+  if (path.startsWith('/chat')) return 3
   if (path.startsWith('/profile') || path.startsWith('/settings')) return 2
   if (path.startsWith('/clubs')) return 1
   return 0
@@ -52,6 +55,7 @@ export default function AppLayout() {
   const router = useRouter()
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  const chatUnread = useChatUnread()
 
   useEffect(() => {
     if (Platform.OS === 'web') return
@@ -132,6 +136,7 @@ export default function AppLayout() {
 
             {TABS.map((tab, i) => {
               const active = sidebarActive === i
+              const badge = i === 3 && chatUnread > 0 ? chatUnread : 0
               return (
                 <TouchableOpacity
                   key={tab.name}
@@ -150,11 +155,26 @@ export default function AppLayout() {
                     backgroundColor: active ? theme.colors.primary + '18' : 'transparent',
                   }}
                 >
-                  <Ionicons
-                    name={tab.icon}
-                    size={20}
-                    color={active ? theme.colors.primary : theme.colors.subtext}
-                  />
+                  <View style={{ position: 'relative' }}>
+                    <Ionicons
+                      name={tab.icon}
+                      size={20}
+                      color={active ? theme.colors.primary : theme.colors.subtext}
+                    />
+                    {badge > 0 && (
+                      <View style={{
+                        position: 'absolute', top: -5, right: -8,
+                        minWidth: 16, height: 16, borderRadius: 8,
+                        backgroundColor: theme.colors.primary,
+                        alignItems: 'center', justifyContent: 'center',
+                        paddingHorizontal: 3,
+                      }}>
+                        <Text style={{ fontSize: 8, fontWeight: '800', color: '#fff', lineHeight: 11 }}>
+                          {badge > 99 ? '99+' : badge}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                   {!collapsed && (
                     <Text style={{
                       fontSize: theme.font.size.md,
@@ -185,6 +205,7 @@ export default function AppLayout() {
               <Stack.Screen name="profile/[id]" options={{ headerShown: false, gestureEnabled: true }} />
               <Stack.Screen name="club/[id]" options={{ headerShown: false, gestureEnabled: true }} />
               <Stack.Screen name="notifications" options={{ title: 'Notifications', headerBackTitle: 'Back' }} />
+              <Stack.Screen name="chat/[id]" options={{ headerShown: false, gestureEnabled: true }} />
             </Stack>
 
             {/* FAB backdrop */}
@@ -283,6 +304,7 @@ export default function AppLayout() {
       <Stack.Screen name="profile/[id]" options={{ headerShown: false, gestureEnabled: true }} />
       <Stack.Screen name="club/[id]" options={{ headerShown: false, gestureEnabled: true }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications', headerBackTitle: 'Back' }} />
+      <Stack.Screen name="chat/[id]" options={{ headerShown: false, gestureEnabled: true }} />
     </Stack>
     </SentryErrorBoundary>
   )

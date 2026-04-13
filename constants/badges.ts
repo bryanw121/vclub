@@ -134,7 +134,7 @@ export const BADGE_DEFINITIONS: BadgeDef[] = [
     stat: 'spike_cheers',
     tierImageUris: {
       1: 'https://rmelsdqgrpfjzqisycdl.supabase.co/storage/v1/object/public/badges/spike_tier1_bronze.png?v=2',
-      2: 'https://rmelsdqgrpfjzqisycdl.supabase.co/storage/v1/object/public/badges/spike_tier2_silver.png?v=2',
+      2: 'https://rmelsdqgrpfjzqisycdl.supabase.co/storage/v1/object/public/badges/spike_tier2_silver.png?v=4',
       3: 'https://rmelsdqgrpfjzqisycdl.supabase.co/storage/v1/object/public/badges/spike_tier3_gold.png?v=2',
     },
     tiers: [

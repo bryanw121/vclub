@@ -170,7 +170,7 @@ function EventCardInner({ event, from: fromOverride }: { event: EventWithDetails
 
         {/* Title */}
         <Text
-          style={{ fontSize: 15, fontWeight: theme.font.weight.semibold, color: theme.colors.text, lineHeight: 20 }}
+          style={{ fontSize: 15, fontWeight: theme.font.weight.semibold, color: theme.colors.primary, lineHeight: 20 }}
           numberOfLines={2}
         >
           {event.title}

@@ -7,12 +7,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TabsContext } from "../../../contexts/tabs";
 import { useWebNav } from "../../../contexts/webNav";
 import { theme } from "../../../constants";
+import { useChatUnread } from "../../../hooks/useChatUnread";
 
-// Pager indices: 0=Events, 1=Clubs, 2=Profile
+// Pager indices: 0=Events, 1=Clubs, 2=Profile, 3=Chat
 const MOBILE_NAV_TABS = [
   { name: "Events",  icon: "calendar-outline"     as const, pageIndex: 0 },
   { name: "Clubs",   icon: "people-outline"        as const, pageIndex: 1 },
-  { name: "Profile", icon: "person-circle-outline" as const, pageIndex: 2 },
+  { name: "Chat",    icon: "chatbubbles-outline"   as const, pageIndex: 2 },
+  { name: "Profile", icon: "person-circle-outline" as const, pageIndex: 3 },
 ];
 
 const FAB_OPTIONS = [
@@ -92,11 +94,14 @@ export default function TabsLayout() {
     setTabBarHidden(false);
   }
 
+  const chatUnread = useChatUnread();
+
   /** When a stack screen (settings or another user's profile) is open, switch tabs by resetting the stack to the right home route. */
   function handleTabPress(tabIndex: number) {
-    if (pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname)) {
+    if (pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname) || pathname.startsWith("/chat")) {
       if (tabIndex === 0) router.replace("/" as any);
       else if (tabIndex === 1) router.replace("/clubs" as any);
+      else if (tabIndex === 2) router.replace("/chat" as any);
       else router.replace("/profile" as any);
     }
     goToTab(tabIndex);
@@ -112,7 +117,7 @@ export default function TabsLayout() {
     setTimeout(() => router.push(path as any), 160);
   }
 
-  const fabBottom = bottomInset + 70;
+  const fabBottom = tabBarHeight + theme.spacing.md;
   const onSettingsOrUserProfile =
     pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname);
   const showFab = activeTabIndex === 0 && !onSettingsOrUserProfile;
@@ -235,22 +240,39 @@ export default function TabsLayout() {
             borderTopWidth: 1,
             borderTopColor: theme.colors.border,
             backgroundColor: theme.colors.card,
-            paddingTop: theme.spacing.md,
-            paddingBottom: bottomInset,
+            paddingTop: theme.spacing.sm + 2,
+            paddingBottom: Math.max(bottomInset, theme.spacing.sm + 2),
           }}>
             {MOBILE_NAV_TABS.map((tab) => {
               const active = activeTabIndex === tab.pageIndex;
+              const badge = tab.name === "Chat" && chatUnread > 0 ? chatUnread : 0;
               return (
                 <TouchableOpacity
                   key={tab.name}
                   onPress={() => handleTabPress(tab.pageIndex)}
                   style={{ flex: 1, alignItems: "center", gap: 4 }}
                 >
-                  <Ionicons
-                    name={tab.icon}
-                    size={27}
-                    color={active ? theme.colors.primary : theme.colors.subtext}
-                  />
+                  <View style={{ position: "relative" }}>
+                    <Ionicons
+                      name={tab.icon}
+                      size={24}
+                      color={active ? theme.colors.primary : theme.colors.subtext}
+                    />
+                    {badge > 0 && (
+                      <View style={{
+                        position: "absolute", top: -4, right: -8,
+                        minWidth: 17, height: 17, borderRadius: 9,
+                        backgroundColor: theme.colors.primary,
+                        alignItems: "center", justifyContent: "center",
+                        paddingHorizontal: 3,
+                        borderWidth: 1.5, borderColor: theme.colors.card,
+                      }}>
+                        <Text style={{ fontSize: 9, fontWeight: "800", color: "#fff", lineHeight: 12 }}>
+                          {badge > 99 ? "99+" : badge}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={{
                     fontSize: 11,
                     color: active ? theme.colors.primary : theme.colors.subtext,

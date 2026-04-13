@@ -363,6 +363,64 @@ export type AttendanceStatus = {
   denialReason: string | null // reason provided by host when denying; null if none given
 }
 
+// ─── Chat Types ───────────────────────────────────────────────────────────────
+
+export type ConversationType = 'dm' | 'club'
+
+export type Message = {
+  id: string
+  conversation_id: string
+  sender_id: string
+  content: string | null
+  image_url: string | null
+  reply_to_id: string | null
+  created_at: string
+  deleted_at: string | null
+}
+
+export type MessageReaction = {
+  message_id: string
+  user_id: string
+  emoji: string
+  created_at: string
+}
+
+/** Row returned by the get_my_conversations() RPC. */
+export type ConversationRow = {
+  conversation_id: string
+  type: ConversationType
+  club_id: string | null
+  created_at: string
+  last_message_id: string | null
+  last_message_content: string | null
+  last_message_image_url: string | null
+  last_message_at: string | null
+  last_message_deleted_at: string | null
+  last_sender_id: string | null
+  last_sender_username: string | null
+  last_sender_first_name: string | null
+  last_sender_last_name: string | null
+  unread_count: number
+  other_user_id: string | null
+  other_user_username: string | null
+  other_user_first_name: string | null
+  other_user_last_name: string | null
+  other_user_avatar_url: string | null
+  other_user_selected_border: string | null
+  club_name: string | null
+  club_avatar_url: string | null
+  my_last_read_at: string | null
+}
+
+/** Message joined with sender profile, reactions, and optional reply-to. */
+export type MessageWithDetails = Message & {
+  profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'selected_border'> | null
+  message_reactions: MessageReaction[]
+  reply_to: (Pick<Message, 'id' | 'content' | 'image_url' | 'deleted_at'> & {
+    profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name'> | null
+  }) | null
+}
+
 // ─── Badge Types ──────────────────────────────────────────────────────────────
 
 export type CardBgType = 'ember' | 'frost' | 'aurora'
@@ -394,4 +452,5 @@ export type UserBadge = {
   tier: number               // 1–5; most single-level badges are always 1
   awarded_at: string         // ISO 8601 — when this tier was reached
   display_order: number | null // 1, 2, or 3 if chosen for profile display; null otherwise
+  display_tier: number | null  // chosen display tier; null = show highest earned tier
 }

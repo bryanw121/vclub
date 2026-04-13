@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase'
 import { theme } from '../constants'
 import { initSentry, Sentry } from '../lib/sentry'
 import { SentryErrorBoundary } from '../components/SentryErrorBoundary'
+import { registerPushToken } from '../utils/pushNotifications'
 
 initSentry()
 
@@ -86,6 +87,7 @@ function RootLayout() {
       splashOpacity.setValue(1)
       if (splashTimerRef.current) clearTimeout(splashTimerRef.current)
       void prefetchUserAvatar()
+      void registerPushToken()
       splashTimerRef.current = setTimeout(dismissSplash, SPLASH_DURATION_MS)
     } else if (!isLoggedIn && wasUnknown) {
       // Cold start, not logged in — no splash needed

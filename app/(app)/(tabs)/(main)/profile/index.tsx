@@ -40,6 +40,7 @@ import {
   AVATAR_MAX_FILE_BYTES,
   BADGE_DEFINITIONS,
   badgeTitle,
+  badgeTierLabel,
 } from '../../../../../constants'
 
 import { PROFILE_BORDERS, isBorderUnlocked } from '../../../../../constants/badges'
@@ -666,7 +667,7 @@ export default function MyProfile() {
               {displayedBadges.map(badge => {
                 const def = BADGE_DEFINITIONS.find(d => d.type === badge.badge_type)
                 if (!def) return null
-                return <BadgeIcon key={badge.badge_type} def={def} tier={badge.tier} size="sm" />
+                return <BadgeIcon key={badge.badge_type} def={def} tier={badge.display_tier ?? badge.tier} size="sm" />
               })}
             </View>
           )}
@@ -790,7 +791,7 @@ export default function MyProfile() {
                       <View style={{ position: 'relative' }}>
                         {def && badge ? (
                           <>
-                            <BadgeIcon def={def} tier={badge.tier} size="sm" />
+                            <BadgeIcon def={def} tier={badge.display_tier ?? badge.tier} size="sm" />
                             <Pressable
                               onPress={() => void setDisplaySlot(badge.badge_type, null)}
                               hitSlop={8}
@@ -821,7 +822,11 @@ export default function MyProfile() {
                         )}
                       </View>
                       <Text style={[shared.caption, { color: theme.colors.subtext }]} numberOfLines={1}>
-                        {def ? badgeTitle(def.type) : `Slot ${slot}`}
+                        {def && badge
+                          ? (def.tiers.length > 1
+                              ? badgeTierLabel(def, badge.display_tier ?? badge.tier)
+                              : badgeTitle(def.type))
+                          : `Slot ${slot}`}
                       </Text>
                     </View>
                   )
@@ -955,7 +960,6 @@ export default function MyProfile() {
             borderTopLeftRadius: theme.radius.xl,
             borderTopRightRadius: theme.radius.xl,
             paddingTop: theme.spacing.sm,
-            paddingBottom: insets.bottom + theme.spacing.md,
             paddingHorizontal: theme.spacing.md,
             maxHeight: '70%',
             shadowColor: '#000',
@@ -963,7 +967,9 @@ export default function MyProfile() {
             shadowOpacity: 0.12,
             shadowRadius: 12,
             elevation: 16,
+            overflow: 'hidden',
           }, sheetTranslateStyle]}>
+            {/* Fixed header */}
             <View style={{ alignItems: 'center', marginBottom: theme.spacing.md }}>
               <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: theme.colors.border }} />
             </View>
@@ -975,40 +981,59 @@ export default function MyProfile() {
               </Pressable>
             </View>
 
-            {badges.filter(b => b.tier > 0 && b.display_order !== pickingSlot).length === 0 ? (
-              <Text style={[shared.caption, { textAlign: 'center', paddingVertical: theme.spacing.xl }]}>
-                No earned badges available to add.
-              </Text>
-            ) : (
-              <ScrollView
-                onLayout={e => setBadgeGridWidth(e.nativeEvent.layout.width)}
-                contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.md, paddingBottom: theme.spacing.md, justifyContent: 'center' }}
-              >
-                {badges.filter(b => b.tier > 0 && b.display_order !== pickingSlot).map(badge => {
+            {(() => {
+              // Expand multi-tier badges into one item per earned tier so users
+              // can pick which tier to display (e.g. show Bronze spike instead of Gold).
+              const pickerItems: { badge: typeof badges[0]; def: typeof BADGE_DEFINITIONS[0]; displayTier: number }[] = []
+              badges
+                .filter(b => b.tier > 0 && b.display_order !== pickingSlot)
+                .forEach(badge => {
                   const def = BADGE_DEFINITIONS.find(d => d.type === badge.badge_type)
-                  if (!def) return null
-                  return (
+                  if (!def) return
+                  if (def.tiers.length > 1) {
+                    // One item per earned tier
+                    for (let t = 1; t <= badge.tier; t++) {
+                      pickerItems.push({ badge, def, displayTier: t })
+                    }
+                  } else {
+                    pickerItems.push({ badge, def, displayTier: 1 })
+                  }
+                })
+
+              if (pickerItems.length === 0) return (
+                <Text style={[shared.caption, { textAlign: 'center', paddingVertical: theme.spacing.xl, paddingBottom: insets.bottom + theme.spacing.xl }]}>
+                  No earned badges available to add.
+                </Text>
+              )
+
+              return (
+                <ScrollView
+                  onLayout={e => setBadgeGridWidth(e.nativeEvent.layout.width)}
+                  style={{ flex: 1 }}
+                  contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.md, paddingBottom: insets.bottom + theme.spacing.md, justifyContent: 'center' }}
+                >
+                  {pickerItems.map(({ badge, def, displayTier }) => (
                     <Pressable
-                      key={badge.badge_type}
+                      key={`${badge.badge_type}-${displayTier}`}
                       onPress={() => {
                         closeSheet()
-                        void setDisplaySlot(badge.badge_type, pickingSlot!)
+                        void setDisplaySlot(badge.badge_type, pickingSlot!, displayTier)
                       }}
                       style={({ pressed }) => ({ opacity: pressed ? 0.65 : 1 })}
                     >
-                      <BadgeIcon def={def} tier={badge.tier} size="sm" />
+                      <BadgeIcon def={def} tier={displayTier} size="sm" showLabel />
                     </Pressable>
-                  )
-                })}
-                {/* Spacers force last row to start from left while full rows stay centered */}
-                {badgeGridWidth > 0 && (() => {
-                  const itemsPerRow = Math.floor((badgeGridWidth + theme.spacing.md) / (58 + theme.spacing.md))
-                  return Array.from({ length: Math.max(0, itemsPerRow - 1) }).map((_, i) => (
-                    <View key={`sp-${i}`} style={{ width: 58 }} />
-                  ))
-                })()}
-              </ScrollView>
-            )}
+                  ))}
+                  {/* Spacers force last row to start from left while full rows stay centered */}
+                  {badgeGridWidth > 0 && (() => {
+                    const itemsPerRow = Math.floor((badgeGridWidth + theme.spacing.md) / (58 + theme.spacing.md))
+                    return Array.from({ length: Math.max(0, itemsPerRow - 1) }).map((_, i) => (
+                      <View key={`sp-${i}`} style={{ width: 58 }} />
+                    ))
+                  })()}
+                </ScrollView>
+              )
+            })()}
           </Animated.View>
         </>
       )}

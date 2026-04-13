@@ -6,12 +6,13 @@ import { useTabsContext } from '../../../../contexts/tabs'
 import EventsScreen from './index'
 import ProfileScreen from './profile/index'
 import ClubsScreen from '../clubs'
+import ChatScreen from '../chat'
 
 const SIDEBAR_BREAKPOINT = 768
 
 /**
- * Wide web: Slot renders /, /clubs, or /profile as separate routes.
- * Mobile / narrow web: Pager swipes between Events, Clubs, and Profile (tab index from TabsContext).
+ * Wide web: Slot renders /, /clubs, /profile, or /chat as separate routes.
+ * Mobile / narrow web: Pager swipes between Events, Clubs, Profile, Chat (tab index from TabsContext).
  */
 export default function MainLayout() {
   const { width } = useWindowDimensions()
@@ -30,6 +31,7 @@ export default function MainLayout() {
       <Pager page={activeTabIndex} onPageChange={goToTab} pagerBlockedRef={pagerBlocked}>
         <EventsScreen />
         <ClubsScreen />
+        <ChatScreen />
         <ProfileScreen />
       </Pager>
     </View>
