@@ -39,7 +39,7 @@ export function MessageBubble({ message, isOwn, showAvatar, onLongPress, onReply
   }
   const reactions = Object.entries(reactionGroups)
 
-  const bubbleBg = isOwn ? theme.colors.primary : theme.colors.card
+  const bubbleBg = isOwn ? theme.colors.primary : '#E8E5F0'
   const bubbleText = isOwn ? '#fff' : theme.colors.text
 
   return (
