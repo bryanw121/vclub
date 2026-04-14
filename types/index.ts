@@ -419,6 +419,8 @@ export type MessageWithDetails = Message & {
   reply_to: (Pick<Message, 'id' | 'content' | 'image_url' | 'deleted_at'> & {
     profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name'> | null
   }) | null
+  /** UI-only: true while the message is being inserted, not persisted to DB */
+  _sending?: boolean
 }
 
 // ─── Badge Types ──────────────────────────────────────────────────────────────

@@ -45,7 +45,7 @@ export function MessageBubble({ message, isOwn, showAvatar, onLongPress, onReply
   return (
     <Pressable
       onLongPress={e => {
-        if (!deleted) {
+        if (!deleted && !message._sending) {
           const { pageX, pageY } = e.nativeEvent
           onLongPress(message, { x: pageX, y: pageY })
         }
@@ -56,6 +56,7 @@ export function MessageBubble({ message, isOwn, showAvatar, onLongPress, onReply
         marginHorizontal: theme.spacing.md,
         marginBottom: 4,
         gap: 8,
+        opacity: message._sending ? 0.6 : 1,
       }}
     >
       {/* Avatar placeholder to keep layout consistent */}
@@ -160,14 +161,15 @@ export function MessageBubble({ message, isOwn, showAvatar, onLongPress, onReply
           )}
         </View>
 
-        {/* Timestamp */}
+        {/* Timestamp / sending indicator */}
         <Text style={{
           fontSize: 10,
-          color: theme.colors.subtext,
+          color: message._sending ? theme.colors.primary : theme.colors.subtext,
           marginTop: 2,
           marginHorizontal: 4,
+          fontStyle: message._sending ? 'italic' : 'normal',
         }}>
-          {formatTime(message.created_at)}
+          {message._sending ? 'Sending…' : formatTime(message.created_at)}
         </Text>
 
         {/* Reactions */}

@@ -38,10 +38,13 @@ export function useMessages(conversationId: string) {
 
     const rows = (data ?? []) as MessageWithDetails[]
     if (before) {
-      // Loading older pages — prepend (they come in desc order, so reverse for display)
       setMessages(prev => [...rows.reverse(), ...prev])
     } else {
-      setMessages(rows.reverse())
+      // Keep any optimistic (_sending) messages at the end
+      setMessages(prev => {
+        const sending = prev.filter(m => m._sending)
+        return [...rows.reverse(), ...sending]
+      })
       oldestCreatedAt.current = rows[0]?.created_at ?? null
     }
     setHasMore(rows.length === PAGE_SIZE)
@@ -64,18 +67,21 @@ export function useMessages(conversationId: string) {
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
         async (payload) => {
-          // Fetch the full row with joins
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from('messages')
             .select(MESSAGE_SELECT)
             .eq('id', payload.new.id)
             .single()
-          if (data && mountedRef.current) {
+          if (!mountedRef.current) return
+          if (data) {
             setMessages(prev =>
               prev.some(m => m.id === (data as MessageWithDetails).id)
                 ? prev
-                : [...prev, data as MessageWithDetails]
+                : [...prev.filter(m => !m._sending || m.sender_id !== payload.new.sender_id), data as MessageWithDetails]
             )
+          } else if (error) {
+            // Join failed — fall back to a full reload
+            void fetchMessages()
           }
         })
       .on('postgres_changes',
@@ -105,8 +111,26 @@ export function useMessages(conversationId: string) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Insert and immediately select the full row with all joins in one round-trip.
-    // This makes the message appear instantly without waiting for the Realtime event.
+    const tempId = `temp-${Date.now()}`
+    const tempMessage: MessageWithDetails = {
+      id: tempId,
+      conversation_id: conversationId,
+      sender_id: user.id,
+      content: content || null,
+      image_url: imageUrl,
+      reply_to_id: replyToId,
+      created_at: new Date().toISOString(),
+      deleted_at: null,
+      profiles: null,
+      message_reactions: [],
+      reply_to: null,
+      _sending: true,
+    }
+
+    if (mountedRef.current) {
+      setMessages(prev => [...prev, tempMessage])
+    }
+
     const { data, error: sendError } = await supabase
       .from('messages')
       .insert({
@@ -121,12 +145,18 @@ export function useMessages(conversationId: string) {
 
     if (sendError) console.error('[useMessages] send error:', JSON.stringify(sendError))
 
-    if (data && mountedRef.current) {
-      setMessages(prev =>
-        prev.some(m => m.id === (data as MessageWithDetails).id)
-          ? prev
-          : [...prev, data as MessageWithDetails]
-      )
+    if (mountedRef.current) {
+      if (data) {
+        // Replace temp message with confirmed message
+        setMessages(prev => prev
+          .filter(m => m.id !== tempId)
+          .concat([data as MessageWithDetails])
+          .filter((m, i, arr) => i === arr.findIndex(x => x.id === m.id))
+        )
+      } else {
+        // Remove temp on failure
+        setMessages(prev => prev.filter(m => m.id !== tempId))
+      }
     }
 
     void supabase.rpc('mark_conversation_read', { p_conversation_id: conversationId })
