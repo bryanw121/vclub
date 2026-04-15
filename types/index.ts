@@ -412,6 +412,23 @@ export type ConversationRow = {
   my_last_read_at: string | null
 }
 
+/**
+ * `chat_silences` table
+ * Viewer (`user_id`) hides chat content from `silenced_user_id` in the app only.
+ */
+export type ChatSilence = {
+  user_id: string
+  silenced_user_id: string
+  created_at: string
+}
+
+/** Row from `chat_silences` list query with embedded profile (settings UI). */
+export type ChatSilenceWithProfile = {
+  silenced_user_id: string
+  created_at: string
+  profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url'> | null
+}
+
 /** Message joined with sender profile, reactions, and optional reply-to. */
 export type MessageWithDetails = Message & {
   profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'selected_border'> | null

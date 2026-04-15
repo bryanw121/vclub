@@ -13,10 +13,19 @@ export function timeAgo(iso: string | null): string {
   return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
-export function lastMessagePreview(row: ConversationRow, myId: string): string {
+export function lastMessagePreview(row: ConversationRow, myId: string, silencedIds?: Set<string>): string {
   if (!row.last_message_at) return 'No messages yet'
   if (row.last_message_deleted_at) return 'Deleted message'
   const prefix = row.last_sender_id === myId ? 'You: ' : ''
+  if (
+    silencedIds
+    && row.type === 'club'
+    && row.last_sender_id
+    && row.last_sender_id !== myId
+    && silencedIds.has(row.last_sender_id)
+  ) {
+    return prefix ? `${prefix}Message hidden` : 'Message hidden'
+  }
   if (row.last_message_image_url && !row.last_message_content) return `${prefix}📷 Image`
   return `${prefix}${row.last_message_content ?? ''}`
 }

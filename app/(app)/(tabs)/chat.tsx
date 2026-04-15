@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
-  ActivityIndicator, Image, Modal, Pressable,
+  ActivityIndicator, Image, Modal, Pressable, Alert, Platform,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect, Stack } from 'expo-router'
@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
 import { theme, shared } from '../../../constants'
 import { useConversations } from '../../../hooks/useConversations'
+import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
 import { useTabsContext } from '../../../contexts/tabs'
 import { timeAgo, lastMessagePreview } from '../../../utils/chatUtils'
 import type { ConversationRow, Profile } from '../../../types'
@@ -20,7 +21,6 @@ function resolveAvatarUri(ref: string | null | undefined): string | null {
   return `${SUPABASE_URL}/storage/v1/render/image/public/avatars/${ref}?width=120&height=120&quality=70&resize=cover`
 }
 
-
 function conversationTitle(row: ConversationRow): string {
   if (row.type === 'club') return row.club_name ?? 'Club Chat'
   const parts = [row.other_user_first_name, row.other_user_last_name].filter(Boolean)
@@ -28,10 +28,11 @@ function conversationTitle(row: ConversationRow): string {
 }
 
 // ── User search for starting a new DM ─────────────────────────────────────────
-function NewDMModal({ visible, onDismiss, onSelect }: {
+function NewDMModal({ visible, onDismiss, onSelect, silencedUserIds }: {
   visible: boolean
   onDismiss: () => void
   onSelect: (userId: string) => void
+  silencedUserIds: Set<string>
 }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Profile[]>([])
@@ -95,7 +96,7 @@ function NewDMModal({ visible, onDismiss, onSelect }: {
           </View>
         ) : (
           <FlatList
-            data={results}
+            data={results.filter(p => !silencedUserIds.has(p.id))}
             keyExtractor={p => p.id}
             renderItem={({ item }) => {
               const name = [item.first_name, item.last_name].filter(Boolean).join(' ') || item.username
@@ -149,8 +150,18 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets()
   const { tabBarHeight } = useTabsContext()
   const { conversations, loading, refetch } = useConversations()
+  const { silencedUserIds, silenceUser } = useSilencedUsers()
   const [myId, setMyId] = useState<string | null>(null)
   const [newDMVisible, setNewDMVisible] = useState(false)
+
+  const visibleConversations = useMemo(
+    () => conversations.filter(row => {
+      if (row.type !== 'dm') return true
+      if (!row.other_user_id) return true
+      return !silencedUserIds.has(row.other_user_id)
+    }),
+    [conversations, silencedUserIds],
+  )
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setMyId(user?.id ?? null))
@@ -169,24 +180,48 @@ export default function ChatScreen() {
     router.push(`/chat/${row.conversation_id}` as any)
   }
 
+  function confirmSilenceFromList(otherUserId: string, label: string) {
+    Alert.alert(
+      'Silence this user?',
+      `${label} — their chat messages will be hidden. Undo under Profile → Silenced people.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Silence', style: 'destructive', onPress: () => { void silenceUser(otherUserId) } },
+      ],
+    )
+  }
+
   function renderRow({ item }: { item: ConversationRow }) {
     const title = conversationTitle(item)
-    const preview = myId ? lastMessagePreview(item, myId) : ''
+    const preview = myId ? lastMessagePreview(item, myId, silencedUserIds) : ''
     const time = timeAgo(item.last_message_at)
     const hasUnread = (item.unread_count ?? 0) > 0
     const avatarUrl = resolveAvatarUri(item.type === 'dm' ? item.other_user_avatar_url : item.club_avatar_url)
     const isClub = item.type === 'club'
 
+    const canSilenceDm = item.type === 'dm' && item.other_user_id && myId && item.other_user_id !== myId
+
     return (
-      <TouchableOpacity
+      <Pressable
         onPress={() => openConversation(item)}
-        style={{
+        onLongPress={canSilenceDm ? () => confirmSilenceFromList(item.other_user_id!, conversationTitle(item)) : undefined}
+        {...(Platform.OS === 'web' && canSilenceDm
+          ? {
+              onContextMenu: (e: { preventDefault?: () => void }) => {
+                e.preventDefault?.()
+                confirmSilenceFromList(item.other_user_id!, conversationTitle(item))
+              },
+            }
+          : {})}
+        delayLongPress={480}
+        style={({ pressed }) => ({
           flexDirection: 'row', alignItems: 'center',
           paddingHorizontal: theme.spacing.lg,
           paddingVertical: theme.spacing.md,
           gap: theme.spacing.md,
           borderBottomWidth: 1, borderBottomColor: theme.colors.border,
-        }}
+          opacity: pressed ? 0.88 : 1,
+        })}
       >
         {/* Avatar */}
         <View style={{
@@ -236,7 +271,7 @@ export default function ChatScreen() {
             )}
           </View>
         </View>
-      </TouchableOpacity>
+      </Pressable>
     )
   }
 
@@ -259,16 +294,18 @@ export default function ChatScreen() {
         <View style={shared.centered}>
           <ActivityIndicator color={theme.colors.primary} />
         </View>
-      ) : conversations.length === 0 ? (
+      ) : visibleConversations.length === 0 ? (
         <View style={shared.centered}>
           <Ionicons name="chatbubbles-outline" size={48} color={theme.colors.border} />
           <Text style={[shared.body, { marginTop: theme.spacing.md, color: theme.colors.subtext, textAlign: 'center' }]}>
-            No messages yet.{'\n'}Tap the compose icon to start a conversation.
+            {conversations.length > 0
+              ? 'No conversations here. Direct chats with people you silenced stay hidden until you unsilence them under Profile → Silenced people.'
+              : 'No messages yet.\nTap the compose icon to start a conversation.'}
           </Text>
         </View>
       ) : (
         <FlatList
-          data={conversations}
+          data={visibleConversations}
           keyExtractor={r => r.conversation_id}
           renderItem={renderRow}
           contentContainerStyle={{ paddingBottom: tabBarHeight + 16 }}
@@ -279,6 +316,7 @@ export default function ChatScreen() {
         visible={newDMVisible}
         onDismiss={() => setNewDMVisible(false)}
         onSelect={openDM}
+        silencedUserIds={silencedUserIds}
       />
     </View>
   )

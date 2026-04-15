@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ActivityIndicator,
-  Image, Pressable, Modal,
+  Image, Pressable, Modal, Alert,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
@@ -17,7 +17,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../../lib/supabase'
 import { theme, shared } from '../../../constants'
+import { useAuth } from '../../../hooks/useAuth'
 import { useMessages } from '../../../hooks/useMessages'
+import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
+import { AnchorOptionsMenu, type AnchorRect } from '../../../components/AnchorOptionsMenu'
 import { MessageBubble } from '../../../components/MessageBubble'
 import { ReactionPicker } from '../../../components/ReactionPicker'
 import type { ConversationRow, MessageWithDetails } from '../../../types'
@@ -36,7 +39,8 @@ export default function ChatRoomScreen() {
   const flatListRef = useRef<FlatList>(null)
   const inputRef = useRef<import('react-native').TextInput>(null)
 
-  const [myId, setMyId] = useState<string | null>(null)
+  const { session } = useAuth()
+  const myId = session?.user?.id ?? null
   const [convRow, setConvRow] = useState<ConversationRow | null>(null)
   const [text, setText] = useState('')
   const [imageUri, setImageUri] = useState<string | null>(null)
@@ -52,14 +56,15 @@ export default function ChatRoomScreen() {
   // Full-screen image viewer
   const [viewingImage, setViewingImage] = useState<string | null>(null)
 
+  const headerKebabRef = useRef<View>(null)
+  const [headerMenuVisible, setHeaderMenuVisible] = useState(false)
+  const [headerMenuAnchor, setHeaderMenuAnchor] = useState<AnchorRect | null>(null)
+
   const {
     messages, loading, hasMore, loadMore,
     sendMessage, deleteMessage, toggleReaction, uploadImage, markRead,
   } = useMessages(id)
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setMyId(user?.id ?? null))
-  }, [])
+  const { silencedUserIds, silenceUser } = useSilencedUsers()
 
   // Load conversation metadata for the header
   useEffect(() => {
@@ -70,6 +75,18 @@ export default function ChatRoomScreen() {
     }
     void loadConv()
   }, [id])
+
+  useEffect(() => {
+    setHeaderMenuVisible(false)
+    setHeaderMenuAnchor(null)
+  }, [id])
+
+  // Silenced DMs are hidden from the list; kick out if opened via deep link or stale route.
+  useEffect(() => {
+    if (!convRow || convRow.type !== 'dm' || !convRow.other_user_id) return
+    if (!silencedUserIds.has(convRow.other_user_id)) return
+    router.replace('/(app)/(tabs)/chat' as any)
+  }, [convRow, silencedUserIds, router])
 
   // Mark read when screen opens and whenever new messages arrive
   useEffect(() => {
@@ -137,23 +154,56 @@ export default function ChatRoomScreen() {
     setPickerVisible(true)
   }
 
+  const confirmSilenceUser = useCallback((senderId: string) => {
+    Alert.alert(
+      'Silence this user?',
+      'Their chat messages will be hidden. Events and club activity stay the same. Undo anytime under Profile → Silenced people.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Silence', style: 'destructive', onPress: () => { void silenceUser(senderId) } },
+      ],
+    )
+  }, [silenceUser])
+
+  const dmHeaderMenuOptions = useMemo(() => {
+    if (!convRow || convRow.type !== 'dm' || !convRow.other_user_id || !myId || convRow.other_user_id === myId) return []
+    const oid = convRow.other_user_id
+    return [
+      { key: 'profile', label: 'View profile', onPress: () => router.push(`/profile/${oid}` as any) },
+      { key: 'silence', label: 'Silence user', destructive: true, onPress: () => confirmSilenceUser(oid) },
+    ]
+  }, [convRow, myId, router, confirmSilenceUser])
+
+  function openHeaderOptionsMenu() {
+    headerKebabRef.current?.measureInWindow((x, y, w, h) => {
+      setHeaderMenuAnchor({ x, y, width: w, height: h })
+      setHeaderMenuVisible(true)
+    })
+  }
+
   const renderMessage = useCallback(({ item, index }: { item: MessageWithDetails; index: number }) => {
     const isOwn = item.sender_id === myId
     const prevItem = index > 0 ? messages[index - 1] : null
     // Show avatar when the sender changes or when it's the first message in a sequence
     const showAvatar = !isOwn && (prevItem?.sender_id !== item.sender_id || !prevItem)
+    const senderSilenced = !isOwn && silencedUserIds.has(item.sender_id)
+    const replySilenced = !!(item.reply_to?.profiles?.id && silencedUserIds.has(item.reply_to.profiles.id))
 
     return (
       <MessageBubble
         message={item}
         isOwn={isOwn}
         showAvatar={isClub || false}
+        contentSuppressed={senderSilenced}
+        replyContentSuppressed={replySilenced}
+        onViewPeerProfilePress={isClub ? (uid => router.push(`/profile/${uid}` as any)) : undefined}
+        onSilencePeerPress={isClub ? confirmSilenceUser : undefined}
         onLongPress={handleLongPress}
         onReplyPress={msg => setReplyTo(msg)}
         onImagePress={setViewingImage}
       />
     )
-  }, [myId, messages, isClub])
+  }, [myId, messages, isClub, silencedUserIds, router, confirmSilenceUser])
 
   const canSend = (text.trim().length > 0 || !!imageUri) && !sending
 
@@ -192,6 +242,19 @@ export default function ChatRoomScreen() {
         <Text style={{ flex: 1, fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }} numberOfLines={1}>
           {headerTitle}
         </Text>
+
+        {dmHeaderMenuOptions.length > 0 ? (
+          <View ref={headerKebabRef} collapsable={false}>
+            <TouchableOpacity
+              onPress={openHeaderOptionsMenu}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Conversation options"
+            >
+              <Ionicons name="ellipsis-vertical" size={22} color={theme.colors.text} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
 
       {/* Messages */}
@@ -237,7 +300,9 @@ export default function ChatRoomScreen() {
                 Replying to {replyTo.profiles ? displayName(replyTo.profiles) : 'message'}
               </Text>
               <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext }} numberOfLines={1}>
-                {replyTo.content ?? (replyTo.image_url ? '📷 Image' : '')}
+                {replyTo.profiles?.id && myId && replyTo.profiles.id !== myId && silencedUserIds.has(replyTo.profiles.id)
+                  ? 'Hidden'
+                  : (replyTo.content ?? (replyTo.image_url ? '📷 Image' : ''))}
               </Text>
             </View>
             <TouchableOpacity onPress={() => setReplyTo(null)} hitSlop={8}>
@@ -319,11 +384,21 @@ export default function ChatRoomScreen() {
       </KeyboardAvoidingView>
 
       {/* Reaction / action picker */}
+      <AnchorOptionsMenu
+        visible={headerMenuVisible}
+        anchor={headerMenuAnchor}
+        options={dmHeaderMenuOptions}
+        onDismiss={() => {
+          setHeaderMenuVisible(false)
+          setHeaderMenuAnchor(null)
+        }}
+      />
+
       <ReactionPicker
         visible={pickerVisible}
         message={pickerMessage}
         position={pickerPos}
-        isOwn={pickerMessage?.sender_id === myId}
+        viewerUserId={myId}
         onReact={(msgId, emoji) => void toggleReaction(msgId, emoji)}
         onReply={msg => setReplyTo(msg)}
         onDelete={msgId => void deleteMessage(msgId)}

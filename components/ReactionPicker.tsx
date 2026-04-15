@@ -1,5 +1,5 @@
 import React from 'react'
-import { View, Text, TouchableOpacity, Pressable, Modal } from 'react-native'
+import { View, Text, TouchableOpacity, Pressable, Modal, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { theme } from '../constants/theme'
 import { REACTION_EMOJIS } from './MessageBubble'
@@ -9,34 +9,39 @@ type Props = {
   visible: boolean
   message: MessageWithDetails | null
   position: { x: number; y: number }
-  isOwn: boolean
+  /** Current user id; when null, delete stays hidden until session loads. */
+  viewerUserId: string | null
   onReact: (messageId: string, emoji: string) => void
   onReply: (message: MessageWithDetails) => void
   onDelete: (messageId: string) => void
   onDismiss: () => void
 }
 
-export function ReactionPicker({ visible, message, position, isOwn, onReact, onReply, onDelete, onDismiss }: Props) {
+export function ReactionPicker({
+  visible,
+  message,
+  position,
+  viewerUserId,
+  onReact,
+  onReply,
+  onDelete,
+  onDismiss,
+}: Props) {
   if (!message) return null
+
+  const isOwn = Boolean(viewerUserId && message.sender_id === viewerUserId)
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
-      <Pressable style={{ flex: 1 }} onPress={onDismiss}>
-        <View style={{
-          position: 'absolute',
-          top: Math.max(8, position.y - 120),
-          left: Math.min(Math.max(8, position.x - 120), 240),
-          backgroundColor: theme.colors.card,
-          borderRadius: theme.radius.xl,
-          borderWidth: 1,
-          borderColor: theme.colors.border,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.2,
-          shadowRadius: 12,
-          elevation: 12,
-          overflow: 'hidden',
-        }}>
+      <View style={styles.modalRoot}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} accessibilityLabel="Dismiss menu" />
+        <View
+          style={[styles.menu, {
+            top: Math.max(8, position.y - 120),
+            left: Math.min(Math.max(8, position.x - 120), 240),
+          }]}
+          pointerEvents="box-none"
+        >
           {/* Emoji row */}
           <View style={{ flexDirection: 'row', padding: theme.spacing.sm, gap: 4 }}>
             {REACTION_EMOJIS.map(emoji => (
@@ -86,7 +91,27 @@ export function ReactionPicker({ visible, message, position, isOwn, onReact, onR
             )}
           </View>
         </View>
-      </Pressable>
+      </View>
     </Modal>
   )
 }
+
+const styles = StyleSheet.create({
+  modalRoot: {
+    flex: 1,
+  },
+  menu: {
+    position: 'absolute',
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 12,
+    overflow: 'hidden',
+    maxWidth: '92%',
+  },
+})

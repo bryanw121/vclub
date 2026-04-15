@@ -107,4 +107,23 @@ describe('lastMessagePreview', () => {
     })
     expect(lastMessagePreview(row, MY_ID)).toBe('You: 📷 Image')
   })
+
+  it('hides club thread preview when last sender is silenced', () => {
+    const silenced = new Set(['creepy-user'])
+    const row = makeRow({
+      type: 'club',
+      club_id: 'club-1',
+      club_name: 'Spikers',
+      other_user_id: null,
+      last_sender_id: 'creepy-user',
+      last_message_content: 'spam',
+    })
+    expect(lastMessagePreview(row, MY_ID, silenced)).toBe('Message hidden')
+  })
+
+  it('does not hide DM preview by silenced set (DM rows are filtered in UI)', () => {
+    const silenced = new Set(['other-user'])
+    const row = makeRow({ last_sender_id: 'other-user', last_message_content: 'hi' })
+    expect(lastMessagePreview(row, MY_ID, silenced)).toBe('hi')
+  })
 })

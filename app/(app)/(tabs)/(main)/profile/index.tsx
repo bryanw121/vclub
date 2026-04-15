@@ -684,6 +684,7 @@ export default function MyProfile() {
           <View style={[shared.card, { gap: 0, marginTop: theme.spacing.md, padding: 0, overflow: 'hidden' }]}>
             {([
               { title: 'Account Settings', icon: 'settings-outline', route: '/settings/account' },
+              { title: 'Silenced people', icon: 'eye-off-outline', route: '/settings/silenced' },
               { title: 'Notifications',    icon: 'notifications-outline', route: '/settings/notifications' },
               { title: 'History',          icon: 'time-outline', route: '/settings/history' },
               { title: 'Cheers',           icon: 'star-outline', route: '/settings/cheers' },

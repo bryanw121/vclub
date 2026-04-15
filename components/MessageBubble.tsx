@@ -1,7 +1,8 @@
-import React from 'react'
-import { View, Text, Image, Pressable, TouchableOpacity } from 'react-native'
+import React, { useMemo, useRef, useState } from 'react'
+import { View, Text, Image, Pressable, TouchableOpacity, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { theme } from '../constants/theme'
+import { AnchorOptionsMenu, type AnchorRect } from './AnchorOptionsMenu'
 import type { MessageWithDetails } from '../types'
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '🔥', '👏']
@@ -17,6 +18,14 @@ type Props = {
   message: MessageWithDetails
   isOwn: boolean
   showAvatar: boolean
+  /** When true (incoming only), hide body/media/reactions — user silenced sender. */
+  contentSuppressed?: boolean
+  /** When true, reply quote text is hidden (quoted author is silenced). */
+  replyContentSuppressed?: boolean
+  /** Club: optional profile link in name-row kebab menu. */
+  onViewPeerProfilePress?: (userId: string) => void
+  /** Club: silence action in name-row kebab menu. */
+  onSilencePeerPress?: (userId: string) => void
   onLongPress: (message: MessageWithDetails, position: { x: number; y: number }) => void
   onReplyPress: (message: MessageWithDetails) => void
   onImagePress?: (url: string) => void
@@ -27,10 +36,26 @@ function displayName(p: { first_name: string | null; last_name: string | null; u
   return [p.first_name, p.last_name].filter(Boolean).join(' ') || p.username
 }
 
-export function MessageBubble({ message, isOwn, showAvatar, onLongPress, onReplyPress, onImagePress }: Props) {
+export function MessageBubble({
+  message,
+  isOwn,
+  showAvatar,
+  contentSuppressed = false,
+  replyContentSuppressed = false,
+  onViewPeerProfilePress,
+  onSilencePeerPress,
+  onLongPress,
+  onReplyPress,
+  onImagePress,
+}: Props) {
+  const peerKebabWrapRef = useRef<View>(null)
+  const [peerMenuVisible, setPeerMenuVisible] = useState(false)
+  const [peerMenuAnchor, setPeerMenuAnchor] = useState<AnchorRect | null>(null)
+
   const deleted = !!message.deleted_at
-  const hasText = !deleted && !!message.content
-  const hasImage = !deleted && !!message.image_url
+  const hiddenIncoming = !isOwn && contentSuppressed
+  const hasText = !deleted && !hiddenIncoming && !!message.content
+  const hasImage = !deleted && !hiddenIncoming && !!message.image_url
 
   // Group reactions by emoji
   const reactionGroups: Record<string, number> = {}
@@ -42,14 +67,180 @@ export function MessageBubble({ message, isOwn, showAvatar, onLongPress, onReply
   const bubbleBg = isOwn ? theme.colors.primary : '#E8E5F0'
   const bubbleText = isOwn ? '#fff' : theme.colors.text
 
-  return (
-    <Pressable
-      onLongPress={e => {
-        if (!deleted && !message._sending) {
-          const { pageX, pageY } = e.nativeEvent
-          onLongPress(message, { x: pageX, y: pageY })
+  const peerUserId = message.profiles?.id
+  const peerMenuOptions = useMemo(() => {
+    if (!peerUserId) return []
+    const o: { key: string; label: string; destructive?: boolean; onPress: () => void }[] = []
+    if (onViewPeerProfilePress) {
+      o.push({ key: 'profile', label: 'View profile', onPress: () => onViewPeerProfilePress(peerUserId) })
+    }
+    if (onSilencePeerPress) {
+      o.push({ key: 'silence', label: 'Silence user', destructive: true, onPress: () => onSilencePeerPress(peerUserId) })
+    }
+    return o
+  }, [peerUserId, onViewPeerProfilePress, onSilencePeerPress])
+
+  function openPeerKebabMenu() {
+    peerKebabWrapRef.current?.measureInWindow((x, y, w, h) => {
+      setPeerMenuAnchor({ x, y, width: w, height: h })
+      setPeerMenuVisible(true)
+    })
+  }
+
+  function openActionMenu(pageX: number, pageY: number) {
+    if (!deleted && !message._sending) onLongPress(message, { x: pageX, y: pageY })
+  }
+
+  const webMenuProps =
+    Platform.OS === 'web'
+      ? {
+          onContextMenu: (e: { preventDefault?: () => void; nativeEvent: { pageX?: number; pageY?: number; clientX?: number; clientY?: number } }) => {
+            if (hiddenIncoming || deleted || message._sending) return
+            e.preventDefault?.()
+            const ne = e.nativeEvent
+            const x = ne.pageX ?? ne.clientX ?? 0
+            const y = ne.pageY ?? ne.clientY ?? 0
+            openActionMenu(x, y)
+          },
         }
+      : null
+
+  const bubblePressable = (
+    <Pressable
+      delayLongPress={350}
+      onLongPress={hiddenIncoming ? undefined : e => {
+        const { pageX, pageY } = e.nativeEvent
+        openActionMenu(pageX, pageY)
       }}
+      {...(webMenuProps ?? {})}
+      style={{
+        alignItems: isOwn ? 'flex-end' : 'flex-start',
+        maxWidth: '100%',
+      }}
+    >
+      {/* Reply quote */}
+      {message.reply_to && message.reply_to.id && !deleted && !hiddenIncoming && (
+        <TouchableOpacity
+          onPress={() => onReplyPress(message)}
+          style={{
+            borderLeftWidth: 2,
+            borderLeftColor: theme.colors.primary,
+            paddingLeft: 8,
+            marginBottom: 4,
+            opacity: 0.8,
+          }}
+        >
+          <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.primary, fontWeight: theme.font.weight.semibold }}>
+            {replyContentSuppressed
+              ? 'Message'
+              : (message.reply_to.profiles ? displayName(message.reply_to.profiles) : 'Message')}
+          </Text>
+          <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext }} numberOfLines={1}>
+            {replyContentSuppressed
+              ? 'Hidden — you silenced this person'
+              : message.reply_to.deleted_at
+                ? 'Deleted message'
+                : message.reply_to.image_url && !message.reply_to.content
+                  ? '📷 Image'
+                  : message.reply_to.content ?? ''}
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Bubble */}
+      <View style={{
+        backgroundColor: deleted || hiddenIncoming ? 'transparent' : bubbleBg,
+        borderRadius: 18,
+        borderBottomLeftRadius: !isOwn ? 4 : 18,
+        borderBottomRightRadius: isOwn ? 4 : 18,
+        borderWidth: deleted || hiddenIncoming ? 1 : 0,
+        borderColor: theme.colors.border,
+        overflow: 'hidden',
+      }}>
+        {hiddenIncoming ? (
+          <Text style={{
+            fontSize: theme.font.size.sm,
+            color: theme.colors.subtext,
+            fontStyle: 'italic',
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+          }}>
+            Message hidden — you silenced this person.
+          </Text>
+        ) : deleted ? (
+          <Text style={{
+            fontSize: theme.font.size.sm,
+            color: theme.colors.subtext,
+            fontStyle: 'italic',
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+          }}>
+            Message deleted
+          </Text>
+        ) : (
+          <>
+            {hasImage && (
+              <Pressable onPress={() => onImagePress?.(message.image_url!)}>
+                <Image
+                  source={{ uri: message.image_url! }}
+                  style={{ width: 220, height: 180, borderRadius: hasText ? 0 : 18 }}
+                  resizeMode="cover"
+                />
+              </Pressable>
+            )}
+            {hasText && (
+              <Text style={{
+                fontSize: theme.font.size.md,
+                color: bubbleText,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                lineHeight: 20,
+              }}>
+                {message.content}
+              </Text>
+            )}
+          </>
+        )}
+      </View>
+
+      {/* Timestamp / sending indicator */}
+      <Text style={{
+        fontSize: 10,
+        color: message._sending ? theme.colors.primary : theme.colors.subtext,
+        marginTop: 2,
+        marginHorizontal: 4,
+        fontStyle: message._sending ? 'italic' : 'normal',
+      }}>
+        {message._sending ? 'Sending…' : formatTime(message.created_at)}
+      </Text>
+
+      {/* Reactions */}
+      {!hiddenIncoming && reactions.length > 0 && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+          {reactions.map(([emoji, count]) => (
+            <View key={emoji} style={{
+              flexDirection: 'row', alignItems: 'center', gap: 2,
+              backgroundColor: theme.colors.card,
+              borderRadius: theme.radius.full,
+              paddingHorizontal: 6, paddingVertical: 2,
+              borderWidth: 1, borderColor: theme.colors.border,
+            }}>
+              <Text style={{ fontSize: 13 }}>{emoji}</Text>
+              {count > 1 && (
+                <Text style={{ fontSize: 11, color: theme.colors.subtext }}>{count}</Text>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
+    </Pressable>
+  )
+
+  const showPeerKebab = !isOwn && showAvatar && message.profiles && !hiddenIncoming && peerMenuOptions.length > 0
+
+  return (
+    <>
+    <View
       style={{
         flexDirection: isOwn ? 'row-reverse' : 'row',
         alignItems: 'flex-end',
@@ -59,7 +250,6 @@ export function MessageBubble({ message, isOwn, showAvatar, onLongPress, onReply
         opacity: message._sending ? 0.6 : 1,
       }}
     >
-      {/* Avatar placeholder to keep layout consistent */}
       <View style={{ width: 28 }}>
         {!isOwn && showAvatar && (
           <View style={{
@@ -68,7 +258,7 @@ export function MessageBubble({ message, isOwn, showAvatar, onLongPress, onReply
             alignItems: 'center', justifyContent: 'center',
             overflow: 'hidden',
           }}>
-            {resolveAvatarUri(message.profiles?.avatar_url) ? (
+            {!hiddenIncoming && resolveAvatarUri(message.profiles?.avatar_url) ? (
               <Image source={{ uri: resolveAvatarUri(message.profiles?.avatar_url)! }} style={{ width: 28, height: 28 }} />
             ) : (
               <Ionicons name="person" size={14} color={theme.colors.subtext} />
@@ -78,121 +268,54 @@ export function MessageBubble({ message, isOwn, showAvatar, onLongPress, onReply
       </View>
 
       <View style={{ maxWidth: '72%', alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
-        {/* Sender name (only for club chats, non-own messages, when avatar is shown) */}
         {!isOwn && showAvatar && message.profiles && (
-          <Text style={{
-            fontSize: theme.font.size.xs,
-            color: theme.colors.subtext,
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
             marginBottom: 2,
             marginLeft: 2,
+            maxWidth: '100%',
           }}>
-            {displayName(message.profiles)}
-          </Text>
-        )}
-
-        {/* Reply quote */}
-        {message.reply_to && message.reply_to.id && !deleted && (
-          <TouchableOpacity
-            onPress={() => onReplyPress(message)}
-            style={{
-              borderLeftWidth: 2,
-              borderLeftColor: isOwn ? 'rgba(255,255,255,0.6)' : theme.colors.primary,
-              paddingLeft: 8,
-              marginBottom: 4,
-              opacity: 0.8,
-            }}
-          >
-            <Text style={{ fontSize: theme.font.size.xs, color: isOwn ? '#fff' : theme.colors.primary, fontWeight: theme.font.weight.semibold }}>
-              {message.reply_to.profiles ? displayName(message.reply_to.profiles) : 'Message'}
+            <Text
+              style={{
+                flexShrink: 1,
+                fontSize: theme.font.size.xs,
+                color: theme.colors.subtext,
+              }}
+              numberOfLines={1}
+            >
+              {hiddenIncoming ? 'Silenced user' : displayName(message.profiles)}
             </Text>
-            <Text style={{ fontSize: theme.font.size.xs, color: isOwn ? 'rgba(255,255,255,0.8)' : theme.colors.subtext }} numberOfLines={1}>
-              {message.reply_to.deleted_at
-                ? 'Deleted message'
-                : message.reply_to.image_url && !message.reply_to.content
-                  ? '📷 Image'
-                  : message.reply_to.content ?? ''}
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Bubble */}
-        <View style={{
-          backgroundColor: deleted ? 'transparent' : bubbleBg,
-          borderRadius: 18,
-          borderBottomLeftRadius: !isOwn ? 4 : 18,
-          borderBottomRightRadius: isOwn ? 4 : 18,
-          borderWidth: deleted ? 1 : 0,
-          borderColor: theme.colors.border,
-          overflow: 'hidden',
-        }}>
-          {deleted ? (
-            <Text style={{
-              fontSize: theme.font.size.sm,
-              color: theme.colors.subtext,
-              fontStyle: 'italic',
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-            }}>
-              Message deleted
-            </Text>
-          ) : (
-            <>
-              {hasImage && (
-                <Pressable onPress={() => onImagePress?.(message.image_url!)}>
-                  <Image
-                    source={{ uri: message.image_url! }}
-                    style={{ width: 220, height: 180, borderRadius: hasText ? 0 : 18 }}
-                    resizeMode="cover"
-                  />
+            {showPeerKebab ? (
+              <View ref={peerKebabWrapRef} collapsable={false}>
+                <Pressable
+                  onPress={openPeerKebabMenu}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open menu for this person"
+                >
+                  <Ionicons name="ellipsis-vertical" size={16} color={theme.colors.subtext} />
                 </Pressable>
-              )}
-              {hasText && (
-                <Text style={{
-                  fontSize: theme.font.size.md,
-                  color: bubbleText,
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  lineHeight: 20,
-                }}>
-                  {message.content}
-                </Text>
-              )}
-            </>
-          )}
-        </View>
-
-        {/* Timestamp / sending indicator */}
-        <Text style={{
-          fontSize: 10,
-          color: message._sending ? theme.colors.primary : theme.colors.subtext,
-          marginTop: 2,
-          marginHorizontal: 4,
-          fontStyle: message._sending ? 'italic' : 'normal',
-        }}>
-          {message._sending ? 'Sending…' : formatTime(message.created_at)}
-        </Text>
-
-        {/* Reactions */}
-        {reactions.length > 0 && (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-            {reactions.map(([emoji, count]) => (
-              <View key={emoji} style={{
-                flexDirection: 'row', alignItems: 'center', gap: 2,
-                backgroundColor: theme.colors.card,
-                borderRadius: theme.radius.full,
-                paddingHorizontal: 6, paddingVertical: 2,
-                borderWidth: 1, borderColor: theme.colors.border,
-              }}>
-                <Text style={{ fontSize: 13 }}>{emoji}</Text>
-                {count > 1 && (
-                  <Text style={{ fontSize: 11, color: theme.colors.subtext }}>{count}</Text>
-                )}
               </View>
-            ))}
+            ) : null}
           </View>
         )}
+
+        {bubblePressable}
       </View>
-    </Pressable>
+    </View>
+
+    <AnchorOptionsMenu
+      visible={peerMenuVisible}
+      anchor={peerMenuAnchor}
+      options={peerMenuOptions}
+      onDismiss={() => {
+        setPeerMenuVisible(false)
+        setPeerMenuAnchor(null)
+      }}
+    />
+    </>
   )
 }
 
