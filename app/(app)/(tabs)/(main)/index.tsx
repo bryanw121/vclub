@@ -1,10 +1,11 @@
 import React, { useState, useRef, useMemo, useCallback, memo, useEffect, useLayoutEffect } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
-import { Platform, View, ScrollView, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions, ActivityIndicator, Modal, StyleSheet } from 'react-native'
+import { Platform, View, ScrollView, FlatList, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions, ActivityIndicator, Modal, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useMonthEvents } from '../../../../hooks/useMonthEvents'
 import { useNotifications } from '../../../../hooks/useNotifications'
 import { EventCard } from '../../../../components/EventCard'
+import { NotificationPopup } from '../../../../components/NotificationPopup'
 import { shared, theme } from '../../../../constants'
 import { EventWithDetails, type Notification } from '../../../../types'
 import { useTabsContext } from '../../../../contexts/tabs'
@@ -365,129 +366,18 @@ export default function EventsScreen() {
         )}
       </ScrollView>
 
-      {/* Notification popup */}
-      <Modal
+      <NotificationPopup
         visible={notifOpen}
-        transparent
-        animationType="none"
-        onRequestClose={() => setNotifOpen(false)}
-        statusBarTranslucent
-      >
-        <Pressable
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-          onPress={() => setNotifOpen(false)}
-        />
-        <View
-          style={{
-            position: 'absolute',
-            top: insets.top + 48,
-            right: theme.spacing.lg,
-            width: Math.min(320, windowWidth - theme.spacing.lg * 2),
-            maxHeight: 400,
-            backgroundColor: theme.colors.card,
-            borderRadius: theme.radius.md,
-            borderWidth: 1,
-            borderColor: theme.colors.border,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.10,
-            shadowRadius: 8,
-            elevation: 6,
-            overflow: 'hidden',
-          }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, borderBottomWidth: 1, borderBottomColor: theme.colors.border }}>
-              <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
-                Notifications
-              </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
-                {unreadCount > 0 && (
-                  <TouchableOpacity onPress={() => void markAllRead()} hitSlop={8}>
-                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, fontWeight: theme.font.weight.medium }}>Read all</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity onPress={() => { setNotifOpen(false); router.push('/notifications' as any) }} hitSlop={8}>
-                  <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.semibold }}>See all</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            {/* On web, use native CSS overflow scroll to bypass RN Web's JS-based ScrollView
-                responder system, which conflicts with the Modal backdrop. On native, ScrollView
-                uses the platform's native scroll view and works fine. */}
-            {Platform.OS === 'web' ? (
-              <View style={{ maxHeight: 320, overflow: 'scroll' } as any}>
-                {notifLoading && notifItems.length === 0 ? (
-                  <View style={{ padding: theme.spacing.lg, alignItems: 'center' }}>
-                    <ActivityIndicator color={theme.colors.primary} />
-                  </View>
-                ) : notifItems.length === 0 ? (
-                  <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.lg, alignItems: 'center', gap: theme.spacing.sm }}>
-                    <Ionicons name="notifications-off-outline" size={28} color={theme.colors.subtext} />
-                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, textAlign: 'center' }}>
-                      You're all caught up
-                    </Text>
-                  </View>
-                ) : (
-                  notifItems.slice(0, 15).map(item => (
-                    <TouchableOpacity
-                      key={item.id}
-                      onPress={() => void openNotifItem(item)}
-                      style={{
-                        paddingHorizontal: theme.spacing.md,
-                        paddingVertical: theme.spacing.sm,
-                        borderBottomWidth: 1,
-                        borderBottomColor: theme.colors.border,
-                        opacity: item.read_at ? 0.65 : 1,
-                      }}
-                    >
-                      <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.semibold, color: theme.colors.text }} numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, marginTop: 2 }} numberOfLines={2}>
-                        {item.body}
-                      </Text>
-                    </TouchableOpacity>
-                  ))
-                )}
-              </View>
-            ) : (
-              <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
-                {notifLoading && notifItems.length === 0 ? (
-                  <View style={{ padding: theme.spacing.lg, alignItems: 'center' }}>
-                    <ActivityIndicator color={theme.colors.primary} />
-                  </View>
-                ) : notifItems.length === 0 ? (
-                  <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.lg, alignItems: 'center', gap: theme.spacing.sm }}>
-                    <Ionicons name="notifications-off-outline" size={28} color={theme.colors.subtext} />
-                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, textAlign: 'center' }}>
-                      You're all caught up
-                    </Text>
-                  </View>
-                ) : (
-                  notifItems.slice(0, 15).map(item => (
-                    <TouchableOpacity
-                      key={item.id}
-                      onPress={() => void openNotifItem(item)}
-                      style={{
-                        paddingHorizontal: theme.spacing.md,
-                        paddingVertical: theme.spacing.sm,
-                        borderBottomWidth: 1,
-                        borderBottomColor: theme.colors.border,
-                        opacity: item.read_at ? 0.65 : 1,
-                      }}
-                    >
-                      <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.semibold, color: theme.colors.text }} numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, marginTop: 2 }} numberOfLines={2}>
-                        {item.body}
-                      </Text>
-                    </TouchableOpacity>
-                  ))
-                )}
-              </ScrollView>
-            )}
-          </View>
-      </Modal>
+        items={notifItems}
+        loading={notifLoading}
+        unreadCount={unreadCount}
+        insetTop={insets.top}
+        windowWidth={windowWidth}
+        onDismiss={() => setNotifOpen(false)}
+        onOpenItem={openNotifItem}
+        onMarkAllRead={() => void markAllRead()}
+        onSeeAll={() => { setNotifOpen(false); router.push('/notifications' as any) }}
+      />
     </View>
   )
 }

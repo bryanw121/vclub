@@ -37,15 +37,20 @@ export function useMessages(conversationId: string) {
     if (!mountedRef.current) return
 
     const rows = (data ?? []) as MessageWithDetails[]
+    // rows is DESC (newest first); capture oldest before reversing
+    const oldest = rows[rows.length - 1]?.created_at ?? null
+    const chronological = rows.slice().reverse()
+
     if (before) {
-      setMessages(prev => [...rows.reverse(), ...prev])
+      setMessages(prev => [...chronological, ...prev])
+      if (oldest) oldestCreatedAt.current = oldest
     } else {
       // Keep any optimistic (_sending) messages at the end
       setMessages(prev => {
         const sending = prev.filter(m => m._sending)
-        return [...rows.reverse(), ...sending]
+        return [...chronological, ...sending]
       })
-      oldestCreatedAt.current = rows[0]?.created_at ?? null
+      oldestCreatedAt.current = oldest
     }
     setHasMore(rows.length === PAGE_SIZE)
     setLoading(false)
@@ -194,14 +199,23 @@ export function useMessages(conversationId: string) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return null
 
-    const ext = uri.split('.').pop()?.toLowerCase() ?? 'jpg'
-    const path = `${user.id}/${Date.now()}.${ext}`
     const response = await fetch(uri)
     const blob = await response.blob()
 
+    // Prefer the blob's MIME type (reliable on web blob/data URLs).
+    // Fall back to the file extension for native file:// URIs where blob.type may be empty.
+    const mimeType = blob.type || 'image/jpeg'
+    const extFromMime = mimeType.split('/')[1]?.toLowerCase().replace('jpeg', 'jpg') ?? 'jpg'
+    const VALID_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'])
+    const uriExt = uri.split('?')[0].split('.').pop()?.toLowerCase()
+    const ext = (uriExt && VALID_EXTS.has(uriExt)) ? uriExt : extFromMime
+    const contentType = mimeType
+
+    const path = `${user.id}/${Date.now()}.${ext}`
+
     const { error } = await supabase.storage
       .from(CHAT_IMAGES_BUCKET)
-      .upload(path, blob, { contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}` })
+      .upload(path, blob, { contentType })
 
     if (error) return null
 

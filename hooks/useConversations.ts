@@ -12,7 +12,12 @@ export function useConversations() {
     if (!user || !mountedRef.current) return
     const { data } = await supabase.rpc('get_my_conversations')
     if (mountedRef.current) {
-      setConversations((data ?? []) as ConversationRow[])
+      const sorted = ((data ?? []) as ConversationRow[]).sort((a, b) => {
+        const ta = a.last_message_at ? new Date(a.last_message_at).getTime() : 0
+        const tb = b.last_message_at ? new Date(b.last_message_at).getTime() : 0
+        return tb - ta
+      })
+      setConversations(sorted)
       setLoading(false)
     }
   }, [])
@@ -25,7 +30,34 @@ export function useConversations() {
     const channel = supabase
       .channel('conversations-list')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
-        () => { void fetch() })
+        (payload) => {
+          // Optimistically update the matching conversation before the refetch returns
+          const msg = payload.new as {
+            conversation_id: string
+            sender_id: string
+            content: string | null
+            image_url: string | null
+            created_at: string
+          }
+          setConversations(prev => {
+            const updated = prev.map(c =>
+              c.conversation_id !== msg.conversation_id ? c : {
+                ...c,
+                last_message_at: msg.created_at,
+                last_message_content: msg.content,
+                last_message_image_url: msg.image_url,
+                last_sender_id: msg.sender_id,
+                last_message_deleted_at: null,
+              }
+            )
+            return updated.sort((a, b) => {
+              const ta = a.last_message_at ? new Date(a.last_message_at).getTime() : 0
+              const tb = b.last_message_at ? new Date(b.last_message_at).getTime() : 0
+              return tb - ta
+            })
+          })
+          void fetch()
+        })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_members' },
         () => { void fetch() })
       .subscribe()

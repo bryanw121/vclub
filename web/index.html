@@ -4,7 +4,10 @@
     <meta charset="utf-8" />
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
     <!-- viewport-fit=cover: extend layout into notch/Dynamic Island/home-indicator -->
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- interactive-widget=resizes-content: on Chrome/Android, shrink the visual
+         viewport (and therefore position:fixed elements) when the soft keyboard opens,
+         so the chat input bar rises above the keyboard automatically. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <!-- PWA / home screen -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -28,8 +31,12 @@
          */
         overflow-y: scroll;
         -webkit-overflow-scrolling: touch;
-        /* Prevent rubber-band bounce on the body itself */
-        overscroll-behavior-y: none;
+        /*
+         * "contain" (not "none") stops rubber-band on the body itself while still
+         * letting Safari register the micro-scroll needed to collapse the URL bar.
+         * "none" was too aggressive and prevented URL-bar collapse in Safari 17+.
+         */
+        overscroll-behavior-y: contain;
       }
       /*
        * 1px of virtual content gives the body a non-zero scroll range.
@@ -63,6 +70,31 @@
     </style>
   </head>
   <body>
+    <script>
+      /*
+       * Broadcast the visual viewport height as --vvh so CSS / RN Web layouts
+       * can respond to the soft keyboard appearing on iOS Safari.
+       *
+       * On iOS 15+, position:fixed elements already track the visual viewport,
+       * so the chat input bar rises above the keyboard without extra JS.
+       * On older iOS, this variable lets any CSS that opts in to shrink correctly.
+       *
+       * We also set it on <html> so it is available before React hydrates.
+       */
+      (function () {
+        function setVVH() {
+          var h = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+          document.documentElement.style.setProperty('--vvh', h + 'px');
+        }
+        setVVH();
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', setVVH);
+          window.visualViewport.addEventListener('scroll', setVVH);
+        } else {
+          window.addEventListener('resize', setVVH);
+        }
+      })();
+    </script>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
   </body>

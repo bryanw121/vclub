@@ -10,6 +10,7 @@ import { supabase } from '../../../lib/supabase'
 import { theme, shared } from '../../../constants'
 import { useConversations } from '../../../hooks/useConversations'
 import { useTabsContext } from '../../../contexts/tabs'
+import { timeAgo, lastMessagePreview } from '../../../utils/chatUtils'
 import type { ConversationRow, Profile } from '../../../types'
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''
@@ -19,26 +20,6 @@ function resolveAvatarUri(ref: string | null | undefined): string | null {
   return `${SUPABASE_URL}/storage/v1/render/image/public/avatars/${ref}?width=120&height=120&quality=70&resize=cover`
 }
 
-function timeAgo(iso: string | null): string {
-  if (!iso) return ''
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'now'
-  if (mins < 60) return `${mins}m`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h`
-  const days = Math.floor(hrs / 24)
-  if (days < 7) return `${days}d`
-  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' })
-}
-
-function lastMessagePreview(row: ConversationRow, myId: string): string {
-  if (!row.last_message_at) return 'No messages yet'
-  if (row.last_message_deleted_at) return 'Deleted message'
-  const prefix = row.last_sender_id === myId ? 'You: ' : ''
-  if (row.last_message_image_url && !row.last_message_content) return `${prefix}📷 Image`
-  return `${prefix}${row.last_message_content ?? ''}`
-}
 
 function conversationTitle(row: ConversationRow): string {
   if (row.type === 'club') return row.club_name ?? 'Club Chat'

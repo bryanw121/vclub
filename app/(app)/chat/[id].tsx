@@ -34,6 +34,7 @@ export default function ChatRoomScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const flatListRef = useRef<FlatList>(null)
+  const inputRef = useRef<import('react-native').TextInput>(null)
 
   const [myId, setMyId] = useState<string | null>(null)
   const [convRow, setConvRow] = useState<ConversationRow | null>(null)
@@ -101,6 +102,10 @@ export default function ChatRoomScreen() {
   async function handleSend() {
     const trimmed = text.trim()
     if (!trimmed && !imageUri) return
+    setText('')
+    inputRef.current?.clear()
+    setImageUri(null)
+    setReplyTo(null)
     setSending(true)
     try {
       let uploadedUrl: string | null = null
@@ -110,9 +115,6 @@ export default function ChatRoomScreen() {
         setUploadingImage(false)
       }
       await sendMessage(trimmed || null, uploadedUrl, replyTo?.id ?? null)
-      setText('')
-      setImageUri(null)
-      setReplyTo(null)
     } finally {
       setSending(false)
     }
@@ -277,6 +279,7 @@ export default function ChatRoomScreen() {
           </TouchableOpacity>
 
           <TextInput
+            ref={inputRef}
             value={text}
             onChangeText={setText}
             placeholder="Message…"

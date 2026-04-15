@@ -12,6 +12,7 @@ import { Stack, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useNotifications } from '../../hooks/useNotifications'
 import { shared, theme } from '../../constants'
+import { formatShortTime } from '../../utils/notificationUtils'
 import type { Notification } from '../../types'
 
 export default function NotificationsScreen() {
@@ -151,16 +152,3 @@ export default function NotificationsScreen() {
   )
 }
 
-function formatShortTime(iso: string): string {
-  try {
-    const d = new Date(/[Z+]/.test(iso) ? iso : iso + 'Z')
-    return d.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    })
-  } catch {
-    return ''
-  }
-}

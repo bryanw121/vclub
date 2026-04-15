@@ -9,7 +9,7 @@ import { useWebNav } from "../../../contexts/webNav";
 import { theme } from "../../../constants";
 import { useChatUnread } from "../../../hooks/useChatUnread";
 
-// Pager indices: 0=Events, 1=Clubs, 2=Profile, 3=Chat
+// Pager indices: 0=Events, 1=Clubs, 2=Chat, 3=Profile
 const MOBILE_NAV_TABS = [
   { name: "Events",  icon: "calendar-outline"     as const, pageIndex: 0 },
   { name: "Clubs",   icon: "people-outline"        as const, pageIndex: 1 },
