@@ -16,7 +16,16 @@ import { Pager } from '../../../components/Pager'
 import * as Calendar from 'expo-calendar'
 import { shared, theme, formatEventDate, CHEER_TYPES, CHEERS_MAX_PER_EVENT, LOCATIONS } from '../../../constants'
 import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile, MentionUser } from '../../../types'
-import { profileDisplayName, profileInitial, resolveProfileAvatarUriWithError, resolveProfileAvatarUriSmall, eventAttendeeRows, normalizeVolleyballPositions } from '../../../utils'
+import {
+  profileDisplayName,
+  profileInitial,
+  resolveProfileAvatarUriWithError,
+  resolveProfileAvatarUriSmall,
+  eventAttendeeRows,
+  normalizeVolleyballPositions,
+  normalizeVolleyballSkillLevel,
+  hostRosterSkillAndPositionsLine,
+} from '../../../utils'
 import { LinkedText } from '../../../components/LinkedText'
 
 const EVENT_COMMENT_MAX_LEN = 2000
@@ -501,8 +510,13 @@ function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStar
           <GestureDetector gesture={tapGesture}>
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
               <ProfileAvatar uri={avatarUri} border={profile.selected_border ?? null} size={34} />
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.playerName} numberOfLines={1}>{playerDisplayName(profile)}</Text>
+                {isOwner ? (
+                  <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, marginTop: 1 }} numberOfLines={2}>
+                    {hostRosterSkillAndPositionsLine(profile)}
+                  </Text>
+                ) : null}
               </View>
               {isOwner && isPinned && teamColor && (
                 <Ionicons name="lock-closed" size={13} color={theme.colors.subtext} />
@@ -729,10 +743,16 @@ export default function EventDetail() {
       setUserId(user.id)
       const { data } = await supabase
         .from('profiles')
-        .select('id, username, first_name, last_name, avatar_url, position, selected_border')
+        .select('id, username, first_name, last_name, avatar_url, position, selected_border, skill_level')
         .eq('id', user.id)
         .single()
-      if (data) setCurrentUserProfile(data as Profile)
+      if (data) {
+        const row = data as Profile
+        setCurrentUserProfile({
+          ...row,
+          skill_level: normalizeVolleyballSkillLevel((row as any).skill_level),
+        })
+      }
     })
   }, [])
 
@@ -930,6 +950,7 @@ export default function EventDetail() {
       avatar_url: p.avatar_url,
       selected_border: (p as any).selected_border ?? null,
       position: normalizeVolleyballPositions(p.position),
+      skill_level: normalizeVolleyballSkillLevel((p as any).skill_level),
       created_at: '',
     }
   }
@@ -944,7 +965,7 @@ export default function EventDetail() {
       const { data, error } = await supabase
         .from('events')
         .select(
-          `*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url, selected_border), event_attendees (event_id, user_id, joined_at, team_number, team_pinned, status, profiles!event_attendees_user_id_fkey (id, username, first_name, last_name, avatar_url, position, selected_border)), event_tags (tag_id, tags (id, name, category, display_order))`,
+          `*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url, selected_border), event_attendees (event_id, user_id, joined_at, team_number, team_pinned, status, profiles!event_attendees_user_id_fkey (id, username, first_name, last_name, avatar_url, position, selected_border, skill_level)), event_tags (tag_id, tags (id, name, category, display_order))`,
         )
         .eq('id', fetchId)
         .single()
@@ -2613,8 +2634,11 @@ export default function EventDetail() {
                   <View style={{ gap: theme.spacing.xs }}>
                     {requestedProfiles.map(profile => (
                       <View key={profile.id} style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }]}>
-                        <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push(`/profile/${profile.id}` as any)}>
+                        <TouchableOpacity style={{ flex: 1, minWidth: 0 }} onPress={() => router.push(`/profile/${profile.id}` as any)}>
                           <Text style={shared.body}>{profileDisplayName(profile)}</Text>
+                          <Text style={[shared.caption, { marginTop: 2 }]} numberOfLines={2}>
+                            {hostRosterSkillAndPositionsLine(profile)}
+                          </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           onPress={() => handleApproveRequest(profile.id)}
@@ -2654,7 +2678,14 @@ export default function EventDetail() {
                       {waitlistProfiles.map((profile, idx) => (
                         <View key={profile.id} style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }]}>
                           <Text style={[shared.caption, { minWidth: 20, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }]}>#{idx + 1}</Text>
-                          <Text style={[shared.body, { flex: 1 }]}>{profileDisplayName(profile)}</Text>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={shared.body}>{profileDisplayName(profile)}</Text>
+                            {eventStatus.isOwner ? (
+                              <Text style={[shared.caption, { marginTop: 2 }]} numberOfLines={2}>
+                                {hostRosterSkillAndPositionsLine(profile)}
+                              </Text>
+                            ) : null}
+                          </View>
                           {eventStatus.isOwner && (
                             <TouchableOpacity
                               onPress={() => handleApproveFromWaitlist(profile.id)}

@@ -11,6 +11,14 @@ export type VolleyballPosition =
   | 'opposite_hitter'
   | 'middle_blocker'
 
+/** Self-reported tier in `profiles.skill_level` (optional). */
+export type VolleyballSkillLevel =
+  | 'recreational'
+  | 'beginner'
+  | 'intermediate'
+  | 'advanced'
+  | 'competitive'
+
 /**
  * `profiles` table
  * Created automatically by a database trigger when a user signs up via Supabase Auth.
@@ -25,6 +33,8 @@ export type Profile = {
   avatar_url: string | null
   /** Preferred positions (`text[]`); empty array means none chosen. */
   position: VolleyballPosition[]
+  /** Self-reported skill tier; null if unset. */
+  skill_level?: VolleyballSkillLevel | null
   created_at: string    // ISO 8601 — when the account was created
   is_admin?: boolean  // default false; only true for club/platform admins
   /** Per-channel toggles keyed by notification_type; omitted keys default to on server-side. */

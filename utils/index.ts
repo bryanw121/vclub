@@ -1,4 +1,4 @@
-import type { Profile, VolleyballPosition, EventAttendee, EventAttendeeCountEmbed } from '../types'
+import type { Profile, VolleyballPosition, VolleyballSkillLevel, EventAttendee, EventAttendeeCountEmbed } from '../types'
 import { AVATARS_BUCKET, CLUB_AVATARS_BUCKET } from '../constants/storage'
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!
@@ -119,6 +119,59 @@ export function volleyballPositionsEqualUnordered(a: VolleyballPosition[], b: Vo
   if (a.length !== b.length) return false
   const sb = [...b].sort()
   return [...a].sort().every((v, i) => v === sb[i])
+}
+
+/** Short labels for host roster / team-balance UI (order follows `profiles.position`). */
+const VOLLEYBALL_POSITION_ABBREV: Record<VolleyballPosition, string> = {
+  setter: 'S',
+  libero: 'L',
+  outside_hitter: 'OH',
+  middle_blocker: 'MB',
+  defensive_specialist: 'DS',
+  opposite_hitter: 'RH',
+}
+
+/** Comma-separated abbreviations (e.g. `S, OH, MB`). Empty array → empty string. */
+export function volleyballPositionsAbbreviated(positions: VolleyballPosition[]): string {
+  if (!positions.length) return ''
+  return positions.map(p => VOLLEYBALL_POSITION_ABBREV[p]).join(', ')
+}
+
+/**
+ * One line for hosts: skill tier and/or preferred positions (abbrev.), middle dot separator.
+ * Uses "Skill not set" when tier missing; omits position segment when none listed.
+ */
+export function hostRosterSkillAndPositionsLine(profile: Pick<Profile, 'skill_level' | 'position'>): string {
+  const skillPart = profile.skill_level ? volleyballSkillLevelLabel(profile.skill_level) : 'Skill not set'
+  const posPart = volleyballPositionsAbbreviated(profile.position ?? [])
+  return posPart ? `${skillPart} · ${posPart}` : skillPart
+}
+
+const VOLLEYBALL_SKILL_LEVEL_ALLOWED = new Set<string>([
+  'recreational',
+  'beginner',
+  'intermediate',
+  'advanced',
+  'competitive',
+])
+
+/** Normalizes DB `skill_level` to a known tier or null. */
+export function normalizeVolleyballSkillLevel(raw: unknown): VolleyballSkillLevel | null {
+  if (raw == null || raw === '') return null
+  if (typeof raw === 'string' && VOLLEYBALL_SKILL_LEVEL_ALLOWED.has(raw)) return raw as VolleyballSkillLevel
+  return null
+}
+
+const SKILL_LEVEL_LABELS: Record<VolleyballSkillLevel, string> = {
+  recreational: 'Recreational',
+  beginner: 'Beginner',
+  intermediate: 'Intermediate',
+  advanced: 'Advanced',
+  competitive: 'Competitive',
+}
+
+export function volleyballSkillLevelLabel(level: VolleyballSkillLevel): string {
+  return SKILL_LEVEL_LABELS[level]
 }
 
 /** `profiles.avatar_url` may hold a legacy full HTTP URL or a storage object path. */

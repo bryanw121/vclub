@@ -8,7 +8,7 @@ import { CheerRadarChart } from '../../../components/CheerRadarChart'
 import { BadgeIcon } from '../../../components/BadgeIcon'
 import { ProfileAvatar } from '../../../components/ProfileAvatar'
 import { BADGE_DEFINITIONS } from '../../../constants/badges'
-import { resolveProfileAvatarUriWithError } from '../../../utils'
+import { resolveProfileAvatarUriWithError, normalizeVolleyballSkillLevel, volleyballSkillLevelLabel } from '../../../utils'
 import type { CheerType, Profile, UserBadge } from '../../../types'
 
 type CheerCounts = Partial<Record<CheerType, number>>
@@ -38,7 +38,8 @@ export default function UserProfileDetail() {
       ])
 
       if (!profileRes.error && profileRes.data) {
-        const p = profileRes.data as Profile
+        const raw = profileRes.data as Profile
+        const p = { ...raw, skill_level: normalizeVolleyballSkillLevel((raw as any).skill_level) }
         setProfile(p)
         if (p.avatar_url) {
           const { uri } = await resolveProfileAvatarUriWithError(p.avatar_url)
@@ -118,6 +119,11 @@ export default function UserProfileDetail() {
                       .join(' · ')}
                   </Text>
                 )}
+                {profile.skill_level ? (
+                  <Text style={[shared.body, { marginTop: theme.spacing.xs, color: theme.colors.subtext }]}>
+                    Skill · {volleyballSkillLevelLabel(profile.skill_level)}
+                  </Text>
+                ) : null}
                 {profile.bio ? (
                   <Text style={[shared.body, { marginTop: theme.spacing.xs }]}>{profile.bio}</Text>
                 ) : null}

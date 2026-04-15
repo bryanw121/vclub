@@ -47,10 +47,12 @@ import { PROFILE_BORDERS, isBorderUnlocked } from '../../../../../constants/badg
 import type { ProfileBorderDef, ProfileBorderType } from '../../../../../constants/badges'
 import {
   normalizeVolleyballPositions,
+  normalizeVolleyballSkillLevel,
   resolveProfileAvatarUriWithError,
   volleyballPositionsEqualUnordered,
+  volleyballSkillLevelLabel,
 } from '../../../../../utils'
-import type { Profile, VolleyballPosition } from '../../../../../types'
+import type { Profile, VolleyballPosition, VolleyballSkillLevel } from '../../../../../types'
 import { useTabsContext } from '../../../../../contexts/tabs'
 import { useBadges } from '../../../../../hooks/useBadges'
 
@@ -63,6 +65,14 @@ const VOLLEYBALL_POSITION_OPTIONS: { value: VolleyballPosition; label: string }[
   { value: 'middle_blocker', label: 'Middle Blocker (MB)' },
   { value: 'defensive_specialist', label: 'Defensive Specialist (DS)' },
   { value: 'opposite_hitter', label: 'Opposite Hitter (OPP)' },
+]
+
+const VOLLEYBALL_SKILL_LEVEL_OPTIONS: { value: VolleyballSkillLevel; label: string }[] = [
+  { value: 'recreational', label: 'Recreational' },
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'intermediate', label: 'Intermediate' },
+  { value: 'advanced', label: 'Advanced' },
+  { value: 'competitive', label: 'Competitive' },
 ]
 
 const AVATAR_SIZE = 88
@@ -301,6 +311,7 @@ export default function MyProfile() {
     if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
   }, [section, setTabBarHidden])
   const [positionDraft, setPositionDraft] = useState<VolleyballPosition[]>([])
+  const [skillLevelDraft, setSkillLevelDraft] = useState<VolleyballSkillLevel | null>(null)
   const [firstNameDraft, setFirstNameDraft] = useState('')
   const [lastNameDraft, setLastNameDraft] = useState('')
   const [bioDraft, setBioDraft] = useState('')
@@ -378,7 +389,7 @@ export default function MyProfile() {
 
     const profileRes = await supabase
       .from('profiles')
-      .select('id, username, first_name, last_name, avatar_url, position, created_at, selected_border, selected_card_bg, bio')
+      .select('id, username, first_name, last_name, avatar_url, position, skill_level, created_at, selected_border, selected_card_bg, bio')
       .eq('id', userId)
       .single()
 
@@ -388,6 +399,7 @@ export default function MyProfile() {
     if (!profileRes.error) {
       const row = profileRes.data as Partial<Profile>
       const positions = normalizeVolleyballPositions(row.position)
+      const skillLevel = normalizeVolleyballSkillLevel((row as any).skill_level)
       const normalized: Profile = {
         id: row.id as string,
         username: row.username as string,
@@ -395,6 +407,7 @@ export default function MyProfile() {
         last_name: row.last_name ?? null,
         avatar_url: row.avatar_url ?? null,
         position: positions,
+        skill_level: skillLevel,
         created_at: row.created_at as string,
         selected_border: (row as any).selected_border ?? null,
         selected_card_bg: (row as any).selected_card_bg ?? null,
@@ -402,6 +415,7 @@ export default function MyProfile() {
       }
       setProfile(normalized)
       setPositionDraft(positions)
+      setSkillLevelDraft(skillLevel)
       setBioDraft((row as any).bio ?? '')
       if (normalized.avatar_url) {
         if (normalized.avatar_url !== lastResolvedAvatarUrl.current) {
@@ -428,6 +442,7 @@ export default function MyProfile() {
     setFirstNameDraft(profile.first_name ?? '')
     setLastNameDraft(profile.last_name ?? '')
     setPositionDraft([...profile.position])
+    setSkillLevelDraft(profile.skill_level ?? null)
     setBioDraft(profile.bio ?? '')
     setBorderDraft(profile.selected_border ?? null)
     setSection('edit')
@@ -465,6 +480,7 @@ export default function MyProfile() {
       const trimmedLast = lastNameDraft.trim()
       const { error } = await supabase.from('profiles').update({
         position: positionDraft,
+        skill_level: skillLevelDraft,
         bio: trimmedBio || null,
         first_name: trimmedFirst || null,
         last_name: trimmedLast || null,
@@ -473,6 +489,7 @@ export default function MyProfile() {
       const updated = {
         ...profile,
         position: [...positionDraft],
+        skill_level: skillLevelDraft,
         bio: trimmedBio || null,
         first_name: trimmedFirst || null,
         last_name: trimmedLast || null,
@@ -583,7 +600,10 @@ export default function MyProfile() {
     </View>
   )
 
-  const editDirty = !volleyballPositionsEqualUnordered(profile.position, positionDraft) || bioDraft !== (profile.bio ?? '')
+  const editDirty =
+    !volleyballPositionsEqualUnordered(profile.position, positionDraft)
+    || (profile.skill_level ?? null) !== (skillLevelDraft ?? null)
+    || bioDraft !== (profile.bio ?? '')
   const displayedBadges = [1, 2, 3]
     .map(s => badges.find(b => b.display_order === s) ?? null)
     .filter(Boolean) as NonNullable<typeof badges[0]>[]
@@ -643,6 +663,12 @@ export default function MyProfile() {
           {/* Positions */}
           {positionLabels(profile.position) ? (
             <Text style={profileStyles.heroPosition}>{positionLabels(profile.position)}</Text>
+          ) : null}
+
+          {profile.skill_level ? (
+            <Text style={[profileStyles.heroPosition, { color: theme.colors.subtext }]}>
+              Skill · {volleyballSkillLevelLabel(profile.skill_level)}
+            </Text>
           ) : null}
 
           {/* Bio */}
@@ -745,6 +771,48 @@ export default function MyProfile() {
               <Text style={[shared.caption, { textAlign: 'right', marginTop: theme.spacing.xs, color: bioDraft.length >= 130 ? theme.colors.error : theme.colors.subtext }]}>
                 {bioDraft.length}/140
               </Text>
+            </View>
+
+            {/* Skill level */}
+            <View style={[shared.card, { marginTop: theme.spacing.md }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={shared.subheading}>Skill level</Text>
+                {skillLevelDraft !== null && (
+                  <Pressable onPress={() => setSkillLevelDraft(null)} hitSlop={8}>
+                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>Clear</Text>
+                  </Pressable>
+                )}
+              </View>
+              <Text style={[shared.caption, shared.mt_xs]}>Shown to hosts when you join events so they can balance teams.</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
+                {VOLLEYBALL_SKILL_LEVEL_OPTIONS.map(opt => {
+                  const active = skillLevelDraft === opt.value
+                  return (
+                    <Pressable
+                      key={opt.value}
+                      onPress={() => setSkillLevelDraft(active ? null : opt.value)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: active }}
+                      style={{
+                        borderRadius: theme.radius.full,
+                        borderWidth: 1,
+                        borderColor: active ? theme.colors.primary : theme.colors.border,
+                        backgroundColor: active ? theme.colors.primary + '14' : theme.colors.card,
+                        paddingHorizontal: theme.spacing.md,
+                        paddingVertical: theme.spacing.sm,
+                      }}
+                    >
+                      <Text style={{
+                        fontSize: theme.font.size.sm,
+                        fontWeight: active ? theme.font.weight.semibold : theme.font.weight.regular,
+                        color: active ? theme.colors.primary : theme.colors.text,
+                      }}>
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  )
+                })}
+              </View>
             </View>
 
             {/* Positions */}
