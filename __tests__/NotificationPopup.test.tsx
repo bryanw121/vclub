@@ -13,7 +13,7 @@ function makeNotification(overrides: Partial<Notification> = {}): Notification {
     user_id: 'user-1',
     title: 'Test notification',
     body: 'This is the body text',
-    notification_type: 'general',
+    notification_type: 'event_announcement',
     data: null,
     read_at: null,
     created_at: new Date().toISOString(),
