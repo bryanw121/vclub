@@ -197,6 +197,9 @@ export function MessageBubble({
                 lineHeight: 20,
               }}>
                 {message.content}
+                {message.edited_at && !message._sending
+                  ? <Text style={{ fontSize: 10, color: isOwn ? 'rgba(255,255,255,0.6)' : theme.colors.subtext, fontStyle: 'italic' }}>{' (edited)'}</Text>
+                  : null}
               </Text>
             )}
           </>

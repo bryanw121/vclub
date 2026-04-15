@@ -4,7 +4,7 @@ import { CHAT_IMAGES_BUCKET } from '../constants'
 import type { MessageWithDetails } from '../types'
 
 const MESSAGE_SELECT = `
-  id, conversation_id, sender_id, content, image_url, reply_to_id, created_at, deleted_at,
+  id, conversation_id, sender_id, content, image_url, reply_to_id, created_at, deleted_at, edited_at,
   profiles!messages_sender_id_fkey (id, username, first_name, last_name, avatar_url, selected_border),
   message_reactions (message_id, user_id, emoji, created_at),
   reply_to:messages!reply_to_id (
@@ -174,6 +174,17 @@ export function useMessages(conversationId: string) {
       .eq('id', messageId)
   }, [])
 
+  const editMessage = useCallback(async (messageId: string, newContent: string) => {
+    const now = new Date().toISOString()
+    setMessages(prev => prev.map(m =>
+      m.id === messageId ? { ...m, content: newContent, edited_at: now } : m
+    ))
+    await supabase
+      .from('messages')
+      .update({ content: newContent, edited_at: now })
+      .eq('id', messageId)
+  }, [])
+
   const toggleReaction = useCallback(async (messageId: string, emoji: string) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -217,7 +228,10 @@ export function useMessages(conversationId: string) {
       .from(CHAT_IMAGES_BUCKET)
       .upload(path, blob, { contentType })
 
-    if (error) return null
+    if (error) {
+      console.error('[uploadImage] storage upload failed:', JSON.stringify(error))
+      return null
+    }
 
     const { data: { publicUrl } } = supabase.storage
       .from(CHAT_IMAGES_BUCKET)
@@ -230,5 +244,5 @@ export function useMessages(conversationId: string) {
     await supabase.rpc('mark_conversation_read', { p_conversation_id: conversationId })
   }, [conversationId])
 
-  return { messages, loading, hasMore, loadMore, sendMessage, deleteMessage, toggleReaction, uploadImage, markRead }
+  return { messages, loading, hasMore, loadMore, sendMessage, deleteMessage, editMessage, toggleReaction, uploadImage, markRead }
 }

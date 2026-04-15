@@ -47,6 +47,7 @@ export default function ChatRoomScreen() {
   const [sending, setSending] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [replyTo, setReplyTo] = useState<MessageWithDetails | null>(null)
+  const [editingMessage, setEditingMessage] = useState<MessageWithDetails | null>(null)
 
   // Reaction picker state
   const [pickerVisible, setPickerVisible] = useState(false)
@@ -62,7 +63,7 @@ export default function ChatRoomScreen() {
 
   const {
     messages, loading, hasMore, loadMore,
-    sendMessage, deleteMessage, toggleReaction, uploadImage, markRead,
+    sendMessage, deleteMessage, editMessage, toggleReaction, uploadImage, markRead,
   } = useMessages(id)
   const { silencedUserIds, silenceUser } = useSilencedUsers()
 
@@ -118,6 +119,15 @@ export default function ChatRoomScreen() {
 
   async function handleSend() {
     const trimmed = text.trim()
+    if (editingMessage) {
+      if (!trimmed) return
+      const editing = editingMessage
+      setText('')
+      inputRef.current?.clear()
+      setEditingMessage(null)
+      await editMessage(editing.id, trimmed)
+      return
+    }
     if (!trimmed && !imageUri) return
     setText('')
     inputRef.current?.clear()
@@ -205,7 +215,9 @@ export default function ChatRoomScreen() {
     )
   }, [myId, messages, isClub, silencedUserIds, router, confirmSilenceUser])
 
-  const canSend = (text.trim().length > 0 || !!imageUri) && !sending
+  const canSend = editingMessage
+    ? text.trim().length > 0
+    : (text.trim().length > 0 || !!imageUri) && !sending
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -311,6 +323,30 @@ export default function ChatRoomScreen() {
           </View>
         )}
 
+        {/* Edit banner */}
+        {editingMessage && (
+          <View style={{
+            flexDirection: 'row', alignItems: 'center',
+            backgroundColor: theme.colors.card,
+            borderTopWidth: 1, borderTopColor: theme.colors.border,
+            paddingHorizontal: theme.spacing.md, paddingVertical: 8,
+            gap: theme.spacing.sm,
+          }}>
+            <Ionicons name="pencil-outline" size={16} color={theme.colors.primary} />
+            <View style={{ flex: 1, borderLeftWidth: 2, borderLeftColor: theme.colors.primary, paddingLeft: 8 }}>
+              <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.primary, fontWeight: theme.font.weight.semibold }}>
+                Editing message
+              </Text>
+              <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext }} numberOfLines={1}>
+                {editingMessage.content ?? ''}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => { setEditingMessage(null); setText(''); inputRef.current?.clear() }} hitSlop={8}>
+              <Ionicons name="close" size={18} color={theme.colors.subtext} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Image preview */}
         {imageUri && (
           <View style={{
@@ -401,6 +437,11 @@ export default function ChatRoomScreen() {
         viewerUserId={myId}
         onReact={(msgId, emoji) => void toggleReaction(msgId, emoji)}
         onReply={msg => setReplyTo(msg)}
+        onEdit={msg => {
+          setEditingMessage(msg)
+          setText(msg.content ?? '')
+          setTimeout(() => inputRef.current?.focus(), 50)
+        }}
         onDelete={msgId => void deleteMessage(msgId)}
         onDismiss={() => setPickerVisible(false)}
       />

@@ -376,6 +376,7 @@ export type Message = {
   reply_to_id: string | null
   created_at: string
   deleted_at: string | null
+  edited_at: string | null
 }
 
 export type MessageReaction = {

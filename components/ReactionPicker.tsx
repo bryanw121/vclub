@@ -13,6 +13,7 @@ type Props = {
   viewerUserId: string | null
   onReact: (messageId: string, emoji: string) => void
   onReply: (message: MessageWithDetails) => void
+  onEdit: (message: MessageWithDetails) => void
   onDelete: (messageId: string) => void
   onDismiss: () => void
 }
@@ -24,12 +25,14 @@ export function ReactionPicker({
   viewerUserId,
   onReact,
   onReply,
+  onEdit,
   onDelete,
   onDismiss,
 }: Props) {
   if (!message) return null
 
   const isOwn = Boolean(viewerUserId && message.sender_id === viewerUserId)
+  const canEdit = isOwn && !message.deleted_at && !!message.content
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
@@ -76,6 +79,19 @@ export function ReactionPicker({
               <Ionicons name="return-down-back" size={18} color={theme.colors.text} />
               <Text style={{ fontSize: theme.font.size.md, color: theme.colors.text }}>Reply</Text>
             </TouchableOpacity>
+
+            {canEdit && (
+              <TouchableOpacity
+                onPress={() => {
+                  onEdit(message)
+                  onDismiss()
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 }}
+              >
+                <Ionicons name="pencil-outline" size={18} color={theme.colors.text} />
+                <Text style={{ fontSize: theme.font.size.md, color: theme.colors.text }}>Edit</Text>
+              </TouchableOpacity>
+            )}
 
             {isOwn && (
               <TouchableOpacity
