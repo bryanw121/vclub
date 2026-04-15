@@ -1,5 +1,5 @@
 import React from 'react'
-import { View, Text, TouchableOpacity, Pressable, Modal, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, Pressable, Modal, StyleSheet, Dimensions } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { theme } from '../constants/theme'
 import { REACTION_EMOJIS } from './MessageBubble'
@@ -41,9 +41,8 @@ export function ReactionPicker({
         <View
           style={[styles.menu, {
             top: Math.max(8, position.y - 120),
-            left: Math.min(Math.max(8, position.x - 120), 240),
+            left: Math.min(Math.max(8, position.x - 120), Dimensions.get('window').width - 272),
           }]}
-          pointerEvents="box-none"
         >
           {/* Emoji row */}
           <View style={{ flexDirection: 'row', padding: theme.spacing.sm, gap: 4 }}>

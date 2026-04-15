@@ -38,15 +38,15 @@ function SidebarToggleIcon({ color }: { color: string }) {
 const TABS = [
   { name: 'Events',  icon: 'calendar-outline'     as const, path: '/'        },
   { name: 'Clubs',   icon: 'people-outline'        as const, path: '/clubs'   },
-  { name: 'Profile', icon: 'person-circle-outline' as const, path: '/profile' },
   { name: 'Chat',    icon: 'chatbubbles-outline'   as const, path: '/chat'    },
+  { name: 'Profile', icon: 'person-circle-outline' as const, path: '/profile' },
 ]
 
 const SIDEBAR_BREAKPOINT = 768
 
 function tabIndexFromPath(path: string): number {
-  if (path.startsWith('/chat')) return 3
-  if (path.startsWith('/profile') || path.startsWith('/settings')) return 2
+  if (path.startsWith('/profile') || path.startsWith('/settings')) return 3
+  if (path.startsWith('/chat')) return 2
   if (path.startsWith('/clubs')) return 1
   return 0
 }
@@ -136,7 +136,7 @@ export default function AppLayout() {
 
             {TABS.map((tab, i) => {
               const active = sidebarActive === i
-              const badge = i === 3 && chatUnread > 0 ? chatUnread : 0
+              const badge = i === 2 && chatUnread > 0 ? chatUnread : 0
               return (
                 <TouchableOpacity
                   key={tab.name}

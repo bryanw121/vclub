@@ -245,7 +245,7 @@ export default function TabsLayout() {
           }}>
             {MOBILE_NAV_TABS.map((tab) => {
               const active = activeTabIndex === tab.pageIndex;
-              const badge = tab.name === "Chat" && chatUnread > 0 ? chatUnread : 0;
+              const badge = tab.name === 'Chat' && chatUnread > 0 ? chatUnread : 0;
               return (
                 <TouchableOpacity
                   key={tab.name}

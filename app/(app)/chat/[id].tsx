@@ -53,6 +53,7 @@ export default function ChatRoomScreen() {
   const [pickerVisible, setPickerVisible] = useState(false)
   const [pickerMessage, setPickerMessage] = useState<MessageWithDetails | null>(null)
   const [pickerPos, setPickerPos] = useState({ x: 0, y: 0 })
+  const focusInputAfterPickerRef = useRef(false)
 
   // Full-screen image viewer
   const [viewingImage, setViewingImage] = useState<string | null>(null)
@@ -88,6 +89,14 @@ export default function ChatRoomScreen() {
     if (!silencedUserIds.has(convRow.other_user_id)) return
     router.replace('/(app)/(tabs)/chat' as any)
   }, [convRow, silencedUserIds, router])
+
+  // Focus input after reaction picker fully closes
+  useEffect(() => {
+    if (!pickerVisible && focusInputAfterPickerRef.current) {
+      focusInputAfterPickerRef.current = false
+      setTimeout(() => inputRef.current?.focus(), 50)
+    }
+  }, [pickerVisible])
 
   // Mark read when screen opens and whenever new messages arrive
   useEffect(() => {
@@ -141,7 +150,7 @@ export default function ChatRoomScreen() {
         uploadedUrl = await uploadImage(imageUri)
         setUploadingImage(false)
       }
-      await sendMessage(trimmed || null, uploadedUrl, replyTo?.id ?? null)
+      await sendMessage(trimmed || null, uploadedUrl, replyTo)
     } finally {
       setSending(false)
     }
@@ -436,7 +445,10 @@ export default function ChatRoomScreen() {
         position={pickerPos}
         viewerUserId={myId}
         onReact={(msgId, emoji) => void toggleReaction(msgId, emoji)}
-        onReply={msg => setReplyTo(msg)}
+        onReply={msg => {
+          setReplyTo(msg)
+          focusInputAfterPickerRef.current = true
+        }}
         onEdit={msg => {
           setEditingMessage(msg)
           setText(msg.content ?? '')

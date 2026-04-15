@@ -6,14 +6,23 @@ import type { MessageWithDetails } from '../types'
 const MESSAGE_SELECT = `
   id, conversation_id, sender_id, content, image_url, reply_to_id, created_at, deleted_at, edited_at,
   profiles!messages_sender_id_fkey (id, username, first_name, last_name, avatar_url, selected_border),
-  message_reactions (message_id, user_id, emoji, created_at),
-  reply_to:messages!reply_to_id (
-    id, content, image_url, deleted_at,
-    profiles!messages_sender_id_fkey (id, username, first_name, last_name)
-  )
+  message_reactions (message_id, user_id, emoji, created_at)
 `
 
+// Separate select for reply-to messages — avoids the ambiguous PostgREST self-join
+const REPLY_SELECT = `id, content, image_url, deleted_at, profiles!messages_sender_id_fkey (id, username, first_name, last_name)`
+
 const PAGE_SIZE = 40
+
+/** Fetches reply-to message data for any rows that have reply_to_id set, and attaches it. */
+async function attachReplyTo(rows: MessageWithDetails[]): Promise<MessageWithDetails[]> {
+  const ids = [...new Set(rows.filter(r => r.reply_to_id).map(r => r.reply_to_id!))]
+  if (!ids.length) return rows
+  const { data } = await supabase.from('messages').select(REPLY_SELECT).in('id', ids)
+  if (!data?.length) return rows
+  const map = new Map(data.map(r => [r.id, r as MessageWithDetails['reply_to']]))
+  return rows.map(m => m.reply_to_id ? { ...m, reply_to: map.get(m.reply_to_id) ?? null } : m)
+}
 
 export function useMessages(conversationId: string) {
   const [messages, setMessages] = useState<MessageWithDetails[]>([])
@@ -36,16 +45,14 @@ export function useMessages(conversationId: string) {
     if (error) console.error('[useMessages] fetch error:', JSON.stringify(error))
     if (!mountedRef.current) return
 
-    const rows = (data ?? []) as MessageWithDetails[]
-    // rows is DESC (newest first); capture oldest before reversing
-    const oldest = rows[rows.length - 1]?.created_at ?? null
+    const rows = await attachReplyTo((data ?? []) as MessageWithDetails[])
+    const oldest = (data ?? [])[((data ?? []).length) - 1]?.created_at ?? null
     const chronological = rows.slice().reverse()
 
     if (before) {
       setMessages(prev => [...chronological, ...prev])
       if (oldest) oldestCreatedAt.current = oldest
     } else {
-      // Keep any optimistic (_sending) messages at the end
       setMessages(prev => {
         const sending = prev.filter(m => m._sending)
         return [...chronological, ...sending]
@@ -79,22 +86,30 @@ export function useMessages(conversationId: string) {
             .single()
           if (!mountedRef.current) return
           if (data) {
-            setMessages(prev =>
-              prev.some(m => m.id === (data as MessageWithDetails).id)
-                ? prev
-                : [...prev.filter(m => !m._sending || m.sender_id !== payload.new.sender_id), data as MessageWithDetails]
-            )
+            const [incoming] = await attachReplyTo([data as MessageWithDetails])
+            if (!mountedRef.current) return
+            setMessages(prev => {
+              if (prev.some(m => m.id === incoming.id)) return prev
+              return [...prev.filter(m => !m._sending || m.sender_id !== payload.new.sender_id), incoming]
+            })
           } else if (error) {
-            // Join failed — fall back to a full reload
             void fetchMessages()
           }
         })
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
-        (payload) => {
+        async (payload) => {
+          if (!mountedRef.current) return
+          const { data } = await supabase
+            .from('messages')
+            .select(MESSAGE_SELECT)
+            .eq('id', payload.new.id)
+            .single()
+          if (!mountedRef.current || !data) return
+          const [updated] = await attachReplyTo([data as MessageWithDetails])
           if (!mountedRef.current) return
           setMessages(prev => prev.map(m =>
-            m.id === payload.new.id ? { ...m, ...(payload.new as Partial<MessageWithDetails>) } : m
+            m.id === updated.id ? updated : m
           ))
         })
       .on('postgres_changes',
@@ -111,24 +126,38 @@ export function useMessages(conversationId: string) {
   const sendMessage = useCallback(async (
     content: string | null,
     imageUrl: string | null = null,
-    replyToId: string | null = null,
+    replyTo: MessageWithDetails | null = null,
   ) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
     const tempId = `temp-${Date.now()}`
+    const replyToSnapshot = replyTo ? {
+      id: replyTo.id,
+      content: replyTo.content,
+      image_url: replyTo.image_url,
+      deleted_at: replyTo.deleted_at,
+      profiles: replyTo.profiles ? {
+        id: replyTo.profiles.id,
+        username: replyTo.profiles.username,
+        first_name: replyTo.profiles.first_name,
+        last_name: replyTo.profiles.last_name,
+      } : null,
+    } : null
+
     const tempMessage: MessageWithDetails = {
       id: tempId,
       conversation_id: conversationId,
       sender_id: user.id,
       content: content || null,
       image_url: imageUrl,
-      reply_to_id: replyToId,
+      reply_to_id: replyTo?.id ?? null,
       created_at: new Date().toISOString(),
       deleted_at: null,
+      edited_at: null,
       profiles: null,
       message_reactions: [],
-      reply_to: null,
+      reply_to: replyToSnapshot,
       _sending: true,
     }
 
@@ -143,7 +172,7 @@ export function useMessages(conversationId: string) {
         sender_id: user.id,
         content: content || null,
         image_url: imageUrl,
-        reply_to_id: replyToId,
+        reply_to_id: replyTo?.id ?? null,
       })
       .select(MESSAGE_SELECT)
       .single()
@@ -152,14 +181,14 @@ export function useMessages(conversationId: string) {
 
     if (mountedRef.current) {
       if (data) {
-        // Replace temp message with confirmed message
+        // We already have replyTo data in the closure — attach it directly without an extra fetch
+        const confirmed: MessageWithDetails = { ...(data as MessageWithDetails), reply_to: replyToSnapshot }
         setMessages(prev => prev
           .filter(m => m.id !== tempId)
-          .concat([data as MessageWithDetails])
+          .concat([confirmed])
           .filter((m, i, arr) => i === arr.findIndex(x => x.id === m.id))
         )
       } else {
-        // Remove temp on failure
         setMessages(prev => prev.filter(m => m.id !== tempId))
       }
     }
@@ -191,6 +220,15 @@ export function useMessages(conversationId: string) {
     const existing = messages
       .find(m => m.id === messageId)
       ?.message_reactions.find(r => r.user_id === user.id && r.emoji === emoji)
+
+    // Optimistic update
+    setMessages(prev => prev.map(m => {
+      if (m.id !== messageId) return m
+      const reactions = existing
+        ? m.message_reactions.filter(r => !(r.user_id === user.id && r.emoji === emoji))
+        : [...m.message_reactions, { message_id: messageId, user_id: user.id, emoji, created_at: new Date().toISOString() }]
+      return { ...m, message_reactions: reactions }
+    }))
 
     if (existing) {
       await supabase

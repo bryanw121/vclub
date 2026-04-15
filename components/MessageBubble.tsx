@@ -98,8 +98,8 @@ export function MessageBubble({
             if (hiddenIncoming || deleted || message._sending) return
             e.preventDefault?.()
             const ne = e.nativeEvent
-            const x = ne.pageX ?? ne.clientX ?? 0
-            const y = ne.pageY ?? ne.clientY ?? 0
+            const x = ne.clientX ?? ne.pageX ?? 0
+            const y = ne.clientY ?? ne.pageY ?? 0
             openActionMenu(x, y)
           },
         }
@@ -147,62 +147,97 @@ export function MessageBubble({
         </TouchableOpacity>
       )}
 
-      {/* Bubble */}
-      <View style={{
-        backgroundColor: deleted || hiddenIncoming ? 'transparent' : bubbleBg,
-        borderRadius: 18,
-        borderBottomLeftRadius: !isOwn ? 4 : 18,
-        borderBottomRightRadius: isOwn ? 4 : 18,
-        borderWidth: deleted || hiddenIncoming ? 1 : 0,
-        borderColor: theme.colors.border,
-        overflow: 'hidden',
-      }}>
-        {hiddenIncoming ? (
-          <Text style={{
-            fontSize: theme.font.size.sm,
-            color: theme.colors.subtext,
-            fontStyle: 'italic',
-            paddingHorizontal: 12,
-            paddingVertical: 8,
+      {/* Bubble + overlapping reactions */}
+      <View style={{ position: 'relative', marginBottom: !hiddenIncoming && reactions.length > 0 ? 14 : 0 }}>
+        <View style={{
+          backgroundColor: deleted || hiddenIncoming ? 'transparent' : bubbleBg,
+          borderRadius: 18,
+          borderBottomLeftRadius: !isOwn ? 4 : 18,
+          borderBottomRightRadius: isOwn ? 4 : 18,
+          borderWidth: deleted || hiddenIncoming ? 1 : 0,
+          borderColor: theme.colors.border,
+          overflow: 'hidden',
+        }}>
+          {hiddenIncoming ? (
+            <Text style={{
+              fontSize: theme.font.size.sm,
+              color: theme.colors.subtext,
+              fontStyle: 'italic',
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}>
+              Message hidden — you silenced this person.
+            </Text>
+          ) : deleted ? (
+            <Text style={{
+              fontSize: theme.font.size.sm,
+              color: theme.colors.subtext,
+              fontStyle: 'italic',
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}>
+              Message deleted
+            </Text>
+          ) : (
+            <>
+              {hasImage && (
+                <Pressable onPress={() => onImagePress?.(message.image_url!)}>
+                  <Image
+                    source={{ uri: message.image_url! }}
+                    style={{ width: 220, height: 180, borderRadius: hasText ? 0 : 18 }}
+                    resizeMode="cover"
+                  />
+                </Pressable>
+              )}
+              {hasText && (
+                <Text style={{
+                  fontSize: theme.font.size.md,
+                  color: bubbleText,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  lineHeight: 20,
+                }}>
+                  {message.content}
+                  {message.edited_at && !message._sending
+                    ? <Text style={{ fontSize: 10, color: isOwn ? 'rgba(255,255,255,0.6)' : theme.colors.subtext, fontStyle: 'italic' }}>{' (edited)'}</Text>
+                    : null}
+                </Text>
+              )}
+            </>
+          )}
+        </View>
+
+        {/* Reactions — iMessage-style, overlapping the bottom of the bubble */}
+        {!hiddenIncoming && reactions.length > 0 && (
+          <View style={{
+            position: 'absolute',
+            bottom: -14,
+            ...(isOwn ? { right: 8 } : { left: 8 }),
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 3,
+            zIndex: 1,
           }}>
-            Message hidden — you silenced this person.
-          </Text>
-        ) : deleted ? (
-          <Text style={{
-            fontSize: theme.font.size.sm,
-            color: theme.colors.subtext,
-            fontStyle: 'italic',
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-          }}>
-            Message deleted
-          </Text>
-        ) : (
-          <>
-            {hasImage && (
-              <Pressable onPress={() => onImagePress?.(message.image_url!)}>
-                <Image
-                  source={{ uri: message.image_url! }}
-                  style={{ width: 220, height: 180, borderRadius: hasText ? 0 : 18 }}
-                  resizeMode="cover"
-                />
-              </Pressable>
-            )}
-            {hasText && (
-              <Text style={{
-                fontSize: theme.font.size.md,
-                color: bubbleText,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                lineHeight: 20,
+            {reactions.map(([emoji, count]) => (
+              <View key={emoji} style={{
+                flexDirection: 'row', alignItems: 'center', gap: 2,
+                backgroundColor: theme.colors.card,
+                borderRadius: theme.radius.full,
+                paddingHorizontal: 6, paddingVertical: 3,
+                borderWidth: 1, borderColor: theme.colors.border,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.12,
+                shadowRadius: 2,
+                elevation: 2,
               }}>
-                {message.content}
-                {message.edited_at && !message._sending
-                  ? <Text style={{ fontSize: 10, color: isOwn ? 'rgba(255,255,255,0.6)' : theme.colors.subtext, fontStyle: 'italic' }}>{' (edited)'}</Text>
-                  : null}
-              </Text>
-            )}
-          </>
+                <Text style={{ fontSize: 13 }}>{emoji}</Text>
+                {count > 1 && (
+                  <Text style={{ fontSize: 11, color: theme.colors.subtext }}>{count}</Text>
+                )}
+              </View>
+            ))}
+          </View>
         )}
       </View>
 
@@ -216,26 +251,6 @@ export function MessageBubble({
       }}>
         {message._sending ? 'Sending…' : formatTime(message.created_at)}
       </Text>
-
-      {/* Reactions */}
-      {!hiddenIncoming && reactions.length > 0 && (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-          {reactions.map(([emoji, count]) => (
-            <View key={emoji} style={{
-              flexDirection: 'row', alignItems: 'center', gap: 2,
-              backgroundColor: theme.colors.card,
-              borderRadius: theme.radius.full,
-              paddingHorizontal: 6, paddingVertical: 2,
-              borderWidth: 1, borderColor: theme.colors.border,
-            }}>
-              <Text style={{ fontSize: 13 }}>{emoji}</Text>
-              {count > 1 && (
-                <Text style={{ fontSize: 11, color: theme.colors.subtext }}>{count}</Text>
-              )}
-            </View>
-          ))}
-        </View>
-      )}
     </Pressable>
   )
 
