@@ -103,13 +103,6 @@ export default function ChatRoomScreen() {
     if (messages.length > 0) void markRead()
   }, [messages.length, markRead])
 
-  // Scroll to bottom on new messages
-  useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100)
-    }
-  }, [messages.length])
-
   const headerTitle = convRow
     ? (convRow.type === 'club'
         ? (convRow.club_name ?? 'Club Chat')
@@ -202,7 +195,8 @@ export default function ChatRoomScreen() {
 
   const renderMessage = useCallback(({ item, index }: { item: MessageWithDetails; index: number }) => {
     const isOwn = item.sender_id === myId
-    const prevItem = index > 0 ? messages[index - 1] : null
+    // With inverted list, data is newest-first; index+1 is the older (visually above) message
+    const prevItem = index < messages.length - 1 ? messages[index + 1] : null
     // Show avatar when the sender changes or when it's the first message in a sequence
     const showAvatar = !isOwn && (prevItem?.sender_id !== item.sender_id || !prevItem)
     const senderSilenced = !isOwn && silencedUserIds.has(item.sender_id)
@@ -294,15 +288,15 @@ export default function ChatRoomScreen() {
             data={messages}
             keyExtractor={m => m.id}
             renderItem={renderMessage}
+            inverted
             contentContainerStyle={{ paddingVertical: theme.spacing.md }}
-            onStartReached={hasMore ? loadMore : undefined}
-            onStartReachedThreshold={0.2}
-            ListHeaderComponent={hasMore ? (
+            onEndReached={hasMore ? loadMore : undefined}
+            onEndReachedThreshold={0.2}
+            ListFooterComponent={hasMore ? (
               <View style={{ alignItems: 'center', paddingVertical: 8 }}>
                 <ActivityIndicator size="small" color={theme.colors.subtext} />
               </View>
             ) : null}
-            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
           />
         )}
 

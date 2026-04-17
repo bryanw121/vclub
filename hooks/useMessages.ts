@@ -46,16 +46,18 @@ export function useMessages(conversationId: string) {
     if (!mountedRef.current) return
 
     const rows = await attachReplyTo((data ?? []) as MessageWithDetails[])
+    // data comes from DB in descending order (newest first) — keep that order for inverted FlatList
     const oldest = (data ?? [])[((data ?? []).length) - 1]?.created_at ?? null
-    const chronological = rows.slice().reverse()
 
     if (before) {
-      setMessages(prev => [...chronological, ...prev])
+      // Older page goes to the END of the array (highest index = visual top of inverted list)
+      setMessages(prev => [...prev, ...rows])
       if (oldest) oldestCreatedAt.current = oldest
     } else {
       setMessages(prev => {
         const sending = prev.filter(m => m._sending)
-        return [...chronological, ...sending]
+        // Sending (newest) at front (index 0 = visual bottom), fetched rows after
+        return [...sending, ...rows]
       })
       oldestCreatedAt.current = oldest
     }
@@ -90,7 +92,7 @@ export function useMessages(conversationId: string) {
             if (!mountedRef.current) return
             setMessages(prev => {
               if (prev.some(m => m.id === incoming.id)) return prev
-              return [...prev.filter(m => !m._sending || m.sender_id !== payload.new.sender_id), incoming]
+              return [incoming, ...prev.filter(m => !m._sending || m.sender_id !== payload.new.sender_id)]
             })
           } else if (error) {
             void fetchMessages()
@@ -162,7 +164,7 @@ export function useMessages(conversationId: string) {
     }
 
     if (mountedRef.current) {
-      setMessages(prev => [...prev, tempMessage])
+      setMessages(prev => [tempMessage, ...prev])
     }
 
     const { data, error: sendError } = await supabase
@@ -183,9 +185,7 @@ export function useMessages(conversationId: string) {
       if (data) {
         // We already have replyTo data in the closure — attach it directly without an extra fetch
         const confirmed: MessageWithDetails = { ...(data as MessageWithDetails), reply_to: replyToSnapshot }
-        setMessages(prev => prev
-          .filter(m => m.id !== tempId)
-          .concat([confirmed])
+        setMessages(prev => [confirmed, ...prev.filter(m => m.id !== tempId)]
           .filter((m, i, arr) => i === arr.findIndex(x => x.id === m.id))
         )
       } else {

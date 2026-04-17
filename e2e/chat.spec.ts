@@ -286,7 +286,78 @@ test.describe('Chat', () => {
     await expect(page.getByText('👍').first()).toBeVisible()
   })
 
-  // ── 8. Delete message ──────────────────────────────────────────────────────
+  // ── 8. Image sending ──────────────────────────────────────────────────────
+  //
+  // expo-image-picker on web creates a hidden <input type="file"> and waits
+  // for a 'change' event. It activates the input via a synthetic MouseEvent
+  // click — not a real user gesture — so Playwright's filechooser interception
+  // never fires. We inject a MutationObserver that detects the file input,
+  // overrides input.files via DataTransfer, and dispatches 'change' so the
+  // picker promise resolves with our test image.
+
+  async function pickImage(page: Page) {
+    const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+
+    await dismissErrorOverlays(page)
+
+    await page.evaluate((pngB64: string) => {
+      (window as any).__imagePicked = false
+      const obs = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          for (const node of m.addedNodes) {
+            const el = node as HTMLInputElement
+            if (el.tagName !== 'INPUT' || el.type !== 'file') continue
+            obs.disconnect()
+            const bin = atob(pngB64)
+            const bytes = new Uint8Array(bin.length)
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+            const file = new File([bytes], 'test.png', { type: 'image/png' })
+            const dt = new DataTransfer()
+            dt.items.add(file)
+            Object.defineProperty(el, 'files', { value: dt.files, configurable: true })
+            // Defer so expo's 'change' listener is registered before we fire
+            Promise.resolve().then(() => {
+              el.dispatchEvent(new Event('change', { bubbles: true }))
+              ;(window as any).__imagePicked = true
+            })
+          }
+        }
+      })
+      obs.observe(document.body, { childList: true })
+    }, PNG_B64)
+
+    const clicked = await page.evaluate(() => {
+      const tx = Array.from(document.querySelectorAll('textarea, input[type="text"]')).find(
+        el => (el as HTMLInputElement).placeholder?.includes('Message')
+      ) as HTMLElement | undefined
+      if (!tx) return false
+      const btn = tx.parentElement?.children[0] as HTMLElement | undefined
+      if (!btn) return false
+      const r = btn.getBoundingClientRect()
+      const cx = r.left + r.width / 2
+      const cy = r.top + r.height / 2
+      const opts: MouseEventInit = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, view: window }
+      for (const [type, Ctor] of [['pointerover', PointerEvent], ['mouseover', MouseEvent], ['pointerdown', PointerEvent], ['mousedown', MouseEvent], ['pointerup', PointerEvent], ['mouseup', MouseEvent], ['click', MouseEvent]] as const) {
+        btn.dispatchEvent(new (Ctor as typeof MouseEvent)(type, opts))
+      }
+      return true
+    })
+    if (!clicked) throw new Error('Image picker button not found')
+
+    await page.waitForFunction(() => (window as any).__imagePicked === true, { timeout: 8000 })
+    await page.waitForTimeout(500)
+  }
+
+  test('selecting an image shows a preview thumbnail above the input bar', async ({ page }) => {
+    await page.goto(CONVO_URL)
+    await page.waitForTimeout(2000)
+
+    await pickImage(page)
+
+    await expect(page.locator('img[src^="blob:"]').last()).toBeVisible()
+  })
+
+  // ── 9. Delete message ──────────────────────────────────────────────────────
 
   test('deleting a message marks it as deleted (visible after reload)', async ({ page }) => {
     await page.goto(CONVO_URL)
