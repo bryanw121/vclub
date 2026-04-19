@@ -296,6 +296,7 @@ export default function AppLayout() {
         headerTintColor: theme.colors.primary,
         headerShadowVisible: false,
         gestureEnabled: true,
+        contentStyle: { backgroundColor: theme.colors.background },
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false, headerBackTitle: 'Back' }} />

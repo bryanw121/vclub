@@ -254,7 +254,7 @@ export default function ChatRoomScreen() {
           )}
         </View>
 
-        <Text style={{ flex: 1, fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }} numberOfLines={1}>
+        <Text style={{ flex: 1, fontFamily: theme.fonts.display, fontSize: theme.font.size.lg, letterSpacing: -0.3, color: theme.colors.text }} numberOfLines={1}>
           {headerTitle}
         </Text>
 
@@ -368,7 +368,7 @@ export default function ChatRoomScreen() {
           </View>
         )}
 
-        {/* Input bar */}
+        {/* Input bar — pill composer */}
         <View style={{
           flexDirection: 'row', alignItems: 'flex-end',
           paddingHorizontal: theme.spacing.md,
@@ -378,47 +378,61 @@ export default function ChatRoomScreen() {
           backgroundColor: theme.colors.background,
           gap: theme.spacing.sm,
         }}>
-          <TouchableOpacity onPress={handlePickImage} style={{ paddingBottom: 10 }} hitSlop={8}>
-            <Ionicons name="image-outline" size={24} color={theme.colors.subtext} />
+          <TouchableOpacity onPress={handlePickImage} style={{ paddingBottom: 9 }} hitSlop={8}>
+            <Ionicons name="image-outline" size={22} color={theme.colors.subtext} />
           </TouchableOpacity>
 
-          <TextInput
-            ref={inputRef}
-            value={text}
-            onChangeText={setText}
-            placeholder="Message…"
-            placeholderTextColor={theme.colors.subtext}
-            multiline
-            style={{
-              flex: 1,
-              minHeight: 40, maxHeight: 120,
-              backgroundColor: theme.colors.card,
-              borderRadius: 20,
-              paddingHorizontal: 14,
-              paddingTop: 10, paddingBottom: 10,
-              fontSize: theme.font.size.md,
-              color: theme.colors.text,
-            }}
-            onSubmitEditing={Platform.OS === 'web' ? handleSend : undefined}
-            blurOnSubmit={Platform.OS === 'web'}
-          />
-
-          <TouchableOpacity
-            onPress={handleSend}
-            disabled={!canSend}
-            style={{
-              width: 38, height: 38, borderRadius: 19,
-              backgroundColor: canSend ? theme.colors.primary : theme.colors.border,
-              alignItems: 'center', justifyContent: 'center',
-              marginBottom: 2,
-            }}
-          >
-            {sending || uploadingImage ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Ionicons name="send" size={18} color="#fff" />
-            )}
-          </TouchableOpacity>
+          {/* Pill input container */}
+          <View style={{
+            flex: 1,
+            flexDirection: 'row', alignItems: 'flex-end',
+            backgroundColor: theme.colors.card,
+            borderRadius: 22,
+            borderWidth: 1,
+            borderColor: theme.colors.border,
+            paddingLeft: 14,
+            paddingRight: 4,
+            paddingVertical: 4,
+            minHeight: 40,
+            maxHeight: 120,
+          }}>
+            <TextInput
+              ref={inputRef}
+              value={text}
+              onChangeText={setText}
+              placeholder="Message…"
+              placeholderTextColor={theme.colors.subtext}
+              multiline
+              style={{
+                flex: 1,
+                paddingTop: 7,
+                paddingBottom: 7,
+                fontFamily: theme.fonts.body,
+                fontSize: theme.font.size.md,
+                color: theme.colors.text,
+                minHeight: 32,
+              }}
+              onSubmitEditing={Platform.OS === 'web' ? handleSend : undefined}
+              blurOnSubmit={Platform.OS === 'web'}
+            />
+            <TouchableOpacity
+              onPress={handleSend}
+              disabled={!canSend}
+              style={{
+                width: 32, height: 32, borderRadius: 16,
+                backgroundColor: canSend ? theme.colors.primary : 'transparent',
+                alignItems: 'center', justifyContent: 'center',
+                alignSelf: 'flex-end',
+                marginBottom: 0,
+              }}
+            >
+              {sending || uploadingImage ? (
+                <ActivityIndicator size="small" color={canSend ? '#fff' : theme.colors.subtext} />
+              ) : (
+                <Ionicons name="send" size={16} color={canSend ? '#fff' : theme.colors.subtext} />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
 

@@ -11,6 +11,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
@@ -68,11 +69,12 @@ const VOLLEYBALL_POSITION_OPTIONS: { value: VolleyballPosition; label: string }[
 ]
 
 const VOLLEYBALL_SKILL_LEVEL_OPTIONS: { value: VolleyballSkillLevel; label: string }[] = [
-  { value: 'recreational', label: 'Recreational' },
-  { value: 'beginner', label: 'Beginner' },
-  { value: 'intermediate', label: 'Intermediate' },
-  { value: 'advanced', label: 'Advanced' },
-  { value: 'competitive', label: 'Competitive' },
+  { value: 'd',       label: 'D (Newbie)' },
+  { value: 'c',       label: 'C' },
+  { value: 'b',       label: 'B' },
+  { value: 'bb',      label: 'BB' },
+  { value: 'a',       label: 'A' },
+  { value: 'aa_plus', label: 'AA+' },
 ]
 
 const AVATAR_SIZE = 88
@@ -632,64 +634,107 @@ export default function MyProfile() {
 
         {/* ── Profile hero ── */}
         <View style={profileStyles.heroCard}>
-          {/* Avatar centered */}
-          <View style={{ alignItems: 'center', gap: theme.spacing.xs }}>
-            <ProfileAvatar
-              uri={avatarUploading || avatarUriResolving ? null : avatarDisplayUri}
-              loading={avatarUploading || avatarUriResolving}
-              border={profile.selected_border}
-              onPress={pickAndUploadAvatar}
-              editMode={section === 'edit'}
-              onDelete={deleteAvatar}
-              hasAvatar={!!profile.avatar_url}
-            />
-            {section === 'edit' && (
-              <Text style={[shared.caption, { textAlign: 'center' }]}>
+          {/* Radial gradient decoration */}
+          <LinearGradient
+            colors={[theme.colors.primary, 'transparent']}
+            start={{ x: 1, y: 0 }}
+            end={{ x: 0.3, y: 0.7 }}
+            style={{
+              position: 'absolute', top: 0, right: 0,
+              width: 200, height: 200, borderRadius: 100,
+              opacity: 0.55,
+            }}
+            pointerEvents="none"
+          />
+
+          {section === 'edit' ? (
+            /* Edit mode: centered layout */
+            <View style={{ alignItems: 'center', gap: theme.spacing.xs, width: '100%' }}>
+              <ProfileAvatar
+                uri={avatarUploading || avatarUriResolving ? null : avatarDisplayUri}
+                loading={avatarUploading || avatarUriResolving}
+                border={profile.selected_border}
+                onPress={pickAndUploadAvatar}
+                editMode
+                onDelete={deleteAvatar}
+                hasAvatar={!!profile.avatar_url}
+              />
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.sm, color: 'rgba(255,255,255,0.6)', textAlign: 'center' }}>
                 Tap to {profile.avatar_url ? 'change' : 'add'} a photo.
               </Text>
-            )}
-          </View>
-
-          {/* Name + handle */}
-          <Text style={profileStyles.heroName}>
-            {profile.first_name && profile.last_name
-              ? `${profile.first_name} ${profile.last_name}`
-              : profile.username}
-          </Text>
-          {profile.first_name && profile.last_name && (
-            <Text style={profileStyles.heroHandle}>@{profile.username}</Text>
+              {section === 'edit' && avatarUriError && profile.avatar_url ? (
+                <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.sm, color: theme.colors.hot, textAlign: 'center' }}>
+                  Could not load image. Fix Storage SELECT policy for the avatars bucket.
+                </Text>
+              ) : null}
+            </View>
+          ) : (
+            /* Menu mode: horizontal layout */
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, width: '100%' }}>
+              <ProfileAvatar
+                uri={avatarUploading || avatarUriResolving ? null : avatarDisplayUri}
+                loading={avatarUploading || avatarUriResolving}
+                border={profile.selected_border}
+                onPress={pickAndUploadAvatar}
+                editMode={false}
+                onDelete={deleteAvatar}
+                hasAvatar={!!profile.avatar_url}
+              />
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 1, textTransform: 'uppercase' }}>
+                  Member since {new Date(profile.created_at).getFullYear().toString().slice(2)}
+                </Text>
+                <Text style={{ fontFamily: theme.fonts.display, fontSize: 22, letterSpacing: -0.5, color: '#FFFFFF', lineHeight: 24 }}>
+                  {profile.first_name && profile.last_name
+                    ? `${profile.first_name} ${profile.last_name}`
+                    : profile.username}
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 2 }}>
+                  {profile.position.slice(0, 2).map(pos => {
+                    const label = VOLLEYBALL_POSITION_OPTIONS.find(o => o.value === pos)?.label ?? pos
+                    const short = label.replace('Outside Hitter', 'OH').replace('Opposite Hitter', 'OPP').replace('Middle Blocker', 'MB').replace('Defensive Specialist', 'DS')
+                    return (
+                      <View key={pos} style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, backgroundColor: theme.colors.accent }}>
+                        <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: theme.colors.accentInk }}>{short}</Text>
+                      </View>
+                    )
+                  })}
+                </View>
+              </View>
+            </View>
           )}
 
-          {/* Positions */}
-          {positionLabels(profile.position) ? (
-            <Text style={profileStyles.heroPosition}>{positionLabels(profile.position)}</Text>
-          ) : null}
-
-          {profile.skill_level ? (
-            <Text style={[profileStyles.heroPosition, { color: theme.colors.subtext }]}>
-              Skill · {volleyballSkillLevelLabel(profile.skill_level)}
-            </Text>
-          ) : null}
-
-          {/* Bio */}
+          {/* Bio (both modes) */}
           {profile.bio ? (
-            <Text style={profileStyles.heroBio}>{profile.bio}</Text>
-          ) : null}
-
-          {/* Joined */}
-          <Text style={profileStyles.heroJoined}>
-            Member since {new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-          </Text>
-
-          {section === 'edit' && avatarUriError && profile.avatar_url ? (
-            <Text style={[shared.errorText, shared.mt_xs, { textAlign: 'center' }]}>
-              Could not load image. Fix Storage SELECT policy for the avatars bucket.
+            <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.sm, color: 'rgba(255,255,255,0.75)', lineHeight: 18, marginTop: 4, width: '100%' }}>
+              {profile.bio}
             </Text>
           ) : null}
+
+          {/* Stat trio */}
+          {section === 'menu' && (
+            <View style={{ flexDirection: 'row', gap: 1, marginTop: 14, borderRadius: 14, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.08)', width: '100%' }}>
+              <View style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center' }}>
+                <Text style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: theme.colors.accent }}>
+                  {profile.skill_level ? volleyballSkillLevelLabel(profile.skill_level) : '—'}
+                </Text>
+                <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>Skill</Text>
+              </View>
+              {([
+                { n: 0, l: 'Cheers' },
+                { n: 0, l: 'Trophies' },
+              ] as const).map((s) => (
+                <View key={s.l} style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center' }}>
+                  <Text style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: '#FFFFFF' }}>{s.n}</Text>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>{s.l}</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           {/* Displayed badges row */}
           {displayedBadges.length > 0 && (
-            <View style={profileStyles.badgeRow}>
+            <View style={[profileStyles.badgeRow, { borderTopColor: 'rgba(255,255,255,0.15)' }]}>
               {displayedBadges.map(badge => {
                 const def = BADGE_DEFINITIONS.find(d => d.type === badge.badge_type)
                 if (!def) return null
@@ -699,15 +744,55 @@ export default function MyProfile() {
           )}
 
           {section === 'menu' && (
-            <View style={{ alignSelf: 'stretch', marginTop: theme.spacing.md }}>
-              <Button label="Edit profile" onPress={openEditProfile} variant="primary" />
+            <View style={{ alignSelf: 'stretch', marginTop: theme.spacing.sm }}>
+              <TouchableOpacity
+                onPress={openEditProfile}
+                style={{ paddingVertical: 11, borderRadius: theme.radius.md, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center' }}
+              >
+                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.md, color: '#FFFFFF' }}>Edit profile</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
 
+        {/* ── Trophy case ── */}
+        {section === 'menu' && (
+          <View style={{ marginTop: theme.spacing.md }}>
+            <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 18, color: theme.colors.text, marginBottom: theme.spacing.sm }}>Trophy case</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {([
+                { place: '1', color: '#FFD54F', label: '1st place' },
+                { place: '2', color: '#B0BEC5', label: '2nd place' },
+                { place: '3', color: '#D7A86E', label: '3rd place' },
+              ] as const).map((t) => (
+                <View key={t.place} style={{ flex: 1, backgroundColor: theme.colors.card, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: t.color, alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
+                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 18, color: '#1A1A1A' }}>{t.place}</Text>
+                  </View>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '700', color: theme.colors.subtext, textAlign: 'center' }}>{t.label}</Text>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 9.5, color: theme.colors.subtext, marginTop: 2, opacity: 0.6 }}>—</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* ── Recent cheers ── */}
+        {section === 'menu' && (
+          <View style={{ marginTop: theme.spacing.lg }}>
+            <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 18, color: theme.colors.text, marginBottom: theme.spacing.sm }}>Recent cheers</Text>
+            <View style={{ backgroundColor: theme.colors.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center', gap: theme.spacing.sm }}>
+              <Ionicons name="star-outline" size={28} color={theme.colors.border} />
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.subtext, textAlign: 'center' }}>
+                Cheers you receive from teammates will show up here.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* ── Menu ── */}
         {section === 'menu' && (
-          <View style={[shared.card, { gap: 0, marginTop: theme.spacing.md, padding: 0, overflow: 'hidden' }]}>
+          <View style={[shared.card, { gap: 0, marginTop: theme.spacing.lg, padding: 0, overflow: 'hidden' }]}>
             {([
               { title: 'Account Settings', icon: 'settings-outline', route: '/settings/account' },
               { title: 'Silenced people', icon: 'eye-off-outline', route: '/settings/silenced' },
@@ -1263,34 +1348,36 @@ function BorderSwatch({ label, borderDef, selected, unlocked, onPress }: {
 const profileStyles = StyleSheet.create({
   heroCard: {
     backgroundColor: theme.colors.card,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.lg,
+    borderRadius: 24,
+    padding: 18,
     alignItems: 'center',
     gap: theme.spacing.xs,
-    ...theme.shadow.sm,
+    overflow: 'hidden',
+    position: 'relative',
   },
   heroName: {
-    fontSize: 20,
-    fontWeight: theme.font.weight.bold,
+    fontFamily: theme.fonts.display,
+    fontSize: 22,
+    letterSpacing: -0.5,
     color: theme.colors.text,
     marginTop: theme.spacing.xs,
     textAlign: 'center',
   },
   heroHandle: {
+    fontFamily: theme.fonts.body,
     fontSize: theme.font.size.sm,
     color: theme.colors.subtext,
     textAlign: 'center',
   },
   heroPosition: {
+    fontFamily: theme.fonts.bodySemiBold,
     fontSize: theme.font.size.sm,
-    fontWeight: theme.font.weight.medium,
     color: theme.colors.primary,
     textAlign: 'center',
     marginTop: 2,
   },
   heroBio: {
+    fontFamily: theme.fonts.body,
     fontSize: theme.font.size.md,
     color: theme.colors.text,
     textAlign: 'center',
@@ -1298,6 +1385,7 @@ const profileStyles = StyleSheet.create({
     marginTop: theme.spacing.xs,
   },
   heroJoined: {
+    fontFamily: theme.fonts.body,
     fontSize: theme.font.size.xs,
     color: theme.colors.subtext,
     marginTop: 2,
@@ -1334,8 +1422,8 @@ const profileStyles = StyleSheet.create({
   },
   menuRowTitle: {
     flex: 1,
+    fontFamily: theme.fonts.bodyMedium,
     fontSize: theme.font.size.md,
-    fontWeight: theme.font.weight.medium,
     color: theme.colors.text,
   },
 })

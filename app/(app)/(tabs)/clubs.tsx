@@ -41,11 +41,24 @@ import {
   Image,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { LinearGradient } from 'expo-linear-gradient'
 import { Stack, useRouter, useFocusEffect } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
 import { shared, theme } from '../../../constants'
 import { resolveClubAvatarUri } from '../../../utils'
 import type { ClubWithDetails } from '../../../types'
+
+/** Deterministic color for a club based on its name */
+function clubColor(name: string): string {
+  const PALETTE = [
+    theme.colors.primary, theme.colors.warm, theme.colors.cool,
+    theme.colors.hot, theme.colors.accent, '#8B5CF6', '#0EA5E9', '#10B981',
+  ]
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff
+  return PALETTE[Math.abs(h) % PALETTE.length]
+}
 
 type ClubCardProps = {
   club: ClubWithDetails
@@ -58,6 +71,7 @@ function ClubCard({ club, isOwner, isMember, onPress }: ClubCardProps) {
   const [avatarUri, setAvatarUri] = useState<string | null>(null)
   const memberCount = club.club_members.length
   const initial = club.name.charAt(0).toUpperCase()
+  const color = clubColor(club.name)
 
   useEffect(() => {
     let cancelled = false
@@ -69,98 +83,77 @@ function ClubCard({ club, isOwner, isMember, onPress }: ClubCardProps) {
 
   return (
     <TouchableOpacity
-      style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, marginBottom: theme.spacing.sm }]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      {/* Avatar */}
-      <View style={{
-        width: 52,
-        height: 52,
-        borderRadius: 26,
-        backgroundColor: theme.colors.primary + '22',
-        borderWidth: 1,
-        borderColor: theme.colors.primary + '44',
+      style={{
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
+        gap: 14,
+        marginBottom: 10,
+        backgroundColor: theme.colors.card,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        padding: 14,
         overflow: 'hidden',
-        flexShrink: 0,
-      }}>
+      }}
+      onPress={onPress}
+      activeOpacity={0.72}
+    >
+      {/* Diagonal-stripe avatar */}
+      <View style={{ width: 54, height: 54, borderRadius: 14, overflow: 'hidden', flexShrink: 0 }}>
         {avatarUri ? (
-          <Image source={{ uri: avatarUri }} style={{ width: 52, height: 52, borderRadius: 26 }} />
+          <Image source={{ uri: avatarUri }} style={{ width: 54, height: 54 }} />
         ) : (
-          <Text style={{ fontSize: theme.font.size.xl, fontWeight: theme.font.weight.bold, color: theme.colors.primary }}>
-            {initial}
-          </Text>
+          <LinearGradient
+            colors={[color, color + 'BB', color + '77'] as [string, string, string]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ width: 54, height: 54, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 24, color: '#fff', textShadowColor: 'rgba(0,0,0,0.2)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
+              {initial}
+            </Text>
+          </LinearGradient>
         )}
       </View>
 
       {/* Info */}
-      <View style={{ flex: 1, gap: 3 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs, flexWrap: 'wrap' }}>
-          <Text style={[shared.subheading, { flex: 1 }]} numberOfLines={1}>{club.name}</Text>
-          {isOwner && (
-            <View style={{
-              paddingHorizontal: theme.spacing.xs,
-              paddingVertical: 2,
-              borderRadius: theme.radius.sm,
-              backgroundColor: theme.colors.primary,
-            }}>
-              <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: theme.colors.white }}>
-                Owner
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <Text style={shared.caption}>
-          {memberCount} {memberCount === 1 ? 'member' : 'members'}
+      <View style={{ flex: 1, gap: 3, minWidth: 0 }}>
+        <Text style={{ fontFamily: theme.fonts.display, fontSize: 16, letterSpacing: -0.3, color: theme.colors.text }} numberOfLines={1}>
+          {club.name}
         </Text>
-
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 4,
-          marginTop: 1,
-          alignSelf: 'flex-start',
-          paddingHorizontal: theme.spacing.xs,
-          paddingVertical: 2,
-          borderRadius: theme.radius.sm,
-          backgroundColor: club.membership_type === 'open'
-            ? theme.colors.success + '18'
-            : theme.colors.subtext + '18',
-          borderWidth: 1,
-          borderColor: club.membership_type === 'open'
-            ? theme.colors.success + '40'
-            : theme.colors.border,
-        }}>
-          <Ionicons
-            name={club.membership_type === 'open' ? 'globe-outline' : 'lock-closed-outline'}
-            size={10}
-            color={club.membership_type === 'open' ? theme.colors.success : theme.colors.subtext}
-          />
-          <Text style={{
-            fontSize: theme.font.size.xs,
-            fontWeight: theme.font.weight.medium,
-            color: club.membership_type === 'open' ? theme.colors.success : theme.colors.subtext,
-          }}>
-            {club.membership_type === 'open' ? 'Open' : 'Invite only'}
-          </Text>
-        </View>
+        <Text style={{ fontFamily: theme.fonts.body, fontSize: 11.5, color: theme.colors.subtext }}>
+          {memberCount} members{isOwner ? ' · Owner' : ''}
+        </Text>
       </View>
 
-      <Ionicons name="chevron-forward" size={18} color={theme.colors.subtext} />
+      {/* Joined badge or Join button */}
+      {isMember ? (
+        <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: theme.colors.cool + '20' }}>
+          <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: theme.colors.cool }}>✓ Joined</Text>
+        </View>
+      ) : (
+        <TouchableOpacity
+          onPress={onPress}
+          style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: theme.colors.primary }}
+        >
+          <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: '#fff' }}>Join</Text>
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   )
 }
 
+type ClubFilter = 'joined' | 'nearby' | 'popular'
+
 export default function ClubsScreen() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const [clubs, setClubs] = useState<ClubWithDetails[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [filter, setFilter] = useState<ClubFilter>('joined')
 
   async function fetchClubs(showRefreshing = false) {
     if (showRefreshing) setRefreshing(true)
@@ -212,9 +205,46 @@ export default function ClubsScreen() {
     return club.club_members.some(m => m.user_id === userId)
   }
 
+  const visibleClubs = filter === 'joined' ? myClubs : discoverClubs
+
   return (
-    <View style={[shared.screen]}>
-      <Stack.Screen options={{ title: 'Clubs' }} />
+    <View style={[shared.screen, { paddingTop: insets.top }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* Header */}
+      <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md, paddingBottom: 4 }}>
+        <Text style={{ fontFamily: theme.fonts.display, fontSize: 34, letterSpacing: -1.2, color: theme.colors.text, lineHeight: 38 }}>
+          Clubs
+        </Text>
+      </View>
+
+      {/* Filter pills */}
+      <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm }}>
+        {([
+          { id: 'joined',  label: 'Joined' },
+          { id: 'nearby',  label: 'Near me' },
+          { id: 'popular', label: 'Popular' },
+        ] as const).map(f => {
+          const active = filter === f.id
+          return (
+            <TouchableOpacity
+              key={f.id}
+              onPress={() => setFilter(f.id)}
+              style={{
+                paddingHorizontal: 14, paddingVertical: 7,
+                borderRadius: theme.radius.full,
+                backgroundColor: active ? theme.colors.primary : theme.colors.card,
+                borderWidth: active ? 0 : 1,
+                borderColor: theme.colors.border,
+              }}
+            >
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: active ? '#fff' : theme.colors.text }}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          )
+        })}
+      </View>
 
       {loading ? (
         <View style={shared.centered}>
@@ -229,7 +259,7 @@ export default function ClubsScreen() {
       ) : (
         <ScrollView
           style={shared.screen}
-          contentContainerStyle={shared.scrollContent}
+          contentContainerStyle={{ padding: theme.spacing.lg, paddingTop: 4 }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -239,49 +269,24 @@ export default function ClubsScreen() {
             />
           }
         >
-          {/* My Clubs */}
-          {myClubs.length > 0 && (
-            <>
-              <Text style={[shared.subheading, shared.mb_sm]}>My Clubs</Text>
-              {myClubs.map(club => (
-                <ClubCard
-                  key={club.id}
-                  club={club}
-                  isOwner={isOwner(club)}
-                  isMember={isMember(club)}
-                  onPress={() => router.push(`/club/${club.id}` as any)}
-                />
-              ))}
-              <View style={[shared.divider, shared.mb_md]} />
-            </>
-          )}
-
-          {/* Discover */}
-          <Text style={[shared.subheading, shared.mb_sm]}>
-            {myClubs.length > 0 ? 'Discover' : 'Clubs'}
-          </Text>
-
-          {discoverClubs.length === 0 && myClubs.length === 0 ? (
+          {visibleClubs.length === 0 ? (
             <View style={[shared.card, { alignItems: 'center', gap: theme.spacing.sm, paddingVertical: theme.spacing.xl }]}>
               <Ionicons name="people-outline" size={48} color={theme.colors.subtext} />
               <Text style={[shared.caption, { textAlign: 'center', maxWidth: 260 }]}>
-                No clubs yet. Clubs are created by admins — check back soon!
-              </Text>
-            </View>
-          ) : discoverClubs.length === 0 ? (
-            <View style={[shared.card, { alignItems: 'center', gap: theme.spacing.sm, paddingVertical: theme.spacing.xl }]}>
-              <Ionicons name="checkmark-circle-outline" size={36} color={theme.colors.success} />
-              <Text style={[shared.caption, { textAlign: 'center' }]}>
-                You're in all available clubs!
+                {filter === 'joined'
+                  ? "You haven't joined any clubs yet."
+                  : filter === 'nearby'
+                  ? discoverClubs.length > 0 ? "No clubs nearby — try Discover." : "No clubs yet. Check back soon!"
+                  : clubs.length > 0 ? "You're in all available clubs!" : "No clubs yet. Check back soon!"}
               </Text>
             </View>
           ) : (
-            discoverClubs.map(club => (
+            visibleClubs.map(club => (
               <ClubCard
                 key={club.id}
                 club={club}
-                isOwner={false}
-                isMember={false}
+                isOwner={isOwner(club)}
+                isMember={isMember(club)}
                 onPress={() => router.push(`/club/${club.id}` as any)}
               />
             ))

@@ -108,7 +108,7 @@ export default function NotificationsScreen() {
               <TouchableOpacity
                 onPress={() => void openItem(item)}
                 style={{
-                  backgroundColor: isBadge ? '#FFF9E6' : theme.colors.card,
+                  backgroundColor: isBadge ? theme.colors.accent + '22' : theme.colors.card,
                   borderRadius: theme.radius.md,
                   borderWidth: 1,
                   borderColor: isBadge ? '#FFD700' : theme.colors.border,

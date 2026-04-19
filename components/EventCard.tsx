@@ -12,165 +12,108 @@ function avatarUri(ref: string | null | undefined): string | null {
   return `${SUPABASE_URL}/storage/v1/render/image/public/avatars/${ref}?width=80&height=80&quality=70&resize=cover`
 }
 
-// ─── Tag color helpers ────────────────────────────────────────────────────────
+// ─── Tag helpers ──────────────────────────────────────────────────────────────
 
-function tagColors(tag: Tag): { bg: string; text: string; border: string } {
-  const name = tag.name.toLowerCase()
-  if (name.includes('open play') || name.includes('open-play')) {
-    return { bg: theme.colors.success + '1A', text: theme.colors.success, border: theme.colors.success + '40' }
-  }
-  if (name.includes('tournament')) {
-    return { bg: theme.colors.warning + '1A', text: theme.colors.warning, border: theme.colors.warning + '40' }
-  }
-  return { bg: theme.colors.primary + '1A', text: theme.colors.primary, border: theme.colors.primary + '40' }
+function isTournament(tags: Tag[]): boolean {
+  return tags.some(t => t.name.toLowerCase().includes('tournament'))
 }
 
-// ─── Time parser (event_date is UTC; append Z to force correct parsing) ───────
+/** Accent color for the decorative date numeral — varies by event type */
+function numeralColor(typeTags: Tag[]): string {
+  if (isTournament(typeTags)) return theme.colors.warm
+  return theme.colors.primary
+}
 
-function parseEventTime(dateString: string): { hour: string; ampm: string } {
+// ─── Time / date helpers ──────────────────────────────────────────────────────
+
+function parseEventDate(dateString: string): { day: string; date: number; time: string } {
   const normalized = /[Z+]/.test(dateString) ? dateString : dateString + 'Z'
   const d = new Date(normalized)
+  const dayAbbrevs = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+  const day = dayAbbrevs[d.getDay()]
+  const date = d.getDate()
   const hours = d.getHours()
   const minutes = d.getMinutes()
   const h12 = hours % 12 || 12
-  const ampm = hours < 12 ? 'AM' : 'PM'
-  const hour = `${h12}:${String(minutes).padStart(2, '0')}`
-  return { hour, ampm }
+  const ampm = hours < 12 ? 'am' : 'pm'
+  const time = `${h12}:${String(minutes).padStart(2, '0')}${ampm}`
+  return { day, date, time }
 }
 
-// ─── Card ─────────────────────────────────────────────────────────────────────
+// ─── Event Card ───────────────────────────────────────────────────────────────
 
 function EventCardInner({ event, from: fromOverride }: { event: EventWithDetails; from?: string }) {
   const router = useRouter()
   const pathname = usePathname()
 
   const attendeeCount = eventAttendeeDisplayCount(event)
-  const waitlistedCount = event.event_attendees_waitlisted?.[0]
-    ? Math.max(0, Number(event.event_attendees_waitlisted[0].count))
-    : 0
-  const spotsLeft = event.max_attendees != null
-    ? Math.max(0, event.max_attendees - attendeeCount)
-    : null
+  const spotsLeft = event.max_attendees != null ? Math.max(0, event.max_attendees - attendeeCount) : null
   const isFull = spotsLeft === 0
-  const fillRatio = event.max_attendees
-    ? Math.min(1, attendeeCount / event.max_attendees)
-    : 0
+  const fillRatio = event.max_attendees ? Math.min(1, attendeeCount / event.max_attendees) : 0
 
-  const eventTypeTags = event.event_tags
-    ?.filter(et => et.tags.category === 'event_type')
-    .map(et => et.tags)
-    .sort((a, b) => a.display_order - b.display_order) ?? []
+  const typeTags = event.event_tags?.filter(et => et.tags.category === 'event_type').map(et => et.tags).sort((a, b) => a.display_order - b.display_order) ?? []
+  const skillTags = event.event_tags?.filter(et => et.tags.category === 'skill_level').map(et => et.tags).sort((a, b) => a.display_order - b.display_order) ?? []
 
-  const skillTags = event.event_tags
-    ?.filter(et => et.tags.category === 'skill_level')
-    .map(et => et.tags)
-    .sort((a, b) => a.display_order - b.display_order) ?? []
+  const { day, date, time } = parseEventDate(event.event_date)
+  const accentColor = numeralColor(typeTags)
 
-  const { hour, ampm } = parseEventTime(event.event_date)
-
-  const barColor = isFull
-    ? theme.colors.error
-    : fillRatio >= 0.85
-    ? theme.colors.warning
-    : theme.colors.primary
+  const previews = (event.attendee_previews ?? []).slice(0, 5)
+  const overflow = attendeeCount > previews.length ? attendeeCount - previews.length : 0
 
   return (
     <TouchableOpacity
-      activeOpacity={0.72}
+      activeOpacity={0.85}
       onPress={() => router.push(`/event/${event.id}?from=${encodeURIComponent(fromOverride ?? pathname)}` as any)}
       style={{
-        flexDirection: 'row',
         backgroundColor: theme.colors.card,
-        borderRadius: theme.radius.lg,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderRadius: 24,
+        padding: 16,
         marginBottom: theme.spacing.sm,
         overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.06,
-        shadowRadius: 4,
-        elevation: 1,
+        position: 'relative',
       }}
     >
-      {/* ── Time column ── */}
-      <View style={{
-        width: 60,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: theme.spacing.md,
-        backgroundColor: theme.colors.primary + '12',
-        gap: 1,
-      }}>
-        <Text style={{ fontSize: 15, fontWeight: theme.font.weight.bold, color: theme.colors.primary, letterSpacing: -0.3 }}>
-          {hour}
-        </Text>
-        <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.medium, color: theme.colors.primary }}>
-          {ampm}
-        </Text>
-      </View>
-
-      {/* ── Vertical divider ── */}
-      <View style={{ width: 1, backgroundColor: theme.colors.border }} />
-
-      {/* ── Content ── */}
-      <View style={{ flex: 1, padding: theme.spacing.md, gap: 5 }}>
-
-        {/* Event type tags + club row */}
-        {(eventTypeTags.length > 0 || event.clubs) && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 }}>
-            {eventTypeTags.map(tag => {
-              const c = tagColors(tag)
-              return (
-                <View key={tag.id} style={{
-                  paddingHorizontal: 7, paddingVertical: 2,
-                  borderRadius: theme.radius.full,
-                  backgroundColor: c.bg,
-                  borderWidth: 1,
-                  borderColor: c.border,
-                }}>
-                  <Text style={{ fontSize: 10, fontWeight: theme.font.weight.semibold, color: c.text }}>
-                    {tag.name}
-                  </Text>
-                </View>
-              )
-            })}
-            {event.clubs && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                <Ionicons name="people-outline" size={10} color={theme.colors.primary} />
-                <Text style={{ fontSize: 10, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }}>
-                  {event.clubs.name}
-                </Text>
-              </View>
-            )}
+      {typeTags.length > 0 && (
+        <View pointerEvents="none" style={{ position: 'absolute', right: -10, top: -20 }}>
+          <Text style={{ fontSize: 140, opacity: 0.13 }}>
+            {isTournament(typeTags) ? '🏆' : '🏐'}
+          </Text>
+        </View>
+      )}
+      <View>
+        {/* Top chips: date/time + type + skill */}
+        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+          <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, backgroundColor: theme.colors.accent }}>
+            <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.accentInk }}>
+              {day} · {time}
+            </Text>
           </View>
-        )}
-
-        {/* Skill level tags row */}
-        {skillTags.length > 0 && (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-            {skillTags.map(tag => {
-              const c = tagColors(tag)
-              return (
-                <View key={tag.id} style={{
-                  paddingHorizontal: 6, paddingVertical: 1,
-                  borderRadius: theme.radius.full,
-                  backgroundColor: c.bg,
-                  borderWidth: 1,
-                  borderColor: c.border,
-                }}>
-                  <Text style={{ fontSize: 10, fontWeight: theme.font.weight.semibold, color: c.text }}>
-                    {tag.name}
-                  </Text>
-                </View>
-              )
-            })}
-          </View>
-        )}
+          {typeTags.map(tag => (
+            <View key={tag.id} style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }}>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>
+                {isTournament([tag]) ? '🏆 ' : ''}{tag.name}
+              </Text>
+            </View>
+          ))}
+          {skillTags.slice(0, 1).map(tag => (
+            <View key={tag.id} style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+                {tag.name}
+              </Text>
+            </View>
+          ))}
+          {event.clubs && (
+            <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+                {event.clubs.name}
+              </Text>
+            </View>
+          )}
+        </View>
 
         {/* Title */}
         <Text
-          style={{ fontSize: 15, fontWeight: theme.font.weight.semibold, color: theme.colors.primary, lineHeight: 20 }}
+          style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 22, letterSpacing: -0.6, color: '#fff', lineHeight: 26, maxWidth: '78%' }}
           numberOfLines={2}
         >
           {event.title}
@@ -178,100 +121,211 @@ function EventCardInner({ event, from: fromOverride }: { event: EventWithDetails
 
         {/* Location */}
         {event.location && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <Ionicons name="location-outline" size={12} color={theme.colors.subtext} />
-            <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, flex: 1 }} numberOfLines={1}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
+            <Ionicons name="location-outline" size={12} color="rgba(255,255,255,0.6)" />
+            <Text style={{ fontFamily: theme.fonts.body, fontSize: 12, color: 'rgba(255,255,255,0.6)' }} numberOfLines={1}>
               {event.location}
             </Text>
           </View>
         )}
 
-        {/* Attendee preview + host */}
-        {(() => {
-          const previews = (event.attendee_previews ?? []).slice(0, 2)
-          const overflow = attendeeCount > previews.length ? attendeeCount - previews.length : 0
-          const hostName = event.profiles
-            ? event.profiles.first_name
-              ? `${event.profiles.first_name} ${event.profiles.last_name?.[0] ?? ''}`.trim()
-              : event.profiles.username
-            : 'unknown'
-          if (previews.length === 0) {
-            return (
-              <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext }}>
-                by {hostName}{waitlistedCount > 0 ? ` · ${waitlistedCount} waiting` : ''}
-              </Text>
-            )
-          }
-          return (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+        {/* Attendee row + capacity */}
+        <View style={{
+          marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+          backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 14, padding: 10,
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {/* Avatar stack */}
+            {previews.length > 0 && (
               <View style={{ flexDirection: 'row' }}>
                 {previews.map((p, i) => {
                   const uri = avatarUri(p.profiles?.avatar_url)
                   const initials = p.profiles?.first_name?.[0]?.toUpperCase() ?? '?'
                   return (
                     <View key={p.user_id} style={{
-                      width: 22, height: 22, borderRadius: 11,
-                      backgroundColor: '#E8E2FF',
-                      borderWidth: 1.5, borderColor: theme.colors.card,
-                      marginLeft: i > 0 ? -6 : 0,
+                      width: 24, height: 24, borderRadius: 12,
+                      backgroundColor: theme.colors.primarySoft,
+                      borderWidth: 1.5, borderColor: theme.colors.text,
+                      marginLeft: i > 0 ? -8 : 0,
                       alignItems: 'center', justifyContent: 'center',
                       overflow: 'hidden',
                     }}>
                       {uri
-                        ? <Image source={{ uri }} style={{ width: 22, height: 22 }} />
-                        : <Text style={{ fontSize: 9, fontWeight: theme.font.weight.bold, color: theme.colors.primary }}>{initials}</Text>
+                        ? <Image source={{ uri }} style={{ width: 24, height: 24 }} />
+                        : <Text style={{ fontFamily: theme.fonts.display, fontSize: 8, color: theme.colors.primary }}>{initials}</Text>
                       }
                     </View>
                   )
                 })}
                 {overflow > 0 && (
                   <View style={{
-                    width: 22, height: 22, borderRadius: 11,
-                    backgroundColor: theme.colors.border,
-                    borderWidth: 1.5, borderColor: theme.colors.card,
-                    marginLeft: -6,
-                    alignItems: 'center', justifyContent: 'center',
+                    width: 24, height: 24, borderRadius: 12,
+                    backgroundColor: 'rgba(255,255,255,0.15)',
+                    borderWidth: 1.5, borderColor: theme.colors.text,
+                    marginLeft: -8, alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <Text style={{ fontSize: 8, fontWeight: theme.font.weight.semibold, color: theme.colors.subtext }}>+{overflow}</Text>
+                    <Text style={{ fontFamily: theme.fonts.body, fontSize: 8, fontWeight: '700', color: 'rgba(255,255,255,0.7)' }}>+{overflow}</Text>
                   </View>
                 )}
               </View>
-              <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext }}>
-                by {hostName}{waitlistedCount > 0 ? ` · ${waitlistedCount} waiting` : ''}
+            )}
+            <View>
+              <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 15, letterSpacing: -0.2, color: '#fff' }}>
+                {attendeeCount}
+                {event.max_attendees
+                  ? <Text style={{ opacity: 0.4, fontSize: 13 }}>/{event.max_attendees}</Text>
+                  : null}
               </Text>
-            </View>
-          )
-        })()}
-
-        {/* Capacity bar */}
-        {event.max_attendees != null ? (
-          <View style={{ marginTop: 2 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <Text style={{ fontSize: 10, fontWeight: theme.font.weight.medium, color: isFull ? theme.colors.error : theme.colors.subtext }}>
-                {isFull ? 'Full' : `${spotsLeft} spot${spotsLeft !== 1 ? 's' : ''} left`}
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: 9.5, color: 'rgba(255,255,255,0.5)', fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' }}>
+                {isFull ? 'Full' : `${spotsLeft ?? '∞'} spot${spotsLeft !== 1 ? 's' : ''} left`}
               </Text>
-              <Text style={{ fontSize: 10, color: theme.colors.subtext }}>
-                {attendeeCount}/{event.max_attendees}
-              </Text>
-            </View>
-            <View style={{ height: 4, backgroundColor: theme.colors.border, borderRadius: 2 }}>
-              <View style={{
-                height: 4,
-                width: `${Math.round(fillRatio * 100)}%`,
-                backgroundColor: barColor,
-                borderRadius: 2,
-              }} />
             </View>
           </View>
-        ) : (
-          <Text style={{ fontSize: 10, color: theme.colors.subtext, marginTop: 1 }}>
-            {attendeeCount} attending
-          </Text>
-        )}
+          <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: theme.colors.accent }}>
+            <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 12, letterSpacing: 0.2, color: theme.colors.accentInk }}>RSVP</Text>
+          </View>
+        </View>
 
+        {/* Capacity bar */}
+        {event.max_attendees != null && (
+          <View style={{ marginTop: 8, height: 3, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 2, overflow: 'hidden' }}>
+            <View style={{ width: `${Math.round(fillRatio * 100)}%` as any, height: '100%', backgroundColor: accentColor, borderRadius: 2 }} />
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   )
 }
 
 export const EventCard = memo(EventCardInner) as typeof EventCardInner
+// HeroEventCard is now the same component — kept for backwards compatibility
+export const HeroEventCard = EventCard
+
+// ─── Row Event Card (desktop secondary cards) ─────────────────────────────────
+
+function RowEventCardInner({ event, from: fromOverride }: { event: EventWithDetails; from?: string }) {
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const attendeeCount = eventAttendeeDisplayCount(event)
+  const spotsLeft = event.max_attendees != null ? Math.max(0, event.max_attendees - attendeeCount) : null
+  const fillRatio = event.max_attendees ? Math.min(1, attendeeCount / event.max_attendees) : 0
+
+  const typeTags = event.event_tags?.filter(et => et.tags.category === 'event_type').map(et => et.tags).sort((a, b) => a.display_order - b.display_order) ?? []
+  const skillTags = event.event_tags?.filter(et => et.tags.category === 'skill_level').map(et => et.tags).sort((a, b) => a.display_order - b.display_order) ?? []
+
+  const { day, date, time } = parseEventDate(event.event_date)
+  const accentColor = numeralColor(typeTags)
+  const tourney = isTournament(typeTags)
+
+  const previews = (event.attendee_previews ?? []).slice(0, 4)
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={() => router.push(`/event/${event.id}?from=${encodeURIComponent(fromOverride ?? pathname)}` as any)}
+      style={{
+        backgroundColor: theme.colors.card,
+        borderRadius: 20,
+        padding: 14,
+        marginBottom: theme.spacing.sm,
+        flexDirection: 'row',
+        gap: 14,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+      }}
+    >
+      {/* Date block */}
+      <View style={{
+        width: 56, flexShrink: 0, borderRadius: 14,
+        backgroundColor: tourney
+          ? theme.colors.warm + '22'
+          : theme.colors.primary + '18',
+        alignItems: 'center', justifyContent: 'center',
+        paddingVertical: 10,
+      }}>
+        <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 10, fontWeight: '700', letterSpacing: 1, color: accentColor }}>{day}</Text>
+        <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 28, lineHeight: 30, color: accentColor, letterSpacing: -1.2 }}>{date}</Text>
+        <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', letterSpacing: 0.6, color: accentColor, opacity: 0.7, marginTop: 2 }}>{time}</Text>
+      </View>
+
+      {/* Content */}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        {/* Chips */}
+        <View style={{ flexDirection: 'row', gap: 5, marginBottom: 6, flexWrap: 'wrap' }}>
+          {typeTags.slice(0, 1).map(tag => (
+            <View key={tag.id} style={{
+              paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.full,
+              backgroundColor: tourney ? theme.colors.warm + '22' : theme.colors.primary + '18',
+            }}>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: accentColor }}>
+                {tourney ? '🏆 ' : ''}{tag.name}
+              </Text>
+            </View>
+          ))}
+          {skillTags.slice(0, 1).map(tag => (
+            <View key={tag.id} style={{
+              paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.full,
+              borderWidth: 1, borderColor: theme.colors.border,
+            }}>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, color: theme.colors.subtext }}>{tag.name}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Title */}
+        <Text numberOfLines={1} style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 15, letterSpacing: -0.3, color: theme.colors.text, lineHeight: 18 }}>
+          {event.title}
+        </Text>
+
+        {/* Location */}
+        {event.location && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+            <Ionicons name="location-outline" size={11} color={theme.colors.subtext} />
+            <Text numberOfLines={1} style={{ fontFamily: theme.fonts.body, fontSize: 11.5, color: theme.colors.subtext }}>
+              {event.location}
+            </Text>
+          </View>
+        )}
+
+        {/* Attendees + capacity bar */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 }}>
+          {previews.length > 0 && (
+            <View style={{ flexDirection: 'row' }}>
+              {previews.map((p, i) => {
+                const uri = avatarUri(p.profiles?.avatar_url)
+                const initials = p.profiles?.first_name?.[0]?.toUpperCase() ?? '?'
+                return (
+                  <View key={p.user_id} style={{
+                    width: 22, height: 22, borderRadius: 11,
+                    backgroundColor: theme.colors.primarySoft,
+                    borderWidth: 1.5, borderColor: theme.colors.card,
+                    marginLeft: i > 0 ? -7 : 0,
+                    alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden',
+                  }}>
+                    {uri
+                      ? <Image source={{ uri }} style={{ width: 22, height: 22 }} />
+                      : <Text style={{ fontFamily: theme.fonts.display, fontSize: 7, color: theme.colors.primary }}>{initials}</Text>
+                    }
+                  </View>
+                )
+              })}
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <View style={{ height: 3, backgroundColor: theme.colors.borderSoft, borderRadius: 2, overflow: 'hidden' }}>
+              <View style={{ width: `${Math.round(fillRatio * 100)}%` as any, height: '100%', backgroundColor: accentColor, borderRadius: 2 }} />
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 }}>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '600', color: theme.colors.subtext }}>{attendeeCount} going</Text>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '600', color: theme.colors.subtext }}>{spotsLeft != null ? `${spotsLeft} left` : '∞'}</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  )
+}
+
+export const RowEventCard = memo(RowEventCardInner) as typeof RowEventCardInner

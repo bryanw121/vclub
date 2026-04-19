@@ -11,13 +11,14 @@ export type VolleyballPosition =
   | 'opposite_hitter'
   | 'middle_blocker'
 
-/** Self-reported tier in `profiles.skill_level` (optional). */
+/** Self-reported tier in `profiles.skill_level` (optional). Matches event tag names. */
 export type VolleyballSkillLevel =
-  | 'recreational'
-  | 'beginner'
-  | 'intermediate'
-  | 'advanced'
-  | 'competitive'
+  | 'd'
+  | 'c'
+  | 'b'
+  | 'bb'
+  | 'a'
+  | 'aa_plus'
 
 /**
  * `profiles` table

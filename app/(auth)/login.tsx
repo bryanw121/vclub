@@ -203,7 +203,7 @@ export default function Login() {
           onPress={() => setEasterEgg(false)}
           style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}
         >
-          <View style={{ backgroundColor: 'white', borderRadius: 24, padding: 32, alignItems: 'center', gap: 12, maxWidth: 300 }}>
+          <View style={{ backgroundColor: theme.colors.card, borderRadius: 24, padding: 32, alignItems: 'center', gap: 12, maxWidth: 300 }}>
             <Text style={{ fontSize: 48 }}>🏐🏆🏐</Text>
             <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#7C4DFF', textAlign: 'center' }}>You're a natural!</Text>
             <Text style={{ fontSize: 15, color: '#666', textAlign: 'center' }}>10 spikes. The team needs you. Now go sign in.</Text>

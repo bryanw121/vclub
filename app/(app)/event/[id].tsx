@@ -3,6 +3,7 @@ import { Platform, View, Text, Image, ScrollView, Alert, Share, Pressable, Touch
 import { GestureDetector, Gesture, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, interpolate, Extrapolation } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router'
 import * as Linking from 'expo-linking'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -162,32 +163,37 @@ function CheerPersonCard({ profile, hasGiven, disabled, teamColor, onPress }: Ch
   )
 }
 
-function HostCard({ profile, isOwner, onPress, inline = false }: { profile: Profile; isOwner: boolean; onPress: () => void; inline?: boolean }) {
+
+function HostRow({
+  hostId, name, initial, avatarUrl, border, label, isMe, onMessage, onPress,
+}: {
+  hostId: string; name: string; initial: string; avatarUrl?: string | null
+  border?: string | null; label: string; isMe: boolean
+  onMessage: () => void; onPress: () => void
+}) {
   const [avatarUri, setAvatarUri] = useState<string | null>(null)
   useEffect(() => {
-    if (!profile.avatar_url) return
+    if (!avatarUrl) return
     let cancelled = false
-    resolveProfileAvatarUriSmall(profile.avatar_url).then(({ uri }) => {
-      if (!cancelled) setAvatarUri(uri)
-    })
+    resolveProfileAvatarUriSmall(avatarUrl).then(({ uri }) => { if (!cancelled) setAvatarUri(uri) })
     return () => { cancelled = true }
-  }, [profile.avatar_url])
-
-  const displayName = profileDisplayName(profile)
-
+  }, [avatarUrl])
   return (
     <TouchableOpacity
-      style={inline
-        ? { flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }
-        : [shared.card, { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }]
-      }
-      onPress={onPress}
-      activeOpacity={isOwner ? 1 : 0.7}
-      disabled={isOwner}
+      activeOpacity={isMe ? 1 : 0.75}
+      onPress={isMe ? undefined : onPress}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}
     >
-      <ProfileAvatar uri={avatarUri} border={profile.selected_border ?? null} size={inline ? 32 : 40} />
-      <Text style={[shared.body, { flex: 1 }]}>{displayName}</Text>
-      {!isOwner && !inline && <Ionicons name="chevron-forward" size={16} color={theme.colors.subtext} style={{ marginLeft: 'auto' }} />}
+      <ProfileAvatar uri={avatarUri} border={border ?? null} size={44} />
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</Text>
+        <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 16, color: theme.colors.text, letterSpacing: -0.2 }}>{name}</Text>
+      </View>
+      {!isMe && (
+        <TouchableOpacity onPress={onMessage} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border }} hitSlop={4}>
+          <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: theme.colors.text }}>Message</Text>
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   )
 }
@@ -2012,22 +2018,18 @@ export default function EventDetail() {
   return (
     <View
       ref={containerRef}
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: theme.colors.background }}
       pointerEvents={(removeModal !== null || denyModal !== null) ? 'none' : 'auto'}
       onLayout={() => { measureContainerOffset() }}
     >
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
 
-      {/* Web-only page header: back + actions */}
+      {/* Web-only page header: back + actions (no title — banner shows it) */}
       {Platform.OS === 'web' && (
         <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: theme.spacing.md,
-          paddingVertical: theme.spacing.xs,
-          zIndex: 10,
-          backgroundColor: theme.colors.background,
-          gap: 4,
+          flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+          paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs,
+          zIndex: 10, backgroundColor: theme.colors.background,
         }}>
           <Pressable
             onPress={goBack}
@@ -2035,27 +2037,10 @@ export default function EventDetail() {
               width: 36, height: 36, borderRadius: 18,
               alignItems: 'center', justifyContent: 'center',
               backgroundColor: pressed ? theme.colors.primary + '14' : 'transparent',
-              flexShrink: 0,
-              zIndex: 1,
             })}
           >
             <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
           </Pressable>
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', minWidth: 0 }}>
-            <Text
-              style={{
-                textAlign: 'center',
-                fontSize: 18,
-                fontWeight: theme.font.weight.bold,
-                color: theme.colors.primary,
-                letterSpacing: -0.3,
-              }}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {event?.title ?? ''}
-            </Text>
-          </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
             <View>
               <Pressable
@@ -2127,51 +2112,101 @@ export default function EventDetail() {
         </View>
       ) : (
         <>
-          {/* Fixed header: title + tabs — no separator, blends with background */}
+          {/* Fixed header: banner + tabs */}
           <View style={{ backgroundColor: theme.colors.background, paddingTop: Platform.OS !== 'web' ? insets.top + 52 : 0 }}>
-            {/* Centered event title — native only (web header already shows it) */}
-            {Platform.OS !== 'web' && (
-              <Text
-                style={{
-                  textAlign: 'center',
-                  fontSize: 26,
-                  fontWeight: theme.font.weight.bold,
-                  color: theme.colors.primary,
-                  paddingHorizontal: theme.spacing.xl,
-                  paddingTop: theme.spacing.sm,
-                  paddingBottom: theme.spacing.md,
-                  letterSpacing: -0.5,
-                  lineHeight: 32,
-                }}
-                numberOfLines={2}
-              >
-                {event.title}
-              </Text>
-            )}
+            {/* Event banner card */}
+            {(() => {
+              const normalized = /[Z+]/.test(event.event_date) ? event.event_date : event.event_date + 'Z'
+              const d = new Date(normalized)
+              const dayStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+              const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+              const dur = formatDuration(event.duration_minutes ?? 120)
+              const typeTags = (event.event_tags ?? []).filter(et => et.tags.category === 'event_type')
+              const locationLabel = LOCATIONS.find(l => l.id === event.location)?.label ?? event.location ?? ''
+              return (
+                <View style={{ marginHorizontal: theme.spacing.md, marginTop: theme.spacing.xs, marginBottom: theme.spacing.sm, borderRadius: 22, overflow: 'hidden' }}>
+                  <View style={{ backgroundColor: theme.colors.primary, padding: 18, position: 'relative', overflow: 'hidden' }}>
+                    {/* Diagonal stripe overlay */}
+                    <View pointerEvents="none" style={{
+                      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                      opacity: 0.16,
+                      ...(Platform.OS === 'web' ? {
+                        backgroundImage: 'repeating-linear-gradient(-28deg, transparent 0, transparent 28px, rgba(255,255,255,0.55) 28px, rgba(255,255,255,0.55) 32px)',
+                      } : {}),
+                    } as any} />
+                    {/* Decorative gradient overlay */}
+                    <LinearGradient
+                      colors={['rgba(255,255,255,0.22)', 'transparent']}
+                      start={{ x: 1, y: 0 }}
+                      end={{ x: 0.2, y: 1 }}
+                      style={{ position: 'absolute', top: 0, right: 0, width: 220, height: 160 }}
+                      pointerEvents="none"
+                    />
+                    {/* Date + type chips */}
+                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                      <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, backgroundColor: theme.colors.accent }}>
+                        <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.accentInk }}>
+                          {dayStr} · {timeStr}
+                        </Text>
+                      </View>
+                      {typeTags.map(et => (
+                        <View key={et.tag_id} style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' }}>
+                          <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: 'rgba(255,255,255,0.9)' }}>
+                            {et.tags.name}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                    {/* Title */}
+                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 28, letterSpacing: -0.8, color: '#fff', lineHeight: 32 }}>
+                      {event.title}
+                    </Text>
+                    {/* Location + duration */}
+                    {(locationLabel || dur) && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
+                        <Ionicons name="location-outline" size={13} color="rgba(255,255,255,0.75)" />
+                        <Text style={{ fontFamily: theme.fonts.body, fontSize: 12.5, color: 'rgba(255,255,255,0.85)' }}>
+                          {[locationLabel, dur].filter(Boolean).join(' · ')}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )
+            })()}
 
             {/* Tab labels */}
-            <View style={{ flexDirection: 'row' }}>
-              {(['Description', 'People', 'Discussion', 'Cheers'] as const).map((label, i) => (
-                <TouchableOpacity
-                  key={label}
-                  onPress={() => { if (i !== 3) { setSelectedCheerType(null); setPendingCheers([]) } setActiveTab(i) }}
-                  style={[
-                    { flex: 1, alignItems: 'center', paddingVertical: 14 },
-                    Platform.OS === 'web' && { outlineStyle: 'none' } as any,
-                  ]}
-                >
-                  <Text style={{
-                    fontSize: theme.font.size.sm,
-                    fontWeight: activeTab === i ? theme.font.weight.bold : theme.font.weight.regular,
-                    color: activeTab === i ? theme.colors.primary : theme.colors.subtext,
-                  }}>
-                    {label}
-                  </Text>
-                  {activeTab === i && (
-                    <View style={{ position: 'absolute', bottom: 0, left: 12, right: 12, height: 3, backgroundColor: theme.colors.primary, borderRadius: 2 }} />
-                  )}
-                </TouchableOpacity>
-              ))}
+            <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: theme.colors.border }}>
+              {(['Details', 'People', 'Discussion', 'Cheers'] as const).map((label, i) => {
+                const active = activeTab === i
+                const badge = i === 1 && totalAttending > 0 ? totalAttending : 0
+                return (
+                  <TouchableOpacity
+                    key={label}
+                    onPress={() => { if (i !== 3) { setSelectedCheerType(null); setPendingCheers([]) } setActiveTab(i) }}
+                    style={[
+                      { flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5, paddingVertical: 13 },
+                      Platform.OS === 'web' && { outlineStyle: 'none' } as any,
+                    ]}
+                  >
+                    <Text style={{
+                      fontFamily: active ? theme.fonts.bodySemiBold : theme.fonts.body,
+                      fontSize: theme.font.size.sm,
+                      color: active ? theme.colors.text : theme.colors.subtext,
+                    }}>
+                      {label}
+                    </Text>
+                    {badge > 0 && (
+                      <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: active ? theme.colors.primary : theme.colors.border }}>
+                        <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: 9, color: active ? '#fff' : theme.colors.subtext }}>{badge}</Text>
+                      </View>
+                    )}
+                    {active && (
+                      <View style={{ position: 'absolute', bottom: 0, left: 10, right: 10, height: 2.5, backgroundColor: theme.colors.primary, borderRadius: 2 }} />
+                    )}
+                  </TouchableOpacity>
+                )
+              })}
             </View>
           </View>
 
@@ -2183,12 +2218,70 @@ export default function EventDetail() {
             }}
             pagerBlockedRef={innerPagerBlocked}
           >
-            {/* Tab 0: Description */}
+            {/* Tab 0: Details */}
             <ScrollView
               style={shared.screen}
               contentContainerStyle={[shared.scrollContent, { paddingBottom: descFooterHeight + Math.max(insets.bottom, theme.spacing.md) }]}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
             >
+
+              {/* ── Quick-stats strip ── */}
+              {(() => {
+                const dur = formatDuration(event.duration_minutes ?? 120)
+                const priceStr = event.price != null && event.price > 0
+                  ? `$${event.price % 1 === 0 ? event.price : event.price.toFixed(2)}`
+                  : 'Free'
+                const capStr = event.max_attendees ? `${totalAttending}/${event.max_attendees}` : '∞'
+                const stats = [
+                  { k: dur,      l: 'Duration' },
+                  { k: priceStr, l: 'Price' },
+                  { k: capStr,   l: 'Capacity' },
+                ]
+                return (
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: theme.spacing.md }}>
+                    {stats.map(s => (
+                      <View key={s.l} style={{ flex: 1, backgroundColor: theme.colors.card, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' }}>
+                        <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 20, letterSpacing: -0.5, color: theme.colors.text }}>{s.k}</Text>
+                        <Text style={{ fontFamily: theme.fonts.body, fontSize: 10, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 0.7, textTransform: 'uppercase', marginTop: 2 }}>{s.l}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )
+              })()}
+
+              {/* ── Host card ── */}
+              {event.profiles && (() => {
+                const host = event.profiles
+                const allHosts = [
+                  { id: host.id, name: profileDisplayName(host), initial: profileInitial(host), avatarUrl: host.avatar_url, border: host.selected_border, isMe: host.id === userId, label: 'Host' as const },
+                  ...cohosts.map(c => {
+                    const p = c.profiles as Profile
+                    return { id: c.user_id, name: profileDisplayName(p), initial: profileInitial(p), avatarUrl: p.avatar_url, border: p.selected_border, isMe: c.user_id === userId, label: 'Co-host' as const }
+                  }),
+                ]
+                return (
+                  <View style={{ backgroundColor: theme.colors.card, borderRadius: 18, borderWidth: 1, borderColor: theme.colors.border, marginBottom: theme.spacing.md, overflow: 'hidden' }}>
+                    {allHosts.map((h, idx) => (
+                      <View key={h.id} style={idx > 0 ? { borderTopWidth: 1, borderTopColor: theme.colors.border } : undefined}>
+                        <HostRow
+                          hostId={h.id}
+                          name={h.name}
+                          initial={h.initial}
+                          avatarUrl={h.avatarUrl}
+                          border={h.border}
+                          label={h.label}
+                          isMe={h.isMe}
+                          onPress={() => router.push(`/profile/${h.id}` as any)}
+                          onMessage={async () => {
+                            const { data: convId } = await supabase.rpc('find_or_create_dm', { other_user_id: h.id })
+                            if (convId) router.push(`/chat/${convId}` as any)
+                          }}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                )
+              })()}
 
               {/* ── Tags + capacity ── */}
               <View style={{ marginBottom: theme.spacing.md }}>
@@ -2391,70 +2484,28 @@ export default function EventDetail() {
                   </View>
                 </>
 
-                {/* Host(s) row */}
-                {event.profiles && (
-                  <>
-                    <View style={{ height: 1, backgroundColor: theme.colors.border }} />
-                    <View style={{ paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm, gap: theme.spacing.sm }}>
-                      {/* Primary host */}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
-                        <View style={{ width: 36, height: 36, borderRadius: theme.radius.sm, backgroundColor: theme.colors.primary + '14', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <Ionicons name="person-outline" size={18} color={theme.colors.primary} />
-                        </View>
-                        <HostCard
-                          profile={event.profiles as Profile}
-                          isOwner={isOwner}
-                          onPress={() => !isOwner && event.profiles && router.push(`/profile/${event.profiles.id}` as any)}
-                          inline
-                        />
-                        <View style={{ backgroundColor: theme.colors.primary, borderRadius: theme.radius.sm, paddingHorizontal: 8, paddingVertical: 3 }}>
-                          <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: theme.colors.white }}>Host</Text>
-                        </View>
-                      </View>
-                      {/* Cohosts */}
-                      {cohosts.map(c => (
-                        <View key={c.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
-                          <View style={{ width: 36 }} />
-                          <HostCard
-                            profile={c.profiles as unknown as Profile}
-                            isOwner={c.user_id === userId}
-                            onPress={() => c.user_id !== userId && router.push(`/profile/${c.user_id}` as any)}
-                            inline
-                          />
-                          <View style={{ backgroundColor: theme.colors.subtext + '28', borderRadius: theme.radius.sm, paddingHorizontal: 8, paddingVertical: 3 }}>
-                            <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: theme.colors.subtext }}>Co-host</Text>
-                          </View>
-                        </View>
-                      ))}
-                      {/* Manage cohosts — primary host only */}
-                      {isOwner && (
-                        <TouchableOpacity
-                          onPress={() => setCohostModalVisible(true)}
-                          style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingLeft: 36 + theme.spacing.md, paddingTop: theme.spacing.xs }}
-                        >
-                          <Ionicons name="person-add-outline" size={14} color={theme.colors.primary} />
-                          <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
-                            {cohosts.length >= 3 ? 'Manage Co-hosts' : 'Manage Co-hosts'}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </>
-                )}
-
-                {/* Description row */}
-                {event.description ? (
-                  <>
-                    <View style={{ height: 1, backgroundColor: theme.colors.border }} />
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.md, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm }}>
-                      <View style={{ width: 36, height: 36, borderRadius: theme.radius.sm, backgroundColor: theme.colors.primary + '14', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Ionicons name="document-text-outline" size={18} color={theme.colors.primary} />
-                      </View>
-                      <LinkedText text={event.description} style={{ flex: 1, fontSize: theme.font.size.sm, color: theme.colors.text, lineHeight: 20, paddingTop: 10 }} />
-                    </View>
-                  </>
-                ) : null}
               </View>
+
+              {/* ── About / description card ── */}
+              {event.description ? (
+                <View style={{ backgroundColor: theme.colors.card, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: theme.colors.border, marginBottom: theme.spacing.md }}>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8 }}>About</Text>
+                  <LinkedText text={event.description} style={{ fontSize: theme.font.size.sm, color: theme.colors.text, lineHeight: 20 }} />
+                </View>
+              ) : null}
+
+              {/* Cohosts — manage section (owner only) */}
+              {isOwner && (
+                <TouchableOpacity
+                  onPress={() => setCohostModalVisible(true)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginBottom: theme.spacing.md }}
+                >
+                  <Ionicons name="person-add-outline" size={14} color={theme.colors.primary} />
+                  <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
+                    Manage Co-hosts{cohosts.length > 0 ? ` (${cohosts.length})` : ''}
+                  </Text>
+                </TouchableOpacity>
+              )}
 
             </ScrollView>
 

@@ -30,16 +30,17 @@ export const shared = StyleSheet.create({
   },
 
   // ─── Typography ───────────────────────────────────────────
-  heading:      { fontSize: font.size.xl,  fontWeight: font.weight.bold,     color: colors.text },
-  subheading:   { fontSize: font.size.lg,  fontWeight: font.weight.semibold,  color: colors.text },
-  body:         { fontSize: font.size.md,  fontWeight: font.weight.regular,   color: colors.text, lineHeight: font.lineHeight.normal },
-  caption:      { fontSize: font.size.sm,  fontWeight: font.weight.regular,   color: colors.subtext },
-  label:        { fontSize: font.size.sm,  fontWeight: font.weight.medium,    color: colors.subtext, marginBottom: spacing.xs },
-  primaryText:  { fontSize: font.size.md,  fontWeight: font.weight.medium,    color: colors.primary },
-  errorText:    { fontSize: font.size.sm,  color: colors.error, marginTop: spacing.xs },
+  heading:      { fontFamily: theme.fonts.display,       fontSize: font.size.xl,  color: colors.text },
+  subheading:   { fontFamily: theme.fonts.displaySemiBold, fontSize: font.size.lg,  color: colors.text },
+  body:         { fontFamily: theme.fonts.body,           fontSize: font.size.md,  color: colors.text, lineHeight: font.lineHeight.normal },
+  caption:      { fontFamily: theme.fonts.body,           fontSize: font.size.sm,  color: colors.subtext },
+  label:        { fontFamily: theme.fonts.bodyMedium,     fontSize: font.size.sm,  color: colors.subtext, marginBottom: spacing.xs },
+  primaryText:  { fontFamily: theme.fonts.bodyMedium,     fontSize: font.size.md,  color: colors.primary },
+  errorText:    { fontFamily: theme.fonts.body,           fontSize: font.size.sm,  color: colors.error, marginTop: spacing.xs },
 
   // ─── Inputs ───────────────────────────────────────────────
   input: {
+    fontFamily: theme.fonts.body,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -59,8 +60,8 @@ export const shared = StyleSheet.create({
   buttonSecondary:    { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.primary },
   buttonDanger:       { backgroundColor: colors.error },
   buttonDisabled:     { opacity: 0.5 },
-  buttonLabelPrimary: { color: colors.white,   fontSize: font.size.md, fontWeight: font.weight.semibold },
-  buttonLabelSecondary: { color: colors.primary, fontSize: font.size.md, fontWeight: font.weight.semibold },
+  buttonLabelPrimary: { fontFamily: theme.fonts.bodySemiBold, color: colors.white,   fontSize: font.size.md },
+  buttonLabelSecondary: { fontFamily: theme.fonts.bodySemiBold, color: colors.primary, fontSize: font.size.md },
 
   // ─── Badges ───────────────────────────────────────────────
   badge:     { backgroundColor: colors.primary, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },

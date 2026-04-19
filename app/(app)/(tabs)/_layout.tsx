@@ -117,10 +117,9 @@ export default function TabsLayout() {
     setTimeout(() => router.push(path as any), 160);
   }
 
-  const fabBottom = tabBarHeight + theme.spacing.md;
   const onSettingsOrUserProfile =
     pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname);
-  const showFab = activeTabIndex === 0 && !onSettingsOrUserProfile;
+  const showCreateOptions = activeTabIndex === 0 && !onSettingsOrUserProfile;
 
   return (
     <TabsContext.Provider value={{
@@ -164,7 +163,7 @@ export default function TabsLayout() {
           <Animated.View
             style={{
               position: "absolute",
-              bottom: fabBottom + 52 + theme.spacing.sm,
+              bottom: tabBarHeight + theme.spacing.sm,
               right: theme.spacing.lg,
               gap: theme.spacing.sm,
               alignItems: "flex-end",
@@ -190,7 +189,7 @@ export default function TabsLayout() {
                   elevation: 4,
                 }}
               >
-                <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.medium, color: theme.colors.text }}>
+                <Text style={{ fontFamily: theme.fonts.bodyMedium, fontSize: theme.font.size.md, color: theme.colors.text }}>
                   {opt.label}
                 </Text>
               </TouchableOpacity>
@@ -198,31 +197,7 @@ export default function TabsLayout() {
           </Animated.View>
         )}
 
-        {showFab && (
-          <TouchableOpacity
-            onPress={fabOpen ? closeFab : openFab}
-            style={{
-              position: "absolute",
-              bottom: fabBottom,
-              right: theme.spacing.lg,
-              width: 52,
-              height: 52,
-              borderRadius: 26,
-              backgroundColor: theme.colors.primary,
-              alignItems: "center",
-              justifyContent: "center",
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.2,
-              shadowRadius: 6,
-              elevation: 6,
-            }}
-          >
-            <Animated.View style={{ transform: [{ rotate: fabAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "45deg"] }) }] }}>
-              <Ionicons name="add" size={28} color={theme.colors.white} />
-            </Animated.View>
-          </TouchableOpacity>
-        )}
+        {/* FAB button is now embedded in the nav bar — no separate FAB */}
 
         <Animated.View
           style={{
@@ -235,54 +210,92 @@ export default function TabsLayout() {
             setTabBarHeight(h);
           }}
         >
-          <View style={{
-            flexDirection: "row",
-            borderTopWidth: 1,
-            borderTopColor: theme.colors.border,
-            backgroundColor: theme.colors.card,
-            paddingTop: theme.spacing.sm + 2,
-            paddingBottom: Math.max(bottomInset, theme.spacing.sm + 2),
-          }}>
-            {MOBILE_NAV_TABS.map((tab) => {
-              const active = activeTabIndex === tab.pageIndex;
-              const badge = tab.name === 'Chat' && chatUnread > 0 ? chatUnread : 0;
-              return (
-                <TouchableOpacity
-                  key={tab.name}
-                  onPress={() => handleTabPress(tab.pageIndex)}
-                  style={{ flex: 1, alignItems: "center", gap: 4 }}
-                >
-                  <View style={{ position: "relative" }}>
-                    <Ionicons
-                      name={tab.icon}
-                      size={24}
-                      color={active ? theme.colors.primary : theme.colors.subtext}
-                    />
-                    {badge > 0 && (
-                      <View style={{
-                        position: "absolute", top: -4, right: -8,
-                        minWidth: 17, height: 17, borderRadius: 9,
-                        backgroundColor: theme.colors.primary,
-                        alignItems: "center", justifyContent: "center",
-                        paddingHorizontal: 3,
-                        borderWidth: 1.5, borderColor: theme.colors.card,
-                      }}>
-                        <Text style={{ fontSize: 9, fontWeight: "800", color: "#fff", lineHeight: 12 }}>
-                          {badge > 99 ? "99+" : badge}
-                        </Text>
+          {/* Bottom padding spacer — counted in tabBarHeight for content offset */}
+          <View style={{ paddingBottom: Math.max(bottomInset, 10) + 10 }}>
+            <View style={{
+              flexDirection: "row",
+              marginHorizontal: 14,
+              backgroundColor: theme.colors.card,
+              borderRadius: 26,
+              paddingVertical: 10,
+              paddingHorizontal: 10,
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.25,
+              shadowRadius: 20,
+              elevation: 12,
+            }}>
+              {MOBILE_NAV_TABS.map((tab, idx) => {
+                const active = activeTabIndex === tab.pageIndex;
+                const badge = tab.name === 'Chat' && chatUnread > 0 ? chatUnread : 0;
+
+                // Insert Create button between Clubs (idx=1) and Chat (idx=2)
+                const createBtn = idx === 2 ? (
+                  <TouchableOpacity
+                    key="create"
+                    onPress={fabOpen ? closeFab : openFab}
+                    style={{
+                      width: 46, height: 46, borderRadius: 15,
+                      backgroundColor: fabOpen ? theme.colors.accent + 'CC' : theme.colors.accent,
+                      alignItems: 'center', justifyContent: 'center',
+                      shadowColor: theme.colors.accent,
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.5,
+                      shadowRadius: 8,
+                      elevation: 6,
+                    }}
+                  >
+                    <Animated.View style={{ transform: [{ rotate: fabAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "45deg"] }) }] }}>
+                      <Ionicons name="add" size={24} color={theme.colors.accentInk} />
+                    </Animated.View>
+                  </TouchableOpacity>
+                ) : null;
+
+                return (
+                  <React.Fragment key={tab.name}>
+                    {createBtn}
+                    <TouchableOpacity
+                      onPress={() => handleTabPress(tab.pageIndex)}
+                      style={{
+                        flex: 1, alignItems: "center", gap: 3,
+                        paddingVertical: 6, borderRadius: 14,
+                        backgroundColor: active ? 'rgba(255,255,255,0.12)' : 'transparent',
+                      }}
+                    >
+                      <View style={{ position: "relative" }}>
+                        <Ionicons
+                          name={tab.icon}
+                          size={20}
+                          color={active ? '#FFFFFF' : 'rgba(255,255,255,0.5)'}
+                        />
+                        {badge > 0 && (
+                          <View style={{
+                            position: "absolute", top: -4, right: -7,
+                            minWidth: 15, height: 15, borderRadius: 8,
+                            backgroundColor: theme.colors.hot,
+                            alignItems: "center", justifyContent: "center",
+                            paddingHorizontal: 2,
+                          }}>
+                            <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: 8, color: '#fff', lineHeight: 10 }}>
+                              {badge > 99 ? "99+" : badge}
+                            </Text>
+                          </View>
+                        )}
                       </View>
-                    )}
-                  </View>
-                  <Text style={{
-                    fontSize: 11,
-                    color: active ? theme.colors.primary : theme.colors.subtext,
-                    fontWeight: active ? theme.font.weight.medium : theme.font.weight.regular,
-                  }}>
-                    {tab.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                      <Text style={{
+                        fontSize: 9,
+                        fontFamily: active ? theme.fonts.bodySemiBold : theme.fonts.body,
+                        color: active ? '#FFFFFF' : 'rgba(255,255,255,0.5)',
+                        letterSpacing: 0.3,
+                      }}>
+                        {tab.name === 'Profile' ? 'Me' : tab.name}
+                      </Text>
+                    </TouchableOpacity>
+                  </React.Fragment>
+                );
+              })}
+            </View>
           </View>
         </Animated.View>
       </View>

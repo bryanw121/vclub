@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  View, Text, FlatList, TouchableOpacity, TextInput,
+  View, Text, FlatList, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, Image, Modal, Pressable, Alert, Platform,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
@@ -241,18 +241,18 @@ export default function ChatScreen() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <Text
-              style={{ fontSize: theme.font.size.md, fontWeight: hasUnread ? theme.font.weight.bold : theme.font.weight.medium, color: theme.colors.text, flex: 1 }}
+              style={{ fontFamily: hasUnread ? theme.fonts.displaySemiBold : theme.fonts.displayMedium, fontSize: theme.font.size.md, color: theme.colors.text, flex: 1 }}
               numberOfLines={1}
             >
               {title}
             </Text>
-            <Text style={{ fontSize: theme.font.size.xs, color: hasUnread ? theme.colors.primary : theme.colors.subtext, flexShrink: 0 }}>
+            <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: hasUnread ? theme.colors.primary : theme.colors.subtext, flexShrink: 0 }}>
               {time}
             </Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
             <Text
-              style={{ flex: 1, fontSize: theme.font.size.sm, color: hasUnread ? theme.colors.text : theme.colors.subtext, fontWeight: hasUnread ? theme.font.weight.medium : theme.font.weight.regular }}
+              style={{ flex: 1, fontFamily: hasUnread ? theme.fonts.bodyMedium : theme.fonts.body, fontSize: theme.font.size.sm, color: hasUnread ? theme.colors.text : theme.colors.subtext }}
               numberOfLines={1}
             >
               {preview}
@@ -264,7 +264,7 @@ export default function ChatScreen() {
                 alignItems: 'center', justifyContent: 'center',
                 paddingHorizontal: 5, flexShrink: 0,
               }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: '#fff' }}>
+                <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: 11, color: '#fff' }}>
                   {item.unread_count > 99 ? '99+' : item.unread_count}
                 </Text>
               </View>
@@ -279,29 +279,82 @@ export default function ChatScreen() {
     <View style={[shared.screen, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       {/* Header */}
-      <View style={{
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md,
-        borderBottomWidth: 1, borderBottomColor: theme.colors.border,
-      }}>
-        <Text style={shared.heading}>Messages</Text>
-        <TouchableOpacity onPress={() => setNewDMVisible(true)} hitSlop={8}>
-          <Ionicons name="create-outline" size={24} color={theme.colors.primary} />
+      <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md, paddingBottom: 4 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <View>
+            <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 1, textTransform: 'uppercase' }}>
+              Direct messages
+            </Text>
+            <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 34, letterSpacing: -1.2, color: theme.colors.text, lineHeight: 38, marginTop: 1 }}>
+              Chat
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => setNewDMVisible(true)}
+            hitSlop={8}
+            style={{
+              width: 38, height: 38, borderRadius: 12,
+              backgroundColor: theme.colors.primary,
+              alignItems: 'center', justifyContent: 'center',
+              marginBottom: 4,
+            }}
+          >
+            <Ionicons name="add" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Search bar */}
+        <TouchableOpacity
+          onPress={() => setNewDMVisible(true)}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 8,
+            backgroundColor: theme.colors.card,
+            borderWidth: 1, borderColor: theme.colors.border,
+            borderRadius: 12,
+            paddingHorizontal: 12, paddingVertical: 10,
+            marginTop: theme.spacing.sm,
+          }}
+        >
+          <Ionicons name="search-outline" size={16} color={theme.colors.subtext} />
+          <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.subtext }}>Search people</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Active now strip */}
+      {!loading && visibleConversations.length > 0 && (
+        <View style={{ paddingTop: theme.spacing.md }}>
+          <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, paddingHorizontal: theme.spacing.lg }}>
+            Active now
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, gap: 14 }}>
+            {visibleConversations.slice(0, 6).map(row => {
+              const name = row.type === 'dm'
+                ? (row.other_user_first_name ?? row.other_user_username ?? 'User')
+                : (row.club_name ?? 'Club')
+              const avatarUrl = resolveAvatarUri(row.type === 'dm' ? row.other_user_avatar_url : row.club_avatar_url)
+              return (
+                <TouchableOpacity key={row.conversation_id} onPress={() => openConversation(row)} style={{ alignItems: 'center', gap: 4 }}>
+                  <View style={{ position: 'relative' }}>
+                    <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: theme.colors.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {avatarUrl ? (
+                        <Image source={{ uri: avatarUrl }} style={{ width: 46, height: 46 }} />
+                      ) : (
+                        <Ionicons name="person" size={22} color={theme.colors.subtext} />
+                      )}
+                    </View>
+                    <View style={{ position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.cool, borderWidth: 2.5, borderColor: theme.colors.background }} />
+                  </View>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '600', color: theme.colors.text }}>{name.split(' ')[0]}</Text>
+                </TouchableOpacity>
+              )
+            })}
+          </ScrollView>
+        </View>
+      )}
 
       {loading ? (
         <View style={shared.centered}>
           <ActivityIndicator color={theme.colors.primary} />
-        </View>
-      ) : visibleConversations.length === 0 ? (
-        <View style={shared.centered}>
-          <Ionicons name="chatbubbles-outline" size={48} color={theme.colors.border} />
-          <Text style={[shared.body, { marginTop: theme.spacing.md, color: theme.colors.subtext, textAlign: 'center' }]}>
-            {conversations.length > 0
-              ? 'No conversations here. Direct chats with people you silenced stay hidden until you unsilence them under Profile → Silenced people.'
-              : 'No messages yet.\nTap the compose icon to start a conversation.'}
-          </Text>
         </View>
       ) : (
         <FlatList
@@ -309,6 +362,16 @@ export default function ChatScreen() {
           keyExtractor={r => r.conversation_id}
           renderItem={renderRow}
           contentContainerStyle={{ paddingBottom: tabBarHeight + 16 }}
+          ListHeaderComponent={visibleConversations.length === 0 ? (
+            <View style={[shared.centered, { paddingTop: 60 }]}>
+              <Ionicons name="chatbubbles-outline" size={48} color={theme.colors.border} />
+              <Text style={[shared.body, { marginTop: theme.spacing.md, color: theme.colors.subtext, textAlign: 'center', paddingHorizontal: theme.spacing.xl }]}>
+                {conversations.length > 0
+                  ? 'No conversations here. Direct chats with people you silenced stay hidden until you unsilence them under Profile → Silenced people.'
+                  : 'No messages yet.\nTap the icon above to start a conversation.'}
+              </Text>
+            </View>
+          ) : null}
         />
       )}
 

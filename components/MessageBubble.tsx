@@ -64,7 +64,7 @@ export function MessageBubble({
   }
   const reactions = Object.entries(reactionGroups)
 
-  const bubbleBg = isOwn ? theme.colors.primary : '#E8E5F0'
+  const bubbleBg = isOwn ? theme.colors.primary : theme.colors.card
   const bubbleText = isOwn ? '#fff' : theme.colors.text
 
   const peerUserId = message.profiles?.id
@@ -191,6 +191,7 @@ export function MessageBubble({
               )}
               {hasText && (
                 <Text style={{
+                  fontFamily: theme.fonts.body,
                   fontSize: theme.font.size.md,
                   color: bubbleText,
                   paddingHorizontal: 12,
@@ -243,6 +244,7 @@ export function MessageBubble({
 
       {/* Timestamp / sending indicator */}
       <Text style={{
+        fontFamily: theme.fonts.body,
         fontSize: 10,
         color: message._sending ? theme.colors.primary : theme.colors.subtext,
         marginTop: 2,

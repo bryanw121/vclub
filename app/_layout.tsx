@@ -1,5 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { Animated, Image, Text, View } from 'react-native'
+import { useFonts } from 'expo-font'
+import {
+  SpaceGrotesk_400Regular,
+  SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from '@expo-google-fonts/space-grotesk'
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
@@ -54,6 +67,17 @@ function AppSplash({ opacity }: { opacity: Animated.Value }) {
 }
 
 function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    SpaceGrotesk_400Regular,
+    SpaceGrotesk_500Medium,
+    SpaceGrotesk_600SemiBold,
+    SpaceGrotesk_700Bold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  })
+
   const { session, loading } = useAuth()
   const router = useRouter()
   const segments = useSegments()
@@ -115,6 +139,9 @@ function RootLayout() {
     if (!session && !inAuthGroup) router.replace('/(auth)/login')
     else if (session && inAuthGroup && !onResetPassword) router.replace('/(app)')
   }, [session, loading, splashVisible])
+
+  // Don't render until fonts are ready — prevents layout flash on native
+  if (!fontsLoaded) return null
 
   return (
     <SentryErrorBoundary>

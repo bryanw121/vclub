@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, ScrollView, Text, TextInput, View, Pressable, TouchableOpacity, Switch, Modal, StyleSheet, Platform } from 'react-native'
+import { ActivityIndicator, ScrollView, Text, TextInput, View, TouchableOpacity, Switch, Modal, StyleSheet, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '../../lib/supabase'
@@ -110,8 +110,6 @@ export default function HostEventScreen() {
   const [userId, setUserId] = useState<string | null>(null)
   const [successModal, setSuccessModal] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
-  const [holding, setHolding] = useState(false)
-
   // Save as template
   const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   const [templateName, setTemplateName] = useState('')
@@ -130,9 +128,6 @@ export default function HostEventScreen() {
 
   const [initialLoading, setInitialLoading] = useState(true)
   const [durationModalOpen, setDurationModalOpen] = useState(false)
-
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const timeoutRef  = useRef<ReturnType<typeof setTimeout>  | null>(null)
 
   useEffect(() => { void loadInitialData() }, [])
 
@@ -241,25 +236,6 @@ export default function HostEventScreen() {
       const already = prev.days.includes(dayIdx)
       return { ...prev, days: already ? prev.days.filter(d => d !== dayIdx) : [...prev.days, dayIdx] }
     })
-  }
-
-  function incrementAttendees() {
-    setForm(prev => ({ ...prev, maxAttendees: prev.maxAttendees === null ? 1 : prev.maxAttendees + 1 }))
-  }
-  function decrementAttendees() {
-    setForm(prev => ({ ...prev, maxAttendees: prev.maxAttendees === null || prev.maxAttendees <= 1 ? null : prev.maxAttendees - 1 }))
-  }
-  function startHold(action: () => void) {
-    setHolding(true)
-    action()
-    timeoutRef.current = setTimeout(() => { intervalRef.current = setInterval(action, 80) }, 400)
-  }
-  function stopHold() {
-    setHolding(false)
-    clearTimeout(timeoutRef.current as any)
-    clearInterval(intervalRef.current as any)
-    timeoutRef.current = null
-    intervalRef.current = null
   }
 
   async function handleSubmit() {
@@ -465,12 +441,56 @@ export default function HostEventScreen() {
         </TouchableOpacity>
       </Modal>
 
-      <ScrollView style={shared.screen} contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }} scrollEnabled={!holding}>
+      <ScrollView style={shared.screen} contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }} scrollEnabled={true}>
 
         {/* Page title */}
-        <Text style={{ fontSize: 22, fontWeight: theme.font.weight.bold, color: theme.colors.text, marginBottom: theme.spacing.lg }}>
-          {isEdit ? 'Edit event' : 'Host an event'}
+        <Text style={{ fontFamily: theme.fonts.display, fontSize: 28, letterSpacing: -0.8, color: theme.colors.text, marginBottom: theme.spacing.lg }}>
+          {isEdit ? 'Edit event.' : 'Host an event.'}
         </Text>
+
+        {/* ── Event type toggle cards ── */}
+        {(() => {
+          const typeTags = availableTags.filter(t => t.category === 'event_type')
+          if (typeTags.length === 0) return null
+          const TYPE_META: Record<string, { color: string }> = {
+            'Open Play':  { color: theme.colors.primary },
+            'Tournament': { color: theme.colors.warm },
+          }
+          return (
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: theme.spacing.lg }}>
+              {typeTags.map(tag => {
+                const meta = TYPE_META[tag.name] ?? { color: theme.colors.primary }
+                const selected = selectedTagIds.includes(tag.id)
+                return (
+                  <TouchableOpacity
+                    key={tag.id}
+                    onPress={() => {
+                      setSelectedTagIds(prev => {
+                        const otherTypeIds = typeTags.filter(t => t.id !== tag.id).map(t => t.id)
+                        const withoutTypes = prev.filter(id => !otherTypeIds.includes(id))
+                        return withoutTypes.includes(tag.id)
+                          ? withoutTypes.filter(id => id !== tag.id)
+                          : [...withoutTypes, tag.id]
+                      })
+                    }}
+                    style={{
+                      flex: 1, padding: 14, borderRadius: 18,
+                      backgroundColor: selected ? meta.color : theme.colors.card,
+                      borderWidth: selected ? 0 : 1.5,
+                      borderColor: theme.colors.border,
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={{
+                      fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 17, letterSpacing: -0.3,
+                      color: selected ? '#fff' : theme.colors.text,
+                    }}>{tag.name}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+          )
+        })()}
 
         {/* ── Section: Basic Info ── */}
         <View style={hostStyles.sectionLabel}>
@@ -631,24 +651,61 @@ export default function HostEventScreen() {
         </View>
         <View style={[shared.card, { marginBottom: theme.spacing.lg, gap: theme.spacing.md }]}>
 
-          {/* Max attendees */}
-          <View>
-            <Text style={shared.label}>Capacity</Text>
-            <View style={shared.stepper}>
-              <Pressable
-                style={[shared.stepperBtn, form.maxAttendees === null && shared.stepperBtnDisabled]}
-                onPressIn={() => startHold(decrementAttendees)}
-                onPressOut={stopHold}
-                disabled={form.maxAttendees === null}
-              >
-                <Text style={shared.stepperBtnText}>−</Text>
-              </Pressable>
-              <Text style={shared.stepperValue}>{form.maxAttendees === null ? 'Unlimited' : form.maxAttendees}</Text>
-              <Pressable style={shared.stepperBtn} onPressIn={() => startHold(incrementAttendees)} onPressOut={stopHold}>
-                <Text style={shared.stepperBtnText}>+</Text>
-              </Pressable>
-            </View>
-          </View>
+          {/* Max attendees — styled snap slider */}
+          {(() => {
+            const STOPS: Array<{ label: string; value: number | null }> = [
+              { label: '6',  value: 6    },
+              { label: '16', value: 16   },
+              { label: '24', value: 24   },
+              { label: '∞',  value: null },
+            ]
+            const activeIdx = STOPS.findIndex(s => s.value === form.maxAttendees)
+            const thumbPct = activeIdx < 0 ? 0 : activeIdx / (STOPS.length - 1)
+            return (
+              <View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+                  <Text style={shared.label}>Max players</Text>
+                  <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 20, color: theme.colors.text, letterSpacing: -0.4 }}>
+                    {form.maxAttendees === null ? '∞' : form.maxAttendees}
+                  </Text>
+                </View>
+                {/* Track + thumb */}
+                <View style={{ height: 6, backgroundColor: theme.colors.border, borderRadius: 3, marginBottom: 10, position: 'relative' }}>
+                  <View style={{ width: `${thumbPct * 100}%` as any, height: '100%', backgroundColor: theme.colors.primary, borderRadius: 3 }} />
+                  {activeIdx >= 0 && (
+                    <View style={{
+                      position: 'absolute',
+                      left: `${thumbPct * 100}%` as any,
+                      top: '50%',
+                      marginLeft: -9,
+                      marginTop: -9,
+                      width: 18, height: 18, borderRadius: 9,
+                      backgroundColor: theme.colors.card,
+                      borderWidth: 3, borderColor: theme.colors.primary,
+                    }} />
+                  )}
+                </View>
+                {/* Tap targets */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  {STOPS.map((stop, i) => (
+                    <TouchableOpacity
+                      key={stop.label}
+                      onPress={() => setField('maxAttendees', stop.value)}
+                      style={{ paddingVertical: 4, paddingHorizontal: 6, alignItems: 'center' }}
+                      hitSlop={8}
+                    >
+                      <Text style={{
+                        fontFamily: theme.fonts.bodySemiBold,
+                        fontSize: 10,
+                        color: i === activeIdx ? theme.colors.primary : theme.colors.subtext,
+                        fontWeight: i === activeIdx ? '700' : '600',
+                      }}>{stop.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )
+          })()}
 
           {/* Price */}
           <View>
@@ -683,6 +740,7 @@ export default function HostEventScreen() {
           {/* Tags */}
           {availableTags.length > 0 && (() => {
             const byCategory = availableTags.reduce<Record<string, Tag[]>>((acc, tag) => {
+              if (tag.category === 'event_type') return acc
               ;(acc[tag.category] ??= []).push(tag)
               return acc
             }, {})
@@ -776,11 +834,11 @@ const hostStyles = StyleSheet.create({
     marginBottom: theme.spacing.xs,
   },
   sectionLabelText: {
+    fontFamily: theme.fonts.bodySemiBold,
     fontSize: theme.font.size.xs,
-    fontWeight: theme.font.weight.semibold,
     color: theme.colors.subtext,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
   },
   chip: {
     paddingHorizontal: theme.spacing.md,
@@ -795,11 +853,12 @@ const hostStyles = StyleSheet.create({
     borderColor: theme.colors.primary,
   },
   chipText: {
+    fontFamily: theme.fonts.bodyMedium,
     fontSize: theme.font.size.sm,
-    fontWeight: theme.font.weight.medium,
     color: theme.colors.subtext,
   },
   chipTextActive: {
+    fontFamily: theme.fonts.bodySemiBold,
     color: theme.colors.white,
   },
 })

@@ -1,53 +1,79 @@
 export const theme = {
   colors: {
-    primary: '#6C47FF',
-    background: '#F4F2FF',
-    card: '#FFFFFF',
-    text: '#1A1A1A',
-    subtext: '#6B6B6B',
-    border: '#E5E5E5',
-    error: '#FF4444',
-    warning: '#E07B00',
-    success: '#00C853',
-    white: '#FFFFFF',
-    /** Subtle tint for host announcement bubbles in event discussion. */
-    announcementHighlight: '#EDE8FF',
+    // Brand
+    primary:      '#7C4DFF',   // slightly brighter violet — pops on dark bg
+    primaryDark:  '#5A2BFF',
+    primarySoft:  '#2A1F6B',   // dark violet tint for soft chip bgs
+    // Accent — electric sky blue
+    accent:       '#3DC9F5',
+    accentInk:    '#002A36',
+    // Surfaces
+    background:   '#13111F',   // dark violet-black (~Instagram/Spotify level)
+    card:         '#1E1B2E',   // elevated dark surface
+    // Text
+    text:         '#EDEAFF',   // near-white with violet tint
+    subtext:      '#7A7699',   // muted lavender-grey
+    // Borders
+    border:       '#2C2848',   // dark purple border
+    borderSoft:   '#211D3A',   // very subtle
+    // Signal palette
+    warm:         '#FF6B3D',
+    hot:          '#FF2D6F',
+    cool:         '#00D6B4',
+    // Status
+    error:        '#FF5555',
+    warning:      '#FFA040',
+    success:      '#00D26A',
+    white:        '#FFFFFF',
+    // Misc
+    announcementHighlight: '#2A1F6B',
+  },
+  /** Font family names registered via @expo-google-fonts (native + web). */
+  fonts: {
+    display:         'SpaceGrotesk_700Bold',
+    displaySemiBold: 'SpaceGrotesk_600SemiBold',
+    displayMedium:   'SpaceGrotesk_500Medium',
+    body:            'Inter_400Regular',
+    bodyMedium:      'Inter_500Medium',
+    bodySemiBold:    'Inter_600SemiBold',
+    bodyBold:        'Inter_700Bold',
   },
   spacing: {
     xxs: 2,
-    xs: 4,
-    sm: 8,
-    md: 16,
-    lg: 24,
-    xl: 32,
+    xs:  4,
+    sm:  8,
+    md:  16,
+    lg:  24,
+    xl:  32,
     xxl: 48,
   },
   font: {
     size: {
-      xs: 11,
-      sm: 12,
-      md: 14,
-      lg: 18,
-      xl: 24,
+      xs:  11,
+      sm:  12,
+      md:  14,
+      lg:  18,
+      xl:  24,
       xxl: 32,
     },
     weight: {
-      regular: '400' as const,
-      medium: '500' as const,
+      regular:  '400' as const,
+      medium:   '500' as const,
       semibold: '600' as const,
-      bold: '700' as const,
+      bold:     '700' as const,
     },
     lineHeight: {
-      tight: 20,
-      normal: 24,
+      tight:   20,
+      normal:  24,
       relaxed: 30,
     },
   },
   radius: {
-    sm: 8,
-    md: 12,
-    lg: 16,
-    xl: 24,
+    sm:   8,
+    md:   12,
+    lg:   16,
+    xl:   20,
+    xxl:  28,
     full: 999,
   },
   shadow: {

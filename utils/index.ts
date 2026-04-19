@@ -148,11 +148,7 @@ export function hostRosterSkillAndPositionsLine(profile: Pick<Profile, 'skill_le
 }
 
 const VOLLEYBALL_SKILL_LEVEL_ALLOWED = new Set<string>([
-  'recreational',
-  'beginner',
-  'intermediate',
-  'advanced',
-  'competitive',
+  'd', 'c', 'b', 'bb', 'a', 'aa_plus',
 ])
 
 /** Normalizes DB `skill_level` to a known tier or null. */
@@ -163,11 +159,12 @@ export function normalizeVolleyballSkillLevel(raw: unknown): VolleyballSkillLeve
 }
 
 const SKILL_LEVEL_LABELS: Record<VolleyballSkillLevel, string> = {
-  recreational: 'Recreational',
-  beginner: 'Beginner',
-  intermediate: 'Intermediate',
-  advanced: 'Advanced',
-  competitive: 'Competitive',
+  d:       'D',
+  c:       'C',
+  b:       'B',
+  bb:      'BB',
+  a:       'A',
+  aa_plus: 'AA+',
 }
 
 export function volleyballSkillLevelLabel(level: VolleyballSkillLevel): string {

@@ -4,7 +4,7 @@ import { Platform, View, ScrollView, FlatList, Text, RefreshControl, TouchableOp
 import { Ionicons } from '@expo/vector-icons'
 import { useMonthEvents } from '../../../../hooks/useMonthEvents'
 import { useNotifications } from '../../../../hooks/useNotifications'
-import { EventCard } from '../../../../components/EventCard'
+import { EventCard, RowEventCard } from '../../../../components/EventCard'
 import { NotificationPopup } from '../../../../components/NotificationPopup'
 import { shared, theme } from '../../../../constants'
 import { EventWithDetails, type Notification } from '../../../../types'
@@ -83,13 +83,10 @@ export default function EventsScreen() {
     visibleMonths.forEach(m => { void loadMonth(m) })
   }, [visibleMonths, loadMonth])
 
-  // Force-reload visible months after create/edit
+  // Force-reload visible months after create/edit (no cache clear — avoids flash)
   useEffect(() => {
     if (eventsRefreshTick > 0) {
-      visibleMonths.forEach(m => {
-        invalidateMonth(m)
-        void loadMonth(m, true)
-      })
+      visibleMonths.forEach(m => { void loadMonth(m, true) })
     }
   }, [eventsRefreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -192,6 +189,199 @@ export default function EventsScreen() {
     })
   }, [refetchNotifs])
 
+  // Flatten all events from sections for desktop grid layout
+  const allEvents = useMemo(() => sections.flatMap(s => s.data), [sections])
+
+  // ── Desktop layout ────────────────────────────────────────────────────────
+  if (!isMobile) {
+    const heroEvent = allEvents[0] ?? null
+    const secondaryTop = allEvents.slice(1, 3)
+    const remaining = allEvents.slice(1)
+
+    return (
+      <View style={{ flex: 1, flexDirection: 'row', backgroundColor: theme.colors.background }}>
+
+        {/* Main content */}
+        <ScrollView
+          ref={scrollRef}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 28, paddingBottom: 48 }}
+          scrollEventThrottle={200}
+          onScroll={({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }) => {
+            if (contentSize.height - contentOffset.y - layoutMeasurement.height < 400) {
+              handleScrollNearBottom()
+            }
+          }}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={() => visibleMonths.forEach(m => { invalidateMonth(m); void loadMonth(m, true) })} tintColor={theme.colors.primary} />}
+        >
+          {/* Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16 }}>
+            <View>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, fontWeight: '700', letterSpacing: 1.3, color: theme.colors.subtext, textTransform: 'uppercase' }}>
+                {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </Text>
+              <Text style={{ fontFamily: theme.fonts.display, fontSize: 44, lineHeight: 46, letterSpacing: -1.6, color: theme.colors.text, marginTop: 2 }}>
+                {"What's on deck"}<Text style={{ color: theme.colors.primary }}>.</Text>
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={toggleNotifPanel}
+              hitSlop={8}
+              style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <View>
+                <Ionicons name={notifOpen ? 'notifications' : 'notifications-outline'} size={18} color={notifOpen ? theme.colors.primary : theme.colors.text} />
+                {unreadCount > 0 && (
+                  <View style={{ position: 'absolute', top: -2, right: -3, width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.hot, borderWidth: 1.5, borderColor: theme.colors.card }} />
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Filter chips */}
+          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 18, flexWrap: 'wrap' }}>
+            {FILTER_CHIPS.map(chip => {
+              const active = activeFilter === chip.id
+              return (
+                <TouchableOpacity
+                  key={chip.id}
+                  onPress={() => setActiveFilter(chip.id)}
+                  style={[feedStyles.chip, active && feedStyles.chipActive]}
+                >
+                  <Text style={[feedStyles.chipLabel, active && feedStyles.chipLabelActive]}>
+                    {chip.label}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+
+          {loading && allEvents.length === 0 ? (
+            <ActivityIndicator style={{ marginTop: theme.spacing.xl }} color={theme.colors.primary} />
+          ) : allEvents.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingTop: theme.spacing.xxl, gap: theme.spacing.sm }}>
+              <Ionicons name="calendar-outline" size={36} color={theme.colors.border} />
+              <Text style={shared.caption}>
+                {activeFilter === 'all' ? 'No upcoming events — create one!' : 'No events match this filter'}
+              </Text>
+              {activeFilter !== 'all' && (
+                <TouchableOpacity onPress={() => setActiveFilter('all')}>
+                  <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>Clear filter</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <>
+              {/* Hero + 2 secondary row cards */}
+              {heroEvent && (
+                <View style={{ flexDirection: 'row', gap: 14, marginBottom: 20 }}>
+                  <View style={{ flex: 1.3 }}>
+                    <EventCard event={heroEvent} />
+                  </View>
+                  <View style={{ flex: 1, gap: 0 }}>
+                    {secondaryTop.map(item => (
+                      <RowEventCard key={item.id} event={item} />
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* "More events" section */}
+              {remaining.length > 0 && (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 22, color: theme.colors.text, letterSpacing: -0.4 }}>More events</Text>
+                    <Text style={{ fontFamily: theme.fonts.body, fontSize: 12, fontWeight: '600', color: theme.colors.subtext }}>{remaining.length} events</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                    {remaining.map((item, idx) => (
+                      <View key={item.id} style={{ width: 'calc(50% - 5px)' as any }}>
+                        <RowEventCard event={item} />
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
+
+              {loading && (
+                <ActivityIndicator style={{ marginVertical: theme.spacing.lg }} color={theme.colors.primary} />
+              )}
+            </>
+          )}
+        </ScrollView>
+
+        {/* Right rail */}
+        <View style={{
+          width: 300,
+          borderLeftWidth: 1,
+          borderLeftColor: theme.colors.border,
+          backgroundColor: theme.colors.card,
+          flexShrink: 0,
+        }}>
+          <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+            {/* Mini calendar */}
+            <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, fontWeight: '700', letterSpacing: 1, color: theme.colors.subtext, textTransform: 'uppercase', marginBottom: 10 }}>
+              This week
+            </Text>
+            <View style={{ backgroundColor: theme.colors.background, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 20, overflow: 'hidden' }}>
+              <MonthGridContent
+                month={monthForIdx(curMonthPage)}
+                selectedDate={selectedDate}
+                markedDates={markedDates}
+                onSelectDate={selectDate}
+                onPrevMonth={goPrevMonth}
+                onNextMonth={goNextMonth}
+              />
+            </View>
+
+            {/* Your next event */}
+            {heroEvent && (
+              <>
+                <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, fontWeight: '700', letterSpacing: 1, color: theme.colors.subtext, textTransform: 'uppercase', marginBottom: 10 }}>
+                  Next up
+                </Text>
+                <TouchableOpacity
+                  onPress={() => router.push(`/event/${heroEvent.id}` as any)}
+                  activeOpacity={0.85}
+                  style={{ backgroundColor: theme.colors.primary, borderRadius: 16, padding: 14, marginBottom: 6 }}
+                >
+                  <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                    <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.full, backgroundColor: theme.colors.accent }}>
+                      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 10, color: theme.colors.accentInk }}>TONIGHT</Text>
+                    </View>
+                  </View>
+                  <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 17, letterSpacing: -0.3, color: '#fff', marginBottom: 4 }} numberOfLines={1}>
+                    {heroEvent.title}
+                  </Text>
+                  {heroEvent.location && (
+                    <Text style={{ fontFamily: theme.fonts.body, fontSize: 11.5, color: 'rgba(255,255,255,0.7)' }} numberOfLines={1}>
+                      {heroEvent.location}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
+
+          </ScrollView>
+        </View>
+
+        <NotificationPopup
+          visible={notifOpen}
+          items={notifItems}
+          loading={notifLoading}
+          unreadCount={unreadCount}
+          insetTop={insets.top}
+          windowWidth={windowWidth}
+          onDismiss={() => setNotifOpen(false)}
+          onOpenItem={openNotifItem}
+          onMarkAllRead={() => void markAllRead()}
+          onSeeAll={() => { setNotifOpen(false); router.push('/notifications' as any) }}
+        />
+      </View>
+    )
+  }
+
+  // ── Mobile layout ─────────────────────────────────────────────────────────
   return (
     <View style={shared.screen}>
       <View
@@ -199,90 +389,54 @@ export default function EventsScreen() {
         onTouchEnd={unblockPager}
         onTouchCancel={unblockPager}
       >
-        {/* Header: title + bell */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm }}>
-          <Text style={{ fontSize: theme.font.size.xl, fontWeight: theme.font.weight.bold, color: theme.colors.text }}>
-            Events
-          </Text>
-          <TouchableOpacity
-            onPress={toggleNotifPanel}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Notifications"
-            accessibilityHint={unreadCount > 0 ? `${unreadCount} unread` : undefined}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: notifOpen ? theme.colors.primary + '14' : theme.colors.border + '60',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <View>
-              <Ionicons
-                name={notifOpen ? 'notifications' : 'notifications-outline'}
-                size={20}
-                color={notifOpen ? theme.colors.primary : theme.colors.subtext}
-              />
-              {unreadCount > 0 ? (
-                <View
-                  style={{
-                    position: 'absolute',
-                    top: -2,
-                    right: -4,
-                    minWidth: 8,
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: theme.colors.error,
-                  }}
+        {/* Header */}
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md + 4, paddingBottom: theme.spacing.sm }}>
+          <View>
+            <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, fontWeight: theme.font.weight.semibold, letterSpacing: 1.2, color: theme.colors.subtext, textTransform: 'uppercase' }}>
+              {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </Text>
+            <Text style={{ fontFamily: theme.fonts.display, fontSize: 34, lineHeight: 34, letterSpacing: -1.2, color: theme.colors.text, marginTop: 2 }}>
+              {'Events'}
+              <Text style={{ color: theme.colors.primary }}>.</Text>
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8, paddingBottom: 4 }}>
+            <TouchableOpacity
+              onPress={toggleNotifPanel}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Notifications"
+              style={{
+                width: 38, height: 38, borderRadius: 12,
+                backgroundColor: theme.colors.card,
+                borderWidth: 1, borderColor: theme.colors.border,
+                alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <View>
+                <Ionicons
+                  name={notifOpen ? 'notifications' : 'notifications-outline'}
+                  size={18}
+                  color={notifOpen ? theme.colors.primary : theme.colors.text}
                 />
-              ) : null}
-            </View>
-          </TouchableOpacity>
+                {unreadCount > 0 && (
+                  <View style={{ position: 'absolute', top: -2, right: -3, width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.hot, borderWidth: 1.5, borderColor: theme.colors.card }} />
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Calendar + week/month strip — fixed below header; list scrolls independently */}
+        {/* Calendar strip */}
         <View>
-          {/* Week / Month toggle — desktop only */}
-          {!isMobile && (
-            <View style={{ paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.sm }}>
-              <View style={{ flexDirection: 'row', alignSelf: 'flex-start', borderRadius: theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.card }}>
-                {(['week', 'month'] as const).map(m => (
-                  <TouchableOpacity
-                    key={m}
-                    onPress={() => setMode(m)}
-                    style={{ paddingHorizontal: theme.spacing.md, paddingVertical: 6, backgroundColor: mode === m ? theme.colors.primary : 'transparent' }}
-                  >
-                    <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: mode === m ? theme.colors.white : theme.colors.subtext }}>
-                      {m.charAt(0).toUpperCase() + m.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {(!isMobile && mode === 'month') ? (
-            <MonthPager
-              curMonthPage={curMonthPage}
-              selectedDate={selectedDate}
-              markedDates={markedDates}
-              onSelectDate={selectDate}
-              onPrevMonth={goPrevMonth}
-              onNextMonth={goNextMonth}
-            />
-          ) : (
-            <WeekPager
-              curWeekPage={curWeekPage}
-              selectedDate={selectedDate}
-              markedDates={markedDates}
-              onSelectDate={selectDate}
-              onPrevWeek={goPrevWeek}
-              onNextWeek={goNextWeek}
-            />
-          )}
-          <View style={[shared.divider, { marginHorizontal: theme.spacing.lg, marginBottom: 0 }]} />
+          <WeekPager
+            curWeekPage={curWeekPage}
+            selectedDate={selectedDate}
+            markedDates={markedDates}
+            onSelectDate={selectDate}
+            onPrevWeek={goPrevWeek}
+            onNextWeek={goNextWeek}
+          />
         </View>
 
         {/* Filter chips */}
@@ -322,10 +476,7 @@ export default function EventsScreen() {
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => visibleMonths.forEach(m => { invalidateMonth(m); void loadMonth(m, true) })} tintColor={theme.colors.primary} />}
       >
         {loading && sections.length === 0 ? (
-          <ActivityIndicator
-            style={{ marginTop: theme.spacing.xl }}
-            color={theme.colors.primary}
-          />
+          <ActivityIndicator style={{ marginTop: theme.spacing.xl }} color={theme.colors.primary} />
         ) : sections.length === 0 ? (
           <View style={{ alignItems: 'center', paddingTop: theme.spacing.xxl, gap: theme.spacing.sm }}>
             <Ionicons name="calendar-outline" size={36} color={theme.colors.border} />
@@ -345,9 +496,7 @@ export default function EventsScreen() {
             <View key={section.date} onLayout={e => { sectionYRef.current[section.date] = e.nativeEvent.layout.y }}>
               <View style={feedStyles.sectionHeader}>
                 <Text style={feedStyles.sectionDate}>{formatDayLabel(section.date)}</Text>
-                <View style={feedStyles.sectionCount}>
-                  <Text style={feedStyles.sectionCountText}>{section.data.length}</Text>
-                </View>
+                <Text style={feedStyles.sectionCountText}>{section.data.length} {section.data.length === 1 ? 'event' : 'events'}</Text>
               </View>
               <View style={{ paddingHorizontal: theme.spacing.lg }}>
                 {section.data.map(item => (
@@ -357,12 +506,8 @@ export default function EventsScreen() {
             </View>
           ))
         )}
-        {/* Bottom load-more spinner — visible while fetching the next month on scroll */}
         {loading && sections.length > 0 && (
-          <ActivityIndicator
-            style={{ marginVertical: theme.spacing.lg }}
-            color={theme.colors.primary}
-          />
+          <ActivityIndicator style={{ marginVertical: theme.spacing.lg }} color={theme.colors.primary} />
         )}
       </ScrollView>
 
@@ -444,54 +589,61 @@ type WeekStripContentProps = {
   onNextWeek: () => void
 }
 
-const WeekStripContent = memo(function WeekStripContent({ weekDays, selectedDate, markedDates, onSelectDate, onPrevWeek, onNextWeek }: WeekStripContentProps) {
-  const monthLabel = weekDays[3].toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+const DAY_ABBREVS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
+const WeekStripContent = memo(function WeekStripContent({ weekDays, selectedDate, markedDates, onSelectDate, onPrevWeek, onNextWeek }: WeekStripContentProps) {
   return (
-    <View style={{ paddingBottom: theme.spacing.xs }}>
-      <Text style={[shared.caption, { textAlign: 'center', marginBottom: theme.spacing.sm }]}>{monthLabel}</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <TouchableOpacity onPress={onPrevWeek} style={{ padding: theme.spacing.xs }}>
-          <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-around' }}>
-          {weekDays.map(day => {
-            const dateStr = day.toISOString().split('T')[0]
-            const isSelected = dateStr === selectedDate
-            const isToday = dateStr === TODAY
-            const hasEvent = !!markedDates[dateStr]?.marked
-            return (
-              <TouchableOpacity key={dateStr} onPress={() => onSelectDate(dateStr)} style={{ alignItems: 'center' }}>
-                <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, fontWeight: theme.font.weight.medium, marginBottom: 4 }}>
-                  {DAY_LABELS[day.getDay()]}
-                </Text>
-                <View style={{
-                  width: 34, height: 34, borderRadius: 17,
-                  backgroundColor: isSelected ? theme.colors.primary : 'transparent',
-                  borderWidth: isToday && !isSelected ? 1 : 0,
-                  borderColor: theme.colors.primary,
-                  alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Text style={{
-                    fontSize: theme.font.size.md,
-                    fontWeight: isSelected || isToday ? theme.font.weight.semibold : theme.font.weight.regular,
-                    color: isSelected ? theme.colors.white : isToday ? theme.colors.primary : theme.colors.text,
-                  }}>
-                    {day.getDate()}
-                  </Text>
-                </View>
-                <View style={{ height: 5, marginTop: 3, alignItems: 'center', justifyContent: 'center' }}>
-                  {hasEvent && (
-                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: theme.colors.primary, opacity: isSelected ? 0.4 : 1 }} />
-                  )}
-                </View>
-              </TouchableOpacity>
-            )
-          })}
-        </View>
-        <TouchableOpacity onPress={onNextWeek} style={{ padding: theme.spacing.xs }}>
-          <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
-        </TouchableOpacity>
+    <View style={{ paddingBottom: theme.spacing.sm, paddingTop: theme.spacing.xs }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        {weekDays.map(day => {
+          const dateStr = day.toISOString().split('T')[0]
+          const isSelected = dateStr === selectedDate
+          const isToday = dateStr === TODAY
+          const dots = markedDates[dateStr]?.marked ? (markedDates[dateStr]?.count ?? 1) : 0
+          return (
+            <TouchableOpacity
+              key={dateStr}
+              onPress={() => onSelectDate(dateStr)}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                borderRadius: 14,
+                backgroundColor: isSelected ? theme.colors.primary : 'transparent',
+                borderWidth: isSelected ? 0 : 1,
+                borderColor: theme.colors.border,
+                alignItems: 'center',
+                gap: 3,
+              }}
+            >
+              <Text style={{
+                fontFamily: theme.fonts.body,
+                fontSize: 9,
+                fontWeight: theme.font.weight.bold,
+                letterSpacing: 0.8,
+                color: isSelected ? theme.colors.white : theme.colors.subtext,
+                opacity: isSelected ? 0.7 : 1,
+              }}>
+                {DAY_ABBREVS[day.getDay()]}
+              </Text>
+              <Text style={{
+                fontFamily: theme.fonts.display,
+                fontSize: 20,
+                lineHeight: 22,
+                color: isSelected ? theme.colors.white : isToday ? theme.colors.primary : theme.colors.text,
+              }}>
+                {day.getDate()}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 2, height: 4, alignItems: 'center' }}>
+                {dots > 0 && Array.from({ length: Math.min(dots, 3) }).map((_, i) => (
+                  <View key={i} style={{
+                    width: 4, height: 4, borderRadius: 2,
+                    backgroundColor: isSelected ? theme.colors.accent : theme.colors.primary,
+                  }} />
+                ))}
+              </View>
+            </TouchableOpacity>
+          )
+        })}
       </View>
     </View>
   )
@@ -528,20 +680,20 @@ const MonthGridContent = memo(function MonthGridContent({ month, selectedDate, m
     <View style={{ backgroundColor: theme.colors.background, paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm }}>
       {/* Header */}
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: theme.spacing.sm }}>
-        <TouchableOpacity onPress={onPrevMonth} style={{ padding: theme.spacing.xs }}>
-          <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
+        <TouchableOpacity onPress={onPrevMonth} style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="chevron-back" size={18} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={{ flex: 1, textAlign: 'center', fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
+        <Text style={{ flex: 1, textAlign: 'center', fontFamily: theme.fonts.display, fontSize: theme.font.size.lg, color: theme.colors.text }}>
           {monthLabel}
         </Text>
-        <TouchableOpacity onPress={onNextMonth} style={{ padding: theme.spacing.xs }}>
-          <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
+        <TouchableOpacity onPress={onNextMonth} style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.text} />
         </TouchableOpacity>
       </View>
       {/* Day-of-week labels */}
-      <View style={{ flexDirection: 'row', marginBottom: 2 }}>
+      <View style={{ flexDirection: 'row', marginBottom: 4 }}>
         {DAY_LABELS.map(d => (
-          <Text key={d} style={{ flex: 1, textAlign: 'center', fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: theme.colors.subtext }}>
+          <Text key={d} style={{ flex: 1, textAlign: 'center', fontFamily: theme.fonts.bodySemiBold, fontSize: 10, fontWeight: theme.font.weight.bold, letterSpacing: 0.8, color: theme.colors.subtext }}>
             {d}
           </Text>
         ))}
@@ -551,7 +703,7 @@ const MonthGridContent = memo(function MonthGridContent({ month, selectedDate, m
         <View key={ri} style={{ flexDirection: 'row' }}>
           {row.map((day, di) => {
             if (day === null) return <View key={di} style={{ flex: 1, height: 44 }} />
-            const dateStr   = `${month}-${String(day).padStart(2, '0')}`
+            const dateStr    = `${month}-${String(day).padStart(2, '0')}`
             const isSelected = dateStr === selectedDate
             const isToday    = dateStr === TODAY
             const hasEvent   = !!markedDates[dateStr]?.marked
@@ -562,15 +714,13 @@ const MonthGridContent = memo(function MonthGridContent({ month, selectedDate, m
                 style={{ flex: 1, alignItems: 'center', paddingVertical: 3 }}
               >
                 <View style={{
-                  width: 34, height: 34, borderRadius: 17,
-                  backgroundColor: isSelected ? theme.colors.primary : 'transparent',
-                  borderWidth: isToday && !isSelected ? 1 : 0,
-                  borderColor: theme.colors.primary,
+                  width: 34, height: 34, borderRadius: 10,
+                  backgroundColor: isSelected ? theme.colors.primary : isToday ? theme.colors.primarySoft : 'transparent',
                   alignItems: 'center', justifyContent: 'center',
                 }}>
                   <Text style={{
+                    fontFamily: theme.fonts.display,
                     fontSize: theme.font.size.md,
-                    fontWeight: isSelected || isToday ? theme.font.weight.semibold : theme.font.weight.regular,
                     color: isSelected ? theme.colors.white : isToday ? theme.colors.primary : theme.colors.text,
                   }}>
                     {day}
@@ -578,7 +728,7 @@ const MonthGridContent = memo(function MonthGridContent({ month, selectedDate, m
                 </View>
                 <View style={{ height: 5, marginTop: 1, alignItems: 'center', justifyContent: 'center' }}>
                   {hasEvent && (
-                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: isSelected ? theme.colors.white : theme.colors.primary, opacity: isSelected ? 0.6 : 1 }} />
+                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: isSelected ? theme.colors.white : theme.colors.primary, opacity: isSelected ? 0.8 : 1 }} />
                   )}
                 </View>
               </TouchableOpacity>
@@ -756,8 +906,8 @@ function buildMarkedDates(events: EventWithDetails[], selectedDate: string) {
 
 const feedStyles = StyleSheet.create({
   chip: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: theme.radius.full,
     borderWidth: 1,
     borderColor: theme.colors.border,
@@ -768,8 +918,9 @@ const feedStyles = StyleSheet.create({
     borderColor: theme.colors.primary,
   },
   chipLabel: {
-    fontSize: theme.font.size.sm,
-    fontWeight: theme.font.weight.medium,
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 12.5,
+    fontWeight: theme.font.weight.semibold,
     color: theme.colors.subtext,
   },
   chipLabelActive: {
@@ -777,28 +928,26 @@ const feedStyles = StyleSheet.create({
   },
   sectionHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
+    paddingTop: theme.spacing.md + 4,
     paddingBottom: theme.spacing.xs,
   },
   sectionDate: {
-    fontSize: theme.font.size.md,
-    fontWeight: theme.font.weight.bold,
+    fontFamily: theme.fonts.display,
+    fontSize: 20,
     color: theme.colors.text,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
   },
   sectionCount: {
-    backgroundColor: theme.colors.primary + '18',
-    borderRadius: theme.radius.full,
-    paddingHorizontal: 7,
-    paddingVertical: 1,
+    // count shown as plain subtext inline
   },
   sectionCountText: {
-    fontSize: 10,
+    fontFamily: theme.fonts.body,
+    fontSize: 12,
     fontWeight: theme.font.weight.semibold,
-    color: theme.colors.primary,
+    color: theme.colors.subtext,
   },
 })
 
