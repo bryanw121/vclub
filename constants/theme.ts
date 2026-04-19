@@ -10,6 +10,11 @@ export const theme = {
     // Surfaces
     background:   '#13111F',   // dark violet-black (~Instagram/Spotify level)
     card:         '#1E1B2E',   // elevated dark surface
+    /** Create-menu pills: hair lighter than `card` so they read over a blurred feed */
+    fabMenuChip:       '#26243A',
+    fabMenuChipBorder: '#3A365C',
+    /** Washes over `BlurView` so content recedes without going flat black */
+    fabMenuBackdropDim: 'rgba(19, 17, 31, 0.42)',
     // Text
     text:         '#EDEAFF',   // near-white with violet tint
     subtext:      '#7A7699',   // muted lavender-grey

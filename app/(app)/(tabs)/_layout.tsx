@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from "react";
 import { useFocusEffect, Stack, usePathname, useRouter } from "expo-router";
-import { Animated, Platform, Pressable, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { Slot } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -153,10 +154,18 @@ export default function TabsLayout() {
         />
 
         {fabOpen && (
-          <Pressable
-            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
-            onPress={closeFab}
-          />
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={closeFab}>
+            <BlurView
+              pointerEvents="none"
+              intensity={36}
+              tint="dark"
+              style={StyleSheet.absoluteFillObject}
+            />
+            <View
+              pointerEvents="none"
+              style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.colors.fabMenuBackdropDim }]}
+            />
+          </Pressable>
         )}
 
         {fabOpen && (
@@ -176,17 +185,17 @@ export default function TabsLayout() {
                 key={opt.label}
                 onPress={() => goHost(opt.path)}
                 style={{
-                  backgroundColor: theme.colors.card,
+                  backgroundColor: theme.colors.fabMenuChip,
                   borderRadius: theme.radius.full,
                   paddingVertical: theme.spacing.sm,
                   paddingHorizontal: theme.spacing.lg,
                   borderWidth: 1,
-                  borderColor: theme.colors.border,
+                  borderColor: theme.colors.fabMenuChipBorder,
                   shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.12,
-                  shadowRadius: 4,
-                  elevation: 4,
+                  shadowOffset: { width: 0, height: 3 },
+                  shadowOpacity: 0.22,
+                  shadowRadius: 8,
+                  elevation: 6,
                 }}
               >
                 <Text style={{ fontFamily: theme.fonts.bodyMedium, fontSize: theme.font.size.md, color: theme.colors.text }}>
