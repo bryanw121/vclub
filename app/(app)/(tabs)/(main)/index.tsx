@@ -131,6 +131,7 @@ export default function EventsScreen() {
 
   const scrollRef   = useRef<ScrollView>(null)
   const sectionYRef = useRef<Record<string, number>>({})
+  const lastScrollY = useRef(0)
 
   const sections: DateSection[] = useMemo(() => {
     const filtered = events.filter(event => {
@@ -489,10 +490,17 @@ export default function EventsScreen() {
         ref={scrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
-        scrollEventThrottle={200}
+        scrollEventThrottle={16}
         onScroll={({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }) => {
           if (contentSize.height - contentOffset.y - layoutMeasurement.height < 400) {
             handleScrollNearBottom()
+          }
+          if (Platform.OS === 'web') {
+            const y = contentOffset.y
+            const diff = y - lastScrollY.current
+            lastScrollY.current = y
+            if (y <= 60) { setTabBarHidden(false); return }
+            if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
           }
         }}
         refreshControl={<RefreshControl refreshing={eventsPullRefreshing} onRefresh={() => void handleEventsPullRefresh()} tintColor={theme.colors.primary} />}
