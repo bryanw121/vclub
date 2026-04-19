@@ -11,7 +11,8 @@ import { EventWithDetails, type Notification } from '../../../../types'
 import { useTabsContext } from '../../../../contexts/tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-const TODAY = new Date().toISOString().split('T')[0]
+const _now = new Date()
+const TODAY = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
 const REF_WEEK  = getWeekStart(new Date())
@@ -135,7 +136,11 @@ export default function EventsScreen() {
     })
     const grouped: Record<string, EventWithDetails[]> = {}
     for (const event of [...filtered].sort((a, b) => a.event_date.localeCompare(b.event_date))) {
-      const date = event.event_date.split('T')[0]
+      // Normalize to UTC (append Z if no timezone suffix) then extract local date
+      // so the section header matches the time shown on the event card.
+      const normalized = /[Z+]/.test(event.event_date) ? event.event_date : event.event_date + 'Z'
+      const d = new Date(normalized)
+      const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       if (!grouped[date]) grouped[date] = []
       grouped[date].push(event)
     }
@@ -955,6 +960,7 @@ function formatDayLabel(dateString: string): string {
   if (dateString === TODAY) return 'Today'
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
-  if (dateString === tomorrow.toISOString().split('T')[0]) return 'Tomorrow'
+  const tomorrowKey = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`
+  if (dateString === tomorrowKey) return 'Tomorrow'
   return new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
