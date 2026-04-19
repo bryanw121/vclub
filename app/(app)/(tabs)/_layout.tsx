@@ -211,7 +211,7 @@ export default function TabsLayout() {
           }}
         >
           {/* Bottom padding spacer — counted in tabBarHeight for content offset */}
-          <View style={{ paddingBottom: Math.max(bottomInset, 10) + 10 }}>
+          <View style={{ paddingBottom: Math.max(bottomInset, 10) + 10, backgroundColor: theme.colors.background }}>
             <View style={{
               flexDirection: "row",
               marginHorizontal: 14,
