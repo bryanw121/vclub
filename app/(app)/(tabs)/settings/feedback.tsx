@@ -1,10 +1,10 @@
-import React, { useState } from 'react'
-import { Alert, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import React, { useCallback, useState } from 'react'
+import { Alert, Modal, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
 import { Button } from '../../../../components/Button'
 import { Input } from '../../../../components/Input'
-import { shared } from '../../../../constants'
+import { shared, theme } from '../../../../constants'
 import type { FeedbackKind, FeedbackPriority } from '../../../../types'
 
 export default function FeedbackScreen() {
@@ -18,6 +18,12 @@ export default function FeedbackScreen() {
   const [loading, setLoading] = useState(false)
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const handleScrollRefresh = useCallback(() => {
+    setRefreshing(true)
+    setTimeout(() => setRefreshing(false), 350)
+  }, [])
 
   async function submit() {
     try {
@@ -75,7 +81,12 @@ export default function FeedbackScreen() {
         </TouchableOpacity>
       </Modal>
 
-      <ScrollView contentContainerStyle={shared.scrollContentSubpage}>
+      <ScrollView
+        contentContainerStyle={shared.scrollContentSubpage}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleScrollRefresh} tintColor={theme.colors.primary} />
+        }
+      >
         <View style={shared.card}>
           <Text style={shared.label}>Type</Text>
           <ChoiceRow<FeedbackKind>

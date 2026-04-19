@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   View, Text, FlatList, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Image, Modal, Pressable, Alert, Platform,
+  ActivityIndicator, Image, Modal, Pressable, Alert, Platform, RefreshControl,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect, Stack } from 'expo-router'
@@ -153,6 +153,16 @@ export default function ChatScreen() {
   const { silencedUserIds, silenceUser } = useSilencedUsers()
   const [myId, setMyId] = useState<string | null>(null)
   const [newDMVisible, setNewDMVisible] = useState(false)
+  const [listRefreshing, setListRefreshing] = useState(false)
+
+  const handleChatListRefresh = useCallback(async () => {
+    setListRefreshing(true)
+    try {
+      await refetch()
+    } finally {
+      setListRefreshing(false)
+    }
+  }, [refetch])
 
   const visibleConversations = useMemo(
     () => conversations.filter(row => {
@@ -362,6 +372,13 @@ export default function ChatScreen() {
           keyExtractor={r => r.conversation_id}
           renderItem={renderRow}
           contentContainerStyle={{ paddingBottom: tabBarHeight + 16 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={listRefreshing}
+              onRefresh={() => void handleChatListRefresh()}
+              tintColor={theme.colors.primary}
+            />
+          }
           ListHeaderComponent={visibleConversations.length === 0 ? (
             <View style={[shared.centered, { paddingTop: 60 }]}>
               <Ionicons name="chatbubbles-outline" size={48} color={theme.colors.border} />

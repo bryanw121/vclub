@@ -1067,8 +1067,11 @@ export default function EventDetail() {
   async function handleRefresh() {
     setRefreshing(true)
     setComments([])
-    await fetchEvent({ silent: true })
-    setRefreshing(false)
+    try {
+      await fetchEvent({ silent: true })
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   async function searchCohostCandidates(query: string) {
@@ -2510,7 +2513,11 @@ export default function EventDetail() {
             </ScrollView>
 
             {/* Tab 1: People */}
-            <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
+            <ScrollView
+              style={shared.screen}
+              contentContainerStyle={shared.scrollContent}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
+            >
               {/* Going + Teams */}
               <View style={[shared.rowBetween, shared.mb_sm]}>
                 <Text style={shared.subheading}>Going</Text>
@@ -2779,6 +2786,7 @@ export default function EventDetail() {
                 }}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="interactive"
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
                 onContentSizeChange={() => {
                   if (activeTab === 2) scrollDiscussionToBottom(false)
                 }}
@@ -2829,28 +2837,40 @@ export default function EventDetail() {
             {/* Tab 3: Cheers */}
             <View style={[shared.screen, { flex: 1 }]}>
               {!isEventOver ? (
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl }}>
+                <ScrollView
+                  contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl }}
+                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
+                >
                   <Ionicons name="time-outline" size={40} color={theme.colors.subtext} />
                   <Text style={[shared.subheading, { marginTop: theme.spacing.md, textAlign: 'center' }]}>Not available yet</Text>
                   <Text style={[shared.caption, { marginTop: theme.spacing.sm, textAlign: 'center' }]}>
                     Cheers open after the event ends.
                   </Text>
-                </View>
+                </ScrollView>
               ) : !eventStatus.isAttending && !eventStatus.isOwner ? (
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl }}>
+                <ScrollView
+                  contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl }}
+                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
+                >
                   <Ionicons name="lock-closed-outline" size={40} color={theme.colors.subtext} />
                   <Text style={[shared.subheading, { marginTop: theme.spacing.md, textAlign: 'center' }]}>Attendees only</Text>
                   <Text style={[shared.caption, { marginTop: theme.spacing.sm, textAlign: 'center' }]}>
                     Only people who attended this event can give cheers.
                   </Text>
-                </View>
+                </ScrollView>
               ) : cheersLoading ? (
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <ScrollView
+                  contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: theme.spacing.xl }}
+                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
+                >
                   <ActivityIndicator color={theme.colors.primary} />
-                </View>
+                </ScrollView>
               ) : selectedCheerType === null ? (
                 /* Step 1: Pick a cheer type */
-                <ScrollView contentContainerStyle={[shared.scrollContent, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
+                <ScrollView
+                  contentContainerStyle={[shared.scrollContent, { paddingBottom: insets.bottom + theme.spacing.lg }]}
+                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
+                >
                   <View style={[shared.rowBetween, { marginBottom: theme.spacing.xs }]}>
                     <Text style={shared.subheading}>Give Cheers</Text>
                     {(myCheersGiven.length > 0 || pendingCheers.length > 0) && (
@@ -3012,6 +3032,7 @@ export default function EventDetail() {
                     <ScrollView
                       contentContainerStyle={[shared.scrollContent, { paddingBottom: insets.bottom + theme.spacing.lg }]}
                       keyboardShouldPersistTaps="handled"
+                      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
                     >
                       {(() => {
                         const others = attendees.filter(a => a.id !== userId)
@@ -3213,6 +3234,7 @@ export default function EventDetail() {
                   contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end', paddingBottom: theme.spacing.md }}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="interactive"
+                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
                   onContentSizeChange={() => {
                     if (discussionDrawerOpen) scrollDiscussionToBottom(false)
                   }}

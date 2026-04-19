@@ -70,6 +70,15 @@ export function useMessages(conversationId: string) {
     await fetchMessages(oldestCreatedAt.current)
   }, [fetchMessages, hasMore])
 
+  /** Reload newest page; keeps optimistic `_sending` rows. Does not toggle initial `loading` (use for pull-to-refresh). */
+  const refresh = useCallback(async () => {
+    if (!mountedRef.current) return
+    setHasMore(true)
+    oldestCreatedAt.current = null
+    setMessages(prev => prev.filter(m => m._sending))
+    await fetchMessages()
+  }, [fetchMessages])
+
   useEffect(() => {
     mountedRef.current = true
     setLoading(true)
@@ -282,5 +291,5 @@ export function useMessages(conversationId: string) {
     await supabase.rpc('mark_conversation_read', { p_conversation_id: conversationId })
   }, [conversationId])
 
-  return { messages, loading, hasMore, loadMore, sendMessage, deleteMessage, editMessage, toggleReaction, uploadImage, markRead }
+  return { messages, loading, hasMore, loadMore, refresh, sendMessage, deleteMessage, editMessage, toggleReaction, uploadImage, markRead }
 }

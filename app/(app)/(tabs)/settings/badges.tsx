@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -49,6 +50,7 @@ export default function BadgesScreen() {
   const [profileLoading, setProfileLoading] = useState(true)
   const [detailDef, setDetailDef] = useState<BadgeDef | null>(null)
   const [detailMounted, setDetailMounted] = useState(false)
+  const [listRefreshing, setListRefreshing] = useState(false)
   const detailProgress = useSharedValue(0)
 
   const detailTranslateStyle = useAnimatedStyle(() => ({
@@ -96,6 +98,15 @@ export default function BadgesScreen() {
     setProfileLoading(false)
   }
 
+  async function handleBadgesRefresh() {
+    setListRefreshing(true)
+    try {
+      await Promise.all([fetchBadges(true), fetchBorder()])
+    } finally {
+      setListRefreshing(false)
+    }
+  }
+
   async function saveBorder(border: ProfileBorderType | null) {
     if (borderSaving) return
     const previous = selectedBorder
@@ -126,7 +137,11 @@ export default function BadgesScreen() {
   return (
     <View style={shared.screen}>
       <ScrollView
-        contentContainerStyle={[shared.scrollContentSubpage, detailMounted ? { paddingBottom: 260 + insets.bottom } : undefined]}>
+        contentContainerStyle={[shared.scrollContentSubpage, detailMounted ? { paddingBottom: 260 + insets.bottom } : undefined]}
+        refreshControl={
+          <RefreshControl refreshing={listRefreshing} onRefresh={() => void handleBadgesRefresh()} tintColor={theme.colors.primary} />
+        }
+      >
 
         {/* ── All badges grid ── */}
         <View style={shared.card}>

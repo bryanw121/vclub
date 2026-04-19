@@ -12,6 +12,7 @@ import {
   Platform,
   TextInput,
   StyleSheet,
+  RefreshControl,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
@@ -72,14 +73,15 @@ export default function ClubDetailScreen() {
   const [uploadingCover, setUploadingCover] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [pullRefreshing, setPullRefreshing] = useState(false)
 
   function goBack() {
     if (router.canGoBack()) router.back()
     else router.replace('/(app)/(tabs)' as any)
   }
 
-  async function fetchAll() {
-    setLoading(true)
+  async function fetchAll(opts?: { silent?: boolean }) {
+    if (!opts?.silent) setLoading(true)
     const { data: { session } } = await supabase.auth.getSession()
     setUserId(session?.user.id ?? null)
 
@@ -120,7 +122,16 @@ export default function ClubDetailScreen() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchAll() }, [id])
+  useEffect(() => { void fetchAll() }, [id])
+
+  async function handleClubRefresh() {
+    setPullRefreshing(true)
+    try {
+      await fetchAll({ silent: true })
+    } finally {
+      setPullRefreshing(false)
+    }
+  }
 
   const isOwner = useCallback(() => {
     if (!club || !userId) return false
@@ -267,11 +278,22 @@ export default function ClubDetailScreen() {
           <ActivityIndicator color={theme.colors.primary} />
         </View>
       ) : !club ? (
-        <View style={shared.centered}>
+        <ScrollView
+          contentContainerStyle={[shared.centered, { flexGrow: 1 }]}
+          refreshControl={
+            <RefreshControl refreshing={pullRefreshing} onRefresh={() => void handleClubRefresh()} tintColor={theme.colors.primary} />
+          }
+        >
           <Text style={shared.errorText}>Club not found</Text>
-        </View>
+        </ScrollView>
       ) : (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 40 }}
+          refreshControl={
+            <RefreshControl refreshing={pullRefreshing} onRefresh={() => void handleClubRefresh()} tintColor={theme.colors.primary} />
+          }
+        >
 
           {/* ── Cover photo hero ── */}
           <View style={{ height: COVER_HEIGHT + AVATAR_OVERLAP, marginBottom: theme.spacing.sm }}>

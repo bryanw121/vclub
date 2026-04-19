@@ -47,7 +47,7 @@ const FILTER_CHIPS: { id: FilterChip; label: string }[] = [
 type DateSection = { date: string; data: EventWithDetails[] }
 export default function EventsScreen() {
   const router = useRouter()
-  const { events, loading, loadMonth, invalidateMonth, loadedMonths, reachedEnd } = useMonthEvents()
+  const { events, loading, loadMonth, invalidateAll, loadedMonths, reachedEnd } = useMonthEvents()
   const {
     notifications: notifItems,
     unreadCount,
@@ -67,6 +67,7 @@ export default function EventsScreen() {
   const [notifOpen, setNotifOpen] = useState(false)
   const [curWeekPage, setCurWeekPage] = useState(WEEK_CENTER)
   const [curMonthPage, setCurMonthPage] = useState(MONTH_CENTER)
+  const [eventsPullRefreshing, setEventsPullRefreshing] = useState(false)
 
   // Derive which month(s) the calendar is currently showing
   const visibleMonths = useMemo((): string[] => {
@@ -112,6 +113,18 @@ export default function EventsScreen() {
   const handleScrollNearBottom = useCallback(() => {
     if (!loading && !reachedEnd) void loadMonth(nextScrollMonth)
   }, [loading, reachedEnd, loadMonth, nextScrollMonth])
+
+  const handleEventsPullRefresh = useCallback(async () => {
+    setEventsPullRefreshing(true)
+    const months = [...new Set([...visibleMonths, ...loadedMonths])]
+    try {
+      invalidateAll()
+      await Promise.all(months.map(m => loadMonth(m, true)))
+      await refetchNotifs(true)
+    } finally {
+      setEventsPullRefreshing(false)
+    }
+  }, [visibleMonths, loadedMonths, invalidateAll, loadMonth, refetchNotifs])
 
   const blockPager   = useCallback(() => { pagerBlocked.current = true  }, [pagerBlocked])
   const unblockPager = useCallback(() => { pagerBlocked.current = false }, [pagerBlocked])
@@ -217,7 +230,7 @@ export default function EventsScreen() {
               handleScrollNearBottom()
             }
           }}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={() => visibleMonths.forEach(m => { invalidateMonth(m); void loadMonth(m, true) })} tintColor={theme.colors.primary} />}
+          refreshControl={<RefreshControl refreshing={eventsPullRefreshing} onRefresh={() => void handleEventsPullRefresh()} tintColor={theme.colors.primary} />}
         >
           {/* Header */}
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -323,7 +336,11 @@ export default function EventsScreen() {
           backgroundColor: theme.colors.card,
           flexShrink: 0,
         }}>
-          <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={{ padding: 20 }}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={eventsPullRefreshing} onRefresh={() => void handleEventsPullRefresh()} tintColor={theme.colors.primary} />}
+          >
             {/* Mini calendar */}
             <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, fontWeight: '700', letterSpacing: 1, color: theme.colors.subtext, textTransform: 'uppercase', marginBottom: 10 }}>
               This week
@@ -478,7 +495,7 @@ export default function EventsScreen() {
             handleScrollNearBottom()
           }
         }}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => visibleMonths.forEach(m => { invalidateMonth(m); void loadMonth(m, true) })} tintColor={theme.colors.primary} />}
+        refreshControl={<RefreshControl refreshing={eventsPullRefreshing} onRefresh={() => void handleEventsPullRefresh()} tintColor={theme.colors.primary} />}
       >
         {loading && sections.length === 0 ? (
           <ActivityIndicator style={{ marginTop: theme.spacing.xl }} color={theme.colors.primary} />

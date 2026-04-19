@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native'
+import React, { useCallback, useEffect, useState } from 'react'
+import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
 import { EventCard } from '../../../../components/EventCard'
@@ -10,17 +10,11 @@ export default function ProfileHostedEventsScreen() {
   useStackBackTitle('Hosted events')
   const [events, setEvents] = useState<EventWithDetails[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
-  useEffect(() => {
-    void load()
-  }, [])
-
-  async function load() {
+  const loadHosted = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setLoading(false)
-      return
-    }
+    if (!user) return
     const now = new Date().toISOString()
     const { data, error } = await supabase
       .from('events')
@@ -30,7 +24,28 @@ export default function ProfileHostedEventsScreen() {
       .order('event_date', { ascending: true })
 
     if (!error) setEvents((data ?? []) as unknown as EventWithDetails[])
-    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    void (async () => {
+      setLoading(true)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        await loadHosted()
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [loadHosted])
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    try {
+      await loadHosted()
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   if (loading) return (
@@ -41,7 +56,12 @@ export default function ProfileHostedEventsScreen() {
 
   return (
     <View style={shared.screen}>
-      <ScrollView contentContainerStyle={shared.scrollContentSubpage}>
+      <ScrollView
+        contentContainerStyle={shared.scrollContentSubpage}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={theme.colors.primary} />
+        }
+      >
         <View style={shared.card}>
           {events.length === 0 ? (
             <Text style={shared.caption}>No upcoming hosted events.</Text>

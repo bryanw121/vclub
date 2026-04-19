@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react'
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '../../../../lib/supabase'
@@ -15,18 +15,12 @@ export default function ProfileCheersScreen() {
   const [totalReceived, setTotalReceived] = useState(0)
   const [counts, setCounts] = useState<Partial<Record<CheerType, number>>>({})
   const [totalGiven, setTotalGiven] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
 
-  useFocusEffect(
-    useCallback(() => {
-      void fetchCheers()
-    }, []),
-  )
-
-  async function fetchCheers() {
-    setLoading(true)
+  async function loadCheerData() {
     const { data: { session } } = await supabase.auth.getSession()
     const userId = session?.user?.id
-    if (!userId) { setLoading(false); return }
+    if (!userId) return
 
     const [receivedRes, givenRes] = await Promise.all([
       supabase.from('cheers').select('cheer_type').eq('receiver_id', userId),
@@ -40,7 +34,28 @@ export default function ProfileCheersScreen() {
     setTotalReceived(rows.length)
     setCounts(c)
     setTotalGiven(givenRes.count ?? 0)
-    setLoading(false)
+  }
+
+  useFocusEffect(
+    useCallback(() => {
+      void (async () => {
+        setLoading(true)
+        try {
+          await loadCheerData()
+        } finally {
+          setLoading(false)
+        }
+      })()
+    }, []),
+  )
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    try {
+      await loadCheerData()
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   if (loading) {
@@ -53,7 +68,12 @@ export default function ProfileCheersScreen() {
 
   return (
     <View style={shared.screen}>
-      <ScrollView contentContainerStyle={shared.scrollContentSubpage}>
+      <ScrollView
+        contentContainerStyle={shared.scrollContentSubpage}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={theme.colors.primary} />
+        }
+      >
 
         {/* Summary cards */}
         <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginBottom: theme.spacing.md }}>

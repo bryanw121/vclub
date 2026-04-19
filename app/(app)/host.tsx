@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, ScrollView, Text, TextInput, View, TouchableOpacity, Switch, Modal, StyleSheet, Platform } from 'react-native'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { ActivityIndicator, ScrollView, Text, TextInput, View, TouchableOpacity, Switch, Modal, StyleSheet, Platform, RefreshControl } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '../../lib/supabase'
@@ -128,6 +128,7 @@ export default function HostEventScreen() {
 
   const [initialLoading, setInitialLoading] = useState(true)
   const [durationModalOpen, setDurationModalOpen] = useState(false)
+  const [hostPullRefreshing, setHostPullRefreshing] = useState(false)
 
   useEffect(() => { void loadInitialData() }, [])
 
@@ -181,18 +182,38 @@ export default function HostEventScreen() {
     if (view === 'templates') fetchUserTemplates()
   }, [view])
 
-  async function fetchUserTemplates() {
-    setTemplatesLoading(true)
+  async function fetchUserTemplates(opts?: { quiet?: boolean }) {
+    if (!opts?.quiet) setTemplatesLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setTemplatesLoading(false); return }
+    if (!user) { if (!opts?.quiet) setTemplatesLoading(false); return }
     const { data } = await supabase
       .from('user_event_templates')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
     setUserTemplates((data ?? []) as UserEventTemplate[])
-    setTemplatesLoading(false)
+    if (!opts?.quiet) setTemplatesLoading(false)
   }
+
+  const refreshHostContext = useCallback(async () => {
+    setHostPullRefreshing(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) setUserId(user.id)
+      const [tagsRes, clubsRes] = await Promise.all([
+        supabase.from('tags').select('id, name, category, display_order').order('display_order', { ascending: true }),
+        user
+          ? supabase.from('club_members').select('club_id, clubs (id, name)').eq('user_id', user.id).eq('role', 'owner')
+          : Promise.resolve({ data: null, error: null }),
+      ])
+      setAvailableTags((tagsRes.data ?? []) as Tag[])
+      setOwnedClubs(((clubsRes.data ?? []) as any[]).map((m: any) => m.clubs).filter(Boolean))
+      if (editId && user) await loadEventForEdit(editId)
+      if (view === 'templates') await fetchUserTemplates({ quiet: true })
+    } finally {
+      setHostPullRefreshing(false)
+    }
+  }, [view, editId])
 
   function applyUserTemplate(t: UserEventTemplate) {
     const loc = LOCATIONS.find(l => l.label === t.location)
@@ -375,7 +396,13 @@ export default function HostEventScreen() {
   // ── Templates view ────────────────────────────────────────────────────────
   if (view === 'templates') {
     return (
-      <ScrollView style={shared.screen} contentContainerStyle={shared.scrollContent}>
+      <ScrollView
+        style={shared.screen}
+        contentContainerStyle={shared.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={hostPullRefreshing} onRefresh={() => void refreshHostContext()} tintColor={theme.colors.primary} />
+        }
+      >
         <Text style={[shared.subheading, shared.mb_md]}>My Templates</Text>
 
         {templatesLoading ? (
@@ -441,7 +468,14 @@ export default function HostEventScreen() {
         </TouchableOpacity>
       </Modal>
 
-      <ScrollView style={shared.screen} contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }} scrollEnabled={true}>
+      <ScrollView
+        style={shared.screen}
+        contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
+        scrollEnabled={true}
+        refreshControl={
+          <RefreshControl refreshing={hostPullRefreshing} onRefresh={() => void refreshHostContext()} tintColor={theme.colors.primary} />
+        }
+      >
 
         {/* Page title */}
         <Text style={{ fontFamily: theme.fonts.display, fontSize: 28, letterSpacing: -0.8, color: theme.colors.text, marginBottom: theme.spacing.lg }}>

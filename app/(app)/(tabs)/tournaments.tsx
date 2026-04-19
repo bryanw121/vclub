@@ -1,5 +1,5 @@
-import React from 'react'
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
+import React, { useState, useCallback } from 'react'
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { theme } from '../../../constants'
@@ -38,6 +38,13 @@ export default function TournamentsScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { tabBarHeight } = useTabsContext()
+  const [refreshing, setRefreshing] = useState(false)
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true)
+    // Placeholder until this screen loads real tournament data from Supabase
+    setTimeout(() => setRefreshing(false), 400)
+  }, [])
 
   const pct = Math.round((FEATURED.registered / FEATURED.total) * 100)
 
@@ -46,6 +53,9 @@ export default function TournamentsScreen() {
       style={{ flex: 1, backgroundColor: theme.colors.background }}
       contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+      }
     >
       {/* ── Season label + heading ── */}
       <View style={{

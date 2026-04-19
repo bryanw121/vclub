@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ActivityIndicator,
-  Image, Pressable, Modal, Alert,
+  Image, Pressable, Modal, Alert, RefreshControl,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
@@ -63,9 +63,10 @@ export default function ChatRoomScreen() {
   const [headerMenuAnchor, setHeaderMenuAnchor] = useState<AnchorRect | null>(null)
 
   const {
-    messages, loading, hasMore, loadMore,
+    messages, loading, hasMore, loadMore, refresh,
     sendMessage, deleteMessage, editMessage, toggleReaction, uploadImage, markRead,
   } = useMessages(id)
+  const [listRefreshing, setListRefreshing] = useState(false)
   const { silencedUserIds, silenceUser } = useSilencedUsers()
 
   // Load conversation metadata for the header
@@ -82,6 +83,18 @@ export default function ChatRoomScreen() {
     setHeaderMenuVisible(false)
     setHeaderMenuAnchor(null)
   }, [id])
+
+  const handleChatRoomRefresh = useCallback(async () => {
+    setListRefreshing(true)
+    try {
+      await refresh()
+      const { data } = await supabase.rpc('get_my_conversations')
+      const rows = (data ?? []) as ConversationRow[]
+      setConvRow(rows.find(r => r.conversation_id === id) ?? null)
+    } finally {
+      setListRefreshing(false)
+    }
+  }, [id, refresh])
 
   // Silenced DMs are hidden from the list; kick out if opened via deep link or stale route.
   useEffect(() => {
@@ -290,6 +303,13 @@ export default function ChatRoomScreen() {
             renderItem={renderMessage}
             inverted
             contentContainerStyle={{ paddingVertical: theme.spacing.md }}
+            refreshControl={
+              <RefreshControl
+                refreshing={listRefreshing}
+                onRefresh={() => void handleChatRoomRefresh()}
+                tintColor={theme.colors.primary}
+              />
+            }
             onEndReached={hasMore ? loadMore : undefined}
             onEndReachedThreshold={0.2}
             ListFooterComponent={hasMore ? (

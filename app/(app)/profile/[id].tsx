@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native'
+import { useEffect, useState, useCallback } from 'react'
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
@@ -33,9 +33,11 @@ export default function UserProfileDetail() {
   const [totalCheers, setTotalCheers] = useState(0)
   const [displayBadges, setDisplayBadges] = useState<UserBadge[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
-  useEffect(() => {
-    async function load() {
+  const loadProfile = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true)
+    try {
       const [profileRes, cheersRes, badgesRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', id).single(),
         supabase.from('cheers').select('id', { count: 'exact', head: true }).eq('receiver_id', id),
@@ -53,15 +55,33 @@ export default function UserProfileDetail() {
         if (p.avatar_url) {
           const { uri } = await resolveProfileAvatarUriWithError(p.avatar_url)
           setAvatarUri(uri)
+        } else {
+          setAvatarUri(null)
         }
+      } else {
+        setProfile(null)
+        setAvatarUri(null)
       }
 
       setTotalCheers(cheersRes.count ?? 0)
       setDisplayBadges((badgesRes.data ?? []) as UserBadge[])
+    } finally {
       setLoading(false)
     }
-    void load()
   }, [id])
+
+  useEffect(() => {
+    void loadProfile()
+  }, [loadProfile])
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    try {
+      await loadProfile({ silent: true })
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   function goBack() {
     if (router.canGoBack()) router.back()
@@ -102,12 +122,23 @@ export default function UserProfileDetail() {
       {loading ? (
         <View style={shared.centered}><ActivityIndicator color={theme.colors.primary} /></View>
       ) : !profile ? (
-        <View style={shared.centered}><Text style={shared.errorText}>Profile not found</Text></View>
+        <ScrollView
+          style={shared.screen}
+          contentContainerStyle={[shared.centered, { flexGrow: 1, paddingBottom: insets.bottom + 32 }]}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={theme.colors.primary} />
+          }
+        >
+          <Text style={shared.errorText}>Profile not found</Text>
+        </ScrollView>
       ) : (
         <ScrollView
           style={shared.screen}
           contentContainerStyle={[shared.scrollContent, { paddingBottom: insets.bottom + 32 }]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={theme.colors.primary} />
+          }
         >
           {/* ── Hero card ── */}
           <View style={{

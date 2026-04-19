@@ -372,8 +372,11 @@ export default function MyProfile() {
   async function handleProfileRefresh() {
     setRefreshing(true)
     lastResolvedAvatarUrl.current = null // force fresh signed URL on refresh
-    await Promise.all([fetchProfile(), fetchBadges(true)])
-    setRefreshing(false)
+    try {
+      await Promise.all([fetchProfile(), fetchBadges(true)])
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   useFocusEffect(
@@ -619,9 +622,7 @@ export default function MyProfile() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         refreshControl={
-          section !== 'edit'
-            ? <RefreshControl refreshing={refreshing} onRefresh={handleProfileRefresh} tintColor={theme.colors.primary} />
-            : undefined
+          <RefreshControl refreshing={refreshing} onRefresh={() => void handleProfileRefresh()} tintColor={theme.colors.primary} />
         }
       >
         {section === 'edit' && (

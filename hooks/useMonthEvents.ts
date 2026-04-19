@@ -25,7 +25,8 @@ export function useMonthEvents() {
   // Cache lives in a ref so loadMonth never needs it as a dependency.
   // A separate tick state triggers re-renders when cache contents change.
   const cacheRef = useRef<Record<string, MonthEntry>>({})
-  const inFlight = useRef<Set<string>>(new Set())
+  /** One promise per month so callers (e.g. pull-to-refresh) can await in-flight loads */
+  const pendingByMonth = useRef<Record<string, Promise<void>>>({})
   const [loadingMonths, setLoadingMonths] = useState<Set<string>>(new Set())
   const [tick, setTick] = useState(0)
   const [reachedEnd, setReachedEnd] = useState(false)
@@ -33,35 +34,54 @@ export function useMonthEvents() {
   const loadMonth = useCallback(async (month: string, force = false) => {
     const entry = cacheRef.current[month]
     if (!force && entry && Date.now() - entry.fetchedAt < STALE_MS) return
-    if (inFlight.current.has(month)) return
 
-    inFlight.current.add(month)
-    setLoadingMonths(prev => new Set([...prev, month]))
-
-    try {
-      const { data, error } = await supabase
-        .from('events')
-        .select(EVENT_CARD_LIST_SELECT)
-        .gte('event_date', monthStart(month))
-        .lt('event_date', monthEnd(month))
-        .is('cancelled_at', null)
-        .order('event_date', { ascending: true })
-
-      if (!error && data) {
-        cacheRef.current[month] = {
-          events: data as unknown as EventWithDetails[],
-          fetchedAt: Date.now(),
+    // Join or wait out an in-flight load, then re-check (force always continues to a fresh fetch)
+    for (;;) {
+      const existing = pendingByMonth.current[month]
+      if (existing) {
+        await existing
+        if (!force) {
+          const e = cacheRef.current[month]
+          if (e && Date.now() - e.fetchedAt < STALE_MS) return
         }
-        if (data.length === 0) setReachedEnd(true)
-        setTick(t => t + 1) // tell React the cache changed → recompute events
+        continue
       }
+      break
+    }
+
+    const p = (async () => {
+      setLoadingMonths(prev => new Set([...prev, month]))
+      try {
+        const { data, error } = await supabase
+          .from('events')
+          .select(EVENT_CARD_LIST_SELECT)
+          .gte('event_date', monthStart(month))
+          .lt('event_date', monthEnd(month))
+          .is('cancelled_at', null)
+          .order('event_date', { ascending: true })
+
+        if (!error && data) {
+          cacheRef.current[month] = {
+            events: data as unknown as EventWithDetails[],
+            fetchedAt: Date.now(),
+          }
+          if (data.length === 0) setReachedEnd(true)
+          setTick(t => t + 1) // tell React the cache changed → recompute events
+        }
+      } finally {
+        setLoadingMonths(prev => {
+          const next = new Set(prev)
+          next.delete(month)
+          return next
+        })
+      }
+    })()
+
+    pendingByMonth.current[month] = p
+    try {
+      await p
     } finally {
-      inFlight.current.delete(month)
-      setLoadingMonths(prev => {
-        const next = new Set(prev)
-        next.delete(month)
-        return next
-      })
+      if (pendingByMonth.current[month] === p) delete pendingByMonth.current[month]
     }
   }, []) // stable — reads cacheRef directly, no closure over state
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, ScrollView, Switch, Text, View } from 'react-native'
+import { ActivityIndicator, RefreshControl, ScrollView, Switch, Text, View } from 'react-native'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
 import { Sentry } from '../../../../lib/sentry'
@@ -18,6 +18,7 @@ export default function NotificationSettingsScreen() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -86,9 +87,23 @@ export default function NotificationSettingsScreen() {
 
   const rows = listNotificationPrefsResolved(prefs)
 
+  async function handleRefresh() {
+    setRefreshing(true)
+    try {
+      await load()
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   return (
     <View style={shared.screen}>
-      <ScrollView contentContainerStyle={shared.scrollContentSubpage}>
+      <ScrollView
+        contentContainerStyle={shared.scrollContentSubpage}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={theme.colors.primary} />
+        }
+      >
         {loading ? (
           <ActivityIndicator color={theme.colors.primary} style={{ marginTop: theme.spacing.lg }} />
         ) : (
