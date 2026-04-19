@@ -23,7 +23,11 @@ import { supabase } from '../../../lib/supabase'
 import { shared, theme, CLUB_AVATARS_BUCKET, EVENT_CARD_LIST_SELECT } from '../../../constants'
 import { resolveClubAvatarUri } from '../../../utils'
 import { EventCard } from '../../../components/EventCard'
-import type { ClubWithDetails, EventWithDetails } from '../../../types'
+import { MajorCityAutocomplete } from '../../../components/MajorCityAutocomplete'
+import type { ClubWithDetails, EventWithDetails, MajorCity } from '../../../types'
+
+const CLUB_DETAIL_SELECT =
+  'id, name, description, membership_type, created_by, avatar_url, cover_url, created_at, major_city_id, major_cities (id, display_name, city_name, admin_region, country_code), club_members (club_id, user_id, role, joined_at, profiles (id, username, first_name, last_name, avatar_url))'
 
 const COVER_HEIGHT = 200
 const AVATAR_SIZE = 80
@@ -68,6 +72,7 @@ export default function ClubDetailScreen() {
   const [editMode, setEditMode] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
+  const [editMajorCity, setEditMajorCity] = useState<MajorCity | null>(null)
   const [saving, setSaving] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [uploadingCover, setUploadingCover] = useState(false)
@@ -88,7 +93,7 @@ export default function ClubDetailScreen() {
     const [clubRes, eventsRes, pastRes] = await Promise.all([
       supabase
         .from('clubs')
-        .select('*, club_members (club_id, user_id, role, joined_at, profiles (id, username, first_name, last_name, avatar_url))')
+        .select(CLUB_DETAIL_SELECT)
         .eq('id', id)
         .single(),
       supabase
@@ -105,10 +110,11 @@ export default function ClubDetailScreen() {
     ])
 
     if (clubRes.data) {
-      const clubData = clubRes.data as ClubWithDetails
+      const clubData = clubRes.data as unknown as ClubWithDetails
       setClub(clubData)
       setEditName(clubData.name)
       setEditDescription(clubData.description ?? '')
+      setEditMajorCity(clubData.major_cities ?? null)
       const [avatar, cover] = await Promise.all([
         resolveClubAvatarUri(clubData.avatar_url),
         resolveClubAvatarUri((clubData as any).cover_url),
@@ -176,10 +182,18 @@ export default function ClubDetailScreen() {
       Alert.alert('Name required', 'Please enter a club name.')
       return
     }
+    if (!editMajorCity) {
+      Alert.alert('Metro area required', 'Choose a city from the list.')
+      return
+    }
     setSaving(true)
     const { error } = await supabase
       .from('clubs')
-      .update({ name: editName.trim(), description: editDescription.trim() || null })
+      .update({
+        name: editName.trim(),
+        description: editDescription.trim() || null,
+        major_city_id: editMajorCity.id,
+      })
       .eq('id', club.id)
     if (error) Alert.alert('Error', error.message)
     else { setEditMode(false); await fetchAll() }
@@ -330,7 +344,17 @@ export default function ClubDetailScreen() {
 
                 {owner && !editMode && (
                   <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
-                    <TouchableOpacity onPress={() => setEditMode(true)} style={styles.floatingBtn} hitSlop={12}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (!club) return
+                        setEditName(club.name)
+                        setEditDescription(club.description ?? '')
+                        setEditMajorCity(club.major_cities ?? null)
+                        setEditMode(true)
+                      }}
+                      style={styles.floatingBtn}
+                      hitSlop={12}
+                    >
                       <Ionicons name="pencil-outline" size={18} color="#fff" />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => setShowDeleteModal(true)} style={[styles.floatingBtn, { backgroundColor: 'rgba(220,50,50,0.65)' }]} hitSlop={12}>
@@ -395,7 +419,7 @@ export default function ClubDetailScreen() {
             <Text style={{ fontSize: theme.font.size.xl, fontWeight: theme.font.weight.bold, color: theme.colors.text, textAlign: 'center' }}>
               {club.name}
             </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, flexWrap: 'wrap', justifyContent: 'center' }}>
               <View style={[styles.badge, club.membership_type === 'open' ? styles.badgeOpen : styles.badgeClosed]}>
                 <Ionicons
                   name={club.membership_type === 'open' ? 'globe-outline' : 'lock-closed-outline'}
@@ -404,6 +428,12 @@ export default function ClubDetailScreen() {
                 />
                 <Text style={[styles.badgeText, { color: club.membership_type === 'open' ? theme.colors.success : theme.colors.subtext }]}>
                   {club.membership_type === 'open' ? 'Open' : 'Invite only'}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="location-outline" size={12} color={theme.colors.subtext} />
+                <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext }} numberOfLines={1}>
+                  {club.major_cities?.display_name ?? 'Unknown'}
                 </Text>
               </View>
               <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext }}>· Est. {foundedYear}</Text>
@@ -473,6 +503,7 @@ export default function ClubDetailScreen() {
                   numberOfLines={4}
                 />
               </View>
+              <MajorCityAutocomplete label="Metro area" value={editMajorCity} onChange={setEditMajorCity} />
               <TouchableOpacity
                 onPress={handleSaveEdit}
                 disabled={saving}

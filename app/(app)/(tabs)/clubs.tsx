@@ -36,6 +36,7 @@ import {
   RefreshControl,
   ScrollView,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   Image,
@@ -47,7 +48,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
 import { shared, theme } from '../../../constants'
 import { resolveClubAvatarUri } from '../../../utils'
-import type { ClubWithDetails } from '../../../types'
+import type { ClubWithDetails, MajorCity } from '../../../types'
+
+const CLUB_LIST_SELECT =
+  'id, name, description, membership_type, created_by, avatar_url, cover_url, created_at, major_city_id, major_cities (id, display_name, city_name, admin_region, country_code), club_members (club_id, user_id, role, joined_at, profiles (id, username, first_name, last_name, avatar_url))'
+
+/** PostgREST usually returns one embedded row as an object; normalize if it ever comes back as a single-element array. */
+function resolvedMajorCity(c: ClubWithDetails): MajorCity | null {
+  const raw = c.major_cities as unknown
+  if (raw == null) return null
+  if (Array.isArray(raw)) return (raw[0] as MajorCity | undefined) ?? null
+  return raw as MajorCity
+}
 
 /** Deterministic color for a club based on its name */
 function clubColor(name: string): string {
@@ -121,8 +133,8 @@ function ClubCard({ club, isOwner, isMember, onPress }: ClubCardProps) {
         <Text style={{ fontFamily: theme.fonts.display, fontSize: 16, letterSpacing: -0.3, color: theme.colors.text }} numberOfLines={1}>
           {club.name}
         </Text>
-        <Text style={{ fontFamily: theme.fonts.body, fontSize: 11.5, color: theme.colors.subtext }}>
-          {memberCount} members{isOwner ? ' · Owner' : ''}
+        <Text style={{ fontFamily: theme.fonts.body, fontSize: 11.5, color: theme.colors.subtext }} numberOfLines={1}>
+          {resolvedMajorCity(club)?.display_name ?? 'Unknown'} · {memberCount} members{isOwner ? ' · Owner' : ''}
         </Text>
       </View>
 
@@ -154,6 +166,7 @@ export default function ClubsScreen() {
   const [userId, setUserId] = useState<string | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [filter, setFilter] = useState<ClubFilter>('joined')
+  const [searchQuery, setSearchQuery] = useState('')
 
   async function fetchClubs(showRefreshing = false) {
     if (showRefreshing) setRefreshing(true)
@@ -166,14 +179,14 @@ export default function ClubsScreen() {
 
     const { data, error } = await supabase
       .from('clubs')
-      .select('*, club_members (club_id, user_id, role, joined_at, profiles (id, username, first_name, last_name, avatar_url))')
+      .select(CLUB_LIST_SELECT)
       .order('created_at', { ascending: false })
 
     if (error) {
       console.error('clubs fetch error:', error)
       setFetchError(error.message)
     }
-    setClubs((data ?? []) as ClubWithDetails[])
+    setClubs((data ?? []) as unknown as ClubWithDetails[])
     if (showRefreshing) setRefreshing(false)
     else setLoading(false)
   }
@@ -197,6 +210,24 @@ export default function ClubsScreen() {
     !c.club_members.some(m => m.user_id === userId)
   )
 
+  const discoverOrdered =
+    filter === 'popular'
+      ? [...discoverClubs].sort((a, b) => b.club_members.length - a.club_members.length)
+      : discoverClubs
+
+  const q = searchQuery.trim().toLowerCase()
+  function matchesSearch(c: ClubWithDetails): boolean {
+    if (!q) return true
+    const inName = c.name.toLowerCase().includes(q)
+    const mc = resolvedMajorCity(c)
+    const inRegion = !!mc && (
+      mc.display_name.toLowerCase().includes(q)
+      || mc.city_name.toLowerCase().includes(q)
+      || (mc.admin_region ?? '').toLowerCase().includes(q)
+    )
+    return inName || inRegion
+  }
+
   function isOwner(club: ClubWithDetails): boolean {
     return club.club_members.some(m => m.user_id === userId && m.role === 'owner')
   }
@@ -205,17 +236,45 @@ export default function ClubsScreen() {
     return club.club_members.some(m => m.user_id === userId)
   }
 
-  const visibleClubs = filter === 'joined' ? myClubs : discoverClubs
+  const baseList = filter === 'joined' ? myClubs : discoverOrdered
+  // When searching, scan all clubs — otherwise "Joined" + search only searched empty myClubs for new users.
+  const visibleClubs = (q ? clubs : baseList).filter(matchesSearch)
 
   return (
     <View style={[shared.screen, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Header */}
-      <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md, paddingBottom: 4 }}>
-        <Text style={{ fontFamily: theme.fonts.display, fontSize: 34, letterSpacing: -1.2, color: theme.colors.text, lineHeight: 38 }}>
+      <View style={{
+        paddingHorizontal: theme.spacing.lg,
+        paddingTop: theme.spacing.md,
+        paddingBottom: 4,
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: theme.spacing.md,
+      }}>
+        <Text style={{ fontFamily: theme.fonts.display, fontSize: 34, letterSpacing: -1.2, color: theme.colors.text, lineHeight: 38, flex: 1 }}>
           Clubs
         </Text>
+        <TouchableOpacity
+          onPress={() => router.push('/club/create' as any)}
+          accessibilityRole="button"
+          accessibilityLabel="Create a new club"
+          style={{
+            marginTop: 6,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            borderRadius: theme.radius.full,
+            backgroundColor: theme.colors.primary,
+          }}
+        >
+          <Ionicons name="add" size={20} color="#fff" />
+          <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: '#fff' }}>Create</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Filter pills */}
@@ -246,6 +305,38 @@ export default function ClubsScreen() {
         })}
       </View>
 
+      <View style={{ paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.sm }}>
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+          borderWidth: 1,
+          borderColor: theme.colors.border,
+          borderRadius: theme.radius.md,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          backgroundColor: theme.colors.card,
+        }}>
+          <Ionicons name="search-outline" size={18} color={theme.colors.subtext} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search all clubs by name or city…"
+            placeholderTextColor={theme.colors.subtext}
+            style={{
+              flex: 1,
+              fontFamily: theme.fonts.body,
+              fontSize: 16,
+              color: theme.colors.text,
+              padding: 0,
+            }}
+            autoCorrect={false}
+            autoCapitalize="none"
+            clearButtonMode="while-editing"
+          />
+        </View>
+      </View>
+
       {loading ? (
         <View style={shared.centered}>
           <ActivityIndicator color={theme.colors.primary} />
@@ -273,10 +364,12 @@ export default function ClubsScreen() {
             <View style={[shared.card, { alignItems: 'center', gap: theme.spacing.sm, paddingVertical: theme.spacing.xl }]}>
               <Ionicons name="people-outline" size={48} color={theme.colors.subtext} />
               <Text style={[shared.caption, { textAlign: 'center', maxWidth: 260 }]}>
-                {filter === 'joined'
+                {searchQuery.trim()
+                  ? 'No clubs match your search.'
+                  : filter === 'joined'
                   ? "You haven't joined any clubs yet."
                   : filter === 'nearby'
-                  ? discoverClubs.length > 0 ? "No clubs nearby — try Discover." : "No clubs yet. Check back soon!"
+                  ? discoverClubs.length > 0 ? "No clubs match this view — try another filter or search." : "No clubs yet. Check back soon!"
                   : clubs.length > 0 ? "You're in all available clubs!" : "No clubs yet. Check back soon!"}
               </Text>
             </View>

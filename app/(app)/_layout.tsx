@@ -47,7 +47,7 @@ const SIDEBAR_BREAKPOINT = 768
 function tabIndexFromPath(path: string): number {
   if (path.startsWith('/profile') || path.startsWith('/settings')) return 3
   if (path.startsWith('/chat')) return 2
-  if (path.startsWith('/clubs')) return 1
+  if (path.startsWith('/clubs') || path.startsWith('/club')) return 1
   return 0
 }
 
@@ -204,6 +204,7 @@ export default function AppLayout() {
               <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
               <Stack.Screen name="profile/[id]" options={{ headerShown: false, gestureEnabled: true }} />
               <Stack.Screen name="club/[id]" options={{ headerShown: false, gestureEnabled: true }} />
+              <Stack.Screen name="club/create" options={{ title: 'Create club', headerBackTitle: 'Clubs', gestureEnabled: true }} />
               <Stack.Screen name="notifications" options={{ title: 'Notifications', headerBackTitle: 'Back' }} />
               <Stack.Screen name="chat/[id]" options={{ headerShown: false, gestureEnabled: true }} />
             </Stack>
@@ -304,6 +305,7 @@ export default function AppLayout() {
       <Stack.Screen name="event/[id]" options={{ headerBackTitle: 'Events', gestureEnabled: true }} />
       <Stack.Screen name="profile/[id]" options={{ headerShown: false, gestureEnabled: true }} />
       <Stack.Screen name="club/[id]" options={{ headerShown: false, gestureEnabled: true }} />
+      <Stack.Screen name="club/create" options={{ title: 'Create club', headerBackTitle: 'Clubs', gestureEnabled: true }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications', headerBackTitle: 'Back' }} />
       <Stack.Screen name="chat/[id]" options={{ headerShown: false, gestureEnabled: true }} />
     </Stack>

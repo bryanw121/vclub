@@ -317,6 +317,17 @@ export type UserEventTemplate = {
 export type MembershipType = 'open' | 'invite'
 
 /**
+ * `major_cities` table — curated metros for club location (read-only in the app).
+ */
+export type MajorCity = {
+  id: string
+  display_name: string
+  city_name: string
+  admin_region: string | null
+  country_code: string
+}
+
+/**
  * `clubs` table
  * A volleyball club with members and associated events.
  */
@@ -328,6 +339,8 @@ export type Club = {
   created_by: string
   avatar_url: string | null
   cover_url: string | null
+  /** FK → major_cities.id; embed `major_cities` on list/detail queries. */
+  major_city_id: string
   created_at: string
 }
 
@@ -350,6 +363,7 @@ export type ClubWithDetails = Club & {
   club_members: (ClubMember & {
     profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url'>
   })[]
+  major_cities: MajorCity | null
 }
 
 // ─── Derived / Computed Types ─────────────────────────────────────────────────
