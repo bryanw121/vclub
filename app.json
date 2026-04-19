@@ -7,11 +7,11 @@
     "orientation": "portrait",
     "scheme": "vclub",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#13111F"
     },
     "ios": {
       "supportsTablet": true,
@@ -35,7 +35,7 @@
       "name": "vclub",
       "shortName": "vclub",
       "themeColor": "#7C4DFF",
-      "backgroundColor": "#F9F9F9",
+      "backgroundColor": "#13111F",
       "display": "standalone",
       "orientation": "portrait"
     },
