@@ -57,6 +57,10 @@ test.describe('Chat', () => {
 
   // ── 1. Chat list ───────────────────────────────────────────────────────────
 
+  test('"Active now" section is not shown on the chat list', async ({ page }) => {
+    await expect(page.getByText('Active now', { exact: false })).not.toBeVisible()
+  })
+
   test('chat list renders conversations', async ({ page }) => {
     await expect(page.getByText('Messages')).toBeVisible()
     // At least one conversation row should exist
@@ -131,6 +135,45 @@ test.describe('Chat', () => {
     expect((await quotes).length).toBeGreaterThan(1)
   })
 
+  test('chat room loads scrolled to the bottom (newest messages visible)', async ({ page }) => {
+    await page.goto(CONVO_URL)
+    await page.waitForTimeout(2000)
+
+    // The input bar should be visible without any scrolling — meaning we're already at the bottom
+    const input = page.getByRole('textbox', { name: 'Message' })
+    await expect(input).toBeVisible()
+
+    // Verify scroll position: the page should be at (or very near) the bottom
+    const atBottom = await page.evaluate(() => {
+      const el = document.documentElement
+      return el.scrollHeight - el.scrollTop - el.clientHeight < 100
+    })
+    expect(atBottom).toBe(true)
+  })
+
+  test('messages render in chronological order (oldest at top, newest at bottom)', async ({ page }) => {
+    await page.goto(CONVO_URL)
+    await page.waitForTimeout(2000)
+
+    // Send two messages in sequence and verify they appear in order
+    const first = `e2e-order-first-${Date.now()}`
+    const second = `e2e-order-second-${Date.now()}`
+
+    await page.getByRole('textbox', { name: 'Message' }).fill(first)
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(1000)
+    await page.getByRole('textbox', { name: 'Message' }).fill(second)
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(1500)
+
+    const firstBox = await page.getByText(first).boundingBox()
+    const secondBox = await page.getByText(second).boundingBox()
+    expect(firstBox).not.toBeNull()
+    expect(secondBox).not.toBeNull()
+    // First message should be above (lower y) the second
+    expect(firstBox!.y).toBeLessThan(secondBox!.y)
+  })
+
   // ── 3. Send message ────────────────────────────────────────────────────────
 
   test('sends a message and it appears in the conversation', async ({ page }) => {
@@ -146,6 +189,23 @@ test.describe('Chat', () => {
     await expect(page.getByText(unique)).toBeVisible()
     // Input should be cleared after send
     await expect(input).toHaveValue('')
+  })
+
+  test('after sending a message the view stays scrolled to the bottom', async ({ page }) => {
+    await page.goto(CONVO_URL)
+    await page.waitForTimeout(2000)
+
+    const unique = `e2e-scroll-${Date.now()}`
+    await page.getByRole('textbox', { name: 'Message' }).fill(unique)
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(1500)
+
+    const atBottom = await page.evaluate(() => {
+      const el = document.documentElement
+      return el.scrollHeight - el.scrollTop - el.clientHeight < 100
+    })
+    expect(atBottom).toBe(true)
+    await expect(page.getByText(unique)).toBeVisible()
   })
 
   // ── 4. Context menu ────────────────────────────────────────────────────────
