@@ -1,0 +1,43 @@
+name: CI                                                  
+
+on:
+  push:
+    branches: [main, beta]
+  pull_request:                                                                                                                                                                                                     
+    branches: [main, beta]
+                                                                                                                                                                                                                    
+jobs:                                                     
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest                                                                                                                                                                                          
+    steps:
+      - uses: actions/checkout@v4                                                                                                                                                                                   
+      - uses: actions/setup-node@v4                       
+        with:
+          node-version: 20
+          cache: npm                                                                                                                                                                                                
+      - run: npm ci
+      - run: npm test -- --passWithNoTests                                                                                                                                                                          
+                                                          
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest                                                                                                                                                                                          
+    needs: unit          # only run if unit tests pass
+    env:                                                                                                                                                                                                            
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}                                                                                                                                   
+    steps:                                                                                                                                                                                                          
+      - uses: actions/checkout@v4                                                                                                                                                                                   
+      - uses: actions/setup-node@v4                                                                                                                                                                                 
+        with:                                             
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium                                                                                                                                                            
+      - name: Build web
+        run: npm run build:web                                                                                                                                                                                      
+      - name: Serve + run Playwright                      
+        run: |                                                                                                                                                                                                      
+          npx serve dist -p 8081 &
+          sleep 3                                                                                                                                                                                                   
+          npx playwright test e2e/                             
