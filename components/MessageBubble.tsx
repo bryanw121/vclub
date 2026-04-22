@@ -268,7 +268,6 @@ export function MessageBubble({
         marginBottom: 4,
         gap: 8,
         opacity: message._sending ? 0.6 : 1,
-        ...(Platform.OS === 'web' ? { transform: [{ scaleY: -1 }] as const } : null),
       }}
     >
       <View style={{ width: 28 }}>
