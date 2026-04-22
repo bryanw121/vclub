@@ -3795,6 +3795,11 @@ expo-auth-session@~7.0.10:
     expo-web-browser "~15.0.10"
     invariant "^2.2.4"
 
+expo-blur@~15.0.8:
+  version "15.0.8"
+  resolved "https://registry.npmjs.org/expo-blur/-/expo-blur-15.0.8.tgz"
+  integrity sha512-rWyE1NBRZEu9WD+X+5l7gyPRszw7n12cW3IRNAb5i6KFzaBp8cxqT5oeaphJapqURvcqhkOZn2k5EtBSbsuU7w==
+
 expo-calendar@~15.0.8:
   version "15.0.8"
   resolved "https://registry.npmjs.org/expo-calendar/-/expo-calendar-15.0.8.tgz"

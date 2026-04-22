@@ -57,7 +57,7 @@ function EventCardInner({ event, from: fromOverride }: { event: EventWithDetails
   const { day, date, time } = parseEventDate(event.event_date)
   const accentColor = numeralColor(typeTags)
 
-  const previews = (event.attendee_previews ?? []).slice(0, 5)
+  const previews = (event.attendee_previews ?? []).slice(0, 3)
   const overflow = attendeeCount > previews.length ? attendeeCount - previews.length : 0
 
   return (
@@ -145,7 +145,7 @@ function EventCardInner({ event, from: fromOverride }: { event: EventWithDetails
                     <View key={p.user_id} style={{
                       width: 24, height: 24, borderRadius: 12,
                       backgroundColor: theme.colors.primarySoft,
-                      borderWidth: 1.5, borderColor: theme.colors.text,
+                      borderWidth: 1.5, borderColor: theme.colors.card,
                       marginLeft: i > 0 ? -8 : 0,
                       alignItems: 'center', justifyContent: 'center',
                       overflow: 'hidden',
@@ -161,7 +161,7 @@ function EventCardInner({ event, from: fromOverride }: { event: EventWithDetails
                   <View style={{
                     width: 24, height: 24, borderRadius: 12,
                     backgroundColor: 'rgba(255,255,255,0.15)',
-                    borderWidth: 1.5, borderColor: theme.colors.text,
+                    borderWidth: 1.5, borderColor: theme.colors.card,
                     marginLeft: -8, alignItems: 'center', justifyContent: 'center',
                   }}>
                     <Text style={{ fontFamily: theme.fonts.body, fontSize: 8, fontWeight: '700', color: 'rgba(255,255,255,0.7)' }}>+{overflow}</Text>
@@ -218,7 +218,8 @@ function RowEventCardInner({ event, from: fromOverride }: { event: EventWithDeta
   const accentColor = numeralColor(typeTags)
   const tourney = isTournament(typeTags)
 
-  const previews = (event.attendee_previews ?? []).slice(0, 4)
+  const previews = (event.attendee_previews ?? []).slice(0, 3)
+  const rowOverflow = attendeeCount > previews.length ? attendeeCount - previews.length : 0
 
   return (
     <TouchableOpacity
@@ -311,6 +312,16 @@ function RowEventCardInner({ event, from: fromOverride }: { event: EventWithDeta
                   </View>
                 )
               })}
+              {rowOverflow > 0 && (
+                <View style={{
+                  width: 22, height: 22, borderRadius: 11,
+                  backgroundColor: theme.colors.border,
+                  borderWidth: 1.5, borderColor: theme.colors.card,
+                  marginLeft: -7, alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 7, fontWeight: '700', color: theme.colors.subtext }}>+{rowOverflow}</Text>
+                </View>
+              )}
             </View>
           )}
           <View style={{ flex: 1 }}>

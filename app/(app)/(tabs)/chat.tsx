@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  View, Text, FlatList, ScrollView, TouchableOpacity, TextInput,
+  View, Text, FlatList, TouchableOpacity, TextInput,
   ActivityIndicator, Image, Modal, Pressable, Alert, Platform, RefreshControl,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
@@ -329,38 +329,6 @@ export default function ChatScreen() {
           <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.subtext }}>Search people</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Active now strip */}
-      {!loading && visibleConversations.length > 0 && (
-        <View style={{ paddingTop: theme.spacing.md }}>
-          <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, paddingHorizontal: theme.spacing.lg }}>
-            Active now
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, gap: 14 }}>
-            {visibleConversations.slice(0, 6).map(row => {
-              const name = row.type === 'dm'
-                ? (row.other_user_first_name ?? row.other_user_username ?? 'User')
-                : (row.club_name ?? 'Club')
-              const avatarUrl = resolveAvatarUri(row.type === 'dm' ? row.other_user_avatar_url : row.club_avatar_url)
-              return (
-                <TouchableOpacity key={row.conversation_id} onPress={() => openConversation(row)} style={{ alignItems: 'center', gap: 4 }}>
-                  <View style={{ position: 'relative' }}>
-                    <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: theme.colors.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                      {avatarUrl ? (
-                        <Image source={{ uri: avatarUrl }} style={{ width: 46, height: 46 }} />
-                      ) : (
-                        <Ionicons name="person" size={22} color={theme.colors.subtext} />
-                      )}
-                    </View>
-                    <View style={{ position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.cool, borderWidth: 2.5, borderColor: theme.colors.background }} />
-                  </View>
-                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '600', color: theme.colors.text }}>{name.split(' ')[0]}</Text>
-                </TouchableOpacity>
-              )
-            })}
-          </ScrollView>
-        </View>
-      )}
 
       {loading ? (
         <View style={shared.centered}>

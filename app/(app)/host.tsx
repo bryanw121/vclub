@@ -486,9 +486,9 @@ export default function HostEventScreen() {
         {(() => {
           const typeTags = availableTags.filter(t => t.category === 'event_type')
           if (typeTags.length === 0) return null
-          const TYPE_META: Record<string, { color: string }> = {
-            'Open Play':  { color: theme.colors.primary },
-            'Tournament': { color: theme.colors.warm },
+          const TYPE_META: Record<string, { color: string; subtitle: string }> = {
+            'Open Play':  { color: theme.colors.primary, subtitle: 'casual' },
+            'Tournament': { color: theme.colors.warm,    subtitle: 'bracket' },
           }
           return (
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: theme.spacing.lg }}>
@@ -519,6 +519,13 @@ export default function HostEventScreen() {
                       fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 17, letterSpacing: -0.3,
                       color: selected ? '#fff' : theme.colors.text,
                     }}>{tag.name}</Text>
+                    {meta.subtitle ? (
+                      <Text style={{
+                        fontFamily: theme.fonts.body, fontSize: 12,
+                        color: selected ? 'rgba(255,255,255,0.75)' : theme.colors.subtext,
+                        marginTop: 2,
+                      }}>{meta.subtitle}</Text>
+                    ) : null}
                   </TouchableOpacity>
                 )
               })}

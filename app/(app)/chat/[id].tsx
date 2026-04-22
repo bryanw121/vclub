@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
-  View, Text, FlatList, TextInput, TouchableOpacity,
+  View, Text, FlatList, ScrollView, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ActivityIndicator,
   Image, Pressable, Modal, Alert, RefreshControl,
 } from 'react-native'
@@ -33,14 +33,14 @@ function displayName(p: { first_name: string | null; last_name: string | null; u
 }
 
 export default function ChatRoomScreen() {
+  const isWeb = Platform.OS === 'web'
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const flatListRef = useRef<FlatList>(null)
+  const webScrollRef = useRef<ScrollView>(null)
   const inputRef = useRef<import('react-native').TextInput>(null)
-  const didAutoScrollOnOpenRef = useRef(false)
-  const isNearBottomRef = useRef(true)
-  const loadingMoreRef = useRef(false)
+
 
   const { session } = useAuth()
   const myId = session?.user?.id ?? null
@@ -118,20 +118,6 @@ export default function ChatRoomScreen() {
   useEffect(() => {
     if (messages.length > 0) void markRead()
   }, [messages.length, markRead])
-
-  useEffect(() => {
-    if (loading || didAutoScrollOnOpenRef.current || messages.length === 0) return
-    requestAnimationFrame(() => {
-      flatListRef.current?.scrollToEnd({ animated: false })
-      didAutoScrollOnOpenRef.current = true
-    })
-  }, [loading, messages.length])
-
-  useEffect(() => {
-    didAutoScrollOnOpenRef.current = false
-    isNearBottomRef.current = true
-    loadingMoreRef.current = false
-  }, [id])
 
   const headerTitle = convRow
     ? (convRow.type === 'club'
@@ -223,14 +209,14 @@ export default function ChatRoomScreen() {
     })
   }
 
+  // Native FlatList renderer (inverted, descending order)
   const renderMessage = useCallback(({ item, index }: { item: MessageWithDetails; index: number }) => {
     const isOwn = item.sender_id === myId
-    const prevItem = index > 0 ? messages[index - 1] : null
-    // Show avatar when the sender changes or when it's the first message in a sequence
+    // With inverted list, data is newest-first; index+1 is the older (visually above) message
+    const prevItem = index < messages.length - 1 ? messages[index + 1] : null
     const showAvatar = !isOwn && (prevItem?.sender_id !== item.sender_id || !prevItem)
     const senderSilenced = !isOwn && silencedUserIds.has(item.sender_id)
     const replySilenced = !!(item.reply_to?.profiles?.id && silencedUserIds.has(item.reply_to.profiles.id))
-
     return (
       <MessageBubble
         message={item}
@@ -247,16 +233,16 @@ export default function ChatRoomScreen() {
     )
   }, [myId, messages, isClub, silencedUserIds, router, confirmSilenceUser])
 
-  const handleLoadMoreIfNeeded = useCallback(async (offsetY: number) => {
-    if (!hasMore || loadingMoreRef.current) return
-    if (offsetY > 120) return
-    loadingMoreRef.current = true
-    try {
-      await loadMore()
-    } finally {
-      loadingMoreRef.current = false
-    }
-  }, [hasMore, loadMore])
+  // Web messages in ascending order (oldest → newest top → bottom)
+  const ascendingMessages = useMemo(() => [...messages].reverse(), [messages])
+
+  // On web we use a plain ScrollView (not FlatList) so all items are in the DOM.
+  // useLayoutEffect fires before paint, so scrollToEnd positions us at the bottom
+  // before the user ever sees the list.
+  useLayoutEffect(() => {
+    if (!isWeb || loading || messages.length === 0) return
+    webScrollRef.current?.scrollToEnd({ animated: false })
+  }, [isWeb, loading, messages.length])
 
   const canSend = editingMessage
     ? text.trim().length > 0
@@ -322,25 +308,16 @@ export default function ChatRoomScreen() {
           <View style={shared.centered}>
             <ActivityIndicator color={theme.colors.primary} />
           </View>
-        ) : (
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            keyExtractor={m => m.id}
-            renderItem={renderMessage}
+        ) : isWeb ? (
+          // Web: plain ScrollView — all items in DOM so useLayoutEffect scrollToEnd works before paint
+          <ScrollView
+            ref={webScrollRef}
+            style={{ flex: 1 }}
             contentContainerStyle={{ paddingVertical: theme.spacing.md }}
             onScroll={e => {
-              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent
-              const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height)
-              isNearBottomRef.current = distanceFromBottom < 120
-              void handleLoadMoreIfNeeded(contentOffset.y)
+              if (e.nativeEvent.contentOffset.y <= 80 && hasMore) void loadMore()
             }}
-            scrollEventThrottle={16}
-            onContentSizeChange={() => {
-              if (isNearBottomRef.current) {
-                flatListRef.current?.scrollToEnd({ animated: true })
-              }
-            }}
+            scrollEventThrottle={100}
             refreshControl={
               <RefreshControl
                 refreshing={listRefreshing}
@@ -348,7 +325,54 @@ export default function ChatRoomScreen() {
                 tintColor={theme.colors.primary}
               />
             }
-            ListHeaderComponent={hasMore ? (
+          >
+            {hasMore && (
+              <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+                <ActivityIndicator size="small" color={theme.colors.subtext} />
+              </View>
+            )}
+            {ascendingMessages.map((item, index) => {
+              const isOwn = item.sender_id === myId
+              const prevItem = index > 0 ? ascendingMessages[index - 1] : null
+              const showAvatar = !isOwn && (prevItem?.sender_id !== item.sender_id || !prevItem)
+              const senderSilenced = !isOwn && silencedUserIds.has(item.sender_id)
+              const replySilenced = !!(item.reply_to?.profiles?.id && silencedUserIds.has(item.reply_to.profiles.id))
+              return (
+                <MessageBubble
+                  key={item.id}
+                  message={item}
+                  isOwn={isOwn}
+                  showAvatar={isClub || false}
+                  contentSuppressed={senderSilenced}
+                  replyContentSuppressed={replySilenced}
+                  onViewPeerProfilePress={isClub ? (uid => router.push(`/profile/${uid}` as any)) : undefined}
+                  onSilencePeerPress={isClub ? confirmSilenceUser : undefined}
+                  onLongPress={handleLongPress}
+                  onReplyPress={msg => setReplyTo(msg)}
+                  onImagePress={setViewingImage}
+                />
+              )
+            })}
+          </ScrollView>
+        ) : (
+          // Native: inverted FlatList with newest-first data
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={m => m.id}
+            renderItem={renderMessage}
+            inverted
+            contentContainerStyle={{ paddingVertical: theme.spacing.md }}
+            refreshControl={
+              <RefreshControl
+                refreshing={listRefreshing}
+                onRefresh={() => void handleChatRoomRefresh()}
+                tintColor={theme.colors.primary}
+              />
+            }
+            onEndReached={hasMore ? loadMore : undefined}
+            onEndReachedThreshold={0.2}
+            ListFooterComponent={hasMore ? (
               <View style={{ alignItems: 'center', paddingVertical: 8 }}>
                 <ActivityIndicator size="small" color={theme.colors.subtext} />
               </View>
