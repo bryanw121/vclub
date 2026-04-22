@@ -38,6 +38,9 @@ export default function ChatRoomScreen() {
   const insets = useSafeAreaInsets()
   const flatListRef = useRef<FlatList>(null)
   const inputRef = useRef<import('react-native').TextInput>(null)
+  const didAutoScrollOnOpenRef = useRef(false)
+  const isNearBottomRef = useRef(true)
+  const loadingMoreRef = useRef(false)
 
   const { session } = useAuth()
   const myId = session?.user?.id ?? null
@@ -115,6 +118,20 @@ export default function ChatRoomScreen() {
   useEffect(() => {
     if (messages.length > 0) void markRead()
   }, [messages.length, markRead])
+
+  useEffect(() => {
+    if (loading || didAutoScrollOnOpenRef.current || messages.length === 0) return
+    requestAnimationFrame(() => {
+      flatListRef.current?.scrollToEnd({ animated: false })
+      didAutoScrollOnOpenRef.current = true
+    })
+  }, [loading, messages.length])
+
+  useEffect(() => {
+    didAutoScrollOnOpenRef.current = false
+    isNearBottomRef.current = true
+    loadingMoreRef.current = false
+  }, [id])
 
   const headerTitle = convRow
     ? (convRow.type === 'club'
@@ -208,8 +225,7 @@ export default function ChatRoomScreen() {
 
   const renderMessage = useCallback(({ item, index }: { item: MessageWithDetails; index: number }) => {
     const isOwn = item.sender_id === myId
-    // With inverted list, data is newest-first; index+1 is the older (visually above) message
-    const prevItem = index < messages.length - 1 ? messages[index + 1] : null
+    const prevItem = index > 0 ? messages[index - 1] : null
     // Show avatar when the sender changes or when it's the first message in a sequence
     const showAvatar = !isOwn && (prevItem?.sender_id !== item.sender_id || !prevItem)
     const senderSilenced = !isOwn && silencedUserIds.has(item.sender_id)
@@ -230,6 +246,17 @@ export default function ChatRoomScreen() {
       />
     )
   }, [myId, messages, isClub, silencedUserIds, router, confirmSilenceUser])
+
+  const handleLoadMoreIfNeeded = useCallback(async (offsetY: number) => {
+    if (!hasMore || loadingMoreRef.current) return
+    if (offsetY > 120) return
+    loadingMoreRef.current = true
+    try {
+      await loadMore()
+    } finally {
+      loadingMoreRef.current = false
+    }
+  }, [hasMore, loadMore])
 
   const canSend = editingMessage
     ? text.trim().length > 0
@@ -301,8 +328,19 @@ export default function ChatRoomScreen() {
             data={messages}
             keyExtractor={m => m.id}
             renderItem={renderMessage}
-            inverted
             contentContainerStyle={{ paddingVertical: theme.spacing.md }}
+            onScroll={e => {
+              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent
+              const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height)
+              isNearBottomRef.current = distanceFromBottom < 120
+              void handleLoadMoreIfNeeded(contentOffset.y)
+            }}
+            scrollEventThrottle={16}
+            onContentSizeChange={() => {
+              if (isNearBottomRef.current) {
+                flatListRef.current?.scrollToEnd({ animated: true })
+              }
+            }}
             refreshControl={
               <RefreshControl
                 refreshing={listRefreshing}
@@ -310,9 +348,7 @@ export default function ChatRoomScreen() {
                 tintColor={theme.colors.primary}
               />
             }
-            onEndReached={hasMore ? loadMore : undefined}
-            onEndReachedThreshold={0.2}
-            ListFooterComponent={hasMore ? (
+            ListHeaderComponent={hasMore ? (
               <View style={{ alignItems: 'center', paddingVertical: 8 }}>
                 <ActivityIndicator size="small" color={theme.colors.subtext} />
               </View>

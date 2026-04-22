@@ -36,7 +36,7 @@ export function useMessages(conversationId: string) {
       .from('messages')
       .select(MESSAGE_SELECT)
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
       .limit(PAGE_SIZE)
 
     if (before) query = query.lt('created_at', before)
@@ -46,18 +46,16 @@ export function useMessages(conversationId: string) {
     if (!mountedRef.current) return
 
     const rows = await attachReplyTo((data ?? []) as MessageWithDetails[])
-    // data comes from DB in descending order (newest first) — keep that order for inverted FlatList
-    const oldest = (data ?? [])[((data ?? []).length) - 1]?.created_at ?? null
+    const oldest = (data ?? [])[0]?.created_at ?? null
 
     if (before) {
-      // Older page goes to the END of the array (highest index = visual top of inverted list)
-      setMessages(prev => [...prev, ...rows])
+      // Older page is prepended for a standard (non-inverted) chat list.
+      setMessages(prev => [...rows, ...prev])
       if (oldest) oldestCreatedAt.current = oldest
     } else {
       setMessages(prev => {
         const sending = prev.filter(m => m._sending)
-        // Sending (newest) at front (index 0 = visual bottom), fetched rows after
-        return [...sending, ...rows]
+        return [...rows, ...sending]
       })
       oldestCreatedAt.current = oldest
     }
@@ -101,7 +99,7 @@ export function useMessages(conversationId: string) {
             if (!mountedRef.current) return
             setMessages(prev => {
               if (prev.some(m => m.id === incoming.id)) return prev
-              return [incoming, ...prev.filter(m => !m._sending || m.sender_id !== payload.new.sender_id)]
+              return [...prev.filter(m => !m._sending || m.sender_id !== payload.new.sender_id), incoming]
             })
           } else if (error) {
             void fetchMessages()
@@ -173,7 +171,7 @@ export function useMessages(conversationId: string) {
     }
 
     if (mountedRef.current) {
-      setMessages(prev => [tempMessage, ...prev])
+      setMessages(prev => [...prev, tempMessage])
     }
 
     const { data, error: sendError } = await supabase
@@ -194,7 +192,7 @@ export function useMessages(conversationId: string) {
       if (data) {
         // We already have replyTo data in the closure — attach it directly without an extra fetch
         const confirmed: MessageWithDetails = { ...(data as MessageWithDetails), reply_to: replyToSnapshot }
-        setMessages(prev => [confirmed, ...prev.filter(m => m.id !== tempId)]
+        setMessages(prev => [...prev.filter(m => m.id !== tempId), confirmed]
           .filter((m, i, arr) => i === arr.findIndex(x => x.id === m.id))
         )
       } else {
