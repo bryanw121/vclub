@@ -16,7 +16,7 @@ const BADGE_IMAGE_URLS: string[] = BADGE_DEFINITIONS.flatMap(def => [
 
 const FAB_OPTIONS = [
   { label: 'Open Play',     path: '/host?maxAttendees=18' },
-  { label: 'Tournament',    path: '/host' },
+  { label: 'Tournament',    path: '/tournament/create' },
   { label: 'From Template', path: '/host?mode=templates' },
 ]
 
@@ -190,13 +190,14 @@ export default function AppLayout() {
           </View>
 
           {/* Content */}
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
             <Stack
               screenOptions={{
                 headerStyle: { backgroundColor: theme.colors.background },
                 headerTintColor: theme.colors.primary,
                 headerShadowVisible: false,
                 gestureEnabled: true,
+                contentStyle: { backgroundColor: theme.colors.background },
               }}
             >
               <Stack.Screen name="(tabs)" options={{ headerShown: false, headerBackTitle: 'Back' }} />

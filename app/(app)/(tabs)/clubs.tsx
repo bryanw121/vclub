@@ -40,6 +40,7 @@ import {
   TouchableOpacity,
   View,
   Image,
+  Alert,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -77,10 +78,12 @@ type ClubCardProps = {
   isOwner: boolean
   isMember: boolean
   onPress: () => void
+  onJoin: () => Promise<void>
 }
 
-function ClubCard({ club, isOwner, isMember, onPress }: ClubCardProps) {
+function ClubCard({ club, isOwner, isMember, onPress, onJoin }: ClubCardProps) {
   const [avatarUri, setAvatarUri] = useState<string | null>(null)
+  const [joining, setJoining] = useState(false)
   const memberCount = club.club_members.length
   const initial = club.name.charAt(0).toUpperCase()
   const color = clubColor(club.name)
@@ -92,6 +95,16 @@ function ClubCard({ club, isOwner, isMember, onPress }: ClubCardProps) {
     })
     return () => { cancelled = true }
   }, [club.avatar_url])
+
+  async function handleJoinPress(e: any) {
+    e.stopPropagation?.()
+    setJoining(true)
+    try {
+      await onJoin()
+    } finally {
+      setJoining(false)
+    }
+  }
 
   return (
     <TouchableOpacity
@@ -110,7 +123,7 @@ function ClubCard({ club, isOwner, isMember, onPress }: ClubCardProps) {
       onPress={onPress}
       activeOpacity={0.72}
     >
-      {/* Diagonal-stripe avatar */}
+      {/* Avatar */}
       <View style={{ width: 54, height: 54, borderRadius: 14, overflow: 'hidden', flexShrink: 0 }}>
         {avatarUri ? (
           <Image source={{ uri: avatarUri }} style={{ width: 54, height: 54 }} />
@@ -145,10 +158,14 @@ function ClubCard({ club, isOwner, isMember, onPress }: ClubCardProps) {
         </View>
       ) : (
         <TouchableOpacity
-          onPress={onPress}
-          style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: theme.colors.primary }}
+          onPress={handleJoinPress}
+          disabled={joining}
+          style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: theme.colors.primary, opacity: joining ? 0.6 : 1 }}
         >
-          <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: '#fff' }}>Join</Text>
+          {joining
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: '#fff' }}>Join</Text>
+          }
         </TouchableOpacity>
       )}
     </TouchableOpacity>
@@ -234,6 +251,27 @@ export default function ClubsScreen() {
 
   function isMember(club: ClubWithDetails): boolean {
     return club.club_members.some(m => m.user_id === userId)
+  }
+
+  async function handleJoin(club: ClubWithDetails) {
+    if (!userId) return
+    // Optimistic update
+    setClubs(prev => prev.map(c =>
+      c.id !== club.id ? c : {
+        ...c,
+        club_members: [...c.club_members, { club_id: c.id, user_id: userId, role: 'member', joined_at: new Date().toISOString(), profiles: null as any }],
+      }
+    ))
+    const { error } = await supabase
+      .from('club_members')
+      .insert({ club_id: club.id, user_id: userId, role: 'member' })
+    if (error) {
+      // Revert on failure
+      setClubs(prev => prev.map(c =>
+        c.id !== club.id ? c : { ...c, club_members: c.club_members.filter(m => m.user_id !== userId) }
+      ))
+      Alert.alert('Could not join', error.message)
+    }
   }
 
   const baseList = filter === 'joined' ? myClubs : discoverOrdered

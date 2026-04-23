@@ -33,7 +33,7 @@ export function WebStackContentTransition() {
       key={pathname}
       entering={FadeIn.duration(240)}
       exiting={FadeOut.duration(180)}
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: theme.colors.background }}
     >
       {isDesktopWeb && (
         <View style={styles.backRow}>
@@ -58,6 +58,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.xs,
+    backgroundColor: theme.colors.background,
   },
   backButton: {
     flexDirection: 'row',

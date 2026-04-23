@@ -1,5 +1,6 @@
 import React from 'react'
 import { Platform, View, useWindowDimensions } from 'react-native'
+import { theme } from '../../../../constants'
 import { Slot } from 'expo-router'
 import { Pager } from '../../../../components/Pager'
 import { useTabsContext } from '../../../../contexts/tabs'
@@ -20,7 +21,7 @@ export default function MainLayout() {
 
   if (Platform.OS === 'web' && width >= SIDEBAR_BREAKPOINT) {
     return (
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <Slot />
       </View>
     )
