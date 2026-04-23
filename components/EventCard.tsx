@@ -1,5 +1,5 @@
-import React, { memo } from 'react'
-import { TouchableOpacity, Text, View, Image } from 'react-native'
+import React, { memo, useState } from 'react'
+import { TouchableOpacity, Text, View, Image, ActivityIndicator } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, usePathname } from 'expo-router'
 import { theme, eventAttendeeDisplayCount } from '../constants'
@@ -63,7 +63,12 @@ function EventCardInner({ event, from: fromOverride }: { event: EventWithDetails
   return (
     <TouchableOpacity
       activeOpacity={0.85}
-      onPress={() => router.push(`/event/${event.id}?from=${encodeURIComponent(fromOverride ?? pathname)}` as any)}
+      onPress={() => {
+        const path = event._isTournament
+          ? `/tournament/${event.id}`
+          : `/event/${event.id}?from=${encodeURIComponent(fromOverride ?? pathname)}`
+        router.push(path as any)
+      }}
       style={{
         backgroundColor: theme.colors.card,
         borderRadius: 24,
@@ -203,9 +208,19 @@ export const HeroEventCard = EventCard
 
 // ─── Row Event Card (desktop secondary cards) ─────────────────────────────────
 
-function RowEventCardInner({ event, from: fromOverride }: { event: EventWithDetails; from?: string }) {
+function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp }: {
+  event: EventWithDetails
+  from?: string
+  currentUserId?: string | null
+  onRsvp?: (eventId: string, action: 'join' | 'leave') => Promise<void>
+}) {
   const router = useRouter()
   const pathname = usePathname()
+  const [rsvpLoading, setRsvpLoading] = useState(false)
+
+  const isAttending = currentUserId
+    ? (event.attendee_previews ?? []).some(p => p.user_id === currentUserId)
+    : false
 
   const attendeeCount = eventAttendeeDisplayCount(event)
   const spotsLeft = event.max_attendees != null ? Math.max(0, event.max_attendees - attendeeCount) : null
@@ -224,7 +239,12 @@ function RowEventCardInner({ event, from: fromOverride }: { event: EventWithDeta
   return (
     <TouchableOpacity
       activeOpacity={0.85}
-      onPress={() => router.push(`/event/${event.id}?from=${encodeURIComponent(fromOverride ?? pathname)}` as any)}
+      onPress={() => {
+        const path = event._isTournament
+          ? `/tournament/${event.id}`
+          : `/event/${event.id}?from=${encodeURIComponent(fromOverride ?? pathname)}`
+        router.push(path as any)
+      }}
       style={{
         backgroundColor: theme.colors.card,
         borderRadius: 20,
@@ -234,8 +254,17 @@ function RowEventCardInner({ event, from: fromOverride }: { event: EventWithDeta
         gap: 14,
         borderWidth: 1,
         borderColor: theme.colors.border,
+        overflow: 'hidden',
+        position: 'relative',
       }}
     >
+      {/* Emoji watermark */}
+      <View pointerEvents="none" style={{ position: 'absolute', right: -6, top: -14 }}>
+        <Text style={{ fontSize: 80, opacity: 0.07 }}>
+          {tourney ? '🏆' : '🏐'}
+        </Text>
+      </View>
+
       {/* Date block */}
       <View style={{
         width: 56, flexShrink: 0, borderRadius: 14,
@@ -289,7 +318,7 @@ function RowEventCardInner({ event, from: fromOverride }: { event: EventWithDeta
           </View>
         )}
 
-        {/* Attendees + capacity bar */}
+        {/* Attendees + capacity bar + RSVP */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 }}>
           {previews.length > 0 && (
             <View style={{ flexDirection: 'row' }}>
@@ -333,6 +362,29 @@ function RowEventCardInner({ event, from: fromOverride }: { event: EventWithDeta
               <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '600', color: theme.colors.subtext }}>{spotsLeft != null ? `${spotsLeft} left` : '∞'}</Text>
             </View>
           </View>
+          {onRsvp && currentUserId && (
+            <TouchableOpacity
+              onPress={async e => {
+                e.stopPropagation?.()
+                setRsvpLoading(true)
+                try { await onRsvp(event.id, isAttending ? 'leave' : 'join') } finally { setRsvpLoading(false) }
+              }}
+              activeOpacity={0.75}
+              style={{
+                paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, flexShrink: 0,
+                backgroundColor: isAttending ? theme.colors.card : theme.colors.primary,
+                borderWidth: 1,
+                borderColor: isAttending ? theme.colors.border : theme.colors.primary,
+              }}
+            >
+              {rsvpLoading
+                ? <ActivityIndicator size="small" color={isAttending ? theme.colors.subtext : '#fff'} />
+                : <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: isAttending ? theme.colors.subtext : '#fff' }}>
+                    {isAttending ? 'Going ✓' : 'RSVP'}
+                  </Text>
+              }
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </TouchableOpacity>
@@ -340,3 +392,4 @@ function RowEventCardInner({ event, from: fromOverride }: { event: EventWithDeta
 }
 
 export const RowEventCard = memo(RowEventCardInner) as typeof RowEventCardInner
+export type RowEventCardRsvpHandler = (eventId: string, action: 'join' | 'leave') => Promise<void>

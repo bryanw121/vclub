@@ -4,12 +4,13 @@ import { Platform, View, ScrollView, FlatList, Text, RefreshControl, TouchableOp
 import { Ionicons } from '@expo/vector-icons'
 import { useMonthEvents } from '../../../../hooks/useMonthEvents'
 import { useNotifications } from '../../../../hooks/useNotifications'
-import { EventCard, RowEventCard } from '../../../../components/EventCard'
+import { EventCard, RowEventCard, RowEventCardRsvpHandler } from '../../../../components/EventCard'
 import { NotificationPopup } from '../../../../components/NotificationPopup'
 import { shared, theme } from '../../../../constants'
 import { EventWithDetails, type Notification } from '../../../../types'
 import { useTabsContext } from '../../../../contexts/tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { supabase } from '../../../../lib/supabase'
 
 const _now = new Date()
 const TODAY = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`
@@ -68,6 +69,21 @@ export default function EventsScreen() {
   const [curWeekPage, setCurWeekPage] = useState(WEEK_CENTER)
   const [curMonthPage, setCurMonthPage] = useState(MONTH_CENTER)
   const [eventsPullRefreshing, setEventsPullRefreshing] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setCurrentUserId(user?.id ?? null))
+  }, [])
+
+  const handleRsvp: RowEventCardRsvpHandler = useCallback(async (eventId, action) => {
+    if (!currentUserId) return
+    if (action === 'join') {
+      await supabase.from('event_attendees').insert({ event_id: eventId, user_id: currentUserId })
+    } else {
+      await supabase.from('event_attendees').delete().eq('event_id', eventId).eq('user_id', currentUserId)
+    }
+    void invalidateAll()
+  }, [currentUserId, invalidateAll])
 
   // Derive which month(s) the calendar is currently showing
   const visibleMonths = useMemo((): string[] => {
@@ -84,6 +100,18 @@ export default function EventsScreen() {
   useEffect(() => {
     visibleMonths.forEach(m => { void loadMonth(m) })
   }, [visibleMonths, loadMonth])
+
+  // On desktop, eagerly load the next 3 months on mount so the grid isn't sparse
+  useEffect(() => {
+    if (isMobile) return
+    const [y, mo] = TODAY.substring(0, 7).split('-').map(Number)
+    for (let i = 1; i <= 3; i++) {
+      const totalMo = mo + i
+      const yr = y + Math.floor((totalMo - 1) / 12)
+      const mn = ((totalMo - 1) % 12) + 1
+      void loadMonth(`${yr}-${String(mn).padStart(2, '0')}`)
+    }
+  }, [isMobile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Force-reload visible months after create/edit (no cache clear — avoids flash)
   useEffect(() => {
@@ -213,9 +241,6 @@ export default function EventsScreen() {
 
   // ── Desktop layout ────────────────────────────────────────────────────────
   if (!isMobile) {
-    const heroEvent = allEvents[0] ?? null
-    const secondaryTop = allEvents.slice(1, 3)
-    const remaining = allEvents.slice(1)
 
     return (
       <View style={{ flex: 1, flexDirection: 'row', backgroundColor: theme.colors.background }}>
@@ -240,7 +265,7 @@ export default function EventsScreen() {
                 {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
               </Text>
               <Text style={{ fontFamily: theme.fonts.display, fontSize: 44, lineHeight: 46, letterSpacing: -1.6, color: theme.colors.text, marginTop: 2 }}>
-                {"What's on deck"}<Text style={{ color: theme.colors.primary }}>.</Text>
+                {"Events"}<Text style={{ color: theme.colors.primary }}>.</Text>
               </Text>
             </View>
             <TouchableOpacity
@@ -291,36 +316,38 @@ export default function EventsScreen() {
             </View>
           ) : (
             <>
-              {/* Hero + 2 secondary row cards */}
-              {heroEvent && (
-                <View style={{ flexDirection: 'row', gap: 14, marginBottom: 20 }}>
-                  <View style={{ flex: 1.3 }}>
-                    <EventCard event={heroEvent} />
+              {Object.entries(
+                sections.reduce<Record<string, EventWithDetails[]>>((acc, section) => {
+                  const month = section.date.substring(0, 7)
+                  ;(acc[month] ??= []).push(...section.data)
+                  return acc
+                }, {})
+              ).map(([month, monthEvents]) => {
+                const [y, m] = month.split('-').map(Number)
+                const d = new Date(y, m - 1, 1)
+                const isCurrentMonth = month === TODAY.substring(0, 7)
+                const label = isCurrentMonth
+                  ? d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) + ' · This month'
+                  : d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                return (
+                  <View key={month} style={{ marginBottom: 32 }}>
+                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 20, letterSpacing: -0.4, color: theme.colors.text, marginBottom: 12 }}>
+                      {label}
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                      {monthEvents.map(item => (
+                        <View key={item.id} style={{ width: 'calc(50% - 5px)' as any }}>
+                          <RowEventCard
+                            event={item}
+                            currentUserId={currentUserId}
+                            onRsvp={item._isTournament ? undefined : handleRsvp}
+                          />
+                        </View>
+                      ))}
+                    </View>
                   </View>
-                  <View style={{ flex: 1, gap: 0 }}>
-                    {secondaryTop.map(item => (
-                      <RowEventCard key={item.id} event={item} />
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              {/* "More events" section */}
-              {remaining.length > 0 && (
-                <>
-                  <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 22, color: theme.colors.text, letterSpacing: -0.4 }}>More events</Text>
-                    <Text style={{ fontFamily: theme.fonts.body, fontSize: 12, fontWeight: '600', color: theme.colors.subtext }}>{remaining.length} events</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                    {remaining.map((item, idx) => (
-                      <View key={item.id} style={{ width: 'calc(50% - 5px)' as any }}>
-                        <RowEventCard event={item} />
-                      </View>
-                    ))}
-                  </View>
-                </>
-              )}
+                )
+              })}
 
               {loading && (
                 <ActivityIndicator style={{ marginVertical: theme.spacing.lg }} color={theme.colors.primary} />
@@ -358,13 +385,13 @@ export default function EventsScreen() {
             </View>
 
             {/* Your next event */}
-            {heroEvent && (
+            {allEvents[0] && (
               <>
                 <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, fontWeight: '700', letterSpacing: 1, color: theme.colors.subtext, textTransform: 'uppercase', marginBottom: 10 }}>
                   Next up
                 </Text>
                 <TouchableOpacity
-                  onPress={() => router.push(`/event/${heroEvent.id}` as any)}
+                  onPress={() => router.push(`/event/${allEvents[0].id}` as any)}
                   activeOpacity={0.85}
                   style={{ backgroundColor: theme.colors.primary, borderRadius: 16, padding: 14, marginBottom: 6 }}
                 >
@@ -374,11 +401,11 @@ export default function EventsScreen() {
                     </View>
                   </View>
                   <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 17, letterSpacing: -0.3, color: '#fff', marginBottom: 4 }} numberOfLines={1}>
-                    {heroEvent.title}
+                    {allEvents[0].title}
                   </Text>
-                  {heroEvent.location && (
+                  {allEvents[0].location && (
                     <Text style={{ fontFamily: theme.fonts.body, fontSize: 11.5, color: 'rgba(255,255,255,0.7)' }} numberOfLines={1}>
-                      {heroEvent.location}
+                      {allEvents[0].location}
                     </Text>
                   )}
                 </TouchableOpacity>

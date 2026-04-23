@@ -52,21 +52,57 @@ export function useMonthEvents() {
     const p = (async () => {
       setLoadingMonths(prev => new Set([...prev, month]))
       try {
-        const { data, error } = await supabase
-          .from('events')
-          .select(EVENT_CARD_LIST_SELECT)
-          .gte('event_date', monthStart(month))
-          .lt('event_date', monthEnd(month))
-          .is('cancelled_at', null)
-          .order('event_date', { ascending: true })
+        const [{ data: eventsData, error: eventsError }, { data: tournamentsData }] = await Promise.all([
+          supabase
+            .from('events')
+            .select(EVENT_CARD_LIST_SELECT)
+            .gte('event_date', monthStart(month))
+            .lt('event_date', monthEnd(month))
+            .is('cancelled_at', null)
+            .order('event_date', { ascending: true }),
+          supabase
+            .from('tournaments')
+            .select('id, created_by, club_id, title, location, start_date, max_teams, price, skill_levels, status, created_at, profiles!tournaments_created_by_fkey(id, username, first_name, last_name, avatar_url), clubs(id, name, avatar_url)')
+            .gte('start_date', monthStart(month))
+            .lt('start_date', monthEnd(month))
+            .neq('status', 'draft')
+            .neq('status', 'cancelled'),
+        ])
 
-        if (!error && data) {
+        if (!eventsError) {
+          const TOURNAMENT_TAG = { id: '_tournament', name: 'Tournament', category: 'event_type', display_order: 2, created_at: '' }
+          const normalized: EventWithDetails[] = (tournamentsData ?? []).map((t: any) => ({
+            id:                        t.id,
+            created_by:                t.created_by,
+            club_id:                   t.club_id,
+            title:                     t.title,
+            description:               null,
+            location:                  t.location,
+            event_date:                t.start_date,
+            duration_minutes:          0,
+            max_attendees:             t.max_teams ?? null,
+            created_at:                t.created_at,
+            price:                     t.price ?? 0,
+            cancelled_at:              null,
+            profiles:                  t.profiles,
+            clubs:                     t.clubs,
+            event_tags:                [{ tag_id: '_tournament', tags: TOURNAMENT_TAG }],
+            attendee_previews:         [],
+            event_attendees_attending: [{ count: 0 }],
+            event_guests_attending:    [{ count: 0 }],
+            event_attendees_waitlisted:[{ count: 0 }],
+            _isTournament:             true,
+          }))
+
+          const combined = [...(eventsData as unknown as EventWithDetails[]), ...normalized]
+          combined.sort((a, b) => a.event_date.localeCompare(b.event_date))
+
           cacheRef.current[month] = {
-            events: data as unknown as EventWithDetails[],
+            events: combined,
             fetchedAt: Date.now(),
           }
-          if (data.length === 0) setReachedEnd(true)
-          setTick(t => t + 1) // tell React the cache changed → recompute events
+          if (combined.length === 0) setReachedEnd(true)
+          setTick(t => t + 1)
         }
       } finally {
         setLoadingMonths(prev => {

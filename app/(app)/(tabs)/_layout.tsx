@@ -20,7 +20,7 @@ const MOBILE_NAV_TABS = [
 
 const FAB_OPTIONS = [
   { label: "Open Play",     path: "/host?maxAttendees=18" },
-  { label: "Tournament",    path: "/host" },
+  { label: "Tournament",    path: "/tournament/create" },
   { label: "From Template", path: "/host?mode=templates" },
 ];
 

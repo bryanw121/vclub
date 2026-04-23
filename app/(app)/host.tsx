@@ -484,7 +484,8 @@ export default function HostEventScreen() {
 
         {/* ── Event type toggle cards ── */}
         {(() => {
-          const typeTags = availableTags.filter(t => t.category === 'event_type')
+          // Tournament has its own dedicated creation flow — exclude it here
+          const typeTags = availableTags.filter(t => t.category === 'event_type' && t.name !== 'Tournament')
           if (typeTags.length === 0) return null
           const TYPE_META: Record<string, { color: string; subtitle: string }> = {
             'Open Play':  { color: theme.colors.primary, subtitle: 'casual' },

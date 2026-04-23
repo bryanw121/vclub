@@ -268,6 +268,8 @@ export type EventWithDetails = Event & {
     user_id: string
     profiles: Pick<Profile, 'id' | 'first_name' | 'last_name' | 'avatar_url'> | null
   }>
+  /** Set to true for items normalized from the tournaments table. Cards use this to navigate to /tournament/[id] instead of /event/[id]. */
+  _isTournament?: boolean
 }
 
 // ─── Form Types ───────────────────────────────────────────────────────────────
@@ -498,4 +500,134 @@ export type UserBadge = {
   awarded_at: string         // ISO 8601 — when this tier was reached
   display_order: number | null // 1, 2, or 3 if chosen for profile display; null otherwise
   display_tier: number | null  // chosen display tier; null = show highest earned tier
+}
+
+// ─── Tournament Types ─────────────────────────────────────────────────────────
+
+export type TournamentStatus = 'draft' | 'published' | 'in_progress' | 'completed' | 'cancelled'
+export type TournamentFormat = 'pool_play' | 'bracket' | 'pool_bracket' | 'round_robin'
+export type TournamentBracketType = 'single' | 'double'
+export type TournamentStage = 'pool_play' | 'bracket' | 'round_robin'
+export type TournamentTeamStatus = 'registered' | 'waitlisted' | 'free_agent' | 'disqualified'
+export type TournamentMatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'forfeit'
+
+export type Tournament = {
+  id: string
+  club_id: string
+  created_by: string
+  title: string
+  description: string | null
+  location: string | null
+  skill_levels: (VolleyballSkillLevel | 'open')[]
+  start_date: string
+  registration_deadline: string | null
+  status: TournamentStatus
+  format: TournamentFormat
+  bracket_type: TournamentBracketType | null
+  max_teams: number | null
+  min_roster_size: number
+  max_roster_size: number
+  teams_advance_per_pool: number
+  has_refs: boolean
+  price: number
+  schedule_published: boolean
+  published_at: string | null
+  cancelled_at: string | null
+  created_at: string
+}
+
+export type TournamentRules = {
+  tournament_id: string
+  starting_score: number
+  winning_score: number
+  deciding_set_score: number
+  win_by_margin: number
+  point_cap: number | null
+  sets_to_win: number
+}
+
+export type TournamentTeam = {
+  id: string
+  tournament_id: string
+  name: string
+  captain_user_id: string | null
+  status: TournamentTeamStatus
+  is_locked: boolean
+  seed: number | null
+  created_at: string
+}
+
+export type TournamentTeamMember = {
+  id: string
+  team_id: string
+  user_id: string
+  is_captain: boolean
+  joined_at: string
+}
+
+export type TournamentPool = {
+  id: string
+  tournament_id: string
+  name: string
+  display_order: number
+}
+
+export type TournamentMatch = {
+  id: string
+  tournament_id: string
+  pool_id: string | null
+  stage: TournamentStage
+  round: number
+  match_number: number
+  team_a_id: string | null
+  team_b_id: string | null
+  ref_team_id: string | null
+  court: string | null
+  scheduled_at: string | null
+  status: TournamentMatchStatus
+  winner_id: string | null
+  is_losers_bracket: boolean
+  bracket_round_name: string | null
+  created_at: string
+}
+
+export type TournamentSet = {
+  id: string
+  match_id: string
+  set_number: number
+  team_a_score: number
+  team_b_score: number
+  completed_at: string | null
+}
+
+/** Full tournament draft form state used during multi-step creation */
+export type TournamentDraft = {
+  // Step 1 — Basic Info
+  title: string
+  clubId: string
+  location: string
+  skillLevels: (VolleyballSkillLevel | 'open')[]
+  startDate: Date | null
+  registrationDeadline: Date | null
+  description: string
+
+  // Step 2 — Format
+  format: TournamentFormat
+  bracketType: TournamentBracketType
+  teamsAdvancePerPool: number
+
+  // Step 3 — Registration
+  maxTeams: number | null
+  minRosterSize: number
+  maxRosterSize: number
+  hasRefs: boolean
+  price: number
+
+  // Step 4 — Rules
+  startingScore: number
+  winningScore: number
+  decidingSetScore: number
+  winByMargin: number
+  pointCap: number | null
+  setsToWin: number
 }

@@ -3,11 +3,13 @@ import DateTimePicker from '@react-native-community/datetimepicker'
 import { shared } from '../constants'
 
 type Props = {
-  value: Date
+  value: Date | null
   onChange: (date: Date) => void
+  placeholder?: string
 }
 
 export function DatePickerField({ value, onChange }: Props) {
+  const effective = value ?? new Date()
   return (
     <View style={shared.inputContainer}>
       <Text style={shared.label}>Date & Time</Text>
@@ -15,7 +17,7 @@ export function DatePickerField({ value, onChange }: Props) {
         <View style={shared.pickerItem}>
           <Text style={shared.pickerLabel}>Date</Text>
           <DateTimePicker
-            value={value}
+            value={effective}
             mode="date"
             display="compact"
             minimumDate={new Date()}
@@ -27,7 +29,7 @@ export function DatePickerField({ value, onChange }: Props) {
         <View style={shared.pickerItem}>
           <Text style={shared.pickerLabel}>Time</Text>
           <DateTimePicker
-            value={value}
+            value={effective}
             mode="time"
             display="compact"
             minuteInterval={5}

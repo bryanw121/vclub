@@ -3,8 +3,9 @@ import { Ionicons } from '@expo/vector-icons'
 import { shared, theme } from '../constants'
 
 type Props = {
-  value: Date
+  value: Date | null
   onChange: (date: Date) => void
+  placeholder?: string
 }
 
 function toDateInputValue(date: Date): string {
@@ -76,16 +77,24 @@ const css = `
   }
 `
 
-export function DatePickerField({ value: date, onChange }: Props) {
-  const hours24 = date.getHours()
+export function DatePickerField({ value: date, onChange, placeholder }: Props) {
+  // When null, provide a default so controls can render; onChange fires immediately on interaction
+  const effective = date ?? (() => {
+    const d = new Date()
+    d.setSeconds(0, 0)
+    d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5)
+    return d
+  })()
+
+  const hours24 = effective.getHours()
   const period  = hours24 >= 12 ? 'PM' : 'AM'
   const hours12 = hours24 % 12 || 12
-  const minutes = Math.round(date.getMinutes() / 5) * 5 % 60
+  const minutes = Math.round(effective.getMinutes() / 5) * 5 % 60
 
   function handleDateChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.value) return
     const [y, m, d] = e.target.value.split('-').map(Number)
-    const updated = new Date(date)
+    const updated = new Date(effective)
     updated.setFullYear(y, m - 1, d)
     onChange(updated)
   }
@@ -93,13 +102,13 @@ export function DatePickerField({ value: date, onChange }: Props) {
   function handleHourChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const h12 = Number(e.target.value)
     const h24 = (h12 % 12) + (period === 'PM' ? 12 : 0)
-    const updated = new Date(date)
+    const updated = new Date(effective)
     updated.setHours(h24, minutes)
     onChange(updated)
   }
 
   function handleMinuteChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const updated = new Date(date)
+    const updated = new Date(effective)
     updated.setHours(hours24, Number(e.target.value))
     onChange(updated)
   }
@@ -107,7 +116,7 @@ export function DatePickerField({ value: date, onChange }: Props) {
   function handlePeriodChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const p = e.target.value as 'AM' | 'PM'
     const h24 = (hours12 % 12) + (p === 'PM' ? 12 : 0)
-    const updated = new Date(date)
+    const updated = new Date(effective)
     updated.setHours(h24, minutes)
     onChange(updated)
   }
@@ -121,43 +130,48 @@ export function DatePickerField({ value: date, onChange }: Props) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.sm }}>
         {/* @ts-ignore */}
         <div className="vclub-field-wrap">
-          <Ionicons name="calendar-outline" size={16} color={theme.colors.subtext} />
+          <Ionicons name="calendar-outline" size={16} color={date ? theme.colors.text : theme.colors.subtext} />
           {/* @ts-ignore */}
           <input
             type="date"
             className="vclub-date-input"
             min={toDateInputValue(new Date())}
-            value={toDateInputValue(date)}
+            value={date ? toDateInputValue(effective) : ''}
+            placeholder={placeholder ?? 'Pick a date'}
             onChange={handleDateChange}
+            style={{ color: date ? undefined : theme.colors.subtext } as any}
           />
         </div>
-        {/* @ts-ignore */}
-        <div className="vclub-field-wrap" style={{ gap: 2 }}>
-          <Ionicons name="time-outline" size={16} color={theme.colors.subtext} />
-          {/* @ts-ignore */}
-          <select className="vclub-time-select" value={hours12} onChange={handleHourChange}>
-            {HOURS12.map(h => (
-              // @ts-ignore
-              <option key={h} value={h}>{h}</option>
-            ))}
-          </select>
-          {/* @ts-ignore */}
-          <span className="vclub-time-sep">:</span>
-          {/* @ts-ignore */}
-          <select className="vclub-time-select" value={minutes} onChange={handleMinuteChange}>
-            {MINUTES.map(m => (
-              // @ts-ignore
-              <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
-            ))}
-          </select>
-          {/* @ts-ignore */}
-          <select className="vclub-time-select" value={period} onChange={handlePeriodChange}>
+        {/* Only show time pickers once a date is chosen */}
+        {date && (
+          /* @ts-ignore */
+          <div className="vclub-field-wrap" style={{ gap: 2 }}>
+            <Ionicons name="time-outline" size={16} color={theme.colors.subtext} />
             {/* @ts-ignore */}
-            <option value="AM">AM</option>
+            <select className="vclub-time-select" value={hours12} onChange={handleHourChange}>
+              {HOURS12.map(h => (
+                // @ts-ignore
+                <option key={h} value={h}>{h}</option>
+              ))}
+            </select>
             {/* @ts-ignore */}
-            <option value="PM">PM</option>
-          </select>
-        </div>
+            <span className="vclub-time-sep">:</span>
+            {/* @ts-ignore */}
+            <select className="vclub-time-select" value={minutes} onChange={handleMinuteChange}>
+              {MINUTES.map(m => (
+                // @ts-ignore
+                <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+              ))}
+            </select>
+            {/* @ts-ignore */}
+            <select className="vclub-time-select" value={period} onChange={handlePeriodChange}>
+              {/* @ts-ignore */}
+              <option value="AM">AM</option>
+              {/* @ts-ignore */}
+              <option value="PM">PM</option>
+            </select>
+          </div>
+        )}
       </div>
     </View>
   )
