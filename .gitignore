@@ -43,3 +43,7 @@ yarn-error.*
 
 # playwright
 /.playwright-mcp/
+
+# yarn
+.yarnrc
+./yarn.lock

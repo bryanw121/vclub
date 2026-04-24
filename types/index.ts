@@ -374,6 +374,49 @@ export type ClubWithDetails = Club & {
   major_cities: MajorCity | null
 }
 
+/**
+ * `club_posts` table — club feed updates; only club owners may insert (enforced in RLS).
+ */
+export type ClubPost = {
+  id: string
+  club_id: string
+  created_by: string
+  body: string
+  created_at: string
+}
+
+/**
+ * `club_post_likes` table — one row per user per post.
+ */
+export type ClubPostLike = {
+  club_post_id: string
+  user_id: string
+  created_at: string
+}
+
+/**
+ * `club_post_comments` table — discussion on a club post.
+ */
+export type ClubPostComment = {
+  id: string
+  club_post_id: string
+  user_id: string
+  body: string
+  created_at: string
+}
+
+/** Comment on a club post with author profile from Supabase embed. */
+export type ClubPostCommentWithAuthor = ClubPostComment & {
+  profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'selected_border'> | null
+}
+
+/** Club post row for the club feed query (counts + nested comments). */
+export type ClubPostWithFeed = ClubPost & {
+  profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'selected_border'> | null
+  club_post_likes: { count: number }[]
+  club_post_comments: ClubPostCommentWithAuthor[]
+}
+
 // ─── Derived / Computed Types ─────────────────────────────────────────────────
 // These are not stored in the database — they are calculated from the raw data
 // for display purposes.

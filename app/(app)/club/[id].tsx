@@ -24,7 +24,18 @@ import { shared, theme, CLUB_AVATARS_BUCKET, EVENT_CARD_LIST_SELECT } from '../.
 import { resolveClubAvatarUri } from '../../../utils'
 import { EventCard } from '../../../components/EventCard'
 import { MajorCityAutocomplete } from '../../../components/MajorCityAutocomplete'
-import type { ClubWithDetails, EventWithDetails, MajorCity } from '../../../types'
+import { ClubPostCard, ClubPostComposerModal } from '../../../components/ClubPostCard'
+import type { ClubPostWithFeed, ClubWithDetails, EventWithDetails, MajorCity } from '../../../types'
+
+const CLUB_POST_FEED_SELECT = `
+  id, club_id, body, created_at, created_by,
+  profiles:created_by (id, username, first_name, last_name, avatar_url, selected_border),
+  club_post_likes (count),
+  club_post_comments (
+    id, body, created_at, user_id,
+    profiles:user_id (id, username, first_name, last_name, avatar_url, selected_border)
+  )
+`
 
 const CLUB_DETAIL_SELECT =
   'id, name, description, membership_type, created_by, avatar_url, cover_url, created_at, major_city_id, major_cities (id, display_name, city_name, admin_region, country_code), club_members (club_id, user_id, role, joined_at, profiles (id, username, first_name, last_name, avatar_url))'
@@ -79,6 +90,35 @@ export default function ClubDetailScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [pullRefreshing, setPullRefreshing] = useState(false)
+  const [clubPosts, setClubPosts] = useState<ClubPostWithFeed[]>([])
+  const [likedPostIds, setLikedPostIds] = useState<Set<string>>(() => new Set())
+  const [showPostComposer, setShowPostComposer] = useState(false)
+
+  async function fetchClubPosts(clubId: string, uid: string | null) {
+    const { data, error } = await supabase
+      .from('club_posts')
+      .select(CLUB_POST_FEED_SELECT)
+      .eq('club_id', clubId)
+      .order('created_at', { ascending: false })
+      .order('created_at', { foreignTable: 'club_post_comments', ascending: true })
+    if (error) {
+      setClubPosts([])
+      setLikedPostIds(new Set())
+      return
+    }
+    const list = (data ?? []) as unknown as ClubPostWithFeed[]
+    setClubPosts(list)
+    if (uid && list.length > 0) {
+      const { data: likeRows } = await supabase
+        .from('club_post_likes')
+        .select('club_post_id')
+        .eq('user_id', uid)
+        .in('club_post_id', list.map(p => p.id))
+      setLikedPostIds(new Set(likeRows?.map(r => r.club_post_id) ?? []))
+    } else {
+      setLikedPostIds(new Set())
+    }
+  }
 
   function goBack() {
     if (router.canGoBack()) router.back()
@@ -125,6 +165,22 @@ export default function ClubDetailScreen() {
 
     setUpcomingEvents((eventsRes.data ?? []) as unknown as EventWithDetails[])
     setPastCount(pastRes.count ?? 0)
+
+    if (clubRes.data && session?.user.id) {
+      const isClubMember = (clubRes.data as unknown as ClubWithDetails).club_members.some(
+        m => m.user_id === session.user.id,
+      )
+      if (isClubMember) {
+        await fetchClubPosts(id, session.user.id)
+      } else {
+        setClubPosts([])
+        setLikedPostIds(new Set())
+      }
+    } else {
+      setClubPosts([])
+      setLikedPostIds(new Set())
+    }
+
     setLoading(false)
   }
 
@@ -520,6 +576,74 @@ export default function ClubDetailScreen() {
               <Text style={shared.subheading}>About</Text>
               <Text style={[shared.body, { color: theme.colors.subtext, lineHeight: 22 }]}>{club.description}</Text>
             </View>
+          )}
+
+          {/* ── Club posts (members only) ── */}
+          {member && !editMode && (
+            <>
+              <View style={{
+                paddingHorizontal: theme.spacing.md,
+                marginBottom: theme.spacing.sm,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: theme.spacing.md,
+              }}>
+                <Text style={shared.subheading}>Club updates</Text>
+                {owner && (
+                  <TouchableOpacity onPress={() => setShowPostComposer(true)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                    <Text style={{
+                      fontSize: theme.font.size.sm,
+                      fontWeight: theme.font.weight.semibold,
+                      color: theme.colors.primary,
+                    }}>
+                      New post
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {clubPosts.length === 0 ? (
+                <View style={[shared.card, {
+                  marginHorizontal: theme.spacing.md,
+                  marginBottom: theme.spacing.md,
+                  alignItems: 'center',
+                  paddingVertical: theme.spacing.lg,
+                  gap: theme.spacing.sm,
+                }]}>
+                  <Text style={shared.caption}>No updates yet.</Text>
+                  {owner && (
+                    <TouchableOpacity onPress={() => setShowPostComposer(true)}>
+                      <Text style={{
+                        fontSize: theme.font.size.sm,
+                        fontWeight: theme.font.weight.semibold,
+                        color: theme.colors.primary,
+                      }}>
+                        Share the first post
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ) : (
+                <View style={{ paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.md }}>
+                  {clubPosts.map(p => (
+                    <ClubPostCard
+                      key={p.id}
+                      post={p}
+                      likedByMe={likedPostIds.has(p.id)}
+                      currentUserId={userId}
+                      isClubMember={member}
+                      onDataChanged={() => { void fetchClubPosts(club.id, userId) }}
+                    />
+                  ))}
+                </View>
+              )}
+              <ClubPostComposerModal
+                visible={showPostComposer}
+                clubId={club.id}
+                onClose={() => setShowPostComposer(false)}
+                onCreated={() => { void fetchClubPosts(club.id, userId) }}
+              />
+            </>
           )}
 
           {/* ── Upcoming Events ── */}

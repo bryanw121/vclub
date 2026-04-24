@@ -30,3 +30,4 @@ export {
   isCardBgUnlocked,
 } from './badges'
 export type { BadgeDef, BadgeTierDef, BadgeStat, ProfileBorderType, ProfileBorderDef, CardBgDef } from './badges'
+export { CLUB_POST_BODY_MAX, CLUB_POST_COMMENT_MAX } from './clubFeed'
