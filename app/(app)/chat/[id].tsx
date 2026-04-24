@@ -23,7 +23,7 @@ import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
 import { AnchorOptionsMenu, type AnchorRect } from '../../../components/AnchorOptionsMenu'
 import { MessageBubble } from '../../../components/MessageBubble'
 import { ReactionPicker } from '../../../components/ReactionPicker'
-import type { ConversationRow, MessageWithDetails } from '../../../types'
+import type { ConversationRow, MessageWithDetails, MentionUser } from '../../../types'
 
 const AVATAR_SIZE = 36
 
@@ -52,6 +52,11 @@ export default function ChatRoomScreen() {
   const [replyTo, setReplyTo] = useState<MessageWithDetails | null>(null)
   const [editingMessage, setEditingMessage] = useState<MessageWithDetails | null>(null)
 
+  // @mention state (club chats only — DMs don't use mentions)
+  const [mentionableUsers, setMentionableUsers] = useState<MentionUser[]>([])
+  const [activeMention, setActiveMention] = useState<{ query: string; atIndex: number } | null>(null)
+  const cursorPosRef = useRef(0)
+
   // Reaction picker state
   const [pickerVisible, setPickerVisible] = useState(false)
   const [pickerMessage, setPickerMessage] = useState<MessageWithDetails | null>(null)
@@ -71,6 +76,26 @@ export default function ChatRoomScreen() {
   } = useMessages(id)
   const [listRefreshing, setListRefreshing] = useState(false)
   const { silencedUserIds, silenceUser } = useSilencedUsers()
+
+  // Load club members for @mention autocomplete (club chats only)
+  useEffect(() => {
+    if (!convRow || convRow.type !== 'club' || !convRow.club_id) return
+    async function loadMembers() {
+      const { data } = await supabase
+        .from('club_members')
+        .select('profiles!club_members_user_id_fkey(id, username, first_name, last_name)')
+        .eq('club_id', convRow!.club_id!)
+        .neq('user_id', myId ?? '')
+      const users: MentionUser[] = (data ?? []).flatMap((row: any) => {
+        const p = row.profiles
+        if (!p) return []
+        const displayName = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.username
+        return [{ id: p.id, username: p.username, displayName }]
+      })
+      setMentionableUsers(users)
+    }
+    void loadMembers()
+  }, [convRow?.club_id, myId])
 
   // Load conversation metadata for the header
   useEffect(() => {
@@ -135,6 +160,43 @@ export default function ChatRoomScreen() {
 
   const isClub = convRow?.type === 'club'
 
+  function detectMention(t: string, cursor: number) {
+    if (mentionableUsers.length === 0) { setActiveMention(null); return }
+    const before = t.slice(0, cursor)
+    const match = before.match(/(^|\s)@(\w*)$/)
+    if (match) setActiveMention({ query: match[2], atIndex: before.lastIndexOf('@') })
+    else setActiveMention(null)
+  }
+
+  function handleTextChange(t: string) {
+    setText(t)
+    detectMention(t, cursorPosRef.current)
+  }
+
+  function handleSelectionChange(e: any) {
+    const pos: number = e.nativeEvent.selection.start
+    cursorPosRef.current = pos
+    detectMention(text, pos)
+  }
+
+  function selectMention(user: MentionUser) {
+    if (!activeMention) return
+    const before = text.slice(0, activeMention.atIndex)
+    const after = text.slice(cursorPosRef.current)
+    const newText = `${before}@${user.username} ${after}`
+    setText(newText)
+    cursorPosRef.current = activeMention.atIndex + user.username.length + 2
+    setActiveMention(null)
+  }
+
+  const mentionSuggestions = useMemo(() => {
+    if (!activeMention || mentionableUsers.length === 0) return []
+    const q = activeMention.query.toLowerCase()
+    return mentionableUsers
+      .filter(u => !q || u.displayName.toLowerCase().includes(q) || u.username.toLowerCase().includes(q))
+      .slice(0, 6)
+  }, [activeMention, mentionableUsers])
+
   async function handleSend() {
     const trimmed = text.trim()
     if (editingMessage) {
@@ -147,10 +209,18 @@ export default function ChatRoomScreen() {
       return
     }
     if (!trimmed && !imageUri) return
+    const mentionIds = mentionableUsers.length > 0
+      ? [...new Set(
+          [...trimmed.matchAll(/@(\w+)/g)]
+            .map(m => mentionableUsers.find(u => u.username === m[1])?.id)
+            .filter((mid): mid is string => Boolean(mid)),
+        )]
+      : []
     setText('')
     inputRef.current?.clear()
     setImageUri(null)
     setReplyTo(null)
+    setActiveMention(null)
     setSending(true)
     try {
       let uploadedUrl: string | null = null
@@ -159,7 +229,7 @@ export default function ChatRoomScreen() {
         uploadedUrl = await uploadImage(imageUri)
         setUploadingImage(false)
       }
-      await sendMessage(trimmed || null, uploadedUrl, replyTo)
+      await sendMessage(trimmed || null, uploadedUrl, replyTo, mentionIds)
     } finally {
       setSending(false)
     }
@@ -448,6 +518,38 @@ export default function ChatRoomScreen() {
           </View>
         )}
 
+        {/* @mention suggestion dropdown (club chat only) */}
+        {mentionSuggestions.length > 0 && (
+          <View style={{
+            borderTopWidth: 1, borderTopColor: theme.colors.border,
+            backgroundColor: theme.colors.card,
+            maxHeight: 200, overflow: 'hidden',
+          }}>
+            <ScrollView keyboardShouldPersistTaps="always" bounces={false}>
+              {mentionSuggestions.map((u, idx) => (
+                <TouchableOpacity
+                  key={u.id}
+                  onPress={() => selectMention(u)}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 10,
+                    paddingHorizontal: 16, paddingVertical: 10,
+                    borderBottomWidth: idx < mentionSuggestions.length - 1 ? 1 : 0,
+                    borderBottomColor: theme.colors.border, minHeight: 44,
+                  }}
+                >
+                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: theme.colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="person" size={16} color={theme.colors.subtext} />
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: theme.colors.text }}>{u.displayName}</Text>
+                    <Text style={{ fontSize: 12, color: theme.colors.subtext }}>@{u.username}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Input bar — pill composer */}
         <View style={{
           flexDirection: 'row', alignItems: 'flex-end',
@@ -479,7 +581,8 @@ export default function ChatRoomScreen() {
             <TextInput
               ref={inputRef}
               value={text}
-              onChangeText={setText}
+              onChangeText={handleTextChange}
+              onSelectionChange={isClub ? handleSelectionChange : undefined}
               placeholder="Message…"
               placeholderTextColor={theme.colors.subtext}
               multiline

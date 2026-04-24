@@ -164,14 +164,20 @@ export default function ChatScreen() {
     }
   }, [refetch])
 
-  const visibleConversations = useMemo(
-    () => conversations.filter(row => {
+  const visibleConversations = useMemo(() => {
+    const filtered = conversations.filter(row => {
       if (row.type !== 'dm') return true
       if (!row.other_user_id) return true
       return !silencedUserIds.has(row.other_user_id)
-    }),
-    [conversations, silencedUserIds],
-  )
+    })
+    // Unread conversations first, then by most recent message
+    return filtered.sort((a, b) => {
+      const aUnread = (a.unread_count ?? 0) > 0
+      const bUnread = (b.unread_count ?? 0) > 0
+      if (aUnread !== bUnread) return aUnread ? -1 : 1
+      return (b.last_message_at ?? '').localeCompare(a.last_message_at ?? '')
+    })
+  }, [conversations, silencedUserIds])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setMyId(user?.id ?? null))

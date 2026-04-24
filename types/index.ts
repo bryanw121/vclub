@@ -178,6 +178,12 @@ export type EventComment = {
   created_at: string
   /** User IDs tagged in this comment via @mention. */
   mentions: string[]
+  /** Parent comment id for 1-level threaded replies; null = top-level. */
+  parent_id: string | null
+  /** Set when the author edits the comment. */
+  edited_at: string | null
+  /** Soft-delete timestamp; non-null = comment removed. */
+  deleted_at: string | null
 }
 
 /** A user that can be @mentioned in an event discussion. */
@@ -531,6 +537,10 @@ export type Tournament = {
   has_refs: boolean
   price: number
   schedule_published: boolean
+  match_duration_minutes: number
+  break_duration_minutes: number
+  num_courts: number
+  schedule_generated_at: string | null
   published_at: string | null
   cancelled_at: string | null
   created_at: string
@@ -554,6 +564,8 @@ export type TournamentTeam = {
   status: TournamentTeamStatus
   is_locked: boolean
   seed: number | null
+  is_approved: boolean
+  is_paid: boolean
   created_at: string
 }
 
@@ -630,4 +642,69 @@ export type TournamentDraft = {
   winByMargin: number
   pointCap: number | null
   setsToWin: number
+}
+
+// ─── Tournament Discussion ────────────────────────────────────────────────────
+
+export type TournamentComment = {
+  id: string
+  tournament_id: string
+  user_id: string
+  body: string
+  parent_id: string | null
+  mentions: string[]
+  is_announcement: boolean
+  edited_at: string | null
+  deleted_at: string | null
+  created_at: string
+}
+
+export type TournamentCommentWithAuthor = TournamentComment & {
+  profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'selected_border'> | null
+  replies?: TournamentCommentWithAuthor[]
+}
+
+// ─── Tournament Team Management ───────────────────────────────────────────────
+
+export type TournamentTeamInvitationStatus = 'pending' | 'accepted' | 'declined'
+export type TournamentTeamInvitation = {
+  id: string
+  tournament_id: string
+  team_id: string
+  inviter_id: string
+  invitee_id: string
+  status: TournamentTeamInvitationStatus
+  created_at: string
+}
+
+export type TournamentJoinRequestStatus = 'pending' | 'approved' | 'declined'
+export type TournamentTeamJoinRequest = {
+  id: string
+  tournament_id: string
+  team_id: string
+  requester_id: string
+  status: TournamentJoinRequestStatus
+  created_at: string
+}
+
+// ─── Tournament Prizes ────────────────────────────────────────────────────────
+
+export type TournamentPrize = {
+  id: string
+  tournament_id: string
+  place_label: string
+  description: string
+  amount: string | null
+  display_order: number
+  created_at: string
+}
+
+// ─── Tournament Team with roster ──────────────────────────────────────────────
+
+export type TournamentTeamWithRoster = TournamentTeam & {
+  members: (TournamentTeamMember & {
+    profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'skill_level' | 'position'> | null
+  })[]
+  join_requests?: TournamentTeamJoinRequest[]
+  invitations?: TournamentTeamInvitation[]
 }

@@ -208,10 +208,20 @@ type DiscussionComposerProps = {
   mentionableUsers: MentionUser[]
   onPost: (body: string, isAnnouncement: boolean, mentionIds: string[]) => Promise<void>
   onFocusScroll: () => void
+  replyToAuthor?: string | null
+  onClearReply?: () => void
+  editingBody?: string | null
+  onCancelEdit?: () => void
 }
-function DiscussionComposer({ isOwner, postingComment, announcementLabel = 'Post as announcement', mentionableUsers, onPost, onFocusScroll }: DiscussionComposerProps) {
-  const [draft, setDraft] = useState('')
+function DiscussionComposer({ isOwner, postingComment, announcementLabel = 'Post as announcement', mentionableUsers, onPost, onFocusScroll, replyToAuthor, onClearReply, editingBody, onCancelEdit }: DiscussionComposerProps) {
+  const isEditing = editingBody != null
+  const [draft, setDraft] = useState(editingBody ?? '')
   const [isAnnouncement, setIsAnnouncement] = useState(false)
+  const prevEditingBodyRef = useRef(editingBody)
+  if (editingBody !== prevEditingBodyRef.current) {
+    prevEditingBodyRef.current = editingBody
+    setDraft(editingBody ?? '')
+  }
   const [activeMention, setActiveMention] = useState<{ query: string; atIndex: number } | null>(null)
   const cursorPosRef = useRef(0)
 
@@ -257,14 +267,13 @@ function DiscussionComposer({ isOwner, postingComment, announcementLabel = 'Post
   async function handlePost() {
     const body = draft.trim()
     if (!body) return
-    // Collect IDs for all @username tokens found in the final text
     const mentionIds = [...new Set(
       [...body.matchAll(/@(\w+)/g)]
         .map(m => mentionableUsers.find(u => u.username === m[1])?.id)
         .filter((id): id is string => Boolean(id))
     )]
     try {
-      await onPost(body, isAnnouncement, mentionIds)
+      await onPost(body, isEditing ? false : isAnnouncement, mentionIds)
       setDraft('')
       setIsAnnouncement(false)
       setActiveMention(null)
@@ -275,7 +284,23 @@ function DiscussionComposer({ isOwner, postingComment, announcementLabel = 'Post
 
   return (
     <>
-      {isOwner && (
+      {/* Edit mode banner */}
+      {isEditing && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: theme.colors.primary + '14', borderRadius: 8, marginBottom: 6 }}>
+          <Text style={{ fontSize: 12, color: theme.colors.primary, flex: 1 }}>Editing comment</Text>
+          <TouchableOpacity onPress={onCancelEdit} hitSlop={8}><Ionicons name="close-circle" size={18} color={theme.colors.primary} /></TouchableOpacity>
+        </View>
+      )}
+      {/* Reply-to banner */}
+      {!isEditing && replyToAuthor && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: theme.colors.card, borderLeftWidth: 3, borderLeftColor: theme.colors.primary, borderRadius: 4, marginBottom: 6 }}>
+          <Text style={{ fontSize: 12, color: theme.colors.subtext, flex: 1 }} numberOfLines={1}>
+            Replying to <Text style={{ fontWeight: '600', color: theme.colors.text }}>{replyToAuthor}</Text>
+          </Text>
+          <TouchableOpacity onPress={onClearReply} hitSlop={8}><Ionicons name="close" size={16} color={theme.colors.subtext} /></TouchableOpacity>
+        </View>
+      )}
+      {isOwner && !isEditing && (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.sm }}>
           <Text style={[shared.caption, { flex: 1, paddingRight: theme.spacing.sm }]}>{announcementLabel}</Text>
           <Switch
@@ -356,7 +381,7 @@ function DiscussionComposer({ isOwner, postingComment, announcementLabel = 'Post
           onPress={handlePost}
           disabled={!draft.trim() || postingComment}
           accessibilityRole="button"
-          accessibilityLabel="Send comment"
+          accessibilityLabel={isEditing ? 'Save edit' : 'Send comment'}
           style={{
             width: 44, height: 44,
             borderRadius: theme.radius.md,
@@ -367,7 +392,7 @@ function DiscussionComposer({ isOwner, postingComment, announcementLabel = 'Post
         >
           {postingComment
             ? <ActivityIndicator size="small" color={theme.colors.white} />
-            : <Ionicons name="send" size={20} color={theme.colors.white} />}
+            : <Ionicons name={isEditing ? 'checkmark' : 'send'} size={20} color={theme.colors.white} />}
         </TouchableOpacity>
       </View>
     </>
@@ -678,6 +703,8 @@ export default function EventDetail() {
   const [comments, setComments] = useState<EventCommentWithAuthor[]>([])
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [postingComment, setPostingComment] = useState(false)
+  const [replyToComment, setReplyToComment] = useState<EventCommentWithAuthor | null>(null)
+  const [editingComment, setEditingComment] = useState<EventCommentWithAuthor | null>(null)
   const [discussionDrawerOpen, setDiscussionDrawerOpen] = useState(false)
   const [discussionKeyboardInset, setDiscussionKeyboardInset] = useState(0)
   const [discussionTabKeyboardInset, setDiscussionTabKeyboardInset] = useState(0)
@@ -996,7 +1023,7 @@ export default function EventDetail() {
       void supabase
         .from('event_comments')
         .select(
-          'id, event_id, body, is_announcement, created_at, user_id, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url, selected_border)',
+          'id, event_id, body, is_announcement, created_at, user_id, mentions, parent_id, edited_at, deleted_at, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url, selected_border)',
         )
         .eq('event_id', fetchId)
         .order('created_at', { ascending: true })
@@ -1232,7 +1259,7 @@ export default function EventDetail() {
     const { data, error } = await supabase
       .from('event_comments')
       .select(
-        'id, event_id, body, is_announcement, created_at, user_id, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url, selected_border)',
+        'id, event_id, body, is_announcement, created_at, user_id, mentions, parent_id, edited_at, deleted_at, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url, selected_border)',
       )
       .eq('event_id', id)
       .order('created_at', { ascending: true })
@@ -1249,6 +1276,27 @@ export default function EventDetail() {
       Alert.alert('Comment too long', `Please keep comments under ${EVENT_COMMENT_MAX_LEN} characters.`)
       throw new Error('comment_too_long')
     }
+
+    // Edit mode
+    if (editingComment) {
+      setPostingComment(true)
+      try {
+        const { error } = await supabase.from('event_comments')
+          .update({ body, edited_at: new Date().toISOString() })
+          .eq('id', editingComment.id)
+        if (error) throw error
+        setEditingComment(null)
+        await refreshComments()
+      } catch (e: any) {
+        sentryError('editComment', e)
+        Alert.alert('Error', 'Could not edit comment.')
+        throw e
+      } finally {
+        setPostingComment(false)
+      }
+      return
+    }
+
     setPostingComment(true)
     try {
       const { error } = await supabase.from('event_comments').insert({
@@ -1257,8 +1305,10 @@ export default function EventDetail() {
         body,
         is_announcement: Boolean(isHostOrCohost && isAnnouncement),
         mentions: mentionIds,
+        parent_id: replyToComment?.id ?? null,
       })
       if (error) throw error
+      setReplyToComment(null)
       await refreshComments()
       scrollDiscussionToBottom(true)
     } catch (e: any) {
@@ -1268,6 +1318,13 @@ export default function EventDetail() {
     } finally {
       setPostingComment(false)
     }
+  }
+
+  async function handleDeleteComment(commentId: string) {
+    await supabase.from('event_comments')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', commentId)
+    await refreshComments()
   }
 
   async function refreshAttendees() {
@@ -2801,8 +2858,18 @@ export default function EventDetail() {
                   </View>
                 ) : (
                   <View style={{ gap: theme.spacing.xs }}>
-                    {comments.map(c => (
-                      <EventCommentRow key={c.id} comment={c} usernameToId={usernameToId} />
+                    {comments.filter(c => !c.parent_id).map(c => (
+                      <EventCommentRow
+                        key={c.id}
+                        comment={c}
+                        replies={comments.filter(r => r.parent_id === c.id)}
+                        usernameToId={usernameToId}
+                        myId={userId}
+                        isHost={isHostOrCohost}
+                        onReply={setReplyToComment}
+                        onEdit={setEditingComment}
+                        onDelete={handleDeleteComment}
+                      />
                     ))}
                   </View>
                 )}
@@ -2826,6 +2893,10 @@ export default function EventDetail() {
                       mentionableUsers={mentionableUsers}
                       onPost={handlePostComment}
                       onFocusScroll={() => discussionTabScrollRef.current?.scrollToEnd({ animated: true })}
+                      replyToAuthor={replyToComment ? (replyToComment.profiles ? profileDisplayName(replyToComment.profiles) : 'Member') : null}
+                      onClearReply={() => setReplyToComment(null)}
+                      editingBody={editingComment?.body ?? null}
+                      onCancelEdit={() => setEditingComment(null)}
                     />
                   </View>
                 </View>

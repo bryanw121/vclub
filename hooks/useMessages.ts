@@ -138,6 +138,7 @@ export function useMessages(conversationId: string) {
     content: string | null,
     imageUrl: string | null = null,
     replyTo: MessageWithDetails | null = null,
+    mentions: string[] = [],
   ) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -184,6 +185,7 @@ export function useMessages(conversationId: string) {
         content: content || null,
         image_url: imageUrl,
         reply_to_id: replyTo?.id ?? null,
+        mentions,
       })
       .select(MESSAGE_SELECT)
       .single()
