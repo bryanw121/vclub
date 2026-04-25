@@ -42,9 +42,26 @@ function parseEventDate(dateString: string): { day: string; date: number; time: 
 
 // ─── Event Card ───────────────────────────────────────────────────────────────
 
-function EventCardInner({ event, from: fromOverride }: { event: EventWithDetails; from?: string }) {
+export type EventCardRsvpHandler = (eventId: string, action: 'join' | 'leave') => Promise<void>
+
+function EventCardInner({
+  event,
+  from: fromOverride,
+  currentUserId,
+  onRsvp,
+}: {
+  event: EventWithDetails
+  from?: string
+  currentUserId?: string | null
+  onRsvp?: EventCardRsvpHandler
+}) {
   const router = useRouter()
   const pathname = usePathname()
+  const [rsvpLoading, setRsvpLoading] = useState(false)
+
+  const isAttending = currentUserId
+    ? (event.attendee_previews ?? []).some(p => p.user_id === currentUserId)
+    : false
 
   const attendeeCount = eventAttendeeDisplayCount(event)
   const spotsLeft = event.max_attendees != null ? Math.max(0, event.max_attendees - attendeeCount) : null
@@ -186,9 +203,40 @@ function EventCardInner({ event, from: fromOverride }: { event: EventWithDetails
               </Text>
             </View>
           </View>
-          <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: theme.colors.accent }}>
-            <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 12, letterSpacing: 0.2, color: theme.colors.accentInk }}>RSVP</Text>
-          </View>
+          {onRsvp && currentUserId && (
+            <TouchableOpacity
+              onPress={async e => {
+                e.stopPropagation?.()
+                setRsvpLoading(true)
+                try { await onRsvp(event.id, isAttending ? 'leave' : 'join') } finally { setRsvpLoading(false) }
+              }}
+              activeOpacity={0.75}
+              style={{
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: 10,
+                backgroundColor: isAttending ? theme.colors.card : theme.colors.accent,
+                borderWidth: 1,
+                borderColor: isAttending ? theme.colors.border : theme.colors.accent,
+              }}
+            >
+              {rsvpLoading
+                ? <ActivityIndicator size="small" color={isAttending ? theme.colors.subtext : theme.colors.accentInk} />
+                : (
+                    <Text
+                      style={{
+                        fontFamily: theme.fonts.displaySemiBold,
+                        fontSize: 12,
+                        letterSpacing: 0.2,
+                        color: isAttending ? theme.colors.subtext : theme.colors.accentInk,
+                      }}
+                    >
+                      {isAttending ? 'Going ✓' : 'RSVP'}
+                    </Text>
+                  )
+              }
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Capacity bar */}
@@ -392,4 +440,4 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp }:
 }
 
 export const RowEventCard = memo(RowEventCardInner) as typeof RowEventCardInner
-export type RowEventCardRsvpHandler = (eventId: string, action: 'join' | 'leave') => Promise<void>
+export type RowEventCardRsvpHandler = EventCardRsvpHandler

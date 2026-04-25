@@ -4,7 +4,7 @@ import { Platform, View, ScrollView, FlatList, Text, RefreshControl, TouchableOp
 import { Ionicons } from '@expo/vector-icons'
 import { useMonthEvents } from '../../../../hooks/useMonthEvents'
 import { useNotifications } from '../../../../hooks/useNotifications'
-import { EventCard, RowEventCard, RowEventCardRsvpHandler } from '../../../../components/EventCard'
+import { EventCard, RowEventCard, type EventCardRsvpHandler } from '../../../../components/EventCard'
 import { NotificationPopup } from '../../../../components/NotificationPopup'
 import { shared, theme } from '../../../../constants'
 import { EventWithDetails, type Notification } from '../../../../types'
@@ -75,7 +75,7 @@ export default function EventsScreen() {
     supabase.auth.getUser().then(({ data: { user } }) => setCurrentUserId(user?.id ?? null))
   }, [])
 
-  const handleRsvp: RowEventCardRsvpHandler = useCallback(async (eventId, action) => {
+  const handleRsvp: EventCardRsvpHandler = useCallback(async (eventId, action) => {
     if (!currentUserId) return
     if (action === 'join') {
       await supabase.from('event_attendees').insert({ event_id: eventId, user_id: currentUserId })
@@ -557,7 +557,12 @@ export default function EventsScreen() {
               </View>
               <View style={{ paddingHorizontal: theme.spacing.lg }}>
                 {section.data.map(item => (
-                  <EventCard key={item.id} event={item} />
+                  <EventCard
+                    key={item.id}
+                    event={item}
+                    currentUserId={currentUserId}
+                    onRsvp={item._isTournament ? undefined : handleRsvp}
+                  />
                 ))}
               </View>
             </View>
