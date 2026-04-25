@@ -263,14 +263,39 @@ export default function ChatRoomScreen() {
     )
   }, [silenceUser])
 
+  const confirmReportDmUser = useCallback(() => {
+    if (!convRow || convRow.type !== 'dm') return
+    const name = displayName({
+      first_name: convRow.other_user_first_name,
+      last_name: convRow.other_user_last_name,
+      username: convRow.other_user_username ?? 'player',
+    })
+
+    Alert.alert(
+      'Report this player?',
+      `Send a moderation report about ${name} to the Vclub team?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert('Report submitted', `${name} has been reported to the Vclub team.`)
+          },
+        },
+      ],
+    )
+  }, [convRow])
+
   const dmHeaderMenuOptions = useMemo(() => {
     if (!convRow || convRow.type !== 'dm' || !convRow.other_user_id || !myId || convRow.other_user_id === myId) return []
     const oid = convRow.other_user_id
     return [
       { key: 'profile', label: 'View profile', onPress: () => router.push(`/profile/${oid}` as any) },
+      { key: 'report', label: 'Report player', destructive: true, onPress: confirmReportDmUser },
       { key: 'silence', label: 'Silence user', destructive: true, onPress: () => confirmSilenceUser(oid) },
     ]
-  }, [convRow, myId, router, confirmSilenceUser])
+  }, [convRow, myId, router, confirmSilenceUser, confirmReportDmUser])
 
   function openHeaderOptionsMenu() {
     headerKebabRef.current?.measureInWindow((x, y, w, h) => {

@@ -14,10 +14,10 @@ type Props = {
   duration?: number
 }
 
-const VARIANTS: Record<Variant, { bg: string; icon: string; color: string }> = {
-  error:   { bg: '#FFF0F0', icon: 'alert-circle',       color: theme.colors.error },
-  success: { bg: '#F0FFF4', icon: 'checkmark-circle',   color: theme.colors.success },
-  info:    { bg: '#F3F0FF', icon: 'information-circle', color: theme.colors.primary },
+const VARIANTS: Record<Variant, { bg: string; icon: string; color: string; text: string }> = {
+  error:   { bg: '#FFF0F0', icon: 'alert-circle',       color: theme.colors.error, text: '#2E0F0F' },
+  success: { bg: '#F0FFF4', icon: 'checkmark-circle',   color: theme.colors.success, text: '#0F2A1A' },
+  info:    { bg: '#F3F0FF', icon: 'information-circle', color: theme.colors.primary, text: '#1C1140' },
 }
 
 export function Toast({ message, variant = 'error', visible, onHide, duration = 3500 }: Props) {
@@ -45,7 +45,7 @@ export function Toast({ message, variant = 'error', visible, onHide, duration = 
 
   if (!visible) return null
 
-  const { bg, icon, color } = VARIANTS[variant]
+  const { bg, icon, color, text } = VARIANTS[variant]
 
   return (
     <Animated.View
@@ -84,7 +84,7 @@ export function Toast({ message, variant = 'error', visible, onHide, duration = 
         flex: 1,
         fontSize: theme.font.size.sm,
         fontWeight: theme.font.weight.medium,
-        color: theme.colors.text,
+        color: text,
         lineHeight: theme.font.lineHeight.tight,
       }}>
         {message}
