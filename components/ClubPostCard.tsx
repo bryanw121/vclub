@@ -11,6 +11,7 @@ import {
   Platform,
   Modal,
   Pressable,
+  KeyboardAvoidingView,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
@@ -316,45 +317,57 @@ export function ClubPostComposerModal({ visible, clubId, onClose, onCreated }: C
           accessibilityRole="button"
           accessibilityLabel="Dismiss"
         />
-        <View style={[styles.composerSheet, isWeb ? styles.composerSheetWeb : styles.composerSheetNative]}>
-          <View style={styles.composerHandleWrap}>
-            {!isWeb && <View style={styles.composerHandle} />}
-            <Text style={shared.subheading}>New club post</Text>
-          </View>
-          <Text style={[shared.caption, { marginBottom: theme.spacing.sm }]}>
-            Visible to members of this club.
-          </Text>
-          <TextInput
-            value={body}
-            onChangeText={setBody}
-            placeholder="Share an update…"
-            placeholderTextColor={theme.colors.subtext}
-            style={[shared.input, shared.inputMultiline, styles.composerInput]}
-            multiline
-            maxLength={CLUB_POST_BODY_MAX}
-            editable={!busy}
-            textAlignVertical="top"
-          />
-          <View style={styles.composerActions}>
-            <TouchableOpacity
-              onPress={handleClose}
-              disabled={busy}
-              style={[shared.buttonBase, shared.buttonSecondary, { flex: 1 }]}
+        <KeyboardAvoidingView
+          style={styles.composerKeyboardAvoid}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={0}
+        >
+          <View style={[styles.composerSheet, isWeb ? styles.composerSheetWeb : styles.composerSheetNative]}>
+            <ScrollView
+              style={styles.composerScroll}
+              contentContainerStyle={styles.composerScrollContent}
+              keyboardShouldPersistTaps="handled"
             >
-              <Text style={shared.buttonLabelSecondary}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => void submit()}
-              disabled={busy || !body.trim()}
-              style={[shared.buttonBase, shared.buttonPrimary, { flex: 1 }, (busy || !body.trim()) && shared.buttonDisabled]}
-            >
-              {busy
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={shared.buttonLabelPrimary}>Post</Text>
-              }
-            </TouchableOpacity>
+              <View style={styles.composerHandleWrap}>
+                {!isWeb && <View style={styles.composerHandle} />}
+                <Text style={shared.subheading}>New club post</Text>
+              </View>
+              <Text style={[shared.caption, { marginBottom: theme.spacing.sm }]}>
+                Visible to members of this club.
+              </Text>
+              <TextInput
+                value={body}
+                onChangeText={setBody}
+                placeholder="Share an update…"
+                placeholderTextColor={theme.colors.subtext}
+                style={[shared.input, shared.inputMultiline, styles.composerInput]}
+                multiline
+                maxLength={CLUB_POST_BODY_MAX}
+                editable={!busy}
+                textAlignVertical="top"
+              />
+              <View style={styles.composerActions}>
+                <TouchableOpacity
+                  onPress={handleClose}
+                  disabled={busy}
+                  style={[shared.buttonBase, shared.buttonSecondary, { flex: 1 }]}
+                >
+                  <Text style={shared.buttonLabelSecondary}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => void submit()}
+                  disabled={busy || !body.trim()}
+                  style={[shared.buttonBase, shared.buttonPrimary, { flex: 1 }, (busy || !body.trim()) && shared.buttonDisabled]}
+                >
+                  {busy
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={shared.buttonLabelPrimary}>Post</Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   )
@@ -482,9 +495,16 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
   },
   composerSheetNative: {
+    height: '100%',
     borderTopLeftRadius: theme.radius.lg,
     borderTopRightRadius: theme.radius.lg,
-    maxHeight: '85%',
+  },
+  composerKeyboardAvoid: { width: '100%' },
+  composerScroll: {
+    flex: 1,
+  },
+  composerScrollContent: {
+    flexGrow: 1,
   },
   composerHandleWrap: {
     alignItems: 'center',
