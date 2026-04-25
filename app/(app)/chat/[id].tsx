@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../../lib/supabase'
 import { theme, shared } from '../../../constants'
+import { dmMessageContainsBadWord } from '../../../constants/dmBadWords'
 import { useAuth } from '../../../hooks/useAuth'
 import { useMessages } from '../../../hooks/useMessages'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
@@ -69,6 +70,8 @@ export default function ChatRoomScreen() {
   const headerKebabRef = useRef<View>(null)
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false)
   const [headerMenuAnchor, setHeaderMenuAnchor] = useState<AnchorRect | null>(null)
+  const [unsportsmanlikeModalVisible, setUnsportsmanlikeModalVisible] = useState(false)
+  const badWordPromptedMessageIdsRef = useRef<Set<string>>(new Set())
 
   const {
     messages, loading, hasMore, loadMore, refresh,
@@ -110,6 +113,11 @@ export default function ChatRoomScreen() {
   useEffect(() => {
     setHeaderMenuVisible(false)
     setHeaderMenuAnchor(null)
+  }, [id])
+
+  useEffect(() => {
+    badWordPromptedMessageIdsRef.current = new Set()
+    setUnsportsmanlikeModalVisible(false)
   }, [id])
 
   const handleChatRoomRefresh = useCallback(async () => {
@@ -263,6 +271,16 @@ export default function ChatRoomScreen() {
     )
   }, [silenceUser])
 
+  const submitStubDmReport = useCallback(() => {
+    if (!convRow || convRow.type !== 'dm') return
+    const name = displayName({
+      first_name: convRow.other_user_first_name,
+      last_name: convRow.other_user_last_name,
+      username: convRow.other_user_username ?? 'player',
+    })
+    Alert.alert('Report submitted', `${name} has been reported to the Vclub team.`)
+  }, [convRow])
+
   const confirmReportDmUser = useCallback(() => {
     if (!convRow || convRow.type !== 'dm') return
     const name = displayName({
@@ -279,13 +297,11 @@ export default function ChatRoomScreen() {
         {
           text: 'Report',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert('Report submitted', `${name} has been reported to the Vclub team.`)
-          },
+          onPress: submitStubDmReport,
         },
       ],
     )
-  }, [convRow])
+  }, [convRow, submitStubDmReport])
 
   const dmHeaderMenuOptions = useMemo(() => {
     if (!convRow || convRow.type !== 'dm' || !convRow.other_user_id || !myId || convRow.other_user_id === myId) return []
@@ -296,6 +312,23 @@ export default function ChatRoomScreen() {
       { key: 'silence', label: 'Silence user', destructive: true, onPress: () => confirmSilenceUser(oid) },
     ]
   }, [convRow, myId, router, confirmSilenceUser, confirmReportDmUser])
+
+  // Incoming DM text contained a bad word — prompt once per offending message.
+  useEffect(() => {
+    if (loading || !myId || convRow?.type !== 'dm') return
+    if (unsportsmanlikeModalVisible) return
+
+    for (const m of messages) {
+      if (m._sending) continue
+      if (m.sender_id === myId) continue
+      if (m.deleted_at) continue
+      if (!dmMessageContainsBadWord(m.content)) continue
+      if (badWordPromptedMessageIdsRef.current.has(m.id)) continue
+      badWordPromptedMessageIdsRef.current.add(m.id)
+      setUnsportsmanlikeModalVisible(true)
+      return
+    }
+  }, [messages, loading, myId, convRow?.type, unsportsmanlikeModalVisible])
 
   function openHeaderOptionsMenu() {
     headerKebabRef.current?.measureInWindow((x, y, w, h) => {
@@ -685,6 +718,79 @@ export default function ChatRoomScreen() {
           </Pressable>
         </Modal>
       )}
+
+      {/* Unsportsmanlike language (DM) — bad-word prompt */}
+      <Modal
+        visible={unsportsmanlikeModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setUnsportsmanlikeModalVisible(false)}
+      >
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.55)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: theme.spacing.lg,
+          }}
+          onPress={() => setUnsportsmanlikeModalVisible(false)}
+        >
+          <View
+            style={{
+              width: '100%',
+              maxWidth: 360,
+              backgroundColor: theme.colors.card,
+              borderRadius: theme.radius.xl,
+              borderWidth: 1,
+              borderColor: theme.colors.border,
+              padding: theme.spacing.lg,
+              gap: theme.spacing.md,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: theme.spacing.sm }}>
+              <Text
+                style={{
+                  flex: 1,
+                  fontFamily: theme.fonts.displaySemiBold,
+                  fontSize: theme.font.size.lg,
+                  color: theme.colors.text,
+                  lineHeight: theme.font.lineHeight.normal,
+                }}
+              >
+                This player may be unsportsmanlike. Would you like to report this user?
+              </Text>
+              <TouchableOpacity
+                onPress={() => setUnsportsmanlikeModalVisible(false)}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
+                <Ionicons name="close" size={26} color={theme.colors.subtext} />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              onPress={() => {
+                setUnsportsmanlikeModalVisible(false)
+                // Defer so the modal can dismiss before the system alert appears.
+                setTimeout(() => confirmReportDmUser(), 0)
+              }}
+              style={{
+                minHeight: 48,
+                borderRadius: theme.radius.md,
+                backgroundColor: theme.colors.primary,
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingVertical: theme.spacing.sm + 2,
+              }}
+            >
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.md, color: theme.colors.white }}>
+                OK
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   )
 }
