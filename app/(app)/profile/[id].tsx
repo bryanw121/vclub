@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native'
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl, Alert } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
@@ -8,7 +8,9 @@ import { supabase } from '../../../lib/supabase'
 import { shared, theme } from '../../../constants'
 import { BadgeIcon } from '../../../components/BadgeIcon'
 import { ProfileAvatar } from '../../../components/ProfileAvatar'
+import { Toast } from '../../../components/Toast'
 import { BADGE_DEFINITIONS } from '../../../constants/badges'
+import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
 import { resolveProfileAvatarUriWithError, normalizeVolleyballSkillLevel, volleyballSkillLevelLabel } from '../../../utils'
 import type { Profile, UserBadge } from '../../../types'
 
@@ -34,6 +36,8 @@ export default function UserProfileDetail() {
   const [displayBadges, setDisplayBadges] = useState<UserBadge[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [toast, setToast] = useState<{ message: string; variant: 'error' | 'success' | 'info' } | null>(null)
+  const { silencedUserIds, silenceUser, unsilenceUser } = useSilencedUsers()
 
   const loadProfile = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true)
@@ -88,9 +92,43 @@ export default function UserProfileDetail() {
     else router.replace('/(app)/(tabs)')
   }
 
+  function showToast(message: string, variant: 'error' | 'success' | 'info' = 'info') {
+    setToast({ message, variant })
+  }
+
   async function openDM() {
     const { data: convId } = await supabase.rpc('find_or_create_dm', { other_user_id: id })
     if (convId) router.push(`/chat/${convId}` as any)
+  }
+
+  const isSilenced = silencedUserIds.has(id)
+
+  function handleSilenceToggle() {
+    if (isSilenced) {
+      void unsilenceUser(id)
+      showToast(`${displayName || 'Player'} is no longer silenced.`, 'success')
+      return
+    }
+
+    Alert.alert(
+      'Silence this player?',
+      'Their chat messages will be hidden. Events and club activity stay the same.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Silence',
+          style: 'destructive',
+          onPress: () => {
+            void silenceUser(id)
+            showToast(`${displayName || 'Player'} has been silenced.`, 'success')
+          },
+        },
+      ],
+    )
+  }
+
+  function handleReportPlayer() {
+    showToast(`${displayName || 'Player'} has been reported to the Vclub team.`, 'success')
   }
 
   const displayName = profile
@@ -289,8 +327,71 @@ export default function UserProfileDetail() {
             </View>
           </View>
 
+          {/* ── Profile actions ── */}
+          <View style={{ marginTop: theme.spacing.lg }}>
+            <Text style={{
+              fontFamily: theme.fonts.display, fontWeight: '700',
+              fontSize: 18, color: theme.colors.text, marginBottom: theme.spacing.sm,
+            }}>Profile actions</Text>
+
+            <View style={[shared.card, { padding: 0, overflow: 'hidden', gap: 0 }]}>
+              <TouchableOpacity
+                onPress={handleSilenceToggle}
+                style={{
+                  minHeight: 48,
+                  paddingHorizontal: theme.spacing.md,
+                  paddingVertical: theme.spacing.sm + 2,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: theme.spacing.sm,
+                  borderBottomWidth: 1,
+                  borderBottomColor: theme.colors.border,
+                }}
+              >
+                <Ionicons name={isSilenced ? 'volume-high-outline' : 'volume-mute-outline'} size={18} color={theme.colors.text} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.md, color: theme.colors.text }}>
+                    {isSilenced ? 'Unsilence player' : 'Silence player'}
+                  </Text>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext }}>
+                    {isSilenced ? 'Show their chat messages again.' : 'Hide their chat messages from your view.'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleReportPlayer}
+                style={{
+                  minHeight: 48,
+                  paddingHorizontal: theme.spacing.md,
+                  paddingVertical: theme.spacing.sm + 2,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: theme.spacing.sm,
+                }}
+              >
+                <Ionicons name="flag-outline" size={18} color={theme.colors.error} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.md, color: theme.colors.error }}>
+                    Report player
+                  </Text>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext }}>
+                    Send a moderation report to the Vclub team.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+
         </ScrollView>
       )}
+
+      <Toast
+        message={toast?.message ?? ''}
+        variant={toast?.variant ?? 'info'}
+        visible={!!toast}
+        onHide={() => setToast(null)}
+      />
     </View>
   )
 }
