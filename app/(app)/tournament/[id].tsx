@@ -7,6 +7,7 @@ import {
 import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { LinearGradient } from 'expo-linear-gradient'
 import { supabase } from '../../../lib/supabase'
 import { theme, shared } from '../../../constants'
 import { profileDisplayName, resolveProfileAvatarUriSmall } from '../../../utils'
@@ -151,7 +152,7 @@ export default function TournamentDetailScreen() {
   // ── Schedule ──────────────────────────────────────────────────────────────────
   const [matches, setMatches] = useState<any[]>([])
   const [generatingSchedule, setGeneratingSchedule] = useState(false)
-  const [scheduleConfig, setScheduleConfig] = useState({ numCourts: 1, matchDuration: 45, breakDuration: 10 })
+  const [scheduleConfig, setScheduleConfig] = useState({ numCourts: 1, matchDuration: 45, breakDuration: 10, gamesPerTeam: null as number | null })
   const [editingMatch, setEditingMatch] = useState<any | null>(null)
   const [editingScheduleConfig, setEditingScheduleConfig] = useState(false)
 
@@ -186,6 +187,7 @@ export default function TournamentDetailScreen() {
         numCourts: (t as any).num_courts ?? 1,
         matchDuration: (t as any).match_duration_minutes ?? 45,
         breakDuration: (t as any).break_duration_minutes ?? 10,
+        gamesPerTeam: null,
       })
     }
 
@@ -513,18 +515,36 @@ export default function TournamentDetailScreen() {
       const numCourts = scheduleConfig.numCourts
       const matchDuration = scheduleConfig.matchDuration
       const breakDuration = scheduleConfig.breakDuration
+      const gamesPerTeam = scheduleConfig.gamesPerTeam
       const startTime = new Date(tournament!.start_date)
+
+      /** Build all round-robin pairs for a set of team IDs, then cap by gamesPerTeam if set. */
+      function buildPairs(teamIds: string[]): [string, string][] {
+        const all: [string, string][] = []
+        for (let i = 0; i < teamIds.length; i++) {
+          for (let j = i + 1; j < teamIds.length; j++) {
+            all.push([teamIds[i], teamIds[j]])
+          }
+        }
+        if (!gamesPerTeam) return all
+        // Greedy filter: include a pair only if both teams still need more games
+        const playCount = new Map<string, number>(teamIds.map(id => [id, 0]))
+        const limited: [string, string][] = []
+        for (const [a, b] of all) {
+          if ((playCount.get(a) ?? 0) < gamesPerTeam && (playCount.get(b) ?? 0) < gamesPerTeam) {
+            limited.push([a, b])
+            playCount.set(a, (playCount.get(a) ?? 0) + 1)
+            playCount.set(b, (playCount.get(b) ?? 0) + 1)
+          }
+        }
+        return limited
+      }
 
       let matchInserts: any[] = []
 
       if (!usePools) {
-        // Bracket only or round robin — simple round-robin for now
-        const pairs: [string, string][] = []
-        for (let i = 0; i < registeredTeams.length; i++) {
-          for (let j = i + 1; j < registeredTeams.length; j++) {
-            pairs.push([registeredTeams[i].id, registeredTeams[j].id])
-          }
-        }
+        // Bracket only or round robin
+        const pairs = buildPairs(registeredTeams.map(t => t.id))
         // Schedule across courts with time slots
         const slotDuration = matchDuration + breakDuration
         let slotIndex = 0
@@ -575,12 +595,7 @@ export default function TournamentDetailScreen() {
 
         pools.forEach((pool: any, poolIdx: number) => {
           const poolTeamIds = poolTeams[poolIdx]
-          const pairs: [string, string][] = []
-          for (let i = 0; i < poolTeamIds.length; i++) {
-            for (let j = i + 1; j < poolTeamIds.length; j++) {
-              pairs.push([poolTeamIds[i], poolTeamIds[j]])
-            }
-          }
+          const pairs = buildPairs(poolTeamIds)
           pairs.forEach((pair, pairIdx) => {
             const courtIndex = (poolIdx * Math.ceil(numCourts / numPools) + pairIdx) % numCourts
             if (courtIndex === 0 && pairIdx > 0) globalSlotIndex++
@@ -702,49 +717,56 @@ export default function TournamentDetailScreen() {
 
   // ─── UI helpers ────────────────────────────────────────────────────────────────
 
-  function renderSkillChips() {
-    return (tournament!.skill_levels ?? []).map(s => (
-      <View key={s} style={{ paddingHorizontal: 10, paddingVertical: 3, borderRadius: theme.radius.full, backgroundColor: theme.colors.primary + '18' }}>
-        <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: theme.colors.primary }}>{SKILL_LABELS[s] ?? s}</Text>
-      </View>
-    ))
-  }
-
   function renderTeamCard(team: TournamentTeamWithRoster, isOrganizer: boolean) {
     const isMyTeam = myTeam?.id === team.id
     const isFreeAgent = team.status === 'free_agent'
     return (
-      <View key={team.id} style={[shared.card, { marginBottom: 10 }]}>
-        {/* Team header */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+      <View key={team.id} style={{
+        backgroundColor: isMyTeam ? theme.colors.primarySoft : theme.colors.card,
+        borderRadius: 18, padding: 14, marginBottom: 10,
+        borderWidth: isMyTeam ? 1.5 : 1,
+        borderColor: isMyTeam ? theme.colors.primary : theme.colors.border,
+        position: 'relative', overflow: 'hidden',
+      }}>
+        {/* Header row */}
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
           <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 15, color: theme.colors.text }}>{team.name}</Text>
-              {isMyTeam && <Text style={{ fontSize: 11, color: theme.colors.primary, fontWeight: '700' }}>· You</Text>}
-            </View>
-            <View style={{ flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
-              {team.is_paid && <StatusPill label="Paid" color={theme.colors.success} />}
-              {team.is_approved && !team.is_paid && <StatusPill label="Approved" color={theme.colors.primary} />}
-              {!team.is_approved && !isFreeAgent && <StatusPill label="Pending" color={theme.colors.warm} />}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 5 }}>
+              <Text style={{ fontFamily: theme.fonts.display, fontSize: 15, color: theme.colors.text, letterSpacing: -0.2 }}>{team.name}</Text>
+              {isMyTeam && <StatusPill label="You" color={theme.colors.primary} />}
               {isFreeAgent && <StatusPill label="Free Agent" color={theme.colors.subtext} />}
+              {team.is_paid && <StatusPill label="Paid" color={theme.colors.cool} />}
+              {!team.is_approved && !isFreeAgent && <StatusPill label="Pending" color={theme.colors.warm} />}
             </View>
+            <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, color: theme.colors.subtext }}>
+              {team.members.length} player{team.members.length !== 1 ? 's' : ''}
+            </Text>
           </View>
-          <Text style={{ fontSize: 13, color: theme.colors.subtext }}>{team.members.length} player{team.members.length !== 1 ? 's' : ''}</Text>
+
+          {/* Manage → button for my team */}
+          {isMyTeam && !isOrganizer && myTeam?.captain_user_id === myId && (
+            <TouchableOpacity
+              onPress={() => setShowInviteModal(true)}
+              style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: theme.colors.background }}
+            >
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11.5, color: theme.colors.text }}>+ Invite</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Roster */}
+        {/* Roster list */}
         {team.members.map(m => {
           const p = m.profiles
           const skillLabel = p?.skill_level ? SKILL_LABELS[p.skill_level] ?? p.skill_level : null
           return (
-            <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 }}>
-              <ProfileAvatar uri={null} border={null} size={28} />
+            <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5, borderTopWidth: 1, borderTopColor: theme.colors.borderSoft }}>
+              <AutoAvatar avatarUrl={p?.avatar_url} border={(p as any)?.selected_border ?? null} size={30} />
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, color: theme.colors.text, fontWeight: m.is_captain ? '600' : '400' }}>
-                  {p ? profileDisplayName(p) : 'Player'}{m.is_captain ? ' (C)' : ''}
+                <Text style={{ fontFamily: m.is_captain ? theme.fonts.bodySemiBold : theme.fonts.body, fontSize: 13, color: theme.colors.text }}>
+                  {p ? profileDisplayName(p) : 'Player'}{m.is_captain ? ' · C' : ''}
                 </Text>
-                {isOrganizer && skillLabel && (
-                  <Text style={{ fontSize: 11, color: theme.colors.subtext }}>{skillLabel}</Text>
+                {skillLabel && (
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, color: theme.colors.subtext }}>{skillLabel}</Text>
                 )}
               </View>
               {isOrganizer && (
@@ -761,13 +783,9 @@ export default function TournamentDetailScreen() {
 
         {/* Organizer actions */}
         {isOrganizer && !isFreeAgent && (
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-            {!team.is_approved && (
-              <OrgBtn label="Approve" color={theme.colors.primary} onPress={() => handleOrgApprove(team.id)} />
-            )}
-            {!team.is_paid && (
-              <OrgBtn label="Mark Paid" color={theme.colors.success} onPress={() => handleOrgMarkPaid(team.id)} />
-            )}
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+            {!team.is_approved && <OrgBtn label="Approve" color={theme.colors.primary} onPress={() => handleOrgApprove(team.id)} />}
+            {!team.is_paid && <OrgBtn label="Mark Paid" color={theme.colors.cool} onPress={() => handleOrgMarkPaid(team.id)} />}
             <OrgBtn label="Remove" color={theme.colors.error} onPress={() => handleOrgReject(team.id, team.name)} />
           </View>
         )}
@@ -776,40 +794,34 @@ export default function TournamentDetailScreen() {
         {isOrganizer && isFreeAgent && (
           <TouchableOpacity
             onPress={() => setAssigningFreeAgent(team)}
-            style={{ marginTop: 8, paddingVertical: 8, borderRadius: 8, backgroundColor: theme.colors.primary + '18', alignItems: 'center' }}
+            style={{ marginTop: 10, paddingVertical: 9, borderRadius: 10, backgroundColor: theme.colors.primary + '18', alignItems: 'center' }}
           >
-            <Text style={{ fontSize: 13, color: theme.colors.primary, fontWeight: '600' }}>Assign to Team</Text>
+            <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.primary }}>Assign to Team →</Text>
           </TouchableOpacity>
         )}
 
-        {/* Player: request to join (if not my team and not a free agent team and registration open) */}
-        {!isOrganizer && !isMyTeam && !isFreeAgent && registrationOpen && myTeam?.status !== 'free_agent' && !myTeam && (
+        {/* Player: request to join */}
+        {!isOrganizer && !isMyTeam && !isFreeAgent && registrationOpen && !myTeam && (
           <TouchableOpacity
             onPress={() => setRequestingTeam(team)}
-            style={{ marginTop: 8, paddingVertical: 8, borderRadius: 8, backgroundColor: theme.colors.border, alignItems: 'center' }}
+            style={{ marginTop: 10, paddingVertical: 9, borderRadius: 10, backgroundColor: theme.colors.border, alignItems: 'center' }}
           >
-            <Text style={{ fontSize: 13, color: theme.colors.text }}>Request to Join</Text>
+            <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.text }}>Request to Join</Text>
           </TouchableOpacity>
         )}
 
-        {/* Join requests (if I'm captain) */}
+        {/* Captain: join requests on my team */}
         {isMyTeam && joinRequests.length > 0 && (
-          <View style={{ marginTop: 12 }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>
-              Join Requests
-            </Text>
+          <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
+            <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>Join Requests</Text>
             {joinRequests.map(req => (
               <View key={req.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 13, color: theme.colors.text }}>
-                    {req.requester ? profileDisplayName(req.requester) : 'Unknown'}
-                  </Text>
-                  {req.requester?.skill_level && (
-                    <Text style={{ fontSize: 11, color: theme.colors.subtext }}>{SKILL_LABELS[req.requester.skill_level] ?? req.requester.skill_level}</Text>
-                  )}
+                  <Text style={{ fontFamily: theme.fonts.bodyMedium, fontSize: 13, color: theme.colors.text }}>{req.requester ? profileDisplayName(req.requester) : 'Unknown'}</Text>
+                  {req.requester?.skill_level && <Text style={{ fontSize: 11, color: theme.colors.subtext }}>{SKILL_LABELS[req.requester.skill_level] ?? req.requester.skill_level}</Text>}
                 </View>
-                <TouchableOpacity onPress={() => handleApproveJoinRequest(req.id, req.requester_id, team.id)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: theme.colors.success }}>
-                  <Text style={{ fontSize: 12, color: '#fff', fontWeight: '600' }}>Approve</Text>
+                <TouchableOpacity onPress={() => handleApproveJoinRequest(req.id, req.requester_id, team.id)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: theme.colors.cool + '22', borderWidth: 1, borderColor: theme.colors.cool + '55' }}>
+                  <Text style={{ fontSize: 12, color: theme.colors.cool, fontWeight: '600' }}>Accept</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleDeclineJoinRequest(req.id)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: theme.colors.border }}>
                   <Text style={{ fontSize: 12, color: theme.colors.text }}>Decline</Text>
@@ -888,26 +900,101 @@ export default function TournamentDetailScreen() {
 
   // ─── Render ────────────────────────────────────────────────────────────────────
 
+  const statusColor = tournament.status === 'published' ? theme.colors.primary
+    : tournament.status === 'in_progress' ? theme.colors.hot
+    : theme.colors.subtext
+
+  const registeredTeamCount = teams.filter(t => t.status === 'registered').length
+
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: insets.top }}>
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* ── Header ──────────────────────────────────────────────────────────────── */}
-      <View style={{
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        paddingHorizontal: 16, paddingVertical: 12,
-        borderBottomWidth: 1, borderBottomColor: theme.colors.border,
-        backgroundColor: theme.colors.background,
-      }}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
-          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <View style={{ flex: 1, marginHorizontal: 12 }}>
-          <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 16, color: theme.colors.text }} numberOfLines={1}>
+      {/* ── Hero Header ─────────────────────────────────────────────────────────── */}
+      <View style={{ backgroundColor: theme.colors.card, overflow: 'hidden' }}>
+        {/* Diagonal court stripe motif */}
+        <View style={{ position: 'absolute', inset: 0 } as any}>
+          {Array.from({ length: 12 }).map((_, i) => (
+            <View key={i} style={{
+              position: 'absolute',
+              left: -60 + i * 28,
+              top: 0,
+              bottom: 0,
+              width: 1,
+              backgroundColor: 'rgba(255,255,255,0.04)',
+              transform: [{ rotate: '-20deg' }, { scaleY: 3 }],
+            }} />
+          ))}
+        </View>
+
+        {/* Trophy watermark */}
+        <Text style={{
+          position: 'absolute', right: -4, bottom: -10,
+          fontSize: 110, opacity: 0.07, userSelect: 'none',
+        } as any}>🏆</Text>
+
+        <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 16, position: 'relative' }}>
+          {/* Back + status row */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(app)' as any)} hitSlop={8}
+              style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
+            </TouchableOpacity>
+            <TourneyStatusBadge status={tournament.status} />
+          </View>
+
+          {/* Format chip */}
+          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+            <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.1)' }}>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: 'rgba(255,255,255,0.75)', letterSpacing: 0.3 }}>
+                {FORMAT_LABELS[tournament.format] ?? tournament.format}
+              </Text>
+            </View>
+          </View>
+
+          {/* Title */}
+          <Text style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -0.8, lineHeight: 30, color: theme.colors.text, marginBottom: 8 }}>
             {tournament.title}
           </Text>
+
+          {/* Location + date */}
+          <View style={{ flexDirection: 'row', gap: 14, marginBottom: 14 }}>
+            {tournament.location && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="location-outline" size={13} color="rgba(255,255,255,0.5)" />
+                <Text style={{ fontFamily: theme.fonts.body, fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{tournament.location}</Text>
+              </View>
+            )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="calendar-outline" size={13} color="rgba(255,255,255,0.5)" />
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+                {new Date(tournament.start_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </Text>
+            </View>
+          </View>
+
+          {/* Countdown pills */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+            <HeroPill label="Starts" value={timeAgoOrCountdown(tournament.start_date)} />
+            {tournament.registration_deadline && (
+              <HeroPill label="Reg. closes" value={timeAgoOrCountdown(tournament.registration_deadline)} />
+            )}
+            {tournament.max_teams && (
+              <HeroPill label="Teams" value={`${registeredTeamCount}/${tournament.max_teams}`} accent />
+            )}
+          </View>
+
+          {/* Skill chips */}
+          {(tournament.skill_levels ?? []).length > 0 && (
+            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+              {(tournament.skill_levels ?? []).map(s => (
+                <View key={s} style={{ paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, backgroundColor: theme.colors.primary + '30' }}>
+                  <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.primary }}>{SKILL_LABELS[s] ?? s}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
-        <StatusBadge status={tournament.status} />
       </View>
 
       {/* ── Tab Bar ─────────────────────────────────────────────────────────────── */}
@@ -917,14 +1004,15 @@ export default function TournamentDetailScreen() {
             key={tab}
             onPress={() => setActiveTab(tab)}
             style={{
-              flex: 1, paddingVertical: 12, alignItems: 'center',
-              borderBottomWidth: 2,
+              flex: 1, paddingVertical: 13, alignItems: 'center',
+              borderBottomWidth: 2.5,
               borderBottomColor: activeTab === tab ? theme.colors.primary : 'transparent',
             }}
           >
             <Text style={{
-              fontSize: 13, fontWeight: activeTab === tab ? '700' : '400',
-              color: activeTab === tab ? theme.colors.primary : theme.colors.subtext,
+              fontFamily: activeTab === tab ? theme.fonts.bodySemiBold : theme.fonts.body,
+              fontSize: 13,
+              color: activeTab === tab ? theme.colors.text : theme.colors.subtext,
             }}>{tab}</Text>
           </TouchableOpacity>
         ))}
@@ -936,74 +1024,54 @@ export default function TournamentDetailScreen() {
       {activeTab === 'Overview' && (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
 
-          {/* Banner */}
-          <View style={{ backgroundColor: theme.colors.warm + '18', borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: theme.colors.warm + '33', position: 'relative', overflow: 'hidden' }}>
-            <Text style={{ position: 'absolute', right: -8, top: -16, fontSize: 100, opacity: 0.07 }}>🏆</Text>
-            <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 26, letterSpacing: -0.8, color: theme.colors.text, marginBottom: 6 }}>{tournament.title}</Text>
-            {tournament.location && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                <Ionicons name="location-outline" size={13} color={theme.colors.subtext} />
-                <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.subtext }}>{tournament.location}</Text>
+          {/* My team CTA card */}
+          {!isCreator && myTeam && (
+            <View style={{
+              backgroundColor: theme.colors.primarySoft, borderRadius: 18, padding: 14, marginBottom: 12,
+              borderWidth: 1.5, borderColor: theme.colors.primary,
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                  <Ionicons name="checkmark-circle" size={14} color={theme.colors.primary} />
+                  <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: theme.colors.primary }}>
+                    {myTeam.status === 'free_agent' ? 'Registered as Free Agent' : 'Registered'}
+                  </Text>
+                </View>
+                <Text style={{ fontFamily: theme.fonts.display, fontSize: 17, letterSpacing: -0.3, color: theme.colors.text }}>{myTeam.name}</Text>
+                <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, color: theme.colors.subtext, marginTop: 1 }}>
+                  {teams.find(t => t.id === myTeam.id)?.members.length ?? 0} players on roster
+                </Text>
               </View>
-            )}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 }}>
-              <Ionicons name="calendar-outline" size={13} color={theme.colors.subtext} />
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.subtext }}>{formatDate(tournament.start_date)}</Text>
-            </View>
-            {(tournament.skill_levels ?? []).length > 0 && (
-              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>{renderSkillChips()}</View>
-            )}
-          </View>
-
-          {/* Countdown */}
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-            <CountdownCard label="Tournament starts" iso={tournament.start_date} />
-            {tournament.registration_deadline && (
-              <CountdownCard label="Registration closes" iso={tournament.registration_deadline} />
-            )}
-          </View>
-
-          {/* Registration progress */}
-          {tournament.max_teams && (
-            <View style={[shared.card, { marginBottom: 16 }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.text }}>Teams Registered</Text>
-                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.primary }}>{teams.filter(t => t.status === 'registered').length}/{tournament.max_teams}</Text>
-              </View>
-              <View style={{ height: 6, backgroundColor: theme.colors.border, borderRadius: 3, overflow: 'hidden' }}>
-                <View style={{ height: 6, borderRadius: 3, backgroundColor: theme.colors.primary, width: `${Math.min(100, (teams.filter(t => t.status === 'registered').length / tournament.max_teams) * 100)}%` }} />
+              <View style={{ flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+                <TouchableOpacity
+                  onPress={() => setActiveTab('Teams')}
+                  style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: theme.colors.background }}
+                >
+                  <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: theme.colors.text }}>Manage →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleWithdraw} disabled={withdrawing}>
+                  {withdrawing
+                    ? <ActivityIndicator size="small" color={theme.colors.error} />
+                    : <Text style={{ fontSize: 12, color: theme.colors.error }}>Withdraw</Text>}
+                </TouchableOpacity>
               </View>
             </View>
           )}
 
           {/* Registration CTA */}
-          {!isCreator && (
-            myTeam ? (
-              <View style={{ backgroundColor: theme.colors.success + '14', borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: theme.colors.success + '40', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                  <Ionicons name="checkmark-circle" size={22} color={theme.colors.success} />
-                  <View>
-                    <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 14, color: theme.colors.text }}>{myTeam.name}</Text>
-                    <Text style={{ fontSize: 12, color: theme.colors.subtext, textTransform: 'capitalize' }}>{myTeam.status === 'free_agent' ? 'Free Agent' : 'Registered'}</Text>
-                  </View>
-                </View>
-                <TouchableOpacity onPress={handleWithdraw} disabled={withdrawing} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.error + '66' }}>
-                  {withdrawing ? <ActivityIndicator size="small" color={theme.colors.error} /> : <Text style={{ fontSize: 13, color: theme.colors.error }}>Withdraw</Text>}
-                </TouchableOpacity>
-              </View>
-            ) : registrationOpen ? (
-              <TouchableOpacity onPress={() => setShowRegModal(true)} style={{ backgroundColor: theme.colors.primary, borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 16 }}>
-                <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 15, color: '#fff' }}>Register</Text>
-              </TouchableOpacity>
-            ) : null
+          {!isCreator && !myTeam && registrationOpen && (
+            <TouchableOpacity onPress={() => setShowRegModal(true)} style={{ backgroundColor: theme.colors.primary, borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ fontFamily: theme.fonts.display, fontSize: 15, color: '#fff' }}>Register Team</Text>
+            </TouchableOpacity>
           )}
 
           {/* Pending invitations */}
           {myPendingInvites.length > 0 && (
-            <View style={[shared.card, { marginBottom: 16 }]}>
-              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>Team Invitations</Text>
+            <View style={{ backgroundColor: theme.colors.card, borderRadius: 18, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.accent + '44' }}>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>Team Invitations</Text>
               {myPendingInvites.map(inv => (
-                <View key={inv.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }}>
+                <View key={inv.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
                   <Text style={{ flex: 1, fontSize: 14, color: theme.colors.text }}>Invited to <Text style={{ fontWeight: '600' }}>{inv.team_name}</Text></Text>
                   <TouchableOpacity onPress={() => handleAcceptInvite(inv.id, inv.team_id)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: theme.colors.primary }}>
                     <Text style={{ fontSize: 12, color: '#fff', fontWeight: '600' }}>Accept</Text>
@@ -1016,100 +1084,132 @@ export default function TournamentDetailScreen() {
             </View>
           )}
 
-          {/* Prizes */}
-          {(prizes.length > 0 || isCreator) && (
-            <View style={[shared.card, { marginBottom: 16 }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: prizes.length > 0 ? 10 : 0 }}>
-                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.6 }}>Prizes</Text>
-                {isCreator && <TouchableOpacity hitSlop={8} onPress={() => setShowPrizeModal(true)}><Ionicons name="add-circle-outline" size={20} color={theme.colors.primary} /></TouchableOpacity>}
-              </View>
-              {prizes.map((prize, idx) => {
-                const medals = ['🥇', '🥈', '🥉']
-                return (
-                  <View key={prize.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: theme.colors.border }}>
-                    <Text style={{ fontSize: 22 }}>{medals[idx] ?? '🏅'}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 14, color: theme.colors.text }}>{prize.place_label}</Text>
-                      <Text style={{ fontSize: 13, color: theme.colors.subtext }}>{prize.description}{prize.amount ? ` · ${prize.amount}` : ''}</Text>
-                    </View>
-                    {isCreator && (
-                      <TouchableOpacity hitSlop={8} onPress={() => handleDeletePrize(prize.id)}>
-                        <Ionicons name="trash-outline" size={16} color={theme.colors.subtext} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )
-              })}
-              {prizes.length === 0 && <Text style={{ fontSize: 13, color: theme.colors.subtext }}>No prizes configured yet.</Text>}
-            </View>
-          )}
-
           {/* Announcements */}
           {(announcements.length > 0 || isCreator) && (
-            <View style={[shared.card, { marginBottom: 16 }]}>
+            <View style={{ backgroundColor: theme.colors.card, borderRadius: 18, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.6 }}>Announcements</Text>
-                {isCreator && <TouchableOpacity hitSlop={8} onPress={() => setShowAnnouncementModal(true)}><Ionicons name="add-circle-outline" size={20} color={theme.colors.primary} /></TouchableOpacity>}
+                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.8 }}>📢 Announcements</Text>
+                {isCreator && (
+                  <TouchableOpacity hitSlop={8} onPress={() => setShowAnnouncementModal(true)}>
+                    <Ionicons name="add-circle-outline" size={20} color={theme.colors.primary} />
+                  </TouchableOpacity>
+                )}
               </View>
               {announcements.length === 0 ? (
                 <Text style={{ fontSize: 13, color: theme.colors.subtext }}>No announcements yet.</Text>
               ) : (
-                announcements.slice().reverse().map(ann => (
-                  <View key={ann.id} style={{ paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
-                    <Text style={{ fontSize: 14, color: theme.colors.text, lineHeight: 20 }}>{ann.body}</Text>
-                    <Text style={{ fontSize: 11, color: theme.colors.subtext, marginTop: 2 }}>{formatCommentTime(ann.created_at)}</Text>
+                announcements.slice().reverse().map((ann, i) => (
+                  <View key={ann.id} style={{ paddingTop: i > 0 ? 10 : 0, marginTop: i > 0 ? 10 : 0, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: theme.colors.border }}>
+                    <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.text, lineHeight: 20 }}>{ann.body}</Text>
+                    <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, color: theme.colors.subtext, marginTop: 3 }}>{formatCommentTime(ann.created_at)}</Text>
                   </View>
                 ))
               )}
             </View>
           )}
 
-          {/* Details */}
-          <View style={[shared.card, { marginBottom: 16, gap: 0 }]}>
-            {[
-              { label: 'Format',        value: FORMAT_LABELS[tournament.format] ?? tournament.format },
-              { label: 'Bracket',       value: tournament.bracket_type === 'double' ? 'Double elimination' : 'Single elimination', hide: !tournament.bracket_type },
-              { label: 'Max teams',     value: tournament.max_teams ? String(tournament.max_teams) : 'Unlimited' },
-              { label: 'Roster',        value: `${tournament.min_roster_size}–${tournament.max_roster_size} players` },
-              { label: 'Refs',          value: tournament.has_refs ? 'Yes' : 'No' },
-              { label: 'Entry fee',     value: tournament.price > 0 ? `$${tournament.price.toFixed(2)}` : 'Free' },
-              { label: 'Reg. deadline', value: tournament.registration_deadline ? formatDate(tournament.registration_deadline) : 'None', hide: !tournament.registration_deadline },
-            ].filter(r => !r.hide).map((row, i, arr) => (
-              <View key={row.label} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: theme.colors.border }}>
-                <Text style={{ fontFamily: theme.fonts.body, fontSize: 14, color: theme.colors.subtext }}>{row.label}</Text>
-                <Text style={{ fontFamily: theme.fonts.bodyMedium, fontSize: 14, color: theme.colors.text }}>{row.value}</Text>
+          {/* Prizes */}
+          {(prizes.length > 0 || isCreator) && (
+            <View style={{ backgroundColor: theme.colors.card, borderRadius: 18, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.8 }}>Prize Pool</Text>
+                {isCreator && <TouchableOpacity hitSlop={8} onPress={() => setShowPrizeModal(true)}><Ionicons name="add-circle-outline" size={20} color={theme.colors.primary} /></TouchableOpacity>}
               </View>
-            ))}
-          </View>
-
-          {tournament.description && (
-            <View style={[shared.card, { marginBottom: 16 }]}>
-              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.subtext, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.6 }}>About</Text>
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 14, color: theme.colors.text, lineHeight: 20 }}>{tournament.description}</Text>
-            </View>
-          )}
-
-          {rules && (
-            <View style={[shared.card, { marginBottom: 16, gap: 0 }]}>
-              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.subtext, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.6, paddingHorizontal: 4 }}>Scoring Rules</Text>
-              {[
-                { label: 'Win to', value: `${rules.winning_score} pts` },
-                { label: 'Deciding set', value: `${rules.deciding_set_score} pts` },
-                { label: 'Win by', value: `${rules.win_by_margin}` },
-                { label: 'Point cap', value: rules.point_cap ? String(rules.point_cap) : 'None' },
-                { label: 'Sets to win', value: String(rules.sets_to_win) },
-              ].map((row, i, arr) => (
-                <View key={row.label} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: theme.colors.border }}>
-                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 14, color: theme.colors.subtext }}>{row.label}</Text>
-                  <Text style={{ fontFamily: theme.fonts.bodyMedium, fontSize: 14, color: theme.colors.text }}>{row.value}</Text>
+              {prizes.length === 0 ? (
+                <Text style={{ fontSize: 13, color: theme.colors.subtext }}>No prizes configured yet.</Text>
+              ) : (
+                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
+                  {prizes.slice(0, 3).map((prize, idx) => {
+                    const podiumColors = ['#FFD54F', '#B0BEC5', '#D7A86E']
+                    const podiumHeights = [76, 58, 44]
+                    const medals = ['🥇', '🥈', '🥉']
+                    const order = [1, 0, 2] // show 2nd left, 1st center, 3rd right
+                    const displayIdx = order[idx]
+                    const p = prizes[displayIdx]
+                    if (!p) return null
+                    return (
+                      <View key={p.id} style={{ flex: 1, alignItems: 'center' }}>
+                        <Text style={{ fontFamily: theme.fonts.display, fontSize: 14, color: theme.colors.text, marginBottom: 4 }}>{p.amount ?? p.place_label}</Text>
+                        <View style={{ height: podiumHeights[idx], width: '100%', borderRadius: '8px 8px 0 0' as any, backgroundColor: podiumColors[displayIdx], alignItems: 'center', justifyContent: 'flex-start', paddingTop: 8 }}>
+                          <Text style={{ fontSize: 20 }}>{medals[displayIdx]}</Text>
+                        </View>
+                        <View style={{ width: '100%', paddingVertical: 5, backgroundColor: theme.colors.borderSoft, borderRadius: '0 0 6px 6px' as any, alignItems: 'center' }}>
+                          <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 10.5, color: theme.colors.text }}>{p.place_label}</Text>
+                        </View>
+                        {isCreator && (
+                          <TouchableOpacity hitSlop={8} onPress={() => handleDeletePrize(p.id)} style={{ marginTop: 4 }}>
+                            <Ionicons name="trash-outline" size={13} color={theme.colors.subtext} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )
+                  })}
+                </View>
+              )}
+              {prizes.length > 3 && prizes.slice(3).map((prize, idx) => (
+                <View key={prize.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.colors.border, marginTop: 10 }}>
+                  <Text style={{ fontSize: 18 }}>🏅</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.text }}>{prize.place_label}</Text>
+                    <Text style={{ fontSize: 12, color: theme.colors.subtext }}>{prize.description}{prize.amount ? ` · ${prize.amount}` : ''}</Text>
+                  </View>
+                  {isCreator && <TouchableOpacity hitSlop={8} onPress={() => handleDeletePrize(prize.id)}><Ionicons name="trash-outline" size={15} color={theme.colors.subtext} /></TouchableOpacity>}
                 </View>
               ))}
             </View>
           )}
 
+          {/* Format + Details grid */}
+          <View style={{ backgroundColor: theme.colors.card, borderRadius: 18, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border }}>
+            <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>Format</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              {[
+                { label: 'Format',    value: FORMAT_LABELS[tournament.format] ?? tournament.format },
+                { label: 'Bracket',   value: tournament.bracket_type === 'double' ? 'Double elim' : 'Single elim', hide: !tournament.bracket_type },
+                { label: 'Max teams', value: tournament.max_teams ? String(tournament.max_teams) : 'Unlimited' },
+                { label: 'Roster',    value: `${tournament.min_roster_size}–${tournament.max_roster_size}` },
+                { label: 'Entry fee', value: tournament.price > 0 ? `$${tournament.price.toFixed(2)}` : 'Free' },
+                { label: 'Refs',      value: tournament.has_refs ? 'Yes' : 'No' },
+              ].filter(r => !r.hide).map((row, i, arr) => (
+                <View key={row.label} style={{ width: '50%', paddingVertical: 9, paddingHorizontal: 4, borderBottomWidth: i < arr.length - (arr.length % 2 === 0 ? 2 : 1) ? 1 : 0, borderBottomColor: theme.colors.borderSoft }}>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 10, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>{row.label}</Text>
+                  <Text style={{ fontFamily: theme.fonts.display, fontSize: 14, color: theme.colors.text }}>{row.value}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* About */}
+          {tournament.description && (
+            <View style={{ backgroundColor: theme.colors.card, borderRadius: 18, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border }}>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>About</Text>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: 14, color: theme.colors.text, lineHeight: 21 }}>{tournament.description}</Text>
+            </View>
+          )}
+
+          {/* Scoring rules */}
+          {rules && (
+            <View style={{ backgroundColor: theme.colors.card, borderRadius: 18, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border }}>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>Scoring Rules</Text>
+              {[
+                { label: 'Win to',       value: `${rules.winning_score} pts` },
+                { label: 'Deciding set', value: `${rules.deciding_set_score} pts` },
+                { label: 'Win by',       value: `${rules.win_by_margin}` },
+                { label: 'Sets to win',  value: String(rules.sets_to_win) },
+                { label: 'Point cap',    value: rules.point_cap ? String(rules.point_cap) : 'None' },
+              ].map((row, i, arr) => (
+                <View key={row.label} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 9, paddingHorizontal: 4, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: theme.colors.borderSoft }}>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.subtext }}>{row.label}</Text>
+                  <Text style={{ fontFamily: theme.fonts.bodyMedium, fontSize: 13, color: theme.colors.text }}>{row.value}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Publish button for draft */}
           {isCreator && tournament.status === 'draft' && (
-            <TouchableOpacity onPress={handlePublishTournament} style={{ backgroundColor: theme.colors.primary, borderRadius: 14, padding: 16, alignItems: 'center' }}>
-              <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 15, color: '#fff' }}>Publish Tournament</Text>
+            <TouchableOpacity onPress={handlePublishTournament} style={{ backgroundColor: theme.colors.primary, borderRadius: 16, padding: 16, alignItems: 'center' }}>
+              <Text style={{ fontFamily: theme.fonts.display, fontSize: 15, color: '#fff' }}>Publish Tournament</Text>
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -1119,59 +1219,50 @@ export default function TournamentDetailScreen() {
       {activeTab === 'Teams' && (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
 
-          {/* My team actions */}
-          {myTeam && !isCreator && (
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-              {myTeam.captain_user_id === myId && (
-                <TouchableOpacity onPress={() => setShowInviteModal(true)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: theme.colors.primary }}>
-                  <Ionicons name="person-add-outline" size={16} color="#fff" />
-                  <Text style={{ fontSize: 14, color: '#fff', fontWeight: '600' }}>Invite Players</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={handleWithdraw} disabled={withdrawing} style={{ flex: myTeam.captain_user_id === myId ? 0 : 1, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.error + '66', alignItems: 'center' }}>
-                {withdrawing ? <ActivityIndicator size="small" color={theme.colors.error} /> : <Text style={{ fontSize: 14, color: theme.colors.error }}>Withdraw</Text>}
+          {/* My team action strip */}
+          {myTeam && !isCreator && myTeam.captain_user_id === myId && (
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+              <TouchableOpacity onPress={() => setShowInviteModal(true)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: theme.colors.primary }}>
+                <Ionicons name="person-add-outline" size={15} color="#fff" />
+                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: '#fff' }}>Invite Players</Text>
               </TouchableOpacity>
             </View>
           )}
 
           {/* Approved teams */}
-          {approvedTeams.length > 0 && (
-            <SectionHeader title="Registered & Approved" count={approvedTeams.length} />
-          )}
+          {approvedTeams.length > 0 && <TeamSectionLabel title="Registered" count={approvedTeams.length} />}
           {approvedTeams.map(t => renderTeamCard(t, isCreator))}
 
           {/* Pending teams */}
-          {pendingTeams.length > 0 && (
-            <SectionHeader title="Pending Approval" count={pendingTeams.length} />
-          )}
+          {pendingTeams.length > 0 && <TeamSectionLabel title="Pending Approval" count={pendingTeams.length} />}
           {pendingTeams.map(t => renderTeamCard(t, isCreator))}
 
           {/* Free agents */}
-          {freeAgents.length > 0 && (
-            <SectionHeader title="Free Agents" count={freeAgents.length} />
-          )}
+          {freeAgents.length > 0 && <TeamSectionLabel title="Free Agents" count={freeAgents.length} />}
           {freeAgents.map(t => renderTeamCard(t, isCreator))}
 
           {teams.length === 0 && (
-            <View style={{ alignItems: 'center', paddingVertical: 48 }}>
-              <Ionicons name="people-outline" size={40} color={theme.colors.border} />
-              <Text style={{ fontSize: 14, color: theme.colors.subtext, marginTop: 12 }}>No teams registered yet.</Text>
+            <View style={{ alignItems: 'center', paddingVertical: 56 }}>
+              <Text style={{ fontSize: 36, marginBottom: 10 }}>🏐</Text>
+              <Text style={{ fontFamily: theme.fonts.display, fontSize: 16, color: theme.colors.subtext }}>No teams yet</Text>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.subtext, marginTop: 4 }}>Be the first to register.</Text>
             </View>
           )}
 
-          {/* Join requests for organizer (all teams) */}
+          {/* Organizer: join requests across all teams */}
           {isCreator && joinRequests.length > 0 && (
-            <View style={[shared.card, { marginTop: 8 }]}>
-              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>All Join Requests</Text>
+            <View style={{ backgroundColor: theme.colors.card, borderRadius: 18, padding: 14, marginTop: 8, borderWidth: 1, borderColor: theme.colors.border }}>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>All Join Requests</Text>
               {joinRequests.map(req => (
-                <View key={req.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }}>
+                <View key={req.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, color: theme.colors.text }}>{req.requester ? profileDisplayName(req.requester) : 'Unknown'}</Text>
-                    {req.requester?.skill_level && <Text style={{ fontSize: 11, color: theme.colors.subtext }}>{SKILL_LABELS[req.requester.skill_level] ?? req.requester.skill_level}</Text>}
-                    <Text style={{ fontSize: 11, color: theme.colors.subtext }}>→ {teams.find(t => t.id === req.team_id)?.name ?? 'Unknown team'}</Text>
+                    <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.text }}>{req.requester ? profileDisplayName(req.requester) : 'Unknown'}</Text>
+                    <Text style={{ fontSize: 11, color: theme.colors.subtext }}>
+                      {req.requester?.skill_level ? SKILL_LABELS[req.requester.skill_level] ?? req.requester.skill_level : ''} → {teams.find(t => t.id === req.team_id)?.name ?? '?'}
+                    </Text>
                   </View>
-                  <TouchableOpacity onPress={() => handleApproveJoinRequest(req.id, req.requester_id, req.team_id)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: theme.colors.success }}>
-                    <Text style={{ fontSize: 12, color: '#fff', fontWeight: '600' }}>Approve</Text>
+                  <TouchableOpacity onPress={() => handleApproveJoinRequest(req.id, req.requester_id, req.team_id)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: theme.colors.cool + '22', borderWidth: 1, borderColor: theme.colors.cool + '55' }}>
+                    <Text style={{ fontSize: 12, color: theme.colors.cool, fontWeight: '600' }}>Approve</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => handleDeclineJoinRequest(req.id)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: theme.colors.border }}>
                     <Text style={{ fontSize: 12, color: theme.colors.text }}>Decline</Text>
@@ -1221,6 +1312,17 @@ export default function TournamentDetailScreen() {
                       </TouchableOpacity>
                     ))}
                   </View>
+                </ScheduleField>
+
+                <ScheduleField label={`Games per team (${scheduleConfig.gamesPerTeam ?? 'Full round-robin'})`}>
+                  <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                    {[null, 2, 3, 4, 5].map(n => (
+                      <TouchableOpacity key={String(n)} onPress={() => setScheduleConfig(p => ({ ...p, gamesPerTeam: n }))} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: scheduleConfig.gamesPerTeam === n ? theme.colors.primary : theme.colors.border }}>
+                        <Text style={{ fontSize: 13, color: scheduleConfig.gamesPerTeam === n ? '#fff' : theme.colors.text }}>{n === null ? 'Full' : n}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={{ fontSize: 11, color: theme.colors.subtext, marginTop: 4 }}>How many different opponents each team faces. Full = everyone plays everyone.</Text>
                 </ScheduleField>
 
                 <TouchableOpacity
@@ -1287,6 +1389,17 @@ export default function TournamentDetailScreen() {
                       </View>
                     </ScheduleField>
 
+                    <ScheduleField label={`Games per team (${scheduleConfig.gamesPerTeam ?? 'Full round-robin'})`}>
+                      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                        {[null, 2, 3, 4, 5].map(n => (
+                          <TouchableOpacity key={String(n)} onPress={() => setScheduleConfig(p => ({ ...p, gamesPerTeam: n }))} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: scheduleConfig.gamesPerTeam === n ? theme.colors.primary : theme.colors.border }}>
+                            <Text style={{ fontSize: 13, color: scheduleConfig.gamesPerTeam === n ? '#fff' : theme.colors.text }}>{n === null ? 'Full' : n}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                      <Text style={{ fontSize: 11, color: theme.colors.subtext, marginTop: 4 }}>How many different opponents each team faces. Full = everyone plays everyone.</Text>
+                    </ScheduleField>
+
                     <TouchableOpacity
                       onPress={async () => { await handleGenerateSchedule(); setEditingScheduleConfig(false) }}
                       disabled={generatingSchedule}
@@ -1318,59 +1431,99 @@ export default function TournamentDetailScreen() {
                 </View>
               )}
 
-              {(tournament.schedule_published || isCreator) && matches.map(match => {
-                const teamA = teams.find(t => t.id === match.team_a_id)
-                const teamB = teams.find(t => t.id === match.team_b_id)
-                const isEditing = editingMatch?.id === match.id
+              {(tournament.schedule_published || isCreator) && (() => {
+                // Group matches by time for display
+                const poolMatches = matches.filter(m => m.stage === 'pool_play')
+                const bracketMatches = matches.filter(m => m.stage !== 'pool_play')
+                const showPoolHeader = poolMatches.length > 0 && bracketMatches.length > 0
+
+                let lastTime: string | null = null
+
+                const renderMatch = (match: any) => {
+                  const teamA = teams.find(t => t.id === match.team_a_id)
+                  const teamB = teams.find(t => t.id === match.team_b_id)
+                  const isEditing = editingMatch?.id === match.id
+                  const isMyMatch = myTeam && (match.team_a_id === myTeam.id || match.team_b_id === myTeam.id)
+                  const isLive = match.status === 'in_progress'
+                  const isDone = match.status === 'completed'
+                  const timeStr = match.scheduled_at ? new Date(match.scheduled_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null
+                  const showTimeHeader = timeStr !== lastTime
+                  lastTime = timeStr
+
+                  return (
+                    <React.Fragment key={match.id}>
+                      {showTimeHeader && timeStr && (
+                        <Text style={{ fontFamily: theme.fonts.display, fontSize: 13, color: theme.colors.text, paddingVertical: 10, paddingHorizontal: 2, letterSpacing: -0.2 }}>{timeStr}</Text>
+                      )}
+                      <View style={{
+                        backgroundColor: isMyMatch ? theme.colors.primarySoft : theme.colors.card,
+                        borderRadius: 16, padding: 12, marginBottom: 8,
+                        borderWidth: 1.5,
+                        borderColor: isMyMatch ? theme.colors.primary : theme.colors.border,
+                        overflow: 'hidden', position: 'relative',
+                      }}>
+                        {isLive && (
+                          <View style={{ position: 'absolute', top: 9, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: theme.colors.hot }} />
+                            <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 9.5, color: theme.colors.hot, letterSpacing: 0.5 }}>LIVE</Text>
+                          </View>
+                        )}
+                        {!isEditing && (
+                          <>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                              <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, backgroundColor: theme.colors.border }}>
+                                <Text style={{ fontFamily: theme.fonts.body, fontSize: 10, color: theme.colors.subtext, textTransform: 'capitalize' }}>
+                                  {match.stage === 'pool_play' ? `Pool${match.pool_id ? '' : ' Play'}` : match.stage.replace('_', ' ')}
+                                  {match.bracket_round_name ? ` · ${match.bracket_round_name}` : ''}
+                                </Text>
+                              </View>
+                              {match.court && (
+                                <Text style={{ fontFamily: theme.fonts.body, fontSize: 10, color: theme.colors.subtext }}>{match.court}</Text>
+                              )}
+                              {isCreator && (
+                                <TouchableOpacity hitSlop={8} onPress={() => setEditingMatch(match)} style={{ marginLeft: 'auto' as any }}>
+                                  <Ionicons name="pencil-outline" size={14} color={theme.colors.subtext} />
+                                </TouchableOpacity>
+                              )}
+                            </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <Text style={{ flex: 1, fontFamily: theme.fonts.display, fontSize: 14, color: theme.colors.text, letterSpacing: -0.2 }}>{teamA?.name ?? 'TBD'}</Text>
+                              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: isDone ? theme.colors.border : 'transparent', minWidth: 40, alignItems: 'center' }}>
+                                <Text style={{ fontFamily: theme.fonts.display, fontSize: isDone ? 17 : 13, color: isDone ? theme.colors.text : theme.colors.subtext, letterSpacing: -0.5 }}>
+                                  {isDone && match.winner_id ? (match.winner_id === match.team_a_id ? '✓' : '✗') : 'vs'}
+                                </Text>
+                              </View>
+                              <Text style={{ flex: 1, fontFamily: theme.fonts.display, fontSize: 14, color: theme.colors.text, letterSpacing: -0.2, textAlign: 'right' }}>{teamB?.name ?? 'TBD'}</Text>
+                            </View>
+                          </>
+                        )}
+                        {isEditing && (
+                          <MatchEditForm
+                            match={match}
+                            teams={teams.filter(t => t.status === 'registered')}
+                            onSave={(scheduledAt, court, aId, bId) => handleSaveMatchEdit(match.id, scheduledAt, court, aId, bId)}
+                            onCancel={() => setEditingMatch(null)}
+                          />
+                        )}
+                      </View>
+                    </React.Fragment>
+                  )
+                }
 
                 return (
-                  <View key={match.id} style={[shared.card, { marginBottom: 10 }]}>
-                    {isEditing ? (
-                      <MatchEditForm
-                        match={match}
-                        teams={teams.filter(t => t.status === 'registered')}
-                        onSave={(scheduledAt, court, aId, bId) => handleSaveMatchEdit(match.id, scheduledAt, court, aId, bId)}
-                        onCancel={() => setEditingMatch(null)}
-                      />
-                    ) : (
-                      <>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: theme.colors.border }}>
-                              <Text style={{ fontSize: 11, color: theme.colors.subtext, textTransform: 'capitalize' }}>{match.stage.replace('_', ' ')}</Text>
-                            </View>
-                            {match.bracket_round_name && (
-                              <Text style={{ fontSize: 12, color: theme.colors.subtext }}>{match.bracket_round_name}</Text>
-                            )}
-                          </View>
-                          {isCreator && (
-                            <TouchableOpacity hitSlop={8} onPress={() => setEditingMatch(match)}>
-                              <Ionicons name="pencil-outline" size={16} color={theme.colors.subtext} />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                          <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: theme.colors.text, textAlign: 'center' }}>{teamA?.name ?? 'TBD'}</Text>
-                          <Text style={{ fontSize: 13, color: theme.colors.subtext, fontWeight: '700' }}>vs</Text>
-                          <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: theme.colors.text, textAlign: 'center' }}>{teamB?.name ?? 'TBD'}</Text>
-                        </View>
-                        <View style={{ flexDirection: 'row', gap: 12, justifyContent: 'center' }}>
-                          {match.scheduled_at && (
-                            <Text style={{ fontSize: 12, color: theme.colors.subtext }}>
-                              <Ionicons name="time-outline" size={12} color={theme.colors.subtext} /> {formatShortDate(match.scheduled_at)}
-                            </Text>
-                          )}
-                          {match.court && (
-                            <Text style={{ fontSize: 12, color: theme.colors.subtext }}>
-                              <Ionicons name="location-outline" size={12} color={theme.colors.subtext} /> {match.court}
-                            </Text>
-                          )}
-                        </View>
-                      </>
+                  <>
+                    {showPoolHeader && poolMatches.length > 0 && (
+                      <ScheduleSectionLabel title="Pool Play" count={poolMatches.length} />
                     )}
-                  </View>
+                    {poolMatches.map(renderMatch)}
+                    {showPoolHeader && bracketMatches.length > 0 && (
+                      <ScheduleSectionLabel title="Bracket" count={bracketMatches.length} />
+                    )}
+                    {bracketMatches.map(renderMatch)}
+                    {!showPoolHeader && matches.map(renderMatch)}
+                  </>
                 )
-              })}
+              })()}
             </>
           )}
         </ScrollView>
@@ -1643,14 +1796,49 @@ function AutoAvatar({ avatarUrl, border, size }: { avatarUrl?: string | null; bo
     resolveProfileAvatarUriSmall(avatarUrl).then(r => { if (!cancelled) setUri(r.uri) })
     return () => { cancelled = true }
   }, [avatarUrl])
-  return <ProfileAvatar uri={uri} border={border} size={size} />
+  return <ProfileAvatar uri={uri} border={border as any} size={size} />
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const isPub = status === 'published'
+function TourneyStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { bg: string; color: string; label: string }> = {
+    published:   { bg: theme.colors.primary + '22', color: theme.colors.primary, label: 'Registration Open' },
+    in_progress: { bg: theme.colors.hot + '22',     color: theme.colors.hot,     label: '● In Progress' },
+    completed:   { bg: theme.colors.cool + '22',    color: theme.colors.cool,    label: 'Completed' },
+    draft:       { bg: theme.colors.border,          color: theme.colors.subtext, label: 'Draft' },
+  }
+  const s = map[status] ?? { bg: theme.colors.border, color: theme.colors.subtext, label: status }
   return (
-    <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: isPub ? theme.colors.primary + '22' : theme.colors.border }}>
-      <Text style={{ fontSize: 11, fontWeight: '700', color: isPub ? theme.colors.primary : theme.colors.subtext, textTransform: 'capitalize' }}>{status}</Text>
+    <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: s.bg }}>
+      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: s.color, letterSpacing: 0.3 }}>{s.label}</Text>
+    </View>
+  )
+}
+
+function HeroPill({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <View style={{ flex: 1, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: accent ? theme.colors.accent : 'rgba(255,255,255,0.1)', alignItems: 'center' }}>
+      <Text style={{ fontFamily: theme.fonts.display, fontSize: 15, color: accent ? theme.colors.accentInk : theme.colors.text, letterSpacing: -0.3 }}>{value}</Text>
+      <Text style={{ fontFamily: theme.fonts.body, fontSize: 9.5, color: accent ? theme.colors.accentInk : 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 1 }}>{label}</Text>
+    </View>
+  )
+}
+
+function TeamSectionLabel({ title, count }: { title: string; count: number }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, marginTop: 4, paddingHorizontal: 2 }}>
+      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.8 }}>{title}</Text>
+      <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: theme.colors.border }}>
+        <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 10, color: theme.colors.subtext }}>{count}</Text>
+      </View>
+    </View>
+  )
+}
+
+function ScheduleSectionLabel({ title, count }: { title: string; count: number }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4, marginTop: 8, paddingHorizontal: 2 }}>
+      <Text style={{ fontFamily: theme.fonts.display, fontSize: 17, color: theme.colors.text, letterSpacing: -0.3 }}>{title}</Text>
+      <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, color: theme.colors.subtext }}>{count} matches</Text>
     </View>
   )
 }
@@ -1658,7 +1846,7 @@ function StatusBadge({ status }: { status: string }) {
 function StatusPill({ label, color }: { label: string; color: string }) {
   return (
     <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 99, backgroundColor: color + '22', borderWidth: 1, borderColor: color + '44' }}>
-      <Text style={{ fontSize: 11, color, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 10.5, color }}>{label}</Text>
     </View>
   )
 }
@@ -1666,27 +1854,8 @@ function StatusPill({ label, color }: { label: string; color: string }) {
 function OrgBtn({ label, color, onPress }: { label: string; color: string; onPress: () => void }) {
   return (
     <TouchableOpacity onPress={onPress} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: color + '18', borderWidth: 1, borderColor: color + '44' }}>
-      <Text style={{ fontSize: 12, color, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11.5, color }}>{label}</Text>
     </TouchableOpacity>
-  )
-}
-
-function SectionHeader({ title, count }: { title: string; count: number }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, marginTop: 4 }}>
-      <Text style={{ fontSize: 12, fontWeight: '700', color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.6 }}>{title}</Text>
-      <Text style={{ fontSize: 12, color: theme.colors.subtext }}>{count}</Text>
-    </View>
-  )
-}
-
-function CountdownCard({ label, iso }: { label: string; iso: string }) {
-  const val = timeAgoOrCountdown(iso)
-  return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: theme.colors.border }}>
-      <Text style={{ fontSize: 11, color: theme.colors.subtext, marginBottom: 4 }}>{label}</Text>
-      <Text style={{ fontSize: 18, fontWeight: '700', color: theme.colors.text }}>{val}</Text>
-    </View>
   )
 }
 

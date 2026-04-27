@@ -70,5 +70,12 @@ export function useConversations() {
 
   const totalUnread = conversations.reduce((sum, c) => sum + (c.unread_count ?? 0), 0)
 
-  return { conversations, loading, refetch: fetch, totalUnread }
+  /** Immediately zero out the unread badge for a conversation (call when user opens it). */
+  const clearUnread = useCallback((conversationId: string) => {
+    setConversations(prev => prev.map(c =>
+      c.conversation_id === conversationId ? { ...c, unread_count: 0 } : c
+    ))
+  }, [])
+
+  return { conversations, loading, refetch: fetch, totalUnread, clearUnread }
 }

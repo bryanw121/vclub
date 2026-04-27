@@ -723,7 +723,7 @@ export default function TournamentCreateScreen() {
   }
 
   function goBack() {
-    if (step === 0) { router.back(); return }
+    if (step === 0) { router.canGoBack() ? router.back() : router.replace('/(app)' as any); return }
     setStep(s => s - 1)
   }
 

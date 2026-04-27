@@ -149,7 +149,7 @@ export default function ChatScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { tabBarHeight } = useTabsContext()
-  const { conversations, loading, refetch } = useConversations()
+  const { conversations, loading, refetch, clearUnread } = useConversations()
   const { silencedUserIds, silenceUser } = useSilencedUsers()
   const [myId, setMyId] = useState<string | null>(null)
   const [newDMVisible, setNewDMVisible] = useState(false)
@@ -193,6 +193,7 @@ export default function ChatScreen() {
   }
 
   function openConversation(row: ConversationRow) {
+    clearUnread(row.conversation_id)
     router.push(`/chat/${row.conversation_id}` as any)
   }
 

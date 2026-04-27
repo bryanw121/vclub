@@ -461,7 +461,7 @@ export default function HostEventScreen() {
             <Text style={shared.modalEmoji}>🏐</Text>
             <Text style={shared.modalTitle}>{successMessage}</Text>
             <Text style={shared.modalBody}>{isEdit ? 'Your changes have been saved.' : 'Your event is now live for members to join.'}</Text>
-            <TouchableOpacity style={shared.modalButton} onPress={() => router.back()}>
+            <TouchableOpacity style={shared.modalButton} onPress={goBack}>
               <Text style={shared.modalButtonText}>Done</Text>
             </TouchableOpacity>
           </View>
