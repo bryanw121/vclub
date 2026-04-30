@@ -1041,7 +1041,7 @@ export default function EventDetail() {
       ] = await Promise.all([
         supabase
           .from('event_guests')
-          .select('id, event_id, status, added_by, joined_at, team_number, team_pinned, name, note')
+          .select('id, event_id, status, added_by, joined_at, team_number, team_pinned, first_name, last_name')
           .eq('event_id', fetchId)
           .order('joined_at', { ascending: true }),
         supabase
