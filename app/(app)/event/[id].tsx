@@ -2544,6 +2544,39 @@ export default function EventDetail() {
                   </View>
                 </>
 
+                {/* Pay via Venmo — shown to non-owners when price > 0 and venmo_handle set */}
+                {!isOwner && event.price != null && event.price > 0 && event.venmo_handle && (() => {
+                  const handle = event.venmo_handle
+                  const amount = event.price % 1 === 0 ? String(event.price) : event.price.toFixed(2)
+                  const name = currentUserProfile ? profileDisplayName(currentUserProfile) : ''
+                  const date = new Date(event.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  const noteParts = [event.title, 'entry fee', name, date].filter(Boolean)
+                  const note = encodeURIComponent(noteParts.join(' — '))
+                  const deepLink = `venmo://paycharge?txn=pay&recipients=${handle}&amount=${amount}&note=${note}`
+                  const webLink = `https://venmo.com/${handle}?txn=pay&amount=${amount}&note=${note}`
+                  return (
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (Platform.OS === 'web') {
+                          window.open(webLink, '_blank')
+                        } else {
+                          void Linking.openURL(deepLink).catch(() => Linking.openURL(webLink))
+                        }
+                      }}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                        gap: 8, marginTop: theme.spacing.sm, paddingVertical: 12,
+                        borderRadius: theme.radius.md, backgroundColor: '#008CFF',
+                      }}
+                    >
+                      <Text style={{ fontSize: 18 }}>💸</Text>
+                      <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: '#fff' }}>
+                        Pay ${amount} via Venmo
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                })()}
+
               </View>
 
               {/* ── About / description card ── */}

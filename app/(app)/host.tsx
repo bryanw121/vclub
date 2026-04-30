@@ -27,6 +27,7 @@ const EMPTY_FORM: CreateEventForm = {
   durationMinutes: DEFAULT_DURATION_MINUTES,
   maxAttendees: null,
   price: null,
+  venmoHandle: '',
 }
 
 const CADENCE_OPTIONS: { value: RecurrenceCadence; label: string }[] = [
@@ -168,6 +169,7 @@ export default function HostEventScreen() {
       durationMinutes: data.duration_minutes ?? DEFAULT_DURATION_MINUTES,
       maxAttendees: data.max_attendees,
       price: data.price ?? null,
+      venmoHandle: data.venmo_handle ?? '',
     })
     if (loc) {
       setLocationId(loc.id)
@@ -278,6 +280,7 @@ export default function HostEventScreen() {
             max_attendees: form.maxAttendees,
             club_id: selectedClubId,
             price: form.price,
+            venmo_handle: form.price && form.price > 0 ? (form.venmoHandle.trim() || null) : null,
           })
           .eq('id', editId)
         if (error) throw error
@@ -345,6 +348,7 @@ export default function HostEventScreen() {
           created_by: user.id,
           club_id: selectedClubId,
           price: form.price,
+          venmo_handle: form.price && form.price > 0 ? (form.venmoHandle.trim() || null) : null,
         }))
 
         const { data: insertedEvents, error } = await supabase.from('events').insert(rows).select('id')
@@ -778,6 +782,34 @@ export default function HostEventScreen() {
               />
             </View>
           </View>
+
+          {/* Venmo handle — shown only when price > 0 */}
+          {!!form.price && form.price > 0 && (
+            <View>
+              <Text style={shared.label}>Venmo handle (optional)</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.background }}>
+                <View style={{ paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.sm + 2, borderRightWidth: 1, borderRightColor: theme.colors.border }}>
+                  <Text style={{ fontSize: theme.font.size.md, color: theme.colors.subtext, fontWeight: theme.font.weight.medium }}>@</Text>
+                </View>
+                <TextInput
+                  value={form.venmoHandle}
+                  onChangeText={v => setField('venmoHandle', v.replace(/^@/, ''))}
+                  placeholder="your-venmo-username"
+                  placeholderTextColor={theme.colors.subtext}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={{
+                    flex: 1,
+                    paddingHorizontal: theme.spacing.sm,
+                    paddingVertical: theme.spacing.sm + 2,
+                    fontSize: theme.font.size.md,
+                    color: theme.colors.text,
+                    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
+                  }}
+                />
+              </View>
+            </View>
+          )}
 
           {/* Tags */}
           {availableTags.length > 0 && (() => {

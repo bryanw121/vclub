@@ -5,6 +5,7 @@ import {
   FlatList,
 } from 'react-native'
 import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router'
+import * as Linking from 'expo-linking'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -99,6 +100,7 @@ export default function TournamentDetailScreen() {
   const [prizes, setPrizes] = useState<TournamentPrize[]>([])
   const [loading, setLoading] = useState(true)
   const [myId, setMyId] = useState<string | null>(null)
+  const [myProfile, setMyProfile] = useState<Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name'> | null>(null)
   const [activeTab, setActiveTab] = useState<TabName>('Overview')
 
   // ── Teams ─────────────────────────────────────────────────────────────────────
@@ -171,6 +173,11 @@ export default function TournamentDetailScreen() {
     const { data: { user } } = await supabase.auth.getUser()
     const uid = user?.id ?? null
     setMyId(uid)
+
+    if (uid) {
+      supabase.from('profiles').select('id, username, first_name, last_name').eq('id', uid).single()
+        .then(({ data }) => { if (data) setMyProfile(data as Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name'>) })
+    }
 
     const [{ data: t }, { data: r }, { data: p }] = await Promise.all([
       supabase.from('tournaments').select('*').eq('id', id).single(),
@@ -1065,6 +1072,39 @@ export default function TournamentDetailScreen() {
               <Text style={{ fontFamily: theme.fonts.display, fontSize: 15, color: '#fff' }}>Register Team</Text>
             </TouchableOpacity>
           )}
+
+          {/* Pay via Venmo — shown to non-creators when price > 0 and venmo_handle set */}
+          {!isCreator && tournament.price > 0 && tournament.venmo_handle && (() => {
+            const handle = tournament.venmo_handle
+            const amount = tournament.price % 1 === 0 ? String(tournament.price) : tournament.price.toFixed(2)
+            const name = myProfile ? profileDisplayName(myProfile) : ''
+            const date = new Date(tournament.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            const noteParts = [tournament.title, 'entry fee', name, date].filter(Boolean)
+            const note = encodeURIComponent(noteParts.join(' — '))
+            const deepLink = `venmo://paycharge?txn=pay&recipients=${handle}&amount=${amount}&note=${note}`
+            const webLink = `https://venmo.com/${handle}?txn=pay&amount=${amount}&note=${note}`
+            return (
+              <TouchableOpacity
+                onPress={() => {
+                  if (Platform.OS === 'web') {
+                    window.open(webLink, '_blank')
+                  } else {
+                    void Linking.openURL(deepLink).catch(() => Linking.openURL(webLink))
+                  }
+                }}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                  gap: 8, marginBottom: 12, paddingVertical: 14,
+                  borderRadius: 16, backgroundColor: '#008CFF',
+                }}
+              >
+                <Text style={{ fontSize: 18 }}>💸</Text>
+                <Text style={{ fontFamily: theme.fonts.display, fontSize: 15, color: '#fff' }}>
+                  Pay ${amount} entry via Venmo
+                </Text>
+              </TouchableOpacity>
+            )
+          })()}
 
           {/* Pending invitations */}
           {myPendingInvites.length > 0 && (

@@ -114,6 +114,7 @@ export type Event = {
   cancelled_at?: string | null
   /** Entry fee in USD; null means free. */
   price?: number | null
+  venmo_handle?: string | null
 }
 
 /** Cheer categories for post-event peer recognition */
@@ -290,6 +291,7 @@ export type CreateEventForm = {
   durationMinutes: number      // Event duration; default 120
   maxAttendees: number | null  // null = unlimited
   price: number | null         // null = free
+  venmoHandle: string          // optional; only used when price > 0
 }
 
 /**
@@ -579,6 +581,7 @@ export type Tournament = {
   teams_advance_per_pool: number
   has_refs: boolean
   price: number
+  venmo_handle: string | null
   schedule_published: boolean
   match_duration_minutes: number
   break_duration_minutes: number
@@ -677,6 +680,7 @@ export type TournamentDraft = {
   maxRosterSize: number
   hasRefs: boolean
   price: number
+  venmoHandle: string
 
   // Step 4 — Rules
   startingScore: number

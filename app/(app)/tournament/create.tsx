@@ -31,6 +31,7 @@ const DEFAULT_DRAFT: TournamentDraft = {
   maxRosterSize: 10,
   hasRefs: false,
   price: 0,
+  venmoHandle: '',
   startingScore: 0,
   winningScore: 25,
   decidingSetScore: 15,
@@ -437,6 +438,31 @@ function StepRegistration({ draft, update }: { draft: TournamentDraft; update: (
             keyboardType="decimal-pad"
           />
         </Field>
+        {draft.price > 0 && (
+          <Field label="Venmo handle (optional)">
+            <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.background }}>
+              <View style={{ paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.sm + 2, borderRightWidth: 1, borderRightColor: theme.colors.border }}>
+                <Text style={{ fontSize: theme.font.size.md, color: theme.colors.subtext, fontWeight: theme.font.weight.medium }}>@</Text>
+              </View>
+              <TextInput
+                value={draft.venmoHandle}
+                onChangeText={v => update({ venmoHandle: v.replace(/^@/, '') })}
+                placeholder="your-venmo-username"
+                placeholderTextColor={theme.colors.subtext}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={{
+                  flex: 1,
+                  paddingHorizontal: theme.spacing.sm,
+                  paddingVertical: theme.spacing.sm + 2,
+                  fontSize: theme.font.size.md,
+                  color: theme.colors.text,
+                  ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
+                }}
+              />
+            </View>
+          </Field>
+        )}
       </View>
     </ScrollView>
   )
@@ -663,6 +689,7 @@ async function saveTournament(draft: TournamentDraft, status: 'draft' | 'publish
       teams_advance_per_pool: draft.teamsAdvancePerPool,
       has_refs:               draft.hasRefs,
       price:                  draft.price,
+      venmo_handle:           draft.price > 0 ? (draft.venmoHandle.trim() || null) : null,
       published_at:           status === 'published' ? new Date().toISOString() : null,
     })
     .select('id')
