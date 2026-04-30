@@ -168,7 +168,7 @@ function HostRow({
   hostId, name, initial, avatarUrl, border, label, isMe, onMessage, onPress,
 }: {
   hostId: string; name: string; initial: string; avatarUrl?: string | null
-  border?: string | null; label: string; isMe: boolean
+  border?: Profile['selected_border']; label: string; isMe: boolean
   onMessage: () => void; onPress: () => void
 }) {
   const [avatarUri, setAvatarUri] = useState<string | null>(null)
@@ -791,11 +791,8 @@ export default function EventDetail() {
 
   useFocusEffect(
     useCallback(() => {
-      const stale = Date.now() - lastFetchedAt.current > 5_000
-      if (stale) {
-        setComments([])
-        void fetchEvent()
-      }
+      const stale = Date.now() - lastFetchedAt.current > 30_000
+      if (stale) void fetchEvent({ silent: true })
     }, [id]),
   )
 
@@ -1037,14 +1034,26 @@ export default function EventDetail() {
           setCommentsLoading(false)
         })
 
-      const { data: guestRows, error: guestsError } = await supabase
-        .from('event_guests')
-        .select('*')
-        .eq('event_id', fetchId)
-        .order('joined_at', { ascending: true })
+      // Fetch guests and cohosts in parallel — neither depends on the other
+      const [
+        { data: guestRows, error: guestsError },
+        { data: cohostRows },
+      ] = await Promise.all([
+        supabase
+          .from('event_guests')
+          .select('id, event_id, status, added_by, joined_at, team_number, team_pinned, name, note')
+          .eq('event_id', fetchId)
+          .order('joined_at', { ascending: true }),
+        supabase
+          .from('event_cohosts')
+          .select('event_id, user_id, added_by, added_at, profiles!event_cohosts_user_id_fkey (id, username, first_name, last_name, avatar_url, selected_border)')
+          .eq('event_id', fetchId)
+          .order('added_at', { ascending: true }),
+      ])
       if (guestsError) throw guestsError
+      setCohosts((cohostRows ?? []) as unknown as EventCohostWithProfile[])
 
-      const allGuests = (guestRows ?? []) as EventGuest[]
+      const allGuests = (guestRows ?? []) as unknown as EventGuest[]
       const attendingGuests = allGuests.filter(g => g.status === 'attending')
       setGuests(attendingGuests)
       setWaitlistGuests(allGuests.filter(g => g.status === 'waitlisted'))
@@ -1058,13 +1067,6 @@ export default function EventDetail() {
       } else {
         setAdderUsernames({})
       }
-
-      const { data: cohostRows } = await supabase
-        .from('event_cohosts')
-        .select('event_id, user_id, added_by, added_at, profiles!event_cohosts_user_id_fkey (id, username, first_name, last_name, avatar_url, selected_border)')
-        .eq('event_id', fetchId)
-        .order('added_at', { ascending: true })
-      setCohosts((cohostRows ?? []) as unknown as EventCohostWithProfile[])
 
       const map: Record<string, TeamAssignment> = {}
       let maxTeam = 1

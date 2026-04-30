@@ -99,6 +99,7 @@ export default function TournamentDetailScreen() {
   const [rules, setRules] = useState<TournamentRules | null>(null)
   const [prizes, setPrizes] = useState<TournamentPrize[]>([])
   const [loading, setLoading] = useState(true)
+  const lastTeamsFetchAt = useRef(0)
   const [myId, setMyId] = useState<string | null>(null)
   const [myProfile, setMyProfile] = useState<Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name'> | null>(null)
   const [activeTab, setActiveTab] = useState<TabName>('Overview')
@@ -220,6 +221,7 @@ export default function TournamentDetailScreen() {
       .eq('tournament_id', id)
       .order('created_at')
 
+    lastTeamsFetchAt.current = Date.now()
     setTeams((data ?? []).map((team: any) => ({
       ...team,
       members: team.tournament_team_members ?? [],
@@ -304,8 +306,10 @@ export default function TournamentDetailScreen() {
   }
 
   useFocusEffect(useCallback(() => {
-    void loadTeams()
-    if (myId) void loadMyRegistration(myId)
+    if (Date.now() - lastTeamsFetchAt.current > 30_000) {
+      void loadTeams()
+      if (myId) void loadMyRegistration(myId)
+    }
   }, [id, myId]))
 
   // ─── Registration ──────────────────────────────────────────────────────────────
@@ -417,7 +421,7 @@ export default function TournamentDetailScreen() {
         .neq('id', myId ?? '')
         .limit(20)
       setInviteResults((data ?? []) as Profile[])
-    }, 300)
+    }, 600)
     return () => clearTimeout(t)
   }, [inviteQuery, myTeam, myId])
 
