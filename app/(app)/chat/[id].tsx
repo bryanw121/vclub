@@ -17,7 +17,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../../lib/supabase'
 import { theme, shared } from '../../../constants'
-import { dmMessageContainsBadWord } from '../../../constants/dmBadWords'
+import {
+  DM_BAD_WORD_PROMPT_COOLDOWN_MS,
+  dmMessageContainsBadWord,
+  loadDmBadWordPromptAt,
+  saveDmBadWordPromptAt,
+} from '../../../constants/dmBadWords'
 import { useAuth } from '../../../hooks/useAuth'
 import { useMessages } from '../../../hooks/useMessages'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
@@ -72,6 +77,8 @@ export default function ChatRoomScreen() {
   const [headerMenuAnchor, setHeaderMenuAnchor] = useState<AnchorRect | null>(null)
   const [unsportsmanlikeModalVisible, setUnsportsmanlikeModalVisible] = useState(false)
   const badWordPromptedMessageIdsRef = useRef<Set<string>>(new Set())
+  const lastBadWordPromptAtRef = useRef(0)
+  const [badWordPromptCooldownReady, setBadWordPromptCooldownReady] = useState(false)
 
   const {
     messages, loading, hasMore, loadMore, refresh,
@@ -117,7 +124,13 @@ export default function ChatRoomScreen() {
 
   useEffect(() => {
     badWordPromptedMessageIdsRef.current = new Set()
+    lastBadWordPromptAtRef.current = 0
     setUnsportsmanlikeModalVisible(false)
+    setBadWordPromptCooldownReady(false)
+    void loadDmBadWordPromptAt(id).then(ts => {
+      lastBadWordPromptAtRef.current = ts
+      setBadWordPromptCooldownReady(true)
+    })
   }, [id])
 
   const handleChatRoomRefresh = useCallback(async () => {
@@ -313,11 +326,12 @@ export default function ChatRoomScreen() {
     ]
   }, [convRow, myId, router, confirmSilenceUser, confirmReportDmUser])
 
-  // Incoming DM text contained a bad word — prompt once per offending message.
+  // Incoming DM text contained a bad word — prompt at most once per cooldown; still dedupe per message id.
   useEffect(() => {
-    if (loading || !myId || convRow?.type !== 'dm') return
+    if (!badWordPromptCooldownReady || loading || !myId || convRow?.type !== 'dm') return
     if (unsportsmanlikeModalVisible) return
 
+    const now = Date.now()
     for (const m of messages) {
       if (m._sending) continue
       if (m.sender_id === myId) continue
@@ -325,10 +339,13 @@ export default function ChatRoomScreen() {
       if (!dmMessageContainsBadWord(m.content)) continue
       if (badWordPromptedMessageIdsRef.current.has(m.id)) continue
       badWordPromptedMessageIdsRef.current.add(m.id)
+      if (now - lastBadWordPromptAtRef.current < DM_BAD_WORD_PROMPT_COOLDOWN_MS) continue
+      lastBadWordPromptAtRef.current = now
+      void saveDmBadWordPromptAt(id, now)
       setUnsportsmanlikeModalVisible(true)
       return
     }
-  }, [messages, loading, myId, convRow?.type, unsportsmanlikeModalVisible])
+  }, [messages, loading, myId, convRow?.type, unsportsmanlikeModalVisible, badWordPromptCooldownReady, id])
 
   function openHeaderOptionsMenu() {
     headerKebabRef.current?.measureInWindow((x, y, w, h) => {
@@ -785,7 +802,7 @@ export default function ChatRoomScreen() {
               }}
             >
               <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.md, color: theme.colors.white }}>
-                OK
+                Report
               </Text>
             </TouchableOpacity>
           </View>
