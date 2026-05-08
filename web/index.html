@@ -18,48 +18,24 @@
     <title>vclub</title>
     <style id="expo-reset">
       html {
-        height: 100%;
+        /*
+         * 100dvh = dynamic viewport height: shrinks when the URL bar is visible,
+         * grows when it collapses. This lets Safari/Chrome collapse the bar on
+         * scroll since the root is no longer pinned with position:fixed.
+         */
+        height: 100dvh;
+        overflow: hidden;
       }
       body {
         height: 100%;
         margin: 0;
         padding: 0;
         background-color: #13111F;
-        /*
-         * overflow-y: scroll (NOT hidden) is required for Safari to treat the
-         * document as scrollable, which is the prerequisite for the URL bar to
-         * collapse when the user scrolls. With overflow:hidden, Safari locks
-         * the bar open permanently.
-         */
-        overflow-y: scroll;
-        -webkit-overflow-scrolling: touch;
-        /*
-         * "contain" (not "none") stops rubber-band on the body itself while still
-         * letting Safari register the micro-scroll needed to collapse the URL bar.
-         * "none" was too aggressive and prevented URL-bar collapse in Safari 17+.
-         */
-        overscroll-behavior-y: contain;
-      }
-      /*
-       * 1px of virtual content gives the body a non-zero scroll range.
-       * Without this, overflow-y:scroll has nothing to scroll and Safari
-       * still won't collapse the URL bar.
-       */
-      body::after {
-        content: '';
-        display: block;
-        height: 1px;
+        overflow: hidden;
+        overscroll-behavior-y: none;
       }
       #root {
-        /*
-         * position:fixed keeps the app pinned to the full viewport regardless
-         * of the body scroll position, so the 1px body scroll is invisible.
-         */
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
+        height: 100%;
         display: flex;
         overflow: hidden;
       }
@@ -72,31 +48,6 @@
     </style>
   </head>
   <body>
-    <script>
-      /*
-       * Broadcast the visual viewport height as --vvh so CSS / RN Web layouts
-       * can respond to the soft keyboard appearing on iOS Safari.
-       *
-       * On iOS 15+, position:fixed elements already track the visual viewport,
-       * so the chat input bar rises above the keyboard without extra JS.
-       * On older iOS, this variable lets any CSS that opts in to shrink correctly.
-       *
-       * We also set it on <html> so it is available before React hydrates.
-       */
-      (function () {
-        function setVVH() {
-          var h = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
-          document.documentElement.style.setProperty('--vvh', h + 'px');
-        }
-        setVVH();
-        if (window.visualViewport) {
-          window.visualViewport.addEventListener('resize', setVVH);
-          window.visualViewport.addEventListener('scroll', setVVH);
-        } else {
-          window.addEventListener('resize', setVVH);
-        }
-      })();
-    </script>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
   </body>
