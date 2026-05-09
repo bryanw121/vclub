@@ -287,6 +287,8 @@ export type CreateEventForm = {
   title: string
   description: string
   location: string
+  locationLatitude: number | null
+  locationLongitude: number | null
   date: Date             // Stored as JS Date locally; converted to ISO string on submit
   durationMinutes: number      // Event duration; default 120
   maxAttendees: number | null  // null = unlimited

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, ScrollView, Text, TextInput, View, TouchableOpacity, Switch, Modal, StyleSheet, Platform, RefreshControl } from 'react-native'
+import { ActivityIndicator, PanResponder, ScrollView, Text, TextInput, View, TouchableOpacity, Switch, Modal, StyleSheet, Platform, RefreshControl } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '../../lib/supabase'
@@ -7,6 +7,8 @@ import { Sentry } from '../../lib/sentry'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
 import { DatePickerField } from '../../components/DatePickerField'
+import { LocationPickerField } from '../../components/LocationPickerField'
+import type { LocationValue } from '../../components/LocationPickerField'
 import { shared, theme, LOCATIONS, DAY_LABELS_SHORT, DURATION_OPTIONS, DEFAULT_DURATION_MINUTES } from '../../constants'
 import type { RecurrenceCadence } from '../../constants'
 import { cleanDate } from '../../utils'
@@ -23,6 +25,8 @@ const EMPTY_FORM: CreateEventForm = {
   title: '',
   description: '',
   location: '',
+  locationLatitude: null,
+  locationLongitude: null,
   date: roundToNearest5(),
   durationMinutes: DEFAULT_DURATION_MINUTES,
   maxAttendees: null,
@@ -100,7 +104,7 @@ export default function HostEventScreen() {
     ...EMPTY_FORM,
     maxAttendees: (() => { const n = parseInt(maxAttendeesParam ?? '', 10); return Number.isFinite(n) && n > 0 ? n : null })(),
   })
-  const [locationId, setLocationId] = useState('')
+  const [recentVenues, setRecentVenues] = useState<LocationValue[]>([])
   const [recurrence, setRecurrence] = useState({
     enabled: false,
     days: [] as number[],
@@ -147,6 +151,28 @@ export default function HostEventScreen() {
     setAvailableTags((tagsRes.data ?? []) as Tag[])
     setOwnedClubs(((clubsRes.data ?? []) as any[]).map((m: any) => m.clubs).filter(Boolean))
 
+    // Load recent venues from past hosted events
+    if (user) {
+      const { data: venueRows } = await supabase
+        .from('events')
+        .select('location, latitude, longitude')
+        .eq('created_by', user.id)
+        .not('location', 'is', null)
+        .order('event_date', { ascending: false })
+        .limit(20)
+      if (venueRows) {
+        const seen = new Set<string>()
+        const unique: LocationValue[] = []
+        for (const e of venueRows) {
+          if (e.location && !seen.has(e.location)) {
+            seen.add(e.location)
+            unique.push({ display: e.location, latitude: e.latitude ?? null, longitude: e.longitude ?? null })
+          }
+        }
+        setRecentVenues(unique.slice(0, 5))
+      }
+    }
+
     if (editId && user) await loadEventForEdit(editId)
 
     setInitialLoading(false)
@@ -160,22 +186,18 @@ export default function HostEventScreen() {
       .single()
     if (error || !data) return
 
-    const loc = LOCATIONS.find(l => l.label === data.location)
     setForm({
       title: data.title,
       description: data.description ?? '',
       location: data.location ?? '',
+      locationLatitude: data.latitude ?? null,
+      locationLongitude: data.longitude ?? null,
       date: new Date(data.event_date),
       durationMinutes: data.duration_minutes ?? DEFAULT_DURATION_MINUTES,
       maxAttendees: data.max_attendees,
       price: data.price ?? null,
       venmoHandle: data.venmo_handle ?? '',
     })
-    if (loc) {
-      setLocationId(loc.id)
-    } else if (data.location) {
-      setLocationId('other')
-    }
     setSelectedTagIds((data.event_tags ?? []).map((et: any) => et.tag_id))
     setSelectedClubId(data.club_id ?? null)
   }
@@ -218,36 +240,20 @@ export default function HostEventScreen() {
   }, [view, editId])
 
   function applyUserTemplate(t: UserEventTemplate) {
-    const loc = LOCATIONS.find(l => l.label === t.location)
     setForm(prev => ({
       ...prev,
       title: t.title,
       description: t.description ?? '',
       location: t.location ?? '',
+      locationLatitude: null,
+      locationLongitude: null,
       maxAttendees: t.max_attendees,
     }))
-    if (loc) {
-      setLocationId(loc.id)
-    } else if (t.location) {
-      setLocationId('other')
-    } else {
-      setLocationId('')
-    }
     setView('form')
   }
 
   function setField<K extends keyof CreateEventForm>(key: K, value: CreateEventForm[K]) {
     setForm(prev => ({ ...prev, [key]: value }))
-  }
-
-  function selectLocation(id: string) {
-    setLocationId(id)
-    if (id !== 'other') {
-      const loc = LOCATIONS.find(l => l.id === id)
-      setField('location', loc?.label ?? '')
-    } else {
-      setField('location', '')
-    }
   }
 
   function toggleTag(id: string) {
@@ -275,6 +281,8 @@ export default function HostEventScreen() {
             title: form.title,
             description: form.description || null,
             location: form.location || null,
+            latitude: form.locationLatitude,
+            longitude: form.locationLongitude,
             event_date: cleanDate(form.date),
             duration_minutes: form.durationMinutes,
             max_attendees: form.maxAttendees,
@@ -342,6 +350,8 @@ export default function HostEventScreen() {
           title: form.title,
           description: form.description || null,
           location: form.location || null,
+          latitude: form.locationLatitude,
+          longitude: form.locationLongitude,
           event_date: cleanDate(d),
           duration_minutes: form.durationMinutes,
           max_attendees: form.maxAttendees,
@@ -376,7 +386,6 @@ export default function HostEventScreen() {
         setSuccessMessage(dates.length > 1 ? `${dates.length} events created!` : 'Event created!')
         setSuccessModal(true)
         setForm(EMPTY_FORM)
-        setLocationId('')
         setRecurrence({ enabled: false, days: [], cadence: 'weekly', endDate: defaultEndDate(new Date()) })
         setSaveAsTemplate(false)
         setTemplateName('')
@@ -437,6 +446,80 @@ export default function HostEventScreen() {
     )
   }
 
+  // ── Snap slider for max players ───────────────────────────────────────────
+  const CAPACITY_STOPS: Array<{ label: string; value: number | null }> = [
+    { label: '6',  value: 6    },
+    { label: '16', value: 16   },
+    { label: '24', value: 24   },
+    { label: '∞',  value: null },
+  ]
+
+  function SnapSlider() {
+    const trackRef   = useRef<View>(null)
+    const trackWidth = useRef(0)
+    const activeIdx  = CAPACITY_STOPS.findIndex(s => s.value === form.maxAttendees)
+    const thumbPct   = activeIdx < 0 ? 1 : activeIdx / (CAPACITY_STOPS.length - 1)
+
+    const panResponder = useRef(PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder:  () => true,
+      onPanResponderGrant: (e) => {
+        const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / trackWidth.current))
+        const idx = Math.round(ratio * (CAPACITY_STOPS.length - 1))
+        setField('maxAttendees', CAPACITY_STOPS[idx].value)
+      },
+      onPanResponderMove: (e) => {
+        const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / trackWidth.current))
+        const idx = Math.round(ratio * (CAPACITY_STOPS.length - 1))
+        setField('maxAttendees', CAPACITY_STOPS[idx].value)
+      },
+    })).current
+
+    return (
+      <View style={hostStyles.fieldCard}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+          <Text style={hostStyles.fieldLabel}>Max players</Text>
+          <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 22, color: theme.colors.text, letterSpacing: -0.5 }}>
+            {form.maxAttendees === null ? '∞' : form.maxAttendees}
+          </Text>
+        </View>
+        <View
+          ref={trackRef}
+          onLayout={e => { trackWidth.current = e.nativeEvent.layout.width }}
+          style={{ height: 6, backgroundColor: theme.colors.border, borderRadius: 3, position: 'relative' }}
+          {...panResponder.panHandlers}
+        >
+          <View style={{ width: `${thumbPct * 100}%` as any, height: '100%', backgroundColor: theme.colors.primary, borderRadius: 3 }} />
+          <View style={{
+            position: 'absolute',
+            left: `${thumbPct * 100}%` as any,
+            top: '50%',
+            marginLeft: -9, marginTop: -9,
+            width: 18, height: 18, borderRadius: 9,
+            backgroundColor: theme.colors.card,
+            borderWidth: 3, borderColor: theme.colors.primary,
+          }} />
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+          {CAPACITY_STOPS.map((s, i) => (
+            <TouchableOpacity
+              key={s.label}
+              onPress={() => setField('maxAttendees', s.value)}
+              hitSlop={8}
+              style={{ paddingVertical: 2, paddingHorizontal: 4 }}
+            >
+              <Text style={{
+                fontFamily: theme.fonts.bodySemiBold,
+                fontSize: 11,
+                color: i === activeIdx ? theme.colors.primary : theme.colors.subtext,
+              }}>{s.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    )
+  }
+
   // ── Form view ─────────────────────────────────────────────────────────────
   if (initialLoading) {
     return (
@@ -474,31 +557,33 @@ export default function HostEventScreen() {
 
       <ScrollView
         style={shared.screen}
-        contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
-        scrollEnabled={true}
+        contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={hostPullRefreshing} onRefresh={() => void refreshHostContext()} tintColor={theme.colors.primary} />
         }
       >
+        {/* Header */}
+        <View style={{ marginBottom: 20 }}>
+          <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 32, letterSpacing: -1.1, color: theme.colors.text }}>
+            {isEdit ? 'Edit event.' : 'New event.'}
+          </Text>
+          <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.subtext, marginTop: 3 }}>
+            Fill in the basics — you can edit later.
+          </Text>
+        </View>
 
-        {/* Page title */}
-        <Text style={{ fontFamily: theme.fonts.display, fontSize: 28, letterSpacing: -0.8, color: theme.colors.text, marginBottom: theme.spacing.lg }}>
-          {isEdit ? 'Edit event.' : 'Host an event.'}
-        </Text>
-
-        {/* ── Event type toggle cards ── */}
+        {/* ── Event type toggle ── */}
         {(() => {
-          // Tournament has its own dedicated creation flow — exclude it here
           const typeTags = availableTags.filter(t => t.category === 'event_type' && t.name !== 'Tournament')
           if (typeTags.length === 0) return null
           const TYPE_META: Record<string, { color: string; subtitle: string }> = {
-            'Open Play':  { color: theme.colors.primary, subtitle: 'casual' },
-            'Tournament': { color: theme.colors.warm,    subtitle: 'bracket' },
+            'Open Play': { color: theme.colors.primary, subtitle: 'casual' },
           }
           return (
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: theme.spacing.lg }}>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
               {typeTags.map(tag => {
-                const meta = TYPE_META[tag.name] ?? { color: theme.colors.primary }
+                const meta = TYPE_META[tag.name] ?? { color: theme.colors.primary, subtitle: '' }
                 const selected = selectedTagIds.includes(tag.id)
                 return (
                   <TouchableOpacity
@@ -512,24 +597,21 @@ export default function HostEventScreen() {
                           : [...withoutTypes, tag.id]
                       })
                     }}
+                    activeOpacity={0.75}
                     style={{
                       flex: 1, padding: 14, borderRadius: 18,
                       backgroundColor: selected ? meta.color : theme.colors.card,
                       borderWidth: selected ? 0 : 1.5,
                       borderColor: theme.colors.border,
                     }}
-                    activeOpacity={0.75}
                   >
-                    <Text style={{
-                      fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 17, letterSpacing: -0.3,
-                      color: selected ? '#fff' : theme.colors.text,
-                    }}>{tag.name}</Text>
+                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 17, letterSpacing: -0.3, color: selected ? '#fff' : theme.colors.text }}>
+                      {tag.name}
+                    </Text>
                     {meta.subtitle ? (
-                      <Text style={{
-                        fontFamily: theme.fonts.body, fontSize: 12,
-                        color: selected ? 'rgba(255,255,255,0.75)' : theme.colors.subtext,
-                        marginTop: 2,
-                      }}>{meta.subtitle}</Text>
+                      <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, color: selected ? 'rgba(255,255,255,0.75)' : theme.colors.subtext, marginTop: 2 }}>
+                        {meta.subtitle}
+                      </Text>
                     ) : null}
                   </TouchableOpacity>
                 )
@@ -538,259 +620,160 @@ export default function HostEventScreen() {
           )
         })()}
 
-        {/* ── Section: Basic Info ── */}
-        <View style={hostStyles.sectionLabel}>
-          <Ionicons name="create-outline" size={14} color={theme.colors.subtext} />
-          <Text style={hostStyles.sectionLabelText}>Basic Info</Text>
-        </View>
-        <View style={[shared.card, { marginBottom: theme.spacing.lg, gap: 0 }]}>
-          <Input label="Title" value={form.title} onChangeText={v => setField('title', v)} placeholder="Event name" containerStyle={{ marginBottom: 0 }} />
-          <Input label="Description" value={form.description} onChangeText={v => setField('description', v)} placeholder="What's this event about?" multiline numberOfLines={4} containerStyle={{ marginBottom: 0, marginTop: theme.spacing.sm }} />
+        {/* ── Title ── */}
+        <View style={hostStyles.fieldCard}>
+          <Text style={hostStyles.fieldLabel}>Title</Text>
+          <TextInput
+            value={form.title}
+            onChangeText={v => setField('title', v)}
+            placeholder="Friday Night Round Robin"
+            placeholderTextColor={theme.colors.subtext}
+            style={hostStyles.fieldInput}
+          />
         </View>
 
-        {/* ── Section: When & Where ── */}
-        <View style={hostStyles.sectionLabel}>
-          <Ionicons name="location-outline" size={14} color={theme.colors.subtext} />
-          <Text style={hostStyles.sectionLabelText}>When & Where</Text>
+        {/* ── Location ── */}
+        <View style={hostStyles.fieldCard}>
+          <Text style={hostStyles.fieldLabel}>Location</Text>
+          <LocationPickerField
+            value={form.location ? { display: form.location, latitude: form.locationLatitude, longitude: form.locationLongitude } : null}
+            onChange={loc => {
+              setField('location', loc.display)
+              setField('locationLatitude', loc.latitude)
+              setField('locationLongitude', loc.longitude)
+            }}
+            userId={userId}
+            recentVenues={recentVenues}
+          />
         </View>
-        <View style={[shared.card, { marginBottom: theme.spacing.lg, gap: theme.spacing.md }]}>
 
-          <View>
-            <Text style={shared.label}>Location</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
-              {LOCATIONS.map(loc => {
-                const active = locationId === loc.id
-                return (
-                  <TouchableOpacity
-                    key={loc.id}
-                    onPress={() => selectLocation(loc.id)}
-                    style={[hostStyles.chip, active && hostStyles.chipActive]}
-                  >
-                    <Text style={[hostStyles.chipText, active && hostStyles.chipTextActive]}>{loc.label}</Text>
-                  </TouchableOpacity>
-                )
-              })}
-            </View>
-            {locationId === 'other' && (
-              <View style={{ marginTop: theme.spacing.sm }}>
-                <Input label="" value={form.location} onChangeText={v => setField('location', v)} placeholder="Enter location" containerStyle={{ marginBottom: 0 }} />
-              </View>
-            )}
-          </View>
-
-          <View>
-            <DatePickerField value={form.date} onChange={d => {
+        {/* ── Date + Time (DatePickerField handles both) ── */}
+        <View style={hostStyles.fieldCard}>
+          <Text style={hostStyles.fieldLabel}>Date & Time</Text>
+          <DatePickerField
+            value={form.date}
+            onChange={d => {
               setField('date', d)
               if (!recurrence.enabled) setRecurrence(prev => ({ ...prev, endDate: defaultEndDate(d) }))
-            }} />
-          </View>
-
-          <View>
-            <Text style={shared.label}>Duration</Text>
-            <View style={{ alignItems: 'flex-start' }}>
-            <TouchableOpacity
-              onPress={() => setDurationModalOpen(true)}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm + 2, backgroundColor: theme.colors.card }}
-            >
-              <Text style={{ fontSize: theme.font.size.md, color: theme.colors.text, fontWeight: theme.font.weight.medium }}>
-                {DURATION_OPTIONS.find(o => o.minutes === form.durationMinutes)?.label ?? 'Select'}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={theme.colors.subtext} />
-            </TouchableOpacity>
-            </View>
-            <Modal visible={durationModalOpen} transparent animationType="fade" onRequestClose={() => setDurationModalOpen(false)}>
-              <TouchableOpacity style={shared.modalOverlay} activeOpacity={1} onPress={() => setDurationModalOpen(false)}>
-                <View style={[shared.modalCard, { paddingVertical: 0, paddingHorizontal: 0, overflow: 'hidden', minWidth: 200 }]}>
-                  {DURATION_OPTIONS.map((opt, i) => {
-                    const active = form.durationMinutes === opt.minutes
-                    return (
-                      <TouchableOpacity
-                        key={opt.minutes}
-                        onPress={() => { setField('durationMinutes', opt.minutes); setDurationModalOpen(false) }}
-                        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: theme.colors.border }}
-                      >
-                        <Text style={{ fontSize: theme.font.size.md, color: active ? theme.colors.primary : theme.colors.text, fontWeight: active ? theme.font.weight.semibold : theme.font.weight.regular }}>
-                          {opt.label}
-                        </Text>
-                        {active && <Ionicons name="checkmark" size={16} color={theme.colors.primary} />}
-                      </TouchableOpacity>
-                    )
-                  })}
-                </View>
-              </TouchableOpacity>
-            </Modal>
-          </View>
-
-          {/* Recurrence — hidden in edit mode */}
-          {!isEdit && (
-            <View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={shared.label}>Repeat</Text>
-                <Switch
-                  value={recurrence.enabled}
-                  onValueChange={v => setRecurrence(prev => ({ ...prev, enabled: v }))}
-                  trackColor={{ false: theme.colors.border, true: theme.colors.primary + '80' }}
-                  thumbColor={recurrence.enabled ? theme.colors.primary : theme.colors.subtext}
-                />
-              </View>
-              {recurrence.enabled && (
-                <View style={{ marginTop: theme.spacing.sm, gap: theme.spacing.md }}>
-                  <View style={{ flexDirection: 'row', borderRadius: theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border, alignSelf: 'flex-start' }}>
-                    {CADENCE_OPTIONS.map(opt => (
-                      <TouchableOpacity
-                        key={opt.value}
-                        onPress={() => setRecurrence(prev => ({ ...prev, cadence: opt.value }))}
-                        style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, backgroundColor: recurrence.cadence === opt.value ? theme.colors.primary : 'transparent' }}
-                      >
-                        <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: recurrence.cadence === opt.value ? theme.colors.white : theme.colors.subtext }}>
-                          {opt.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  {showDayPicker && (
-                    <View>
-                      <Text style={[shared.caption, { marginBottom: theme.spacing.xs }]}>On these days</Text>
-                      <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
-                        {DAY_LABELS_SHORT.map((label, i) => {
-                          const active = recurrence.days.includes(i)
-                          return (
-                            <TouchableOpacity
-                              key={i}
-                              onPress={() => toggleRecurrenceDay(i)}
-                              style={{
-                                width: 36, height: 36, borderRadius: 18,
-                                borderWidth: 1.5,
-                                borderColor: active ? theme.colors.primary : theme.colors.border,
-                                backgroundColor: active ? theme.colors.primary : 'transparent',
-                                alignItems: 'center', justifyContent: 'center',
-                              }}
-                            >
-                              <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: active ? theme.colors.white : theme.colors.subtext }}>
-                                {label}
-                              </Text>
-                            </TouchableOpacity>
-                          )
-                        })}
-                      </View>
-                    </View>
-                  )}
-                  <View>
-                    <Text style={[shared.caption, { marginBottom: theme.spacing.xs }]}>Until</Text>
-                    <DatePickerField value={recurrence.endDate} onChange={d => setRecurrence(prev => ({ ...prev, endDate: d }))} />
-                  </View>
-                  {eventCount > 0 && (
-                    <Text style={[shared.caption, { color: theme.colors.primary }]}>
-                      {eventCount} event{eventCount !== 1 ? 's' : ''} will be created
-                    </Text>
-                  )}
-                </View>
-              )}
-            </View>
-          )}
+            }}
+          />
         </View>
 
-        {/* ── Section: Details ── */}
-        <View style={hostStyles.sectionLabel}>
-          <Ionicons name="options-outline" size={14} color={theme.colors.subtext} />
-          <Text style={hostStyles.sectionLabelText}>Details</Text>
-        </View>
-        <View style={[shared.card, { marginBottom: theme.spacing.lg, gap: theme.spacing.md }]}>
-
-          {/* Max attendees — styled snap slider */}
-          {(() => {
-            const STOPS: Array<{ label: string; value: number | null }> = [
-              { label: '6',  value: 6    },
-              { label: '16', value: 16   },
-              { label: '24', value: 24   },
-              { label: '∞',  value: null },
-            ]
-            const activeIdx = STOPS.findIndex(s => s.value === form.maxAttendees)
-            const thumbPct = activeIdx < 0 ? 0 : activeIdx / (STOPS.length - 1)
-            return (
-              <View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-                  <Text style={shared.label}>Max players</Text>
-                  <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 20, color: theme.colors.text, letterSpacing: -0.4 }}>
-                    {form.maxAttendees === null ? '∞' : form.maxAttendees}
-                  </Text>
-                </View>
-                {/* Track + thumb */}
-                <View style={{ height: 6, backgroundColor: theme.colors.border, borderRadius: 3, marginBottom: 10, position: 'relative' }}>
-                  <View style={{ width: `${thumbPct * 100}%` as any, height: '100%', backgroundColor: theme.colors.primary, borderRadius: 3 }} />
-                  {activeIdx >= 0 && (
-                    <View style={{
-                      position: 'absolute',
-                      left: `${thumbPct * 100}%` as any,
-                      top: '50%',
-                      marginLeft: -9,
-                      marginTop: -9,
-                      width: 18, height: 18, borderRadius: 9,
-                      backgroundColor: theme.colors.card,
-                      borderWidth: 3, borderColor: theme.colors.primary,
-                    }} />
-                  )}
-                </View>
-                {/* Tap targets */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  {STOPS.map((stop, i) => (
+        {/* ── Duration ── */}
+        <View style={hostStyles.fieldCard}>
+          <Text style={hostStyles.fieldLabel}>Duration</Text>
+          <TouchableOpacity
+            onPress={() => setDurationModalOpen(true)}
+            activeOpacity={0.7}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}
+          >
+            <Text style={{ fontFamily: theme.fonts.body, fontSize: 15, color: theme.colors.text, fontWeight: '500' }}>
+              {DURATION_OPTIONS.find(o => o.minutes === form.durationMinutes)?.label ?? 'Select'}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color={theme.colors.subtext} />
+          </TouchableOpacity>
+          <Modal visible={durationModalOpen} transparent animationType="fade" onRequestClose={() => setDurationModalOpen(false)}>
+            <TouchableOpacity style={shared.modalOverlay} activeOpacity={1} onPress={() => setDurationModalOpen(false)}>
+              <View style={[shared.modalCard, { paddingVertical: 0, paddingHorizontal: 0, overflow: 'hidden', minWidth: 200 }]}>
+                {DURATION_OPTIONS.map((opt, i) => {
+                  const active = form.durationMinutes === opt.minutes
+                  return (
                     <TouchableOpacity
-                      key={stop.label}
-                      onPress={() => setField('maxAttendees', stop.value)}
-                      style={{ paddingVertical: 4, paddingHorizontal: 6, alignItems: 'center' }}
-                      hitSlop={8}
+                      key={opt.minutes}
+                      onPress={() => { setField('durationMinutes', opt.minutes); setDurationModalOpen(false) }}
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: theme.colors.border }}
+                    >
+                      <Text style={{ fontSize: theme.font.size.md, color: active ? theme.colors.primary : theme.colors.text, fontWeight: active ? theme.font.weight.semibold : theme.font.weight.regular }}>
+                        {opt.label}
+                      </Text>
+                      {active && <Ionicons name="checkmark" size={16} color={theme.colors.primary} />}
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        </View>
+
+        {/* ── Max players (draggable snap slider) ── */}
+        <SnapSlider />
+
+        {/* ── Skill level tags ── */}
+        {(() => {
+          const byCategory = availableTags.reduce<Record<string, Tag[]>>((acc, tag) => {
+            if (tag.category === 'event_type') return acc
+            ;(acc[tag.category] ??= []).push(tag)
+            return acc
+          }, {})
+          const entries = Object.entries(byCategory)
+          if (entries.length === 0) return null
+          return entries.map(([category, tags]) => (
+            <View key={category} style={hostStyles.fieldCard}>
+              <Text style={hostStyles.fieldLabel}>
+                {category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {tags.map(tag => {
+                  const active = selectedTagIds.includes(tag.id)
+                  return (
+                    <TouchableOpacity
+                      key={tag.id}
+                      onPress={() => toggleTag(tag.id)}
+                      style={{
+                        paddingHorizontal: 13, paddingVertical: 6, borderRadius: 999,
+                        backgroundColor: active ? theme.colors.text : theme.colors.border,
+                      }}
                     >
                       <Text style={{
-                        fontFamily: theme.fonts.bodySemiBold,
-                        fontSize: 10,
-                        color: i === activeIdx ? theme.colors.primary : theme.colors.subtext,
-                        fontWeight: i === activeIdx ? '700' : '600',
-                      }}>{stop.label}</Text>
+                        fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 12.5,
+                        color: active ? theme.colors.background : theme.colors.text,
+                      }}>{tag.name}</Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
+                  )
+                })}
               </View>
-            )
-          })()}
-
-          {/* Price */}
-          <View>
-            <Text style={shared.label}>Price (optional)</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.background }}>
-              <View style={{ paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.sm + 2, borderRightWidth: 1, borderRightColor: theme.colors.border }}>
-                <Text style={{ fontSize: theme.font.size.md, color: theme.colors.subtext, fontWeight: theme.font.weight.medium }}>$</Text>
-              </View>
-              <TextInput
-                value={form.price != null ? String(form.price) : ''}
-                onChangeText={v => {
-                  const trimmed = v.replace(/[^0-9.]/g, '')
-                  if (trimmed === '' || trimmed === '.') { setField('price', null); return }
-                  const n = parseFloat(trimmed)
-                  setField('price', isNaN(n) ? null : n)
-                }}
-                placeholder="0.00  (leave blank for free)"
-                placeholderTextColor={theme.colors.subtext}
-                keyboardType="decimal-pad"
-                style={{
-                  flex: 1,
-                  paddingHorizontal: theme.spacing.sm,
-                  paddingVertical: theme.spacing.sm + 2,
-                  fontSize: theme.font.size.md,
-                  color: theme.colors.text,
-                  ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
-                }}
-              />
             </View>
-          </View>
+          ))
+        })()}
 
-          {/* Venmo handle — shown only when price > 0 */}
+        {/* ── Description ── */}
+        <View style={hostStyles.fieldCard}>
+          <Text style={hostStyles.fieldLabel}>Description (optional)</Text>
+          <TextInput
+            value={form.description}
+            onChangeText={v => setField('description', v)}
+            placeholder="What's this event about?"
+            placeholderTextColor={theme.colors.subtext}
+            multiline
+            numberOfLines={3}
+            style={[hostStyles.fieldInput, { minHeight: 64, textAlignVertical: 'top' }]}
+          />
+        </View>
+
+        {/* ── Price + Venmo ── */}
+        <View style={hostStyles.fieldCard}>
+          <Text style={hostStyles.fieldLabel}>Price (optional)</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+            <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 15, color: theme.colors.subtext }}>$</Text>
+            <TextInput
+              value={form.price != null ? String(form.price) : ''}
+              onChangeText={v => {
+                const trimmed = v.replace(/[^0-9.]/g, '')
+                if (trimmed === '' || trimmed === '.') { setField('price', null); return }
+                const n = parseFloat(trimmed)
+                setField('price', isNaN(n) ? null : n)
+              }}
+              placeholder="0.00 — leave blank for free"
+              placeholderTextColor={theme.colors.subtext}
+              keyboardType="decimal-pad"
+              style={[hostStyles.fieldInput, { flex: 1 }]}
+            />
+          </View>
           {!!form.price && form.price > 0 && (
-            <View>
-              <Text style={shared.label}>Venmo handle (optional)</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.background }}>
-                <View style={{ paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.sm + 2, borderRightWidth: 1, borderRightColor: theme.colors.border }}>
-                  <Text style={{ fontSize: theme.font.size.md, color: theme.colors.subtext, fontWeight: theme.font.weight.medium }}>@</Text>
-                </View>
+            <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 12 }}>
+              <Text style={hostStyles.fieldLabel}>Venmo handle (optional)</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 15, color: theme.colors.subtext }}>@</Text>
                 <TextInput
                   value={form.venmoHandle}
                   onChangeText={v => setField('venmoHandle', v.replace(/^@/, ''))}
@@ -798,121 +781,181 @@ export default function HostEventScreen() {
                   placeholderTextColor={theme.colors.subtext}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  style={{
-                    flex: 1,
-                    paddingHorizontal: theme.spacing.sm,
-                    paddingVertical: theme.spacing.sm + 2,
-                    fontSize: theme.font.size.md,
-                    color: theme.colors.text,
-                    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
-                  }}
+                  style={[hostStyles.fieldInput, { flex: 1 }]}
                 />
               </View>
-            </View>
-          )}
-
-          {/* Tags */}
-          {availableTags.length > 0 && (() => {
-            const byCategory = availableTags.reduce<Record<string, Tag[]>>((acc, tag) => {
-              if (tag.category === 'event_type') return acc
-              ;(acc[tag.category] ??= []).push(tag)
-              return acc
-            }, {})
-            return Object.entries(byCategory).map(([category, tags]) => (
-              <View key={category}>
-                <Text style={shared.label}>
-                  {category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                </Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
-                  {tags.map(tag => {
-                    const active = selectedTagIds.includes(tag.id)
-                    return (
-                      <TouchableOpacity
-                        key={tag.id}
-                        onPress={() => toggleTag(tag.id)}
-                        style={[hostStyles.chip, active && hostStyles.chipActive]}
-                      >
-                        <Text style={[hostStyles.chipText, active && hostStyles.chipTextActive]}>{tag.name}</Text>
-                      </TouchableOpacity>
-                    )
-                  })}
-                </View>
-              </View>
-            ))
-          })()}
-
-          {/* Club */}
-          {ownedClubs.length > 0 && (
-            <View>
-              <Text style={shared.label}>Club (optional)</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
-                {ownedClubs.map(club => {
-                  const active = selectedClubId === club.id
-                  return (
-                    <TouchableOpacity
-                      key={club.id}
-                      onPress={() => setSelectedClubId(active ? null : club.id)}
-                      style={[hostStyles.chip, active && hostStyles.chipActive]}
-                    >
-                      <Text style={[hostStyles.chipText, active && hostStyles.chipTextActive]}>{club.name}</Text>
-                    </TouchableOpacity>
-                  )
-                })}
-              </View>
-            </View>
-          )}
-
-          {/* Save as template */}
-          {!isEdit && (
-            <View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={shared.label}>Save as template</Text>
-                <Switch
-                  value={saveAsTemplate}
-                  onValueChange={setSaveAsTemplate}
-                  trackColor={{ false: theme.colors.border, true: theme.colors.primary + '80' }}
-                  thumbColor={saveAsTemplate ? theme.colors.primary : theme.colors.subtext}
-                />
-              </View>
-              {saveAsTemplate && (
-                <View style={{ marginTop: theme.spacing.sm }}>
-                  <Input
-                    label=""
-                    value={templateName}
-                    onChangeText={setTemplateName}
-                    placeholder={form.title || 'Template name'}
-                    containerStyle={{ marginBottom: 0 }}
-                  />
-                </View>
-              )}
             </View>
           )}
         </View>
 
-        <Button
-          label={isEdit ? 'Save changes' : (eventCount > 1 ? `Create ${eventCount} events` : 'Create event')}
+        {/* ── Recurrence (create only) ── */}
+        {!isEdit && (
+          <View style={hostStyles.fieldCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={hostStyles.fieldLabel}>Repeat</Text>
+              <Switch
+                value={recurrence.enabled}
+                onValueChange={v => setRecurrence(prev => ({ ...prev, enabled: v }))}
+                trackColor={{ false: theme.colors.border, true: theme.colors.primary + '80' }}
+                thumbColor={recurrence.enabled ? theme.colors.primary : theme.colors.subtext}
+              />
+            </View>
+            {recurrence.enabled && (
+              <View style={{ marginTop: 14, gap: 12 }}>
+                <View style={{ flexDirection: 'row', borderRadius: theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border, alignSelf: 'flex-start' }}>
+                  {CADENCE_OPTIONS.map(opt => (
+                    <TouchableOpacity
+                      key={opt.value}
+                      onPress={() => setRecurrence(prev => ({ ...prev, cadence: opt.value }))}
+                      style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, backgroundColor: recurrence.cadence === opt.value ? theme.colors.primary : 'transparent' }}
+                    >
+                      <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: recurrence.cadence === opt.value ? '#fff' : theme.colors.subtext }}>
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {showDayPicker && (
+                  <View>
+                    <Text style={[shared.caption, { marginBottom: theme.spacing.xs }]}>On these days</Text>
+                    <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
+                      {DAY_LABELS_SHORT.map((label, i) => {
+                        const active = recurrence.days.includes(i)
+                        return (
+                          <TouchableOpacity
+                            key={i}
+                            onPress={() => toggleRecurrenceDay(i)}
+                            style={{
+                              width: 36, height: 36, borderRadius: 18,
+                              borderWidth: 1.5,
+                              borderColor: active ? theme.colors.primary : theme.colors.border,
+                              backgroundColor: active ? theme.colors.primary : 'transparent',
+                              alignItems: 'center', justifyContent: 'center',
+                            }}
+                          >
+                            <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: active ? '#fff' : theme.colors.subtext }}>
+                              {label}
+                            </Text>
+                          </TouchableOpacity>
+                        )
+                      })}
+                    </View>
+                  </View>
+                )}
+                <View>
+                  <Text style={[shared.caption, { marginBottom: theme.spacing.xs }]}>Until</Text>
+                  <DatePickerField value={recurrence.endDate} onChange={d => setRecurrence(prev => ({ ...prev, endDate: d }))} />
+                </View>
+                {eventCount > 0 && (
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 12, color: theme.colors.primary }}>
+                    {eventCount} event{eventCount !== 1 ? 's' : ''} will be created
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ── Club ── */}
+        {ownedClubs.length > 0 && (
+          <View style={hostStyles.fieldCard}>
+            <Text style={hostStyles.fieldLabel}>Club (optional)</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+              {ownedClubs.map(club => {
+                const active = selectedClubId === club.id
+                return (
+                  <TouchableOpacity
+                    key={club.id}
+                    onPress={() => setSelectedClubId(active ? null : club.id)}
+                    style={{
+                      paddingHorizontal: 13, paddingVertical: 6, borderRadius: 999,
+                      backgroundColor: active ? theme.colors.primary : theme.colors.border,
+                    }}
+                  >
+                    <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: active ? '#fff' : theme.colors.text }}>
+                      {club.name}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* ── Save as template ── */}
+        {!isEdit && (
+          <View style={hostStyles.fieldCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={hostStyles.fieldLabel}>Save as template</Text>
+              <Switch
+                value={saveAsTemplate}
+                onValueChange={setSaveAsTemplate}
+                trackColor={{ false: theme.colors.border, true: theme.colors.primary + '80' }}
+                thumbColor={saveAsTemplate ? theme.colors.primary : theme.colors.subtext}
+              />
+            </View>
+            {saveAsTemplate && (
+              <TextInput
+                value={templateName}
+                onChangeText={setTemplateName}
+                placeholder={form.title || 'Template name'}
+                placeholderTextColor={theme.colors.subtext}
+                style={[hostStyles.fieldInput, { marginTop: 10 }]}
+              />
+            )}
+          </View>
+        )}
+
+        {/* ── Submit ── */}
+        <TouchableOpacity
           onPress={handleSubmit}
-          loading={loading}
-          disabled={!form.title || !userId}
-        />
+          disabled={!form.title || !userId || loading}
+          activeOpacity={0.85}
+          style={{
+            marginTop: 8,
+            padding: 15, borderRadius: 14,
+            backgroundColor: (!form.title || !userId) ? theme.colors.border : theme.colors.text,
+            alignItems: 'center',
+          }}
+        >
+          {loading
+            ? <ActivityIndicator color={theme.colors.background} />
+            : <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 15, letterSpacing: 0.2, color: theme.colors.background }}>
+                {isEdit ? 'Save changes' : (eventCount > 1 ? `Publish ${eventCount} events` : 'Publish event')}
+              </Text>
+          }
+        </TouchableOpacity>
       </ScrollView>
     </>
   )
 }
 
 const hostStyles = StyleSheet.create({
-  sectionLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    marginBottom: theme.spacing.xs,
+  fieldCard: {
+    backgroundColor: theme.colors.card,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: 10,
   },
-  sectionLabelText: {
+  fieldLabel: {
     fontFamily: theme.fonts.bodySemiBold,
-    fontSize: theme.font.size.xs,
+    fontSize: 10.5,
+    fontWeight: '700',
     color: theme.colors.subtext,
-    textTransform: 'uppercase',
     letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  fieldInput: {
+    fontFamily: theme.fonts.body,
+    fontSize: 15,
+    color: theme.colors.text,
+    fontWeight: '500',
+    paddingVertical: 2,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
   },
   chip: {
     paddingHorizontal: theme.spacing.md,
