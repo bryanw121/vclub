@@ -17,12 +17,42 @@ const SIDEBAR_BREAKPOINT = 768
  */
 export default function MainLayout() {
   const { width } = useWindowDimensions()
-  const { activeTabIndex, goToTab, pagerBlocked } = useTabsContext()
+  const { activeTabIndex, goToTab, pagerBlocked, docScrollActive } = useTabsContext()
 
   if (Platform.OS === 'web' && width >= SIDEBAR_BREAKPOINT) {
     return (
       <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <Slot />
+      </View>
+    )
+  }
+
+  // Narrow web: no swipe Pager. Screens stay mounted (state preserved) with
+  // inactive ones hidden, so the active tab's content can flow in the document
+  // when doc-scroll mode is on (required for browser URL bars to collapse).
+  if (Platform.OS === 'web') {
+    const screens = [
+      <EventsScreen key="events" />,
+      <ClubsScreen key="clubs" />,
+      <ChatScreen key="chat" />,
+      <ProfileScreen key="profile" />,
+    ]
+    return (
+      <View style={docScrollActive ? ({ minHeight: '100dvh' } as any) : { flex: 1 }}>
+        {screens.map((screen, i) => (
+          <View
+            key={i}
+            style={
+              i !== activeTabIndex
+                ? { display: 'none' }
+                : docScrollActive
+                  ? undefined // auto height — content extends the document
+                  : { flex: 1 }
+            }
+          >
+            {screen}
+          </View>
+        ))}
       </View>
     )
   }

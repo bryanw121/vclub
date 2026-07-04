@@ -13,6 +13,8 @@ type TabsContextType = {
   setTabBarHidden: (hidden: boolean) => void;
   // Current measured height of the tab bar (0 on wide web where there is no tab bar)
   tabBarHeight: number;
+  // True when mobile web is in document-scroll mode (body scrolls so browser bars collapse)
+  docScrollActive: boolean;
 };
 
 export const TabsContext = createContext<TabsContextType>({
@@ -22,5 +24,6 @@ export const TabsContext = createContext<TabsContextType>({
   pagerBlocked: { current: false },
   setTabBarHidden: () => {},
   tabBarHeight: 0,
+  docScrollActive: false,
 });
 export const useTabsContext = () => useContext(TabsContext);

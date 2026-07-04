@@ -9,6 +9,7 @@ import { TabsContext } from "../../../contexts/tabs";
 import { useWebNav } from "../../../contexts/webNav";
 import { theme } from "../../../constants";
 import { useChatUnread } from "../../../hooks/useChatUnread";
+import { useDocScrollMode } from "../../../hooks/useDocScrollMode";
 
 // Pager indices: 0=Events, 1=Clubs, 2=Chat, 3=Profile
 const MOBILE_NAV_TABS = [
@@ -67,6 +68,10 @@ export default function TabsLayout() {
   const pathname = usePathname();
   const { width: windowWidth } = useWindowDimensions();
 
+  // Document-scroll mode: narrow web + Events tab + no stacked screen open.
+  // Toggles body.doc-scroll so the page itself scrolls (browser bars collapse).
+  const docScrollActive = useDocScrollMode(windowWidth, activeTabIndex, pathname);
+
   // ── Web (wide): sidebar in (app)/_layout — let Expo Router render the route ─
   if (Platform.OS === "web" && windowWidth >= SIDEBAR_BREAKPOINT) {
     return (
@@ -77,6 +82,7 @@ export default function TabsLayout() {
         pagerBlocked,
         setTabBarHidden: () => {},
         tabBarHeight: 0,
+        docScrollActive: false,
       }}>
         <View style={{ flex: 1 }}>
           <Slot />
@@ -130,8 +136,13 @@ export default function TabsLayout() {
       pagerBlocked,
       setTabBarHidden,
       tabBarHeight,
+      docScrollActive,
     }}>
-      <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: topInset }}>
+      <View style={[
+        { backgroundColor: theme.colors.background, paddingTop: topInset },
+        // Doc-scroll mode: auto height so content extends the document (body scrolls)
+        docScrollActive ? ({ minHeight: '100dvh' } as any) : { flex: 1 },
+      ]}>
         <Stack
           screenOptions={({ route }) => {
             const isMain = route.name === "(main)";
@@ -154,7 +165,12 @@ export default function TabsLayout() {
         />
 
         {fabOpen && (
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={closeFab}>
+          <Pressable
+            style={Platform.OS === 'web'
+              ? ({ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 } as any)
+              : StyleSheet.absoluteFillObject}
+            onPress={closeFab}
+          >
             <BlurView
               pointerEvents="none"
               intensity={36}
@@ -171,7 +187,7 @@ export default function TabsLayout() {
         {fabOpen && (
           <Animated.View
             style={{
-              position: "absolute",
+              position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as any,
               bottom: tabBarHeight + theme.spacing.sm,
               right: theme.spacing.lg,
               gap: theme.spacing.sm,
@@ -210,7 +226,9 @@ export default function TabsLayout() {
 
         <Animated.View
           style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
+            // 'fixed' on web: stays pinned to the viewport while the document scrolls
+            position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as any,
+            bottom: 0, left: 0, right: 0,
             transform: [{ translateY: tabBarTranslateY }],
           }}
           onLayout={e => {

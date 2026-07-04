@@ -57,7 +57,7 @@ export default function EventsScreen() {
     markAllRead,
     loading: notifLoading,
   } = useNotifications()
-  const { pagerBlocked, setTabBarHidden, tabBarHeight, eventsRefreshTick } = useTabsContext()
+  const { pagerBlocked, setTabBarHidden, tabBarHeight, eventsRefreshTick, docScrollActive } = useTabsContext()
   const { width: windowWidth } = useWindowDimensions()
   const isMobile = Platform.OS !== 'web' || windowWidth < 768
   const insets = useSafeAreaInsets()
@@ -161,6 +161,29 @@ export default function EventsScreen() {
   const sectionYRef = useRef<Record<string, number>>({})
   const lastScrollY = useRef(0)
 
+  // ── Doc-scroll mode (mobile web): the document/body scrolls instead of the
+  // inner ScrollView so browser URL bars collapse. Window listener replicates
+  // the ScrollView's onScroll (load-more + tab bar hide/show).
+  const docScrollRef        = useRef(docScrollActive)
+  docScrollRef.current      = docScrollActive
+  const feedContentRef      = useRef<View>(null)
+
+  useEffect(() => {
+    if (!docScrollActive || typeof window === 'undefined') return
+    const onWindowScroll = () => {
+      const y = window.scrollY
+      if (window.innerHeight + y > document.documentElement.scrollHeight - 400) {
+        handleScrollNearBottom()
+      }
+      const diff = y - lastScrollY.current
+      lastScrollY.current = y
+      if (y <= 60) { setTabBarHidden(false); return }
+      if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
+    }
+    window.addEventListener('scroll', onWindowScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onWindowScroll)
+  }, [docScrollActive, handleScrollNearBottom, setTabBarHidden])
+
   const sections: DateSection[] = useMemo(() => {
     const filtered = events.filter(event => {
       if (activeFilter === 'all') return true
@@ -200,7 +223,19 @@ export default function EventsScreen() {
     setCurMonthPage(idxForMonth(dateStr.substring(0, 7)))
     const y = sectionYRef.current[dateStr]
     if (y !== undefined) {
-      setTimeout(() => scrollRef.current?.scrollTo({ y, animated: true }), 50)
+      setTimeout(() => {
+        if (docScrollRef.current) {
+          // Doc-scroll mode: sectionY is relative to the feed container — offset by
+          // the container's position in the document and scroll the window.
+          const node = feedContentRef.current as unknown as HTMLElement | null
+          if (node?.getBoundingClientRect) {
+            const top = node.getBoundingClientRect().top + window.scrollY + y
+            window.scrollTo({ top, behavior: 'smooth' })
+          }
+        } else {
+          scrollRef.current?.scrollTo({ y, animated: true })
+        }
+      }, 50)
     }
   }, [])
 
@@ -433,7 +468,8 @@ export default function EventsScreen() {
 
   // ── Mobile layout ─────────────────────────────────────────────────────────
   return (
-    <View style={shared.screen}>
+    // Doc-scroll mode: auto height so the feed extends the document (body scrolls)
+    <View style={docScrollActive ? [shared.screen, { flex: undefined } as any] : shared.screen}>
       <View
         onTouchStart={blockPager}
         onTouchEnd={unblockPager}
@@ -513,65 +549,85 @@ export default function EventsScreen() {
         </ScrollView>
       </View>
 
-      <ScrollView
-        ref={scrollRef}
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
-        scrollEventThrottle={16}
-        onScroll={({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }) => {
-          if (contentSize.height - contentOffset.y - layoutMeasurement.height < 400) {
-            handleScrollNearBottom()
-          }
-          if (Platform.OS === 'web') {
-            const y = contentOffset.y
-            const diff = y - lastScrollY.current
-            lastScrollY.current = y
-            if (y <= 60) { setTabBarHidden(false); return }
-            if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
-          }
-        }}
-        refreshControl={<RefreshControl refreshing={eventsPullRefreshing} onRefresh={() => void handleEventsPullRefresh()} tintColor={theme.colors.primary} />}
-      >
-        {loading && sections.length === 0 ? (
-          <ActivityIndicator style={{ marginTop: theme.spacing.xl }} color={theme.colors.primary} />
-        ) : sections.length === 0 ? (
-          <View style={{ alignItems: 'center', paddingTop: theme.spacing.xxl, gap: theme.spacing.sm }}>
-            <Ionicons name="calendar-outline" size={36} color={theme.colors.border} />
-            <Text style={shared.caption}>
-              {activeFilter === 'all' ? 'No upcoming events — create one!' : 'No events match this filter'}
-            </Text>
-            {activeFilter !== 'all' && (
-              <TouchableOpacity onPress={() => setActiveFilter('all')}>
-                <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
-                  Clear filter
+      {(() => {
+        const feedChildren = (
+          <>
+            {loading && sections.length === 0 ? (
+              <ActivityIndicator style={{ marginTop: theme.spacing.xl }} color={theme.colors.primary} />
+            ) : sections.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingTop: theme.spacing.xxl, gap: theme.spacing.sm }}>
+                <Ionicons name="calendar-outline" size={36} color={theme.colors.border} />
+                <Text style={shared.caption}>
+                  {activeFilter === 'all' ? 'No upcoming events — create one!' : 'No events match this filter'}
                 </Text>
-              </TouchableOpacity>
+                {activeFilter !== 'all' && (
+                  <TouchableOpacity onPress={() => setActiveFilter('all')}>
+                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
+                      Clear filter
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              sections.map(section => (
+                <View key={section.date} onLayout={e => { sectionYRef.current[section.date] = e.nativeEvent.layout.y }}>
+                  <View style={feedStyles.sectionHeader}>
+                    <Text style={feedStyles.sectionDate}>{formatDayLabel(section.date)}</Text>
+                    <Text style={feedStyles.sectionCountText}>{section.data.length} {section.data.length === 1 ? 'event' : 'events'}</Text>
+                  </View>
+                  <View style={{ paddingHorizontal: theme.spacing.lg }}>
+                    {section.data.map(item => (
+                      <EventCard
+                        key={item.id}
+                        event={item}
+                        currentUserId={currentUserId}
+                        onRsvp={item._isTournament ? undefined : handleRsvp}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ))
             )}
-          </View>
-        ) : (
-          sections.map(section => (
-            <View key={section.date} onLayout={e => { sectionYRef.current[section.date] = e.nativeEvent.layout.y }}>
-              <View style={feedStyles.sectionHeader}>
-                <Text style={feedStyles.sectionDate}>{formatDayLabel(section.date)}</Text>
-                <Text style={feedStyles.sectionCountText}>{section.data.length} {section.data.length === 1 ? 'event' : 'events'}</Text>
-              </View>
-              <View style={{ paddingHorizontal: theme.spacing.lg }}>
-                {section.data.map(item => (
-                  <EventCard
-                    key={item.id}
-                    event={item}
-                    currentUserId={currentUserId}
-                    onRsvp={item._isTournament ? undefined : handleRsvp}
-                  />
-                ))}
-              </View>
+            {loading && sections.length > 0 && (
+              <ActivityIndicator style={{ marginVertical: theme.spacing.lg }} color={theme.colors.primary} />
+            )}
+          </>
+        )
+
+        // Doc-scroll mode: plain View in document flow — the BODY scrolls
+        // (window scroll listener above handles load-more + tab bar hide).
+        if (docScrollActive) {
+          return (
+            <View ref={feedContentRef} style={{ paddingBottom: tabBarHeight + 32 }}>
+              {feedChildren}
             </View>
-          ))
-        )}
-        {loading && sections.length > 0 && (
-          <ActivityIndicator style={{ marginVertical: theme.spacing.lg }} color={theme.colors.primary} />
-        )}
-      </ScrollView>
+          )
+        }
+
+        return (
+          <ScrollView
+            ref={scrollRef}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
+            scrollEventThrottle={16}
+            onScroll={({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }) => {
+              if (contentSize.height - contentOffset.y - layoutMeasurement.height < 400) {
+                handleScrollNearBottom()
+              }
+              if (Platform.OS === 'web') {
+                const y = contentOffset.y
+                const diff = y - lastScrollY.current
+                lastScrollY.current = y
+                if (y <= 60) { setTabBarHidden(false); return }
+                if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
+              }
+            }}
+            refreshControl={<RefreshControl refreshing={eventsPullRefreshing} onRefresh={() => void handleEventsPullRefresh()} tintColor={theme.colors.primary} />}
+          >
+            {feedChildren}
+          </ScrollView>
+        )
+      })()}
 
       <NotificationPopup
         visible={notifOpen}

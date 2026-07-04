@@ -12,7 +12,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
         */}
         <meta
           name="viewport"
-          content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+          content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
         />
         {/* PWA / Add to Home Screen */}
         <meta name="mobile-web-app-capable" content="yes" />
@@ -45,6 +45,18 @@ export default function Root({ children }: { children: React.ReactNode }) {
             in DatePickerField.web) need this explicitly.
           */
           button, a, input, select, textarea, label { touch-action: manipulation; }
+
+          /*
+            ── Document-scroll mode (mobile web, Events tab) ──
+            When body.doc-scroll is set (see hooks/useDocScrollMode.ts), the page
+            content flows in the document and the BODY scrolls, so Safari/Chrome
+            collapse their URL bars on scroll. Overrides ScrollViewStyleReset's
+            height:100% + overflow:hidden pin. React Navigation's absolute-
+            positioned screen wrappers don't clip (overflow: visible), so their
+            overflowing content makes the body scrollable.
+          */
+          body.doc-scroll { height: auto !important; overflow: auto !important; }
+          body.doc-scroll #root { height: auto !important; min-height: 100dvh; }
         ` }} />
       </head>
       <body>{children}</body>
