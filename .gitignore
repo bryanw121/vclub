@@ -37,6 +37,9 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# supabase CLI cache
+supabase/.temp/
+
 # generated native folders
 /ios
 /android
@@ -46,6 +49,6 @@ yarn-error.*
 /playwright-report/
 /test-results/
 
-# yarn
+# yarn — this project standardizes on npm (package-lock.json)
 .yarnrc
-./yarn.lock
+yarn.lock
