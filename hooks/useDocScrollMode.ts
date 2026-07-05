@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Platform } from 'react-native'
+import { setDocScrollClaim } from '../lib/docScroll'
 
 /**
  * Document-scroll mode: on narrow mobile web, the Events tab content flows in
@@ -13,25 +14,42 @@ import { Platform } from 'react-native'
  *
  * @returns whether doc-scroll mode is currently active
  */
+// Tabs that use document scroll: Events (0), Clubs (1), Profile (3).
+// Chat (2) keeps the app-shell layout — its pinned input bar needs a fixed viewport.
+// Note: the event detail page (/event/[id]) manages the body class itself,
+// since only its Details/People tabs use document scroll.
+const DOC_SCROLL_TABS = new Set([0, 1, 3])
+
 export function useDocScrollMode(
   windowWidth: number,
   activeTabIndex: number,
   pathname: string,
 ): boolean {
+  // expo-router's usePathname goes permanently stale after a browser-back
+  // (pop) on web — pushes update it, pops don't. Force a re-render on
+  // popstate and trust the real location on web.
+  const [, setPopTick] = useState(0)
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return
+    const onPop = () => setPopTick(t => t + 1)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+  const effectivePath =
+    Platform.OS === 'web' && typeof window !== 'undefined'
+      ? window.location.pathname
+      : pathname
+
   const active =
     Platform.OS === 'web' &&
     windowWidth < 768 &&
-    activeTabIndex === 0 &&
-    pathname === '/'
+    effectivePath === '/' &&
+    DOC_SCROLL_TABS.has(activeTabIndex)
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || typeof document === 'undefined') return
-    document.body.classList.toggle('doc-scroll', active)
-    return () => {
-      document.body.classList.remove('doc-scroll')
-      // Reset any document scroll offset so the app-shell layout isn't clipped
-      window.scrollTo(0, 0)
-    }
+    if (Platform.OS !== 'web') return
+    setDocScrollClaim('tabs', active)
+    return () => setDocScrollClaim('tabs', false)
   }, [active])
 
   return active

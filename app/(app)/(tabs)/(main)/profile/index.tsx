@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../../../lib/supabase'
 import { Sentry } from '../../../../../lib/sentry'
 import { Button } from '../../../../../components/Button'
+import { DocScrollView } from '../../../../../components/DocScrollView'
 import { Input } from '../../../../../components/Input'
 import { Toast } from '../../../../../components/Toast'
 import { BadgeIcon } from '../../../../../components/BadgeIcon'
@@ -295,7 +296,7 @@ function ProfileAvatar(props: AvatarProps) {
 
 export default function MyProfile() {
   const router = useRouter()
-  const { setTabBarHidden, tabBarHeight } = useTabsContext()
+  const { setTabBarHidden, tabBarHeight, docScrollActive } = useTabsContext()
   const lastScrollY = useRef(0)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -614,8 +615,9 @@ export default function MyProfile() {
     .filter(Boolean) as NonNullable<typeof badges[0]>[]
 
   return (
-    <View style={[shared.screen, { position: 'relative' }]}>
-      <ScrollView
+    <View style={[shared.screen, { position: 'relative' }, docScrollActive && ({ flex: undefined } as any)]}>
+      <DocScrollView
+        docScroll={docScrollActive}
         contentContainerStyle={[shared.scrollContent, { paddingBottom: tabBarHeight + 32 }]}
         onScroll={handleScroll}
         scrollEventThrottle={100}
@@ -1021,7 +1023,7 @@ export default function MyProfile() {
             </View>
           </>
         )}
-      </ScrollView>
+      </DocScrollView>
       <Toast
         message={toast?.message ?? ''}
         variant={toast?.variant ?? 'error'}

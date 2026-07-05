@@ -48,6 +48,8 @@ import { Stack, useRouter, useFocusEffect } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
 import { shared, theme } from '../../../constants'
+import { DocScrollView } from '../../../components/DocScrollView'
+import { useTabsContext } from '../../../contexts/tabs'
 import { resolveClubAvatarUri } from '../../../utils'
 import type { ClubWithDetails, MajorCity } from '../../../types'
 
@@ -177,6 +179,7 @@ type ClubFilter = 'joined' | 'nearby' | 'popular'
 export default function ClubsScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const { docScrollActive, tabBarHeight } = useTabsContext()
   const [clubs, setClubs] = useState<ClubWithDetails[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -279,7 +282,7 @@ export default function ClubsScreen() {
   const visibleClubs = (q ? clubs : baseList).filter(matchesSearch)
 
   return (
-    <View style={[shared.screen, { paddingTop: insets.top }]}>
+    <View style={[shared.screen, { paddingTop: insets.top }, docScrollActive && ({ flex: undefined } as any)]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Header */}
@@ -386,9 +389,10 @@ export default function ClubsScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView
+        <DocScrollView
+          docScroll={docScrollActive}
           style={shared.screen}
-          contentContainerStyle={{ padding: theme.spacing.lg, paddingTop: 4 }}
+          contentContainerStyle={{ padding: theme.spacing.lg, paddingTop: 4, paddingBottom: tabBarHeight + 32 }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -422,7 +426,7 @@ export default function ClubsScreen() {
               />
             ))
           )}
-        </ScrollView>
+        </DocScrollView>
       )}
     </View>
   )

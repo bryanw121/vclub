@@ -7,6 +7,14 @@ type Props = {
   children: React.ReactNode[]
   swipeEnabled?: boolean
   pagerBlockedRef?: React.MutableRefObject<boolean>
+  /**
+   * Render pages statically (no swipe, no horizontal translation): all pages
+   * stay mounted, inactive ones are display:none. Used on mobile web where
+   * document-scroll mode needs page content in normal document flow.
+   */
+  staticRender?: boolean
+  /** With staticRender: let the active page size to its content (document-scroll mode) instead of flex:1 */
+  autoHeight?: boolean
 }
 
 /**
@@ -14,7 +22,31 @@ type Props = {
  * Pass swipeEnabled={false} to disable gesture-based tab switching.
  * Pass pagerBlockedRef to dynamically block swiping from specific inner areas.
  */
-export function Pager({ page, onPageChange, children, swipeEnabled = true, pagerBlockedRef }: Props) {
+export function Pager({ page, onPageChange, children, swipeEnabled = true, pagerBlockedRef, staticRender = false, autoHeight = false }: Props) {
+  if (staticRender) {
+    return (
+      <View style={autoHeight ? undefined : { flex: 1 }}>
+        {(children as React.ReactNode[]).map((child, i) => (
+          <View
+            key={i}
+            style={
+              i !== page
+                ? { display: 'none' }
+                : autoHeight
+                  ? undefined // auto height — content extends the document
+                  : { flex: 1 }
+            }
+          >
+            {child}
+          </View>
+        ))}
+      </View>
+    )
+  }
+  return <SwipePager page={page} onPageChange={onPageChange} swipeEnabled={swipeEnabled} pagerBlockedRef={pagerBlockedRef}>{children}</SwipePager>
+}
+
+function SwipePager({ page, onPageChange, children, swipeEnabled = true, pagerBlockedRef }: Omit<Props, 'staticRender' | 'autoHeight'>) {
   const count = (children as React.ReactNode[]).length
   const [containerWidth, setContainerWidth] = useState(Dimensions.get('window').width)
   const translateX = useRef(new Animated.Value(-page * containerWidth)).current

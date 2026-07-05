@@ -14,6 +14,8 @@ import { ProfileAvatar } from '../../../components/ProfileAvatar'
 import { Input } from '../../../components/Input'
 import { EventCommentRow } from '../../../components/EventCommentRow'
 import { Pager } from '../../../components/Pager'
+import { DocScrollView } from '../../../components/DocScrollView'
+import { setDocScrollClaim } from '../../../lib/docScroll'
 import * as Calendar from 'expo-calendar'
 import { shared, theme, formatEventDate, CHEER_TYPES, CHEERS_MAX_PER_EVENT, LOCATIONS } from '../../../constants'
 import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile, MentionUser } from '../../../types'
@@ -737,6 +739,21 @@ export default function EventDetail() {
     return isNaN(t) ? 0 : Math.max(0, Math.min(3, t))
   })
   const [descFooterHeight, setDescFooterHeight] = useState(80)
+
+  // ── Document-scroll mode (mobile web) — Details & People tabs only.
+  // Discussion/Cheers keep the app-shell layout (bottom-anchored composer).
+  // This page manages body.doc-scroll itself since the tabs shell can't see
+  // the inner tab state (CSS lives in app/+html.tsx).
+  const docScrollActive = isMobileWeb && (activeTab === 0 || activeTab === 1)
+  useEffect(() => {
+    if (Platform.OS !== 'web') return
+    setDocScrollClaim('event-detail', docScrollActive)
+    return () => setDocScrollClaim('event-detail', false)
+  }, [docScrollActive])
+  // Reset document scroll when switching inner tabs
+  useEffect(() => {
+    if (docScrollActive) window.scrollTo(0, 0)
+  }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
   const innerPagerBlocked = useRef(false)
 
   const [myCheersGiven, setMyCheersGiven] = useState<Cheer[]>([])
@@ -2080,7 +2097,11 @@ export default function EventDetail() {
   return (
     <View
       ref={containerRef}
-      style={{ flex: 1, backgroundColor: theme.colors.background }}
+      style={[
+        { backgroundColor: theme.colors.background },
+        // Doc-scroll mode: auto height so content extends the document (body scrolls)
+        docScrollActive ? ({ minHeight: '100dvh' } as any) : { flex: 1 },
+      ]}
       pointerEvents={(removeModal !== null || denyModal !== null) ? 'none' : 'auto'}
       onLayout={() => { measureContainerOffset() }}
     >
@@ -2279,9 +2300,12 @@ export default function EventDetail() {
               setActiveTab(next)
             }}
             pagerBlockedRef={innerPagerBlocked}
+            staticRender={isMobileWeb}
+            autoHeight={docScrollActive}
           >
             {/* Tab 0: Details */}
-            <ScrollView
+            <DocScrollView
+              docScroll={docScrollActive}
               style={shared.screen}
               contentContainerStyle={[shared.scrollContent, { paddingBottom: descFooterHeight + Math.max(insets.bottom, theme.spacing.md) }]}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
@@ -2602,10 +2626,11 @@ export default function EventDetail() {
                 </TouchableOpacity>
               )}
 
-            </ScrollView>
+            </DocScrollView>
 
             {/* Tab 1: People */}
-            <ScrollView
+            <DocScrollView
+              docScroll={docScrollActive}
               style={shared.screen}
               contentContainerStyle={shared.scrollContent}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
@@ -2862,7 +2887,7 @@ export default function EventDetail() {
                   )}
                 </>
               )}
-            </ScrollView>
+            </DocScrollView>
 
             {/* Tab 2: Discussion */}
             <View style={[shared.screen, { flex: 1, minHeight: 0 }]}>
@@ -3207,7 +3232,9 @@ export default function EventDetail() {
             <View
               onLayout={e => setDescFooterHeight(e.nativeEvent.layout.height)}
               style={{
-                position: 'absolute', bottom: 0, left: 0, right: 0,
+                // 'fixed' in doc-scroll mode: stays pinned to the viewport while the document scrolls
+                position: (docScrollActive ? 'fixed' : 'absolute') as any,
+                bottom: 0, left: 0, right: 0,
                 paddingHorizontal: theme.spacing.lg,
                 paddingTop: theme.spacing.sm,
                 paddingBottom: Math.max(insets.bottom, theme.spacing.md),

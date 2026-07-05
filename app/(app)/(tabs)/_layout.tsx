@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect, Stack, usePathname, useRouter } from "expo-router";
 import { Animated, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { BlurView } from "expo-blur";
@@ -68,9 +68,25 @@ export default function TabsLayout() {
   const pathname = usePathname();
   const { width: windowWidth } = useWindowDimensions();
 
-  // Document-scroll mode: narrow web + Events tab + no stacked screen open.
-  // Toggles body.doc-scroll so the page itself scrolls (browser bars collapse).
+  // Document-scroll mode: narrow web on Events/Clubs/Profile tabs (or an event
+  // page). Toggles body.doc-scroll so the page itself scrolls (browser bars collapse).
   const docScrollActive = useDocScrollMode(windowWidth, activeTabIndex, pathname);
+
+  // In doc-scroll mode the tab bar hide/show is driven by window scroll here
+  // (one listener for all tabs) instead of per-screen ScrollView onScroll.
+  const lastWindowScrollY = useRef(0);
+  useEffect(() => {
+    if (!docScrollActive || typeof window === 'undefined') return;
+    const onScroll = () => {
+      const y = window.scrollY;
+      const diff = y - lastWindowScrollY.current;
+      lastWindowScrollY.current = y;
+      if (y <= 60) { setTabBarHidden(false); return; }
+      if (Math.abs(diff) > 5) setTabBarHidden(diff > 0);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [docScrollActive, setTabBarHidden]);
 
   // ── Web (wide): sidebar in (app)/_layout — let Expo Router render the route ─
   if (Platform.OS === "web" && windowWidth >= SIDEBAR_BREAKPOINT) {

@@ -462,6 +462,10 @@ export default function ChatRoomScreen() {
             onScroll={e => {
               if (e.nativeEvent.contentOffset.y <= 80 && hasMore) void loadMore()
             }}
+            // Swiping/dragging the message list dismisses the keyboard (blur the
+            // composer). Touch-based (not onScroll) so programmatic scroll-to-bottom
+            // after sending doesn't steal focus.
+            onTouchMove={() => inputRef.current?.blur()}
             scrollEventThrottle={100}
             refreshControl={
               <RefreshControl

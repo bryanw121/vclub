@@ -162,8 +162,8 @@ export default function EventsScreen() {
   const lastScrollY = useRef(0)
 
   // ── Doc-scroll mode (mobile web): the document/body scrolls instead of the
-  // inner ScrollView so browser URL bars collapse. Window listener replicates
-  // the ScrollView's onScroll (load-more + tab bar hide/show).
+  // inner ScrollView so browser URL bars collapse. Window listener handles
+  // load-more (tab-bar hide/show is centralized in the tabs shell).
   const docScrollRef        = useRef(docScrollActive)
   docScrollRef.current      = docScrollActive
   const feedContentRef      = useRef<View>(null)
@@ -171,18 +171,13 @@ export default function EventsScreen() {
   useEffect(() => {
     if (!docScrollActive || typeof window === 'undefined') return
     const onWindowScroll = () => {
-      const y = window.scrollY
-      if (window.innerHeight + y > document.documentElement.scrollHeight - 400) {
+      if (window.innerHeight + window.scrollY > document.documentElement.scrollHeight - 400) {
         handleScrollNearBottom()
       }
-      const diff = y - lastScrollY.current
-      lastScrollY.current = y
-      if (y <= 60) { setTabBarHidden(false); return }
-      if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
     }
     window.addEventListener('scroll', onWindowScroll, { passive: true })
     return () => window.removeEventListener('scroll', onWindowScroll)
-  }, [docScrollActive, handleScrollNearBottom, setTabBarHidden])
+  }, [docScrollActive, handleScrollNearBottom])
 
   const sections: DateSection[] = useMemo(() => {
     const filtered = events.filter(event => {
