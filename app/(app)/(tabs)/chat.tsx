@@ -12,14 +12,8 @@ import { useConversations } from '../../../hooks/useConversations'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
 import { useTabsContext } from '../../../contexts/tabs'
 import { timeAgo, lastMessagePreview } from '../../../utils/chatUtils'
+import { profileAvatarSmallUri } from '../../../utils'
 import type { ConversationRow, Profile } from '../../../types'
-
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''
-function resolveAvatarUri(ref: string | null | undefined): string | null {
-  if (!ref) return null
-  if (/^https?:\/\//i.test(ref)) return ref
-  return `${SUPABASE_URL}/storage/v1/render/image/public/avatars/${ref}?width=120&height=120&quality=70&resize=cover`
-}
 
 function conversationTitle(row: ConversationRow): string {
   if (row.type === 'club') return row.club_name ?? 'Club Chat'
@@ -117,8 +111,8 @@ function NewDMModal({ visible, onDismiss, onSelect, silencedUserIds }: {
                     backgroundColor: theme.colors.border,
                     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
                   }}>
-                    {resolveAvatarUri(item.avatar_url) ? (
-                      <Image source={{ uri: resolveAvatarUri(item.avatar_url)! }} style={{ width: 44, height: 44 }} />
+                    {profileAvatarSmallUri(item.avatar_url, 120) ? (
+                      <Image source={{ uri: profileAvatarSmallUri(item.avatar_url, 120)! }} style={{ width: 44, height: 44 }} />
                     ) : (
                       <Ionicons name="person" size={22} color={theme.colors.subtext} />
                     )}
@@ -213,7 +207,7 @@ export default function ChatScreen() {
     const preview = myId ? lastMessagePreview(item, myId, silencedUserIds) : ''
     const time = timeAgo(item.last_message_at)
     const hasUnread = (item.unread_count ?? 0) > 0
-    const avatarUrl = resolveAvatarUri(item.type === 'dm' ? item.other_user_avatar_url : item.club_avatar_url)
+    const avatarUrl = profileAvatarSmallUri(item.type === 'dm' ? item.other_user_avatar_url : item.club_avatar_url, 120)
     const isClub = item.type === 'club'
 
     const canSilenceDm = item.type === 'dm' && item.other_user_id && myId && item.other_user_id !== myId

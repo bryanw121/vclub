@@ -4,15 +4,9 @@ import { Ionicons } from '@expo/vector-icons'
 import { theme } from '../constants/theme'
 import { AnchorOptionsMenu, type AnchorRect } from './AnchorOptionsMenu'
 import type { MessageWithDetails } from '../types'
+import { profileAvatarSmallUri } from '../utils'
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '🔥', '👏']
-
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''
-function resolveAvatarUri(ref: string | null | undefined): string | null {
-  if (!ref) return null
-  if (/^https?:\/\//i.test(ref)) return ref
-  return `${SUPABASE_URL}/storage/v1/render/image/public/avatars/${ref}?width=80&height=80&quality=70&resize=cover`
-}
 
 type Props = {
   message: MessageWithDetails
@@ -278,8 +272,8 @@ export function MessageBubble({
             alignItems: 'center', justifyContent: 'center',
             overflow: 'hidden',
           }}>
-            {!hiddenIncoming && resolveAvatarUri(message.profiles?.avatar_url) ? (
-              <Image source={{ uri: resolveAvatarUri(message.profiles?.avatar_url)! }} style={{ width: 28, height: 28 }} />
+            {!hiddenIncoming && profileAvatarSmallUri(message.profiles?.avatar_url) ? (
+              <Image source={{ uri: profileAvatarSmallUri(message.profiles?.avatar_url)! }} style={{ width: 28, height: 28 }} />
             ) : (
               <Ionicons name="person" size={14} color={theme.colors.subtext} />
             )}

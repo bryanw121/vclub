@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { Platform, View, Text, Image, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal, Keyboard, KeyboardEvent, Switch, RefreshControl } from 'react-native'
+import { Platform, View, Text, Image, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal, Keyboard, KeyboardEvent, RefreshControl } from 'react-native'
 import { GestureDetector, Gesture, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, interpolate, Extrapolation } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
@@ -30,6 +30,7 @@ import {
   hostRosterSkillAndPositionsLine,
 } from '../../../utils'
 import { LinkedText } from '../../../components/LinkedText'
+import { DiscussionComposer } from '../../../components/DiscussionComposer'
 
 const EVENT_COMMENT_MAX_LEN = 2000
 
@@ -197,207 +198,6 @@ function HostRow({
         </TouchableOpacity>
       )}
     </TouchableOpacity>
-  )
-}
-
-/**
- * Isolated composer so local draft state doesn't re-render the whole event screen on every keystroke.
- */
-type DiscussionComposerProps = {
-  isOwner: boolean
-  postingComment: boolean
-  announcementLabel?: string
-  mentionableUsers: MentionUser[]
-  onPost: (body: string, isAnnouncement: boolean, mentionIds: string[]) => Promise<void>
-  onFocusScroll: () => void
-  replyToAuthor?: string | null
-  onClearReply?: () => void
-  editingBody?: string | null
-  onCancelEdit?: () => void
-}
-function DiscussionComposer({ isOwner, postingComment, announcementLabel = 'Post as announcement', mentionableUsers, onPost, onFocusScroll, replyToAuthor, onClearReply, editingBody, onCancelEdit }: DiscussionComposerProps) {
-  const isEditing = editingBody != null
-  const [draft, setDraft] = useState(editingBody ?? '')
-  const [isAnnouncement, setIsAnnouncement] = useState(false)
-  const prevEditingBodyRef = useRef(editingBody)
-  if (editingBody !== prevEditingBodyRef.current) {
-    prevEditingBodyRef.current = editingBody
-    setDraft(editingBody ?? '')
-  }
-  const [activeMention, setActiveMention] = useState<{ query: string; atIndex: number } | null>(null)
-  const cursorPosRef = useRef(0)
-
-  const suggestions = useMemo(() => {
-    if (!activeMention) return []
-    const q = activeMention.query.toLowerCase()
-    return mentionableUsers
-      .filter(u => !q || u.displayName.toLowerCase().includes(q) || u.username.toLowerCase().includes(q))
-      .slice(0, 6)
-  }, [activeMention, mentionableUsers])
-
-  function detectMention(text: string, cursor: number) {
-    const before = text.slice(0, cursor)
-    const match = before.match(/(^|\s)@(\w*)$/)
-    if (match) {
-      setActiveMention({ query: match[2], atIndex: before.lastIndexOf('@') })
-    } else {
-      setActiveMention(null)
-    }
-  }
-
-  function handleDraftChange(text: string) {
-    setDraft(text)
-    detectMention(text, cursorPosRef.current)
-  }
-
-  function handleSelectionChange(e: any) {
-    const pos: number = e.nativeEvent.selection.start
-    cursorPosRef.current = pos
-    detectMention(draft, pos)
-  }
-
-  function selectMention(user: MentionUser) {
-    if (!activeMention) return
-    const before = draft.slice(0, activeMention.atIndex)
-    const after = draft.slice(cursorPosRef.current)
-    const newDraft = `${before}@${user.username} ${after}`
-    setDraft(newDraft)
-    cursorPosRef.current = activeMention.atIndex + user.username.length + 2 // @name<space>
-    setActiveMention(null)
-  }
-
-  async function handlePost() {
-    const body = draft.trim()
-    if (!body) return
-    const mentionIds = [...new Set(
-      [...body.matchAll(/@(\w+)/g)]
-        .map(m => mentionableUsers.find(u => u.username === m[1])?.id)
-        .filter((id): id is string => Boolean(id))
-    )]
-    try {
-      await onPost(body, isEditing ? false : isAnnouncement, mentionIds)
-      setDraft('')
-      setIsAnnouncement(false)
-      setActiveMention(null)
-    } catch {
-      // parent already showed the alert; keep draft so user can edit
-    }
-  }
-
-  return (
-    <>
-      {/* Edit mode banner */}
-      {isEditing && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: theme.colors.primary + '14', borderRadius: 8, marginBottom: 6 }}>
-          <Text style={{ fontSize: 12, color: theme.colors.primary, flex: 1 }}>Editing comment</Text>
-          <TouchableOpacity onPress={onCancelEdit} hitSlop={8}><Ionicons name="close-circle" size={18} color={theme.colors.primary} /></TouchableOpacity>
-        </View>
-      )}
-      {/* Reply-to banner */}
-      {!isEditing && replyToAuthor && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: theme.colors.card, borderLeftWidth: 3, borderLeftColor: theme.colors.primary, borderRadius: 4, marginBottom: 6 }}>
-          <Text style={{ fontSize: 12, color: theme.colors.subtext, flex: 1 }} numberOfLines={1}>
-            Replying to <Text style={{ fontWeight: '600', color: theme.colors.text }}>{replyToAuthor}</Text>
-          </Text>
-          <TouchableOpacity onPress={onClearReply} hitSlop={8}><Ionicons name="close" size={16} color={theme.colors.subtext} /></TouchableOpacity>
-        </View>
-      )}
-      {isOwner && !isEditing && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.sm }}>
-          <Text style={[shared.caption, { flex: 1, paddingRight: theme.spacing.sm }]}>{announcementLabel}</Text>
-          <Switch
-            value={isAnnouncement}
-            onValueChange={setIsAnnouncement}
-            trackColor={{ false: theme.colors.border, true: theme.colors.primary + '99' }}
-            thumbColor={isAnnouncement ? theme.colors.white : theme.colors.card}
-            ios_backgroundColor={theme.colors.border}
-          />
-        </View>
-      )}
-
-      {/* @mention suggestion list */}
-      {suggestions.length > 0 && (
-        <View style={{
-          borderWidth: 1,
-          borderColor: theme.colors.border,
-          borderRadius: theme.radius.md,
-          backgroundColor: theme.colors.card,
-          marginBottom: theme.spacing.xs,
-          overflow: 'hidden',
-          maxHeight: 220,
-        }}>
-          <ScrollView keyboardShouldPersistTaps="always" bounces={false}>
-            {suggestions.map((u, idx) => (
-              <TouchableOpacity
-                key={u.id}
-                onPress={() => selectMention(u)}
-                accessibilityRole="button"
-                accessibilityLabel={`Mention ${u.displayName}`}
-                style={{
-                  paddingHorizontal: theme.spacing.md,
-                  paddingVertical: theme.spacing.sm,
-                  borderBottomWidth: idx < suggestions.length - 1 ? 1 : 0,
-                  borderBottomColor: theme.colors.border,
-                  minHeight: 44,
-                  justifyContent: 'center',
-                }}
-              >
-                <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
-                  {u.displayName}
-                </Text>
-                <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>
-                  @{u.username}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Input
-            value={draft}
-            onChangeText={handleDraftChange}
-            onSelectionChange={handleSelectionChange}
-            placeholder="Add a comment…"
-            multiline
-            numberOfLines={4}
-            blurOnSubmit={false}
-            containerStyle={{ marginBottom: 0 }}
-            inputStyle={{
-              minHeight: 44,
-              maxHeight: 120,
-              paddingHorizontal: theme.spacing.md,
-              ...Platform.select({
-                ios: { paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm },
-                android: { paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.sm, textAlignVertical: 'bottom' },
-                default: { paddingVertical: theme.spacing.sm },
-              }),
-            }}
-            onFocus={() => { requestAnimationFrame(onFocusScroll) }}
-            includeFontPadding={Platform.OS === 'android' ? false : undefined}
-          />
-        </View>
-        <TouchableOpacity
-          onPress={handlePost}
-          disabled={!draft.trim() || postingComment}
-          accessibilityRole="button"
-          accessibilityLabel={isEditing ? 'Save edit' : 'Send comment'}
-          style={{
-            width: 44, height: 44,
-            borderRadius: theme.radius.md,
-            backgroundColor: theme.colors.primary,
-            alignItems: 'center', justifyContent: 'center',
-            opacity: !draft.trim() || postingComment ? 0.4 : 1,
-          }}
-        >
-          {postingComment
-            ? <ActivityIndicator size="small" color={theme.colors.white} />
-            : <Ionicons name={isEditing ? 'checkmark' : 'send'} size={20} color={theme.colors.white} />}
-        </TouchableOpacity>
-      </View>
-    </>
   )
 }
 
@@ -704,7 +504,6 @@ export default function EventDetail() {
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false)
   const [comments, setComments] = useState<EventCommentWithAuthor[]>([])
   const [commentsLoading, setCommentsLoading] = useState(false)
-  const [postingComment, setPostingComment] = useState(false)
   const [replyToComment, setReplyToComment] = useState<EventCommentWithAuthor | null>(null)
   const [editingComment, setEditingComment] = useState<EventCommentWithAuthor | null>(null)
   const [discussionDrawerOpen, setDiscussionDrawerOpen] = useState(false)
@@ -1298,7 +1097,6 @@ export default function EventDetail() {
 
     // Edit mode
     if (editingComment) {
-      setPostingComment(true)
       try {
         const { error } = await supabase.from('event_comments')
           .update({ body, edited_at: new Date().toISOString() })
@@ -1310,13 +1108,10 @@ export default function EventDetail() {
         sentryError('editComment', e)
         Alert.alert('Error', 'Could not edit comment.')
         throw e
-      } finally {
-        setPostingComment(false)
       }
       return
     }
 
-    setPostingComment(true)
     try {
       const { error } = await supabase.from('event_comments').insert({
         event_id: id,
@@ -1334,8 +1129,6 @@ export default function EventDetail() {
       sentryError('postComment', e)
       Alert.alert('Error', 'Could not post comment. Please try again.')
       throw e
-    } finally {
-      setPostingComment(false)
     }
   }
 
@@ -2948,8 +2741,7 @@ export default function EventDetail() {
                 >
                   <View onLayout={(e) => setDiscussionTabComposerHeight(Math.ceil(e.nativeEvent.layout.height))}>
                     <DiscussionComposer
-                      isOwner={isHostOrCohost}
-                      postingComment={postingComment}
+                      showAnnouncementToggle={isHostOrCohost}
                       mentionableUsers={mentionableUsers}
                       onPost={handlePostComment}
                       onFocusScroll={() => discussionTabScrollRef.current?.scrollToEnd({ animated: true })}
@@ -3385,8 +3177,7 @@ export default function EventDetail() {
                 {userId ? (
                   <View style={{ paddingTop: theme.spacing.sm }}>
                     <DiscussionComposer
-                      isOwner={isOwner}
-                      postingComment={postingComment}
+                      showAnnouncementToggle={isOwner}
                       announcementLabel="Also post as announcement"
                       mentionableUsers={mentionableUsers}
                       onPost={handlePostComment}

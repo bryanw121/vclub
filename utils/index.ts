@@ -20,6 +20,22 @@ export function formatEventDate(dateString: string, style: 'short' | 'long' = 's
   return date.toLocaleString('en-US', options)
 }
 
+/**
+ * Short "Mar 28, 8:00 PM" stamp for comment/discussion rows. Normalizes the
+ * missing-timezone Supabase string to UTC (see `formatEventDate`) so the time
+ * doesn't shift by the viewer's offset.
+ */
+export function formatCommentTime(iso: string): string {
+  const normalized = /[Z+]/.test(iso) ? iso : iso + 'Z'
+  return new Date(normalized).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
 /** Display name for lists and comments (matches event detail / attendee cards). */
 export function profileDisplayName(profile: Pick<Profile, 'username' | 'first_name' | 'last_name'>): string {
   if (profile.first_name && profile.last_name) {
@@ -187,6 +203,18 @@ function avatarPublicUrl(path: string): string {
 /** 80×80 compressed render URL — use for small avatars in lists and cards. */
 function avatarSmallUrl(path: string): string {
   return `${SUPABASE_URL}/storage/v1/render/image/public/${AVATARS_BUCKET}/${path}?width=80&height=80&quality=70&resize=cover`
+}
+
+/**
+ * Synchronous small-avatar URI for `<Image>` — public bucket, no network call.
+ * Legacy full HTTP URLs pass through; storage paths become a `size`×`size` render URL.
+ * Returns null for empty refs. Use this in list/message rows that resolve inline.
+ */
+export function profileAvatarSmallUri(ref: string | null | undefined, size = 80): string | null {
+  if (ref == null || ref === '') return null
+  const trimmed = ref.trim()
+  if (profileAvatarFieldIsHttpUrl(trimmed)) return trimmed
+  return `${SUPABASE_URL}/storage/v1/render/image/public/${AVATARS_BUCKET}/${trimmed}?width=${size}&height=${size}&quality=70&resize=cover`
 }
 
 /** Resolves `avatar_url` to an `Image` URI. Public bucket — returns immediately. */

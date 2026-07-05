@@ -13,13 +13,7 @@ import { useFocusEffect } from 'expo-router'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { useSilencedUsers } from '../../../../hooks/useSilencedUsers'
 import { shared, theme } from '../../../../constants'
-
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''
-function resolveAvatarUri(ref: string | null | undefined): string | null {
-  if (!ref) return null
-  if (/^https?:\/\//i.test(ref)) return ref
-  return `${SUPABASE_URL}/storage/v1/render/image/public/avatars/${ref}?width=80&height=80&quality=70&resize=cover`
-}
+import { profileAvatarSmallUri } from '../../../../utils'
 
 function displayName(p: { first_name: string | null; last_name: string | null; username: string } | null) {
   if (!p) return 'Unknown'
@@ -70,7 +64,7 @@ export default function SilencedPeopleScreen() {
           <View style={[shared.card, { padding: 0, overflow: 'hidden' }]}>
             {entries.map((row, idx) => {
               const p = row.profiles
-              const uri = resolveAvatarUri(p?.avatar_url ?? null)
+              const uri = profileAvatarSmallUri(p?.avatar_url ?? null)
               const last = idx === entries.length - 1
               return (
                 <View

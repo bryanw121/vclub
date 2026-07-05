@@ -5,20 +5,8 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { theme, shared } from '../constants'
 import type { EventCommentWithAuthor } from '../types'
-import { resolveProfileAvatarUriSmall, profileDisplayName } from '../utils'
+import { resolveProfileAvatarUriSmall, profileDisplayName, formatCommentTime } from '../utils'
 import { ProfileAvatar } from './ProfileAvatar'
-
-function formatCommentTime(iso: string): string {
-  const normalized = /[Z+]/.test(iso) ? iso : iso + 'Z'
-  const d = new Date(normalized)
-  return d.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
-}
 
 const SEGMENT_RE = /(https?:\/\/[^\s]+|@\w+)/g
 

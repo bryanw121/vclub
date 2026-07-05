@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient'
 import { supabase } from '../../../lib/supabase'
 import { theme, shared } from '../../../constants'
-import { profileDisplayName, resolveProfileAvatarUriSmall } from '../../../utils'
+import { profileDisplayName, resolveProfileAvatarUriSmall, formatCommentTime } from '../../../utils'
 import { DiscussionComposer } from '../../../components/DiscussionComposer'
 import { ProfileAvatar } from '../../../components/ProfileAvatar'
 import type {
@@ -58,11 +58,6 @@ function timeAgoOrCountdown(iso: string): string {
   if (d > 0) return `${d}d ${h}h`
   if (h > 0) return `${h}h ${m}m`
   return `${m}m`
-}
-
-function formatCommentTime(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
 // ─── Comment body renderer ────────────────────────────────────────────────────

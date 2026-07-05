@@ -7,12 +7,6 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''
-function resolveAvatarUri(ref: string | null | undefined): string | null {
-  if (!ref) return null
-  if (/^https?:\/\//i.test(ref)) return ref
-  return `${SUPABASE_URL}/storage/v1/render/image/public/avatars/${ref}?width=80&height=80&quality=70&resize=cover`
-}
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../../lib/supabase'
@@ -30,6 +24,7 @@ import { AnchorOptionsMenu, type AnchorRect } from '../../../components/AnchorOp
 import { MessageBubble } from '../../../components/MessageBubble'
 import { ReactionPicker } from '../../../components/ReactionPicker'
 import type { ConversationRow, MessageWithDetails, MentionUser } from '../../../types'
+import { profileAvatarSmallUri } from '../../../utils'
 
 const AVATAR_SIZE = 36
 
@@ -175,7 +170,7 @@ export default function ChatRoomScreen() {
           }))
     : '…'
 
-  const headerAvatar = resolveAvatarUri(
+  const headerAvatar = profileAvatarSmallUri(
     convRow?.type === 'dm' ? convRow.other_user_avatar_url : convRow?.club_avatar_url
   )
 
