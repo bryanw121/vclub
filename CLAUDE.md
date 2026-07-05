@@ -218,37 +218,22 @@ Test each surface mentally when building. If a component behaves differently acr
 
 ## Environments & Deployment
 
-### Two Supabase projects
-- **Beta**: used during development, connected to the `beta` GitHub branch
-- **Prod**: connected to `main`, only receives changes after beta validation
+### Single mainline (since July 2026)
+- All development happens on `main` — there is no `beta` branch or beta GitHub environment
+- One Supabase project (`rmelsdqgrpfjzqisycdl`) serves as the only environment
+- CI (`.github/workflows/ci.yml`) runs unit tests + Playwright e2e on every push/PR to `main`; secrets are repository-level Actions secrets
 
-### Schema migrations (programmatic — no manual tracking)
-Never write migration SQL by hand. After any schema change in the Supabase beta dashboard, run:
-```bash
-supabase db diff --use-migra -f describe_your_change
-```
-This auto-generates a numbered `.sql` file in `supabase/migrations/`. Commit it alongside the code change.
+### CI e2e specifics
+- The e2e job serves the static export with `npx serve dist` — dynamic routes (`/chat/[id]`, `/event/[id]`, etc.) only resolve because of the rewrite rules in `public/serve.json` (copied into `dist` on export). Add a rewrite there whenever a new dynamic route is created.
+- E2e tests use the account `bryanw121` and a seed conversation defined in `e2e/chat.spec.ts`
 
-To promote to prod:
-```bash
-supabase link --project-ref <prod-ref>
-supabase db push
-```
-Supabase tracks applied migrations automatically via its internal `supabase_migrations` table.
+### Schema migrations
+Schema changes are usually applied directly via the Supabase MCP (`apply_migration`). Note: the migration files in `supabase/migrations/` are NOT in sync with the applied migration history — if a separate prod project is ever created, baseline it from `supabase db dump` of the live schema rather than replaying the migration files.
 
-### GitHub branch → environment mapping
-| Branch | Environment | Supabase project |
-|--------|------------|-----------------|
-| `beta` | Beta | Beta project |
-| `main` | Production | Prod project |
-
-Merging `beta → main` triggers the prod build and `supabase db push` via GitHub Actions.
-
-### What is / isn't captured by migrations
-- ✅ Tables, columns, indexes, RLS policies, functions, triggers
-- ❌ Storage bucket creation (manual one-time setup)
-- ❌ Auth settings (email templates, OAuth providers)
-- ❌ Data (prod data is always separate from beta)
+### Not captured by migrations (manual setup if replicating the project)
+- Storage bucket creation
+- Auth settings (email templates, OAuth providers)
+- Edge function secrets (`GOOGLE_MAPS_KEY`, push credentials)
 
 ## Things to Avoid
 - Don't use `react-native-pager-view` — it's native-only. The custom `Pager` component is the cross-platform replacement.
