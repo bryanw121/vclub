@@ -1,0 +1,9 @@
+{
+  "rewrites": [
+    { "source": "/chat/:id", "destination": "/chat/[id].html" },
+    { "source": "/event/:id", "destination": "/event/[id].html" },
+    { "source": "/club/:id", "destination": "/club/[id].html" },
+    { "source": "/profile/:id", "destination": "/profile/[id].html" },
+    { "source": "/tournament/:id", "destination": "/tournament/[id].html" }
+  ]
+}
