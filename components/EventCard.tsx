@@ -1,5 +1,6 @@
 import React, { memo, useState } from 'react'
-import { TouchableOpacity, Text, View, Image, ActivityIndicator } from 'react-native'
+import { TouchableOpacity, Text, View, ActivityIndicator } from 'react-native'
+import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, usePathname } from 'expo-router'
 import { theme, eventAttendeeDisplayCount } from '../constants'
@@ -167,7 +168,7 @@ function EventCardInner({
                       overflow: 'hidden',
                     }}>
                       {uri
-                        ? <Image source={{ uri }} style={{ width: 24, height: 24 }} />
+                        ? <Image source={{ uri }} style={{ width: 24, height: 24 }} contentFit="cover" transition={150} />
                         : <Text style={{ fontFamily: theme.fonts.display, fontSize: 8, color: theme.colors.primary }}>{initials}</Text>
                       }
                     </View>
@@ -377,7 +378,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp }:
                     overflow: 'hidden',
                   }}>
                     {uri
-                      ? <Image source={{ uri }} style={{ width: 22, height: 22 }} />
+                      ? <Image source={{ uri }} style={{ width: 22, height: 22 }} contentFit="cover" transition={150} />
                       : <Text style={{ fontFamily: theme.fonts.display, fontSize: 7, color: theme.colors.primary }}>{initials}</Text>
                     }
                   </View>

@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react'
-import { View, Image, Platform, ActivityIndicator } from 'react-native'
+import { View, Platform, ActivityIndicator } from 'react-native'
+import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import Animated, {
   useSharedValue,
@@ -136,7 +137,7 @@ export function ProfileAvatar({ uri, border, size }: Props) {
   const inner = (
     <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden', backgroundColor: theme.colors.border, alignItems: 'center', justifyContent: 'center' }}>
       {uri ? (
-        <Image source={{ uri }} style={{ width: size, height: size }} resizeMode="cover" accessibilityIgnoresInvertColors />
+        <Image source={{ uri }} style={{ width: size, height: size }} contentFit="cover" transition={200} accessibilityIgnoresInvertColors />
       ) : (
         <Ionicons name="person" size={Math.round(size * 0.45)} color={theme.colors.subtext} />
       )}

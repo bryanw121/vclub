@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { Platform, View, Text, Image, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal, Keyboard, KeyboardEvent, RefreshControl } from 'react-native'
+import { Platform, View, Text, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal, Keyboard, KeyboardEvent, RefreshControl } from 'react-native'
+import { Image } from 'expo-image'
 import { GestureDetector, Gesture, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, interpolate, Extrapolation } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
@@ -153,7 +154,7 @@ function CheerPersonCard({ profile, hasGiven, disabled, teamColor, onPress }: Ch
         }
       ]}>
         {avatarUri ? (
-          <Image source={{ uri: avatarUri }} style={{ width: 40, height: 40 }} resizeMode="cover" />
+          <Image source={{ uri: avatarUri }} style={{ width: 40, height: 40 }} contentFit="cover" transition={200} />
         ) : (
           <Text style={[styles.avatarInitial, { color: activeColor }]}>{initials}</Text>
         )}
