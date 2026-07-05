@@ -14,6 +14,10 @@ export default function Root({ children }: { children: React.ReactNode }) {
           name="viewport"
           content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
         />
+        {/* Tint browser chrome (iOS status bar area, Chrome toolbar) to match the app background */}
+        <meta name="theme-color" content="#13111F" />
+        {/* Dark browser UI (scrollbars, form controls, chrome fallbacks) */}
+        <meta name="color-scheme" content="dark" />
         {/* PWA / Add to Home Screen */}
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
