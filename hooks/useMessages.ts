@@ -20,7 +20,7 @@ async function attachReplyTo(rows: MessageWithDetails[]): Promise<MessageWithDet
   if (!ids.length) return rows
   const { data } = await supabase.from('messages').select(REPLY_SELECT).in('id', ids)
   if (!data?.length) return rows
-  const map = new Map(data.map(r => [r.id, r as MessageWithDetails['reply_to']]))
+  const map = new Map(data.map(r => [r.id, r as unknown as MessageWithDetails['reply_to']]))
   return rows.map(m => m.reply_to_id ? { ...m, reply_to: map.get(m.reply_to_id) ?? null } : m)
 }
 
@@ -45,7 +45,7 @@ export function useMessages(conversationId: string) {
     if (error) console.error('[useMessages] fetch error:', JSON.stringify(error))
     if (!mountedRef.current) return
 
-    const rows = await attachReplyTo((data ?? []) as MessageWithDetails[])
+    const rows = await attachReplyTo((data ?? []) as unknown as MessageWithDetails[])
     // data comes from DB in descending order (newest first) — keep that order for inverted FlatList
     const oldest = (data ?? [])[((data ?? []).length) - 1]?.created_at ?? null
 
@@ -97,7 +97,7 @@ export function useMessages(conversationId: string) {
             .single()
           if (!mountedRef.current) return
           if (data) {
-            const [incoming] = await attachReplyTo([data as MessageWithDetails])
+            const [incoming] = await attachReplyTo([data as unknown as MessageWithDetails])
             if (!mountedRef.current) return
             setMessages(prev => {
               if (prev.some(m => m.id === incoming.id)) return prev
@@ -117,7 +117,7 @@ export function useMessages(conversationId: string) {
             .eq('id', payload.new.id)
             .single()
           if (!mountedRef.current || !data) return
-          const [updated] = await attachReplyTo([data as MessageWithDetails])
+          const [updated] = await attachReplyTo([data as unknown as MessageWithDetails])
           if (!mountedRef.current) return
           setMessages(prev => prev.map(m =>
             m.id === updated.id ? updated : m
@@ -195,7 +195,7 @@ export function useMessages(conversationId: string) {
     if (mountedRef.current) {
       if (data) {
         // We already have replyTo data in the closure — attach it directly without an extra fetch
-        const confirmed: MessageWithDetails = { ...(data as MessageWithDetails), reply_to: replyToSnapshot }
+        const confirmed: MessageWithDetails = { ...(data as unknown as MessageWithDetails), reply_to: replyToSnapshot }
         setMessages(prev => [confirmed, ...prev.filter(m => m.id !== tempId)]
           .filter((m, i, arr) => i === arr.findIndex(x => x.id === m.id))
         )

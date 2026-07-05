@@ -14,7 +14,7 @@ function makeNotification(overrides: Partial<Notification> = {}): Notification {
     title: 'Test notification',
     body: 'This is the body text',
     notification_type: 'event_announcement',
-    data: null,
+    data: {},
     read_at: null,
     created_at: new Date().toISOString(),
     ...overrides,

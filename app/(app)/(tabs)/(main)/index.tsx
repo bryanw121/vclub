@@ -319,6 +319,7 @@ export default function EventsScreen() {
               return (
                 <TouchableOpacity
                   key={chip.id}
+                  testID={`filter-${chip.id}`}
                   onPress={() => setActiveFilter(chip.id)}
                   style={[feedStyles.chip, active && feedStyles.chipActive]}
                 >
@@ -532,6 +533,7 @@ export default function EventsScreen() {
             return (
               <TouchableOpacity
                 key={chip.id}
+                testID={`filter-${chip.id}`}
                 onPress={() => setActiveFilter(chip.id)}
                 style={[feedStyles.chip, active && feedStyles.chipActive]}
               >

@@ -377,7 +377,7 @@ function StepFormat({ draft, update }: { draft: TournamentDraft; update: (p: Par
         </>
       )}
 
-      <SectionLabel icon="whistle-outline" label="Officiating" />
+      <SectionLabel icon="flag-outline" label="Officiating" />
       <Toggle
         value={draft.hasRefs}
         onChange={v => update({ hasRefs: v })}
@@ -608,7 +608,7 @@ function StepPreview({ draft, clubs, onSaveDraft, onPublish, saving }: {
         <PreviewRow icon="calendar-outline"    label="Registration closes" value={fmtDate(draft.registrationDeadline)} />
         <PreviewRow icon="git-network-outline" label="Bracket"            value={draft.bracketType === 'double' ? 'Double elimination' : 'Single elimination'} />
         <PreviewRow icon="people-outline"      label="Roster size"        value={`${draft.minRosterSize}–${draft.maxRosterSize} players`} />
-        <PreviewRow icon="whistle-outline"     label="Refs"               value={draft.hasRefs ? 'Rotation enabled' : 'No refs'} />
+        <PreviewRow icon="flag-outline"        label="Refs"               value={draft.hasRefs ? 'Rotation enabled' : 'No refs'} />
       </View>
 
       <View style={[shared.card, { marginBottom: 24 }]}>

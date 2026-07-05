@@ -423,6 +423,7 @@ export default function ClubsScreen() {
                 isOwner={isOwner(club)}
                 isMember={isMember(club)}
                 onPress={() => router.push(`/club/${club.id}` as any)}
+                onJoin={() => handleJoin(club)}
               />
             ))
           )}
