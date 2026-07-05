@@ -220,6 +220,8 @@ export default function ChatScreen() {
 
     return (
       <Pressable
+        testID="conversation-row"
+        accessibilityRole="button"
         onPress={() => openConversation(item)}
         onLongPress={canSilenceDm ? () => confirmSilenceFromList(item.other_user_id!, conversationTitle(item)) : undefined}
         {...(Platform.OS === 'web' && canSilenceDm
@@ -309,6 +311,8 @@ export default function ChatScreen() {
           <TouchableOpacity
             onPress={() => setNewDMVisible(true)}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="New message"
             style={{
               width: 38, height: 38, borderRadius: 12,
               backgroundColor: theme.colors.primary,

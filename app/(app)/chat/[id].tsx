@@ -545,7 +545,7 @@ export default function ChatRoomScreen() {
                   : (replyTo.content ?? (replyTo.image_url ? '📷 Image' : ''))}
               </Text>
             </View>
-            <TouchableOpacity onPress={() => setReplyTo(null)} hitSlop={8}>
+            <TouchableOpacity onPress={() => setReplyTo(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Cancel reply">
               <Ionicons name="close" size={18} color={theme.colors.subtext} />
             </TouchableOpacity>
           </View>
@@ -569,7 +569,7 @@ export default function ChatRoomScreen() {
                 {editingMessage.content ?? ''}
               </Text>
             </View>
-            <TouchableOpacity onPress={() => { setEditingMessage(null); setText(''); inputRef.current?.clear() }} hitSlop={8}>
+            <TouchableOpacity onPress={() => { setEditingMessage(null); setText(''); inputRef.current?.clear() }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Cancel edit">
               <Ionicons name="close" size={18} color={theme.colors.subtext} />
             </TouchableOpacity>
           </View>
@@ -635,7 +635,13 @@ export default function ChatRoomScreen() {
           backgroundColor: theme.colors.background,
           gap: theme.spacing.sm,
         }}>
-          <TouchableOpacity onPress={handlePickImage} style={{ paddingBottom: 9 }} hitSlop={8}>
+          <TouchableOpacity
+            onPress={handlePickImage}
+            style={{ paddingBottom: 9 }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Attach image"
+          >
             <Ionicons name="image-outline" size={22} color={theme.colors.subtext} />
           </TouchableOpacity>
 
@@ -670,8 +676,15 @@ export default function ChatRoomScreen() {
                 color: theme.colors.text,
                 minHeight: 32,
               }}
-              onSubmitEditing={Platform.OS === 'web' ? handleSend : undefined}
-              blurOnSubmit={Platform.OS === 'web'}
+              // Web: Enter sends, Shift+Enter inserts a newline. onSubmitEditing
+              // doesn't fire reliably for multiline <textarea> on RNW, so handle
+              // the key directly.
+              onKeyPress={Platform.OS === 'web' ? (e: any) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault?.()
+                  void handleSend()
+                }
+              } : undefined}
             />
             <TouchableOpacity
               onPress={handleSend}

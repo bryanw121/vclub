@@ -32,11 +32,40 @@ async function dismissErrorOverlays(page: Page) {
   }
 }
 
+/**
+ * Open the seed conversation and dismiss the "unsportsmanlike language" report
+ * modal if it appears — the seed conversation contains old messages that trip
+ * the DM bad-word detector, and the modal blocks all further interaction.
+ */
+async function gotoConversation(page: Page) {
+  await page.goto(CONVO_URL)
+  // Wait for the composer to mount (screen ready) rather than a fixed sleep —
+  // the dev server + a long message history can take a while
+  await page.getByRole('textbox', { name: 'Message' }).waitFor({ timeout: 30000 }).catch(() => {})
+  await page.waitForTimeout(1500)
+  const modal = page.getByText('This player may be unsportsmanlike', { exact: false })
+  if (await modal.isVisible().catch(() => false)) {
+    await page.getByRole('button', { name: 'Close' }).click({ force: true }).catch(() => {})
+    await page.waitForTimeout(400)
+  }
+}
+
+/**
+ * The chat screen's "Chat" title. `getByText('Chat')` alone is ambiguous:
+ * it also matches the sidebar nav item and (substring, case-insensitive) any
+ * conversation preview containing "chat". exact:true excludes previews; the
+ * sidebar renders first in the DOM, so nth(1) is the screen header.
+ */
+function chatHeader(page: Page) {
+  return page.getByText('Chat', { exact: true }).nth(1)
+}
+
 /** Right-click a message bubble and open the context menu. */
 async function openContextMenu(page: Page, messageText: string) {
-  const matches = await page.getByText(messageText).all()
-  // Prefer the bubble element (shorter class list = the plain bubble text)
-  const target = matches.length > 1 ? matches[matches.length - 1] : matches[0]
+  // Wait for the message to actually render (message history loads async and
+  // can be slow); .last() targets the bubble when a reply quote also matches
+  const target = page.getByText(messageText).last()
+  await target.waitFor({ state: 'visible', timeout: 20000 })
   await target.click({ button: 'right', force: true })
   await page.waitForTimeout(600)
 }
@@ -70,7 +99,7 @@ test.describe('Chat', () => {
   })
 
   test('chat list renders conversations', async ({ page }) => {
-    await expect(page.getByText('Chat')).toBeVisible()
+    await expect(chatHeader(page)).toBeVisible()
     // At least one conversation row should exist
     const rows = page.locator('[data-testid="conversation-row"], [role="button"]')
     await expect(rows.first()).toBeVisible()
@@ -85,20 +114,14 @@ test.describe('Chat', () => {
   })
 
   test('compose button opens user search', async ({ page }) => {
-    const composeBtn = page.locator('[role="button"]').filter({ hasText: '' }).last()
-    // Click the + button in the header area
-    const header = await page.getByText('Chat').boundingBox()
-    if (!header) throw new Error('Chat header not found')
-    await page.mouse.click(1163, header.y + header.height / 2)
+    await page.getByRole('button', { name: 'New message' }).click()
     await page.waitForTimeout(1000)
     await expect(page.getByRole('textbox')).toBeVisible()
     await expect(page.getByText('Cancel')).toBeVisible()
   })
 
   test('compose search returns matching users', async ({ page }) => {
-    const header = await page.getByText('Chat').boundingBox()
-    if (!header) throw new Error('Chat header not found')
-    await page.mouse.click(1163, header.y + header.height / 2)
+    await page.getByRole('button', { name: 'New message' }).click()
     await page.waitForTimeout(500)
     await page.getByRole('textbox').fill('jexy')
     await page.waitForTimeout(1500)
@@ -106,9 +129,7 @@ test.describe('Chat', () => {
   })
 
   test('selecting a user from compose opens the conversation', async ({ page }) => {
-    const header = await page.getByText('Chat').boundingBox()
-    if (!header) throw new Error('Chat header not found')
-    await page.mouse.click(1163, header.y + header.height / 2)
+    await page.getByRole('button', { name: 'New message' }).click()
     await page.waitForTimeout(500)
     await page.getByRole('textbox').fill('jexy')
     await page.waitForTimeout(1500)
@@ -120,14 +141,14 @@ test.describe('Chat', () => {
   // ── 2. Conversation view ───────────────────────────────────────────────────
 
   test('opening a conversation loads the message input', async ({ page }) => {
-    await page.goto(CONVO_URL)
+    await gotoConversation(page)
     await page.waitForTimeout(2000)
     const input = page.getByRole('textbox', { name: 'Message' })
     await expect(input).toBeVisible()
   })
 
   test('back arrow returns to chat list', async ({ page }) => {
-    await page.goto(CONVO_URL)
+    await gotoConversation(page)
     await page.waitForTimeout(2000)
     // Click the back arrow (leftmost interactive element near the top)
     await page.goBack()
@@ -137,7 +158,7 @@ test.describe('Chat', () => {
 
   test('reply quotes show on messages with reply_to_id', async ({ page }) => {
     // Send a message, reply to it, then verify the quote appears
-    await page.goto(CONVO_URL)
+    await gotoConversation(page)
     await page.waitForTimeout(2000)
 
     const original = `e2e-reply-target-${Date.now()}`
@@ -146,7 +167,7 @@ test.describe('Chat', () => {
     await page.waitForTimeout(1500)
 
     await openContextMenu(page, original)
-    await page.getByText('Reply', { exact: true }).click({ force: true })
+    await page.getByRole('dialog').getByText('Reply', { exact: true }).click({ force: true })
     await page.waitForTimeout(600)
 
     const reply = `e2e-reply-body-${Date.now()}`
@@ -160,7 +181,7 @@ test.describe('Chat', () => {
   })
 
   test('chat room loads scrolled to the bottom (newest messages visible)', async ({ page }) => {
-    await page.goto(CONVO_URL)
+    await gotoConversation(page)
     await page.waitForTimeout(2000)
 
     // The input bar should be visible without any scrolling — meaning we're already at the bottom
@@ -176,7 +197,7 @@ test.describe('Chat', () => {
   })
 
   test('messages render in chronological order (oldest at top, newest at bottom)', async ({ page }) => {
-    await page.goto(CONVO_URL)
+    await gotoConversation(page)
     await page.waitForTimeout(2000)
 
     // Send two messages in sequence and verify they appear in order
@@ -201,7 +222,7 @@ test.describe('Chat', () => {
   // ── 3. Send message ────────────────────────────────────────────────────────
 
   test('sends a message and it appears in the conversation', async ({ page }) => {
-    await page.goto(CONVO_URL)
+    await gotoConversation(page)
     await page.waitForTimeout(2000)
 
     const unique = `e2e-send-${Date.now()}`
@@ -216,7 +237,7 @@ test.describe('Chat', () => {
   })
 
   test('after sending a message the view stays scrolled to the bottom', async ({ page }) => {
-    await page.goto(CONVO_URL)
+    await gotoConversation(page)
     await page.waitForTimeout(2000)
 
     const unique = `e2e-scroll-${Date.now()}`
@@ -235,7 +256,7 @@ test.describe('Chat', () => {
   // ── 4. Context menu ────────────────────────────────────────────────────────
 
   test('right-click on own message shows emoji picker + Reply + Edit + Delete', async ({ page }) => {
-    await page.goto(CONVO_URL)
+    await gotoConversation(page)
     await page.waitForTimeout(2000)
 
     // Send a fresh message so we have a guaranteed own message
@@ -245,16 +266,19 @@ test.describe('Chat', () => {
     await page.waitForTimeout(1500)
 
     await openContextMenu(page, unique)
-    await expect(page.getByText('👍')).toBeVisible()
-    await expect(page.getByText('Reply', { exact: true })).toBeVisible()
-    await expect(page.getByText('Edit', { exact: true })).toBeVisible()
-    await expect(page.getByText('Delete', { exact: true })).toBeVisible()
+    // Scope to the menu dialog — 👍/Reply/etc. can also appear as message
+    // content or reactions in the conversation itself
+    const menu = page.getByRole('dialog')
+    await expect(menu.getByText('👍')).toBeVisible()
+    await expect(menu.getByText('Reply', { exact: true })).toBeVisible()
+    await expect(menu.getByText('Edit', { exact: true })).toBeVisible()
+    await expect(menu.getByText('Delete', { exact: true })).toBeVisible()
   })
 
   // ── 5. Edit message ────────────────────────────────────────────────────────
 
   test('editing a message updates its content with (edited) label', async ({ page }) => {
-    await page.goto(CONVO_URL)
+    await gotoConversation(page)
     await page.waitForTimeout(2000)
 
     const original = `e2e-edit-${Date.now()}`
@@ -264,7 +288,7 @@ test.describe('Chat', () => {
     await page.waitForTimeout(1500)
 
     await openContextMenu(page, original)
-    await page.getByText('Edit', { exact: true }).click({ force: true })
+    await page.getByRole('dialog').getByText('Edit', { exact: true }).click({ force: true })
     await page.waitForTimeout(800)
 
     // Edit banner should appear
@@ -277,11 +301,12 @@ test.describe('Chat', () => {
     await page.waitForTimeout(1500)
 
     await expect(page.getByText(edited)).toBeVisible()
-    await expect(page.getByText('(edited)')).toBeVisible()
+    // .last() — prior runs left other "(edited)" messages in the history
+    await expect(page.getByText('(edited)').last()).toBeVisible()
   })
 
   test('edit banner can be cancelled with the × button', async ({ page }) => {
-    await page.goto(CONVO_URL)
+    await gotoConversation(page)
     await page.waitForTimeout(2000)
 
     const unique = `e2e-cancel-edit-${Date.now()}`
@@ -290,54 +315,66 @@ test.describe('Chat', () => {
     await page.waitForTimeout(1500)
 
     await openContextMenu(page, unique)
-    await page.getByText('Edit', { exact: true }).click({ force: true })
+    await page.getByRole('dialog').getByText('Edit', { exact: true }).click({ force: true })
     await page.waitForTimeout(600)
     await expect(page.getByText('Editing message')).toBeVisible()
 
     // Cancel
-    const banner = await page.getByText('Editing message').boundingBox()
-    if (!banner) throw new Error('Edit banner not found')
-    await page.mouse.click(1176, banner.y + banner.height / 2)
+    await page.getByRole('button', { name: 'Cancel edit' }).click({ force: true })
     await page.waitForTimeout(600)
     await expect(page.getByText('Editing message')).not.toBeVisible()
   })
 
   // ── 6. Reply ───────────────────────────────────────────────────────────────
 
-  test('replying shows the reply banner with the quoted message', async ({ page }) => {
-    await page.goto(CONVO_URL)
-    await page.waitForTimeout(2000)
+  // NOTE: reply tests send a fresh target message rather than replying to an
+  // old seed message — the conversation history is long enough that old
+  // messages are no longer in the initially loaded page.
 
-    await openContextMenu(page, 'yes working')
-    await page.getByText('Reply', { exact: true }).click({ force: true })
+  test('replying shows the reply banner with the quoted message', async ({ page }) => {
+    await gotoConversation(page)
+
+    const target = `e2e-reply-banner-${Date.now()}`
+    await page.getByRole('textbox', { name: 'Message' }).fill(target)
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(1500)
+
+    await openContextMenu(page, target)
+    await page.getByRole('dialog').getByText('Reply', { exact: true }).click({ force: true })
     await page.waitForTimeout(800)
 
     await expect(page.getByText('Replying to')).toBeVisible()
-    await expect(page.getByText('yes working').first()).toBeVisible()
+    await expect(page.getByText(target).first()).toBeVisible()
   })
 
   test('reply banner can be dismissed with ×', async ({ page }) => {
-    await page.goto(CONVO_URL)
-    await page.waitForTimeout(2000)
+    await gotoConversation(page)
 
-    await openContextMenu(page, 'yes working')
-    await page.getByText('Reply', { exact: true }).click({ force: true })
+    const target = `e2e-reply-dismiss-${Date.now()}`
+    await page.getByRole('textbox', { name: 'Message' }).fill(target)
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(1500)
+
+    await openContextMenu(page, target)
+    await page.getByRole('dialog').getByText('Reply', { exact: true }).click({ force: true })
     await page.waitForTimeout(800)
     await expect(page.getByText('Replying to')).toBeVisible()
 
-    const banner = await page.getByText('Replying to').boundingBox()
-    if (!banner) throw new Error('Reply banner not found')
-    await page.mouse.click(1176, banner.y + banner.height / 2)
+    await page.getByRole('button', { name: 'Cancel reply' }).click({ force: true })
     await page.waitForTimeout(600)
     await expect(page.getByText('Replying to')).not.toBeVisible()
   })
 
   test('sent reply shows quote above the message bubble', async ({ page }) => {
-    await page.goto(CONVO_URL)
-    await page.waitForTimeout(2000)
+    await gotoConversation(page)
 
-    await openContextMenu(page, 'yes working')
-    await page.getByText('Reply', { exact: true }).click({ force: true })
+    const target = `e2e-reply-quote-target-${Date.now()}`
+    await page.getByRole('textbox', { name: 'Message' }).fill(target)
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(1500)
+
+    await openContextMenu(page, target)
+    await page.getByRole('dialog').getByText('Reply', { exact: true }).click({ force: true })
     await page.waitForTimeout(600)
 
     const unique = `e2e-reply-${Date.now()}`
@@ -346,15 +383,15 @@ test.describe('Chat', () => {
     await page.waitForTimeout(2000)
 
     await expect(page.getByText(unique)).toBeVisible()
-    // The reply quote header referencing "jexy is so sexy" should appear before the message
-    const quoteAuthor = page.getByText('jexy is so sexy').last()
-    await expect(quoteAuthor).toBeVisible()
+    // The quote above the reply repeats the target text — so it appears twice
+    await expect(page.getByText(target).first()).toBeVisible()
+    expect(await page.getByText(target).count()).toBeGreaterThanOrEqual(2)
   })
 
   // ── 7. Emoji reactions ─────────────────────────────────────────────────────
 
   test('adding an emoji reaction shows it on the message bubble', async ({ page }) => {
-    await page.goto(CONVO_URL)
+    await gotoConversation(page)
     await page.waitForTimeout(2000)
 
     const unique = `e2e-react-${Date.now()}`
@@ -363,7 +400,7 @@ test.describe('Chat', () => {
     await page.waitForTimeout(1500)
 
     await openContextMenu(page, unique)
-    await page.getByText('👍').click({ force: true })
+    await page.getByRole('dialog').getByText('👍').click({ force: true })
     await page.waitForTimeout(1500)
 
     // The reaction pill should now be visible near the message
@@ -410,30 +447,14 @@ test.describe('Chat', () => {
       obs.observe(document.body, { childList: true })
     }, PNG_B64)
 
-    const clicked = await page.evaluate(() => {
-      const tx = Array.from(document.querySelectorAll('textarea, input[type="text"]')).find(
-        el => (el as HTMLInputElement).placeholder?.includes('Message')
-      ) as HTMLElement | undefined
-      if (!tx) return false
-      const btn = tx.parentElement?.children[0] as HTMLElement | undefined
-      if (!btn) return false
-      const r = btn.getBoundingClientRect()
-      const cx = r.left + r.width / 2
-      const cy = r.top + r.height / 2
-      const opts: MouseEventInit = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, view: window }
-      for (const [type, Ctor] of [['pointerover', PointerEvent], ['mouseover', MouseEvent], ['pointerdown', PointerEvent], ['mousedown', MouseEvent], ['pointerup', PointerEvent], ['mouseup', MouseEvent], ['click', MouseEvent]] as const) {
-        btn.dispatchEvent(new (Ctor as typeof MouseEvent)(type, opts))
-      }
-      return true
-    })
-    if (!clicked) throw new Error('Image picker button not found')
+    await page.getByRole('button', { name: 'Attach image' }).click({ force: true })
 
     await page.waitForFunction(() => (window as any).__imagePicked === true, { timeout: 8000 })
     await page.waitForTimeout(500)
   }
 
   test('selecting an image shows a preview thumbnail above the input bar', async ({ page }) => {
-    await page.goto(CONVO_URL)
+    await gotoConversation(page)
     await page.waitForTimeout(2000)
 
     await pickImage(page)
@@ -444,7 +465,7 @@ test.describe('Chat', () => {
   // ── 9. Delete message ──────────────────────────────────────────────────────
 
   test('deleting a message marks it as deleted (visible after reload)', async ({ page }) => {
-    await page.goto(CONVO_URL)
+    await gotoConversation(page)
     await page.waitForTimeout(2000)
 
     const unique = `e2e-delete-${Date.now()}`
