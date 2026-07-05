@@ -3,14 +3,8 @@ import { TouchableOpacity, Text, View, Image, ActivityIndicator } from 'react-na
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, usePathname } from 'expo-router'
 import { theme, eventAttendeeDisplayCount } from '../constants'
+import { profileAvatarSmallUri } from '../utils'
 import type { EventWithDetails, Tag } from '../types'
-
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''
-function avatarUri(ref: string | null | undefined): string | null {
-  if (!ref) return null
-  if (ref.startsWith('http')) return ref
-  return `${SUPABASE_URL}/storage/v1/render/image/public/avatars/${ref}?width=80&height=80&quality=70&resize=cover`
-}
 
 // ─── Tag helpers ──────────────────────────────────────────────────────────────
 
@@ -161,7 +155,7 @@ function EventCardInner({
             {previews.length > 0 && (
               <View style={{ flexDirection: 'row' }}>
                 {previews.map((p, i) => {
-                  const uri = avatarUri(p.profiles?.avatar_url)
+                  const uri = profileAvatarSmallUri(p.profiles?.avatar_url)
                   const initials = p.profiles?.first_name?.[0]?.toUpperCase() ?? '?'
                   return (
                     <View key={p.user_id} style={{
@@ -371,7 +365,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp }:
           {previews.length > 0 && (
             <View style={{ flexDirection: 'row' }}>
               {previews.map((p, i) => {
-                const uri = avatarUri(p.profiles?.avatar_url)
+                const uri = profileAvatarSmallUri(p.profiles?.avatar_url)
                 const initials = p.profiles?.first_name?.[0]?.toUpperCase() ?? '?'
                 return (
                   <View key={p.user_id} style={{
