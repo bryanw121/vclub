@@ -21,7 +21,7 @@ import { setDocScrollClaim } from '../lib/docScroll'
 const DOC_SCROLL_TABS = new Set([0, 1, 3])
 
 export function useDocScrollMode(
-  windowWidth: number,
+  isNarrowWeb: boolean,
   activeTabIndex: number,
   pathname: string,
 ): boolean {
@@ -40,9 +40,10 @@ export function useDocScrollMode(
       ? window.location.pathname
       : pathname
 
+  // `isNarrowWeb` is already web-gated and false on native, so no separate
+  // Platform check is needed here.
   const active =
-    Platform.OS === 'web' &&
-    windowWidth < 768 &&
+    isNarrowWeb &&
     effectivePath === '/' &&
     DOC_SCROLL_TABS.has(activeTabIndex)
 

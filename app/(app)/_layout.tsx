@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { Animated, Image, Platform, Pressable, View, Text, TouchableOpacity, useWindowDimensions } from 'react-native'
+import { Animated, Image, Platform, Pressable, View, Text, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Stack, useRouter, usePathname } from 'expo-router'
 import { theme, BADGE_DEFINITIONS } from '../../constants'
 import { WebNavContext } from '../../contexts/webNav'
 import { SentryErrorBoundary } from '../../components/SentryErrorBoundary'
-import { useChatUnread } from '../../hooks/useChatUnread'
+import { ChatUnreadProvider, useChatUnread } from '../../hooks/useChatUnread'
+import { useIsNarrowWeb } from '../../hooks/useIsNarrowWeb'
 
 // Collect every badge image URL defined in code and prefetch them so the
 // badges screen renders instantly without a network loading flash.
@@ -52,6 +53,16 @@ function tabIndexFromPath(path: string): number {
 }
 
 export default function AppLayout() {
+  // The unread subscription lives in one provider so it runs exactly once across
+  // the sidebar (web) and the mobile tab bar (both read it via useChatUnread).
+  return (
+    <ChatUnreadProvider>
+      <AppLayoutInner />
+    </ChatUnreadProvider>
+  )
+}
+
+function AppLayoutInner() {
   const router = useRouter()
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
@@ -63,7 +74,7 @@ export default function AppLayout() {
   }, [])
   const [fabOpen, setFabOpen] = useState(false)
   const fabAnim = useRef(new Animated.Value(0)).current
-  const { width: windowWidth } = useWindowDimensions()
+  const isNarrowWeb = useIsNarrowWeb(SIDEBAR_BREAKPOINT)
 
   function goToTab(index: number) {
     router.replace(TABS[index].path as any)
@@ -86,7 +97,7 @@ export default function AppLayout() {
   const sidebarActive = tabIndexFromPath(pathname)
 
   // ── Web (wide): sidebar always visible ───────────────────────────────────
-  if (Platform.OS === 'web' && windowWidth >= SIDEBAR_BREAKPOINT) {
+  if (Platform.OS === 'web' && !isNarrowWeb) {
     return (
       <WebNavContext.Provider value={{ activeTab: sidebarActive, goToTab }}>
         <SentryErrorBoundary>

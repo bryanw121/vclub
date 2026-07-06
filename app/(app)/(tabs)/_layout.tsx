@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFocusEffect, Stack, usePathname, useRouter } from "expo-router";
-import { Animated, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { Slot } from "expo-router";
@@ -10,6 +10,7 @@ import { useWebNav } from "../../../contexts/webNav";
 import { theme } from "../../../constants";
 import { useChatUnread } from "../../../hooks/useChatUnread";
 import { useDocScrollMode } from "../../../hooks/useDocScrollMode";
+import { useIsNarrowWeb } from "../../../hooks/useIsNarrowWeb";
 
 // Pager indices: 0=Events, 1=Clubs, 2=Chat, 3=Profile
 const MOBILE_NAV_TABS = [
@@ -66,11 +67,15 @@ export default function TabsLayout() {
   const webNav = useWebNav();
   const router = useRouter();
   const pathname = usePathname();
-  const { width: windowWidth } = useWindowDimensions();
+  const isNarrowWeb = useIsNarrowWeb(SIDEBAR_BREAKPOINT);
+  const chatUnread = useChatUnread();
 
   // Document-scroll mode: narrow web on Events/Clubs/Profile tabs (or an event
   // page). Toggles body.doc-scroll so the page itself scrolls (browser bars collapse).
-  const docScrollActive = useDocScrollMode(windowWidth, activeTabIndex, pathname);
+  const docScrollActive = useDocScrollMode(isNarrowWeb, activeTabIndex, pathname);
+
+  // Track fab open in a ref so goToTab can stay a stable callback (below).
+  const fabOpenRef = useRef(false);
 
   // In doc-scroll mode the tab bar hide/show is driven by window scroll here
   // (one listener for all tabs) instead of per-screen ScrollView onScroll.
@@ -88,8 +93,58 @@ export default function TabsLayout() {
     return () => window.removeEventListener('scroll', onScroll);
   }, [docScrollActive, setTabBarHidden]);
 
+  // Stable callbacks so the TabsContext value (memoized below) doesn't change
+  // identity on every render — keeps tab screens from re-rendering on fab toggle.
+  const closeFab = useCallback(() => {
+    fabOpenRef.current = false;
+    Animated.timing(fabAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => setFabOpen(false));
+  }, [fabAnim]);
+
+  const openFab = useCallback(() => {
+    fabOpenRef.current = true;
+    setFabOpen(true);
+    Animated.spring(fabAnim, { toValue: 1, useNativeDriver: true, tension: 120, friction: 8 }).start();
+  }, [fabAnim]);
+
+  const goToTab = useCallback((index: number) => {
+    setActiveTabIndex(index);
+    if (fabOpenRef.current) closeFab();
+    setTabBarHidden(false);
+  }, [closeFab, setTabBarHidden]);
+
+  /** When a stack screen (settings or another user's profile) is open, switch tabs by resetting the stack to the right home route. */
+  function handleTabPress(tabIndex: number) {
+    if (pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname) || pathname.startsWith("/chat")) {
+      if (tabIndex === 0) router.replace("/" as any);
+      else if (tabIndex === 1) router.replace("/clubs" as any);
+      else if (tabIndex === 2) router.replace("/chat" as any);
+      else router.replace("/profile" as any);
+    }
+    goToTab(tabIndex);
+  }
+
+  function goHost(path: string) {
+    closeFab();
+    setTimeout(() => router.push(path as any), 160);
+  }
+
+  const onSettingsOrUserProfile =
+    pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname);
+  const showCreateOptions = activeTabIndex === 0 && !onSettingsOrUserProfile;
+
+  const tabsContextValue = useMemo(() => ({
+    goToTab,
+    activeTabIndex,
+    eventsRefreshTick,
+    pagerBlocked,
+    setTabBarHidden,
+    tabBarHeight,
+    docScrollActive,
+  }), [goToTab, activeTabIndex, eventsRefreshTick, pagerBlocked, setTabBarHidden, tabBarHeight, docScrollActive]);
+
   // ── Web (wide): sidebar in (app)/_layout — let Expo Router render the route ─
-  if (Platform.OS === "web" && windowWidth >= SIDEBAR_BREAKPOINT) {
+  // Placed after all hooks so hook order is stable across the breakpoint.
+  if (Platform.OS === "web" && !isNarrowWeb) {
     return (
       <TabsContext.Provider value={{
         goToTab: webNav.goToTab,
@@ -107,53 +162,8 @@ export default function TabsLayout() {
     );
   }
 
-  function closeFab() {
-    Animated.timing(fabAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => setFabOpen(false));
-  }
-
-  function goToTab(index: number) {
-    setActiveTabIndex(index);
-    if (fabOpen) closeFab();
-    setTabBarHidden(false);
-  }
-
-  const chatUnread = useChatUnread();
-
-  /** When a stack screen (settings or another user's profile) is open, switch tabs by resetting the stack to the right home route. */
-  function handleTabPress(tabIndex: number) {
-    if (pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname) || pathname.startsWith("/chat")) {
-      if (tabIndex === 0) router.replace("/" as any);
-      else if (tabIndex === 1) router.replace("/clubs" as any);
-      else if (tabIndex === 2) router.replace("/chat" as any);
-      else router.replace("/profile" as any);
-    }
-    goToTab(tabIndex);
-  }
-
-  function openFab() {
-    setFabOpen(true);
-    Animated.spring(fabAnim, { toValue: 1, useNativeDriver: true, tension: 120, friction: 8 }).start();
-  }
-
-  function goHost(path: string) {
-    closeFab();
-    setTimeout(() => router.push(path as any), 160);
-  }
-
-  const onSettingsOrUserProfile =
-    pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname);
-  const showCreateOptions = activeTabIndex === 0 && !onSettingsOrUserProfile;
-
   return (
-    <TabsContext.Provider value={{
-      goToTab,
-      activeTabIndex,
-      eventsRefreshTick,
-      pagerBlocked,
-      setTabBarHidden,
-      tabBarHeight,
-      docScrollActive,
-    }}>
+    <TabsContext.Provider value={tabsContextValue}>
       <View style={[
         { backgroundColor: theme.colors.background, paddingTop: topInset },
         // Doc-scroll mode: auto height so content extends the document (body scrolls)

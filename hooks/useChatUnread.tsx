@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { DeviceEventEmitter } from 'react-native'
 import { supabase } from '../lib/supabase'
 import type { ConversationRow } from '../types'
@@ -6,11 +6,18 @@ import type { ConversationRow } from '../types'
 /** Emitted from `useSilencedUsers` after silence/unsilence so the tab badge updates even without Realtime on `chat_silences`. */
 export const CHAT_SILENCES_CHANGED_EVENT = 'vclub-chat-silences-changed'
 
+const ChatUnreadContext = createContext(0)
+
 /**
- * Tab-bar unread total from `get_my_conversations`, excluding DMs with people in `chat_silences`.
- * Subscribes to messages, conversation_members, and chat_silences so the badge updates when you silence/unsilence.
+ * Tab-bar unread total from `get_my_conversations`, excluding DMs with people in
+ * `chat_silences`. Read via `useChatUnread()`.
+ *
+ * Lives in a single provider mounted once at the app root so the realtime
+ * subscription + RPC polling run exactly once — the sidebar (web) and the mobile
+ * tab bar both read the same value. (Previously this hook was instantiated in two
+ * layouts at once, opening duplicate channels and double-polling on every insert.)
  */
-export function useChatUnread() {
+export function ChatUnreadProvider({ children }: { children: React.ReactNode }) {
   const [count, setCount] = useState(0)
   const mountedRef = useRef(true)
 
@@ -40,27 +47,21 @@ export function useChatUnread() {
     mountedRef.current = true
     void recompute()
 
-    let msgChannel: ReturnType<typeof supabase.channel> | null = null
-    let silenceChannel: ReturnType<typeof supabase.channel> | null = null
+    let channel: ReturnType<typeof supabase.channel> | null = null
 
     void supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user || !mountedRef.current) return
 
-      msgChannel = supabase
-        .channel('chat-unread-badge')
+      // One channel multiplexes all three change streams (was two channels).
+      channel = supabase
+        .channel(`chat-unread-${user.id}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
           () => { void recompute() })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_members' },
           () => { void recompute() })
-        .subscribe()
-
-      silenceChannel = supabase
-        .channel(`chat-unread-silences-${user.id}`)
-        .on(
-          'postgres_changes',
+        .on('postgres_changes',
           { event: '*', schema: 'public', table: 'chat_silences', filter: `user_id=eq.${user.id}` },
-          () => { void recompute() },
-        )
+          () => { void recompute() })
         .subscribe()
     })
 
@@ -71,10 +72,14 @@ export function useChatUnread() {
     return () => {
       mountedRef.current = false
       silencesSub.remove()
-      if (msgChannel) void supabase.removeChannel(msgChannel)
-      if (silenceChannel) void supabase.removeChannel(silenceChannel)
+      if (channel) void supabase.removeChannel(channel)
     }
   }, [recompute])
 
-  return count
+  return <ChatUnreadContext.Provider value={count}>{children}</ChatUnreadContext.Provider>
+}
+
+/** Current tab-bar unread total. Requires a `ChatUnreadProvider` ancestor. */
+export function useChatUnread(): number {
+  return useContext(ChatUnreadContext)
 }
