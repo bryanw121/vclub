@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native'
+import { Platform, StyleSheet } from 'react-native'
 import { theme } from './theme'
 
 const { colors, spacing, font, radius, shadow } = theme
@@ -179,4 +179,11 @@ export const shared = StyleSheet.create({
   mt_md: { marginTop: spacing.md },
   mt_lg: { marginTop: spacing.lg },
   mt_xl: { marginTop: spacing.xl },
+
+  // ─── Team / player grid (shared by the event People & Cheers tabs) ───────
+  playerGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  playerCell: { width: Platform.OS === 'web' ? '33.33%' : '50%', padding: 3 },
+  teamHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs },
+  teamDot: { width: 8, height: 8, borderRadius: 4 },
+  teamHeading: { fontSize: font.size.sm, fontWeight: font.weight.semibold },
 })

@@ -1,6 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { Platform, View, Text, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal, Keyboard, KeyboardEvent, RefreshControl } from 'react-native'
-import { Image } from 'expo-image'
 import { GestureDetector, Gesture, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, interpolate, Extrapolation } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
@@ -18,8 +17,9 @@ import { Pager } from '../../../components/Pager'
 import { DocScrollView } from '../../../components/DocScrollView'
 import { setDocScrollClaim } from '../../../lib/docScroll'
 import * as Calendar from 'expo-calendar'
-import { shared, theme, formatEventDate, CHEER_TYPES, CHEERS_MAX_PER_EVENT, LOCATIONS } from '../../../constants'
-import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile, MentionUser } from '../../../types'
+import { shared, theme, formatEventDate, CHEERS_MAX_PER_EVENT, LOCATIONS, TEAM_COLORS, TEAM_COLOR_NAMES } from '../../../constants'
+import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile, MentionUser, TeamAssignment } from '../../../types'
+import { CheersTab } from '../../../components/event/CheersTab'
 import {
   profileDisplayName,
   profileInitial,
@@ -108,65 +108,6 @@ async function addToCalendar(title: string, startIso: string, durationMinutes: n
   Alert.alert('Added to calendar', `"${title}" has been added to your calendar.`)
 }
 
-type CheerPersonCardProps = {
-  profile: Profile
-  hasGiven: boolean
-  disabled: boolean
-  teamColor: string | null
-  onPress: () => void
-}
-
-function CheerPersonCard({ profile, hasGiven, disabled, teamColor, onPress }: CheerPersonCardProps) {
-  const [avatarUri, setAvatarUri] = useState<string | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const { uri } = await resolveProfileAvatarUriSmall(profile.avatar_url)
-      if (!cancelled) setAvatarUri(uri)
-    })()
-    return () => { cancelled = true }
-  }, [profile.avatar_url])
-
-  const activeColor = teamColor ?? theme.colors.primary
-  const initials = profileInitial(profile)
-  const displayName = profileDisplayName(profile)
-
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={disabled}
-      style={[
-        styles.playerCardShell,
-        {
-          borderColor: hasGiven ? activeColor : theme.colors.border,
-          backgroundColor: hasGiven ? activeColor + '12' : disabled ? theme.colors.background : theme.colors.card,
-          opacity: disabled ? 0.45 : 1,
-        },
-      ]}
-    >
-      <View style={[
-        styles.avatar,
-        {
-          borderColor: activeColor,
-          backgroundColor: activeColor + '18',
-          borderWidth: hasGiven ? 2 : 1.5,
-          overflow: 'hidden',
-        }
-      ]}>
-        {avatarUri ? (
-          <Image source={{ uri: avatarUri }} style={{ width: 40, height: 40 }} contentFit="cover" transition={200} />
-        ) : (
-          <Text style={[styles.avatarInitial, { color: activeColor }]}>{initials}</Text>
-        )}
-      </View>
-      <Text style={[styles.playerName, { color: hasGiven ? activeColor : theme.colors.text, flex: 1 }]} numberOfLines={1}>
-        {displayName}
-      </Text>
-      {hasGiven && <Ionicons name="checkmark-circle" size={16} color={activeColor} />}
-    </TouchableOpacity>
-  )
-}
-
 
 function HostRow({
   hostId, name, initial, avatarUrl, border, label, isMe, onMessage, onPress,
@@ -232,10 +173,6 @@ function playerInitial(profile: Profile): string {
   return profile.username.charAt(0).toUpperCase()
 }
 
-const TEAM_COLORS      = ['#6C47FF', '#E85D5D', '#2DA265', '#E07B00', '#1A8FD1', '#9C27B0']
-const TEAM_COLOR_NAMES = ['Purple',  'Red',     'Green',   'Orange',  'Blue',    'Violet']
-
-type TeamAssignment = { team: number | null; pinned: boolean }
 
 function ShareMenuItem({ icon, label, onPress, active }: { icon: string; label: string; onPress: () => void; active?: boolean }) {
   const [hovered, setHovered] = useState(false)
@@ -2480,10 +2417,10 @@ export default function EventDetail() {
                       />
                     )
                     if (eventStatus.isOwner) {
-                      return <View key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>{card}</View>
+                      return <View key={profile.id} style={[shared.playerCell, isMobileWeb && { width: '50%' }]}>{card}</View>
                     }
                     return (
-                      <TouchableOpacity key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]} onPress={() => router.push(`/profile/${profile.id}` as any)}>
+                      <TouchableOpacity key={profile.id} style={[shared.playerCell, isMobileWeb && { width: '50%' }]} onPress={() => router.push(`/profile/${profile.id}` as any)}>
                         {card}
                       </TouchableOpacity>
                     )
@@ -2494,7 +2431,7 @@ export default function EventDetail() {
                     const teamNum = a?.team ?? null
                     const teamColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : null
                     return (
-                      <View key={g.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>
+                      <View key={g.id} style={[shared.playerCell, isMobileWeb && { width: '50%' }]}>
                         <DraggableGuestCard
                           guest={g}
                           adderUsername={adderUsernames[g.added_by] ?? '?'}
@@ -2517,7 +2454,7 @@ export default function EventDetail() {
                         ref={(r) => { teamZoneRefs.current['unassigned'] = r as View | null }}
                         style={[styles.dropZone, hoveredTeamKey === 'unassigned' && styles.dropZoneActive]}
                       >
-                        <View style={styles.playerGrid}>
+                        <View style={shared.playerGrid}>
                           {attendees.map(renderCard)}
                           {guests.map(renderGuestCard)}
                         </View>
@@ -2540,13 +2477,13 @@ export default function EventDetail() {
                             ref={(r) => { teamZoneRefs.current[String(teamNum)] = r as View | null }}
                             style={[styles.dropZone, isHovered && { backgroundColor: teamColor + '14', borderColor: teamColor + '60' }]}
                           >
-                            <View style={styles.teamHeader}>
-                              <View style={[styles.teamDot, { backgroundColor: teamColor }]} />
-                              <Text style={[styles.teamHeading, { color: teamColor }]}>{TEAM_COLOR_NAMES[(teamNum - 1) % TEAM_COLOR_NAMES.length]} Team</Text>
+                            <View style={shared.teamHeader}>
+                              <View style={[shared.teamDot, { backgroundColor: teamColor }]} />
+                              <Text style={[shared.teamHeading, { color: teamColor }]}>{TEAM_COLOR_NAMES[(teamNum - 1) % TEAM_COLOR_NAMES.length]} Team</Text>
                             </View>
                             {teamPlayers.length === 0 && teamGuests.length === 0
                               ? <Text style={[shared.caption, { paddingHorizontal: theme.spacing.xs, paddingBottom: theme.spacing.xs }]}>No players</Text>
-                              : <View style={styles.playerGrid}>{teamPlayers.map(renderCard)}{teamGuests.map(renderGuestCard)}</View>
+                              : <View style={shared.playerGrid}>{teamPlayers.map(renderCard)}{teamGuests.map(renderGuestCard)}</View>
                             }
                           </View>
                         )
@@ -2556,11 +2493,11 @@ export default function EventDetail() {
                           ref={(r) => { teamZoneRefs.current['unassigned'] = r as View | null }}
                           style={[styles.dropZone, hoveredTeamKey === 'unassigned' && styles.dropZoneActive]}
                         >
-                          <View style={styles.teamHeader}>
-                            <View style={[styles.teamDot, { backgroundColor: theme.colors.subtext }]} />
-                            <Text style={[styles.teamHeading, { color: theme.colors.subtext }]}>Unassigned</Text>
+                          <View style={shared.teamHeader}>
+                            <View style={[shared.teamDot, { backgroundColor: theme.colors.subtext }]} />
+                            <Text style={[shared.teamHeading, { color: theme.colors.subtext }]}>Unassigned</Text>
                           </View>
-                          <View style={styles.playerGrid}>
+                          <View style={shared.playerGrid}>
                             {unassigned.map(renderCard)}
                             {unassignedGuests.map(renderGuestCard)}
                           </View>
@@ -2760,265 +2697,31 @@ export default function EventDetail() {
             </View>
 
             {/* Tab 3: Cheers */}
-            <View style={[shared.screen, { flex: 1 }]}>
-              {!isEventOver ? (
-                <ScrollView
-                  contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl }}
-                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
-                >
-                  <Ionicons name="time-outline" size={40} color={theme.colors.subtext} />
-                  <Text style={[shared.subheading, { marginTop: theme.spacing.md, textAlign: 'center' }]}>Not available yet</Text>
-                  <Text style={[shared.caption, { marginTop: theme.spacing.sm, textAlign: 'center' }]}>
-                    Cheers open after the event ends.
-                  </Text>
-                </ScrollView>
-              ) : !eventStatus.isAttending && !eventStatus.isOwner ? (
-                <ScrollView
-                  contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl }}
-                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
-                >
-                  <Ionicons name="lock-closed-outline" size={40} color={theme.colors.subtext} />
-                  <Text style={[shared.subheading, { marginTop: theme.spacing.md, textAlign: 'center' }]}>Attendees only</Text>
-                  <Text style={[shared.caption, { marginTop: theme.spacing.sm, textAlign: 'center' }]}>
-                    Only people who attended this event can give cheers.
-                  </Text>
-                </ScrollView>
-              ) : cheersLoading ? (
-                <ScrollView
-                  contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: theme.spacing.xl }}
-                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
-                >
-                  <ActivityIndicator color={theme.colors.primary} />
-                </ScrollView>
-              ) : selectedCheerType === null ? (
-                /* Step 1: Pick a cheer type */
-                <ScrollView
-                  contentContainerStyle={[shared.scrollContent, { paddingBottom: insets.bottom + theme.spacing.lg }]}
-                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
-                >
-                  <View style={[shared.rowBetween, { marginBottom: theme.spacing.xs }]}>
-                    <Text style={shared.subheading}>Give Cheers</Text>
-                    {(myCheersGiven.length > 0 || pendingCheers.length > 0) && (
-                      <TouchableOpacity onPress={resetCheers} hitSlop={8}>
-                        <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>Reset</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  <Text style={[shared.caption, { marginBottom: theme.spacing.lg }]}>
-                    {myCheersGiven.length + pendingCheers.length}/{CHEERS_MAX_PER_EVENT} selected · What do you want to recognize?
-                  </Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm }}>
-                    {CHEER_TYPES.map(kt => {
-                      const submittedCount = myCheersGiven.filter(k => k.cheer_type === kt.type).length
-                      const pendingCount = pendingCheers.filter(p => p.cheerType === kt.type).length
-                      const totalCount = submittedCount + pendingCount
-                      const totalGiven = myCheersGiven.length + pendingCheers.length
-                      const atCap = totalGiven >= CHEERS_MAX_PER_EVENT && totalCount === 0
-                      return (
-                        <TouchableOpacity
-                          key={kt.type}
-                          onPress={() => !atCap ? setSelectedCheerType(kt.type) : null}
-                          disabled={atCap}
-                          style={{
-                            width: '47%',
-                            backgroundColor: totalCount > 0 ? theme.colors.primary + '12' : theme.colors.card,
-                            borderWidth: 1.5,
-                            borderColor: totalCount > 0 ? theme.colors.primary : theme.colors.border,
-                            borderRadius: theme.radius.lg,
-                            padding: theme.spacing.md,
-                            alignItems: 'center',
-                            gap: theme.spacing.xs,
-                            opacity: atCap ? 0.4 : 1,
-                          }}
-                        >
-                          <Ionicons
-                            name={kt.icon as any}
-                            size={28}
-                            color={totalCount > 0 ? theme.colors.primary : theme.colors.subtext}
-                          />
-                          <Text style={{
-                            fontSize: theme.font.size.sm,
-                            fontWeight: theme.font.weight.semibold,
-                            color: totalCount > 0 ? theme.colors.primary : theme.colors.text,
-                            textAlign: 'center',
-                          }}>
-                            {kt.label}
-                          </Text>
-                          {totalCount > 0 && (
-                            <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.primary }}>
-                              {totalCount} selected
-                            </Text>
-                          )}
-                        </TouchableOpacity>
-                      )
-                    })}
-                  </View>
-                  {cheersSent ? (
-                    <View style={{
-                      marginTop: theme.spacing.lg,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: theme.spacing.sm,
-                      paddingVertical: theme.spacing.md,
-                      borderRadius: theme.radius.lg,
-                      backgroundColor: theme.colors.primary + '12',
-                      borderWidth: 1.5,
-                      borderColor: theme.colors.primary + '40',
-                    }}>
-                      <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
-                      <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.primary }}>
-                        Cheers sent!
-                      </Text>
-                    </View>
-                  ) : pendingCheers.length > 0 ? (
-                    <View style={{ marginTop: theme.spacing.lg, gap: theme.spacing.sm }}>
-                      {cheerSubmitError && (
-                        <View style={{
-                          flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm,
-                          paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm,
-                          borderRadius: theme.radius.md,
-                          backgroundColor: theme.colors.error + '18',
-                          borderWidth: 1, borderColor: theme.colors.error + '50',
-                        }}>
-                          <Ionicons name="alert-circle-outline" size={16} color={theme.colors.error} />
-                          <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.error, flex: 1 }}>
-                            {cheerSubmitError}
-                          </Text>
-                        </View>
-                      )}
-                      <Button
-                        label={submittingCheers ? 'Submitting…' : `Submit Cheers (${pendingCheers.length})`}
-                        onPress={submitCheers}
-                        loading={submittingCheers}
-                      />
-                    </View>
-                  ) : null}
-                </ScrollView>
-              ) : (
-                /* Step 2: Pick recipients for the selected cheer type */
-                <View style={{ flex: 1 }}>
-                  {/* Header */}
-                  <View style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: theme.spacing.sm,
-                    paddingHorizontal: theme.spacing.lg,
-                    paddingTop: theme.spacing.md,
-                    paddingBottom: theme.spacing.sm,
-                    borderBottomWidth: 1,
-                    borderBottomColor: theme.colors.border,
-                  }}>
-                    <TouchableOpacity onPress={() => setSelectedCheerType(null)} hitSlop={12}>
-                      <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
-                    </TouchableOpacity>
-                    <Ionicons
-                      name={(CHEER_TYPES.find(k => k.type === selectedCheerType)?.icon ?? 'star-outline') as any}
-                      size={18}
-                      color={theme.colors.primary}
-                    />
-                    <Text style={[shared.subheading, { flex: 1 }]}>
-                      {CHEER_TYPES.find(k => k.type === selectedCheerType)?.label}
-                    </Text>
-                    <Text style={shared.caption}>
-                      {myCheersGiven.length + pendingCheers.length}/{CHEERS_MAX_PER_EVENT}
-                    </Text>
-                  </View>
-                  {myCheersGiven.length + pendingCheers.length >= CHEERS_MAX_PER_EVENT ? (
-                    <View style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: theme.spacing.sm,
-                      marginHorizontal: theme.spacing.lg,
-                      marginTop: theme.spacing.sm,
-                      marginBottom: theme.spacing.xs,
-                      paddingHorizontal: theme.spacing.md,
-                      paddingVertical: theme.spacing.sm,
-                      borderRadius: theme.radius.md,
-                      backgroundColor: theme.colors.warning + '18',
-                      borderWidth: 1.5,
-                      borderColor: theme.colors.warning + '60',
-                    }}>
-                      <Ionicons name="warning" size={16} color={theme.colors.warning} />
-                      <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.warning, flex: 1 }}>
-                        Limit reached ({CHEERS_MAX_PER_EVENT} cheers max). Deselect someone to swap.
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text style={[shared.caption, { paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm }]}>
-                      Who deserves it? Tap to select or deselect.
-                    </Text>
-                  )}
-                  {attendees.filter(a => a.id !== userId).length === 0 ? (
-                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl }}>
-                      <Text style={shared.caption}>No other attendees.</Text>
-                    </View>
-                  ) : (
-                    <ScrollView
-                      contentContainerStyle={[shared.scrollContent, { paddingBottom: insets.bottom + theme.spacing.lg }]}
-                      keyboardShouldPersistTaps="handled"
-                      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
-                    >
-                      {(() => {
-                        const others = attendees.filter(a => a.id !== userId)
-                        const totalGiven = myCheersGiven.length + pendingCheers.length
-                        function renderCheerCard(profile: Profile, teamColor: string | null) {
-                          const hasGiven = myCheersGiven.some(k => k.receiver_id === profile.id && k.cheer_type === selectedCheerType)
-                            || pendingCheers.some(p => p.receiverId === profile.id && p.cheerType === selectedCheerType)
-                          const atCap = totalGiven >= CHEERS_MAX_PER_EVENT && !hasGiven
-                          return (
-                            <View key={profile.id} style={[styles.playerCell, isMobileWeb && { width: '50%' }]}>
-                              <CheerPersonCard
-                                profile={profile}
-                                hasGiven={hasGiven}
-                                disabled={atCap}
-                                teamColor={teamColor}
-                                onPress={() => toggleCheer(profile.id, selectedCheerType!)}
-                              />
-                            </View>
-                          )
-                        }
-                        if (!hasTeams) {
-                          return <View style={styles.playerGrid}>{others.map(p => renderCheerCard(p, null))}</View>
-                        }
-                        const unassigned = others.filter(p => !assignments[p.id]?.team)
-                        return (
-                          <View style={{ gap: theme.spacing.sm }}>
-                            {Array.from({ length: numTeams }, (_, i) => i + 1).map(teamNum => {
-                              const teamColor = TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length]
-                              const members = others.filter(p => assignments[p.id]?.team === teamNum)
-                              return (
-                                <View key={teamNum}>
-                                  <View style={styles.teamHeader}>
-                                    <View style={[styles.teamDot, { backgroundColor: teamColor }]} />
-                                    <Text style={[styles.teamHeading, { color: teamColor }]}>
-                                      {TEAM_COLOR_NAMES[(teamNum - 1) % TEAM_COLOR_NAMES.length]} Team
-                                    </Text>
-                                  </View>
-                                  {members.length === 0
-                                    ? <Text style={[shared.caption, { paddingHorizontal: theme.spacing.xs }]}>No players</Text>
-                                    : <View style={styles.playerGrid}>{members.map(p => renderCheerCard(p, teamColor))}</View>
-                                  }
-                                </View>
-                              )
-                            })}
-                            {unassigned.length > 0 && (
-                              <View>
-                                <View style={styles.teamHeader}>
-                                  <View style={[styles.teamDot, { backgroundColor: theme.colors.subtext }]} />
-                                  <Text style={[styles.teamHeading, { color: theme.colors.subtext }]}>Unassigned</Text>
-                                </View>
-                                <View style={styles.playerGrid}>{unassigned.map(p => renderCheerCard(p, null))}</View>
-                              </View>
-                            )}
-                          </View>
-                        )
-                      })()}
-                    </ScrollView>
-                  )}
-                </View>
-              )}
-            </View>
+            <CheersTab
+              isEventOver={isEventOver}
+              isAttending={eventStatus.isAttending}
+              isOwner={eventStatus.isOwner}
+              cheersLoading={cheersLoading}
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              selectedCheerType={selectedCheerType}
+              setSelectedCheerType={setSelectedCheerType}
+              myCheersGiven={myCheersGiven}
+              pendingCheers={pendingCheers}
+              cheersSent={cheersSent}
+              cheerSubmitError={cheerSubmitError}
+              submittingCheers={submittingCheers}
+              submitCheers={submitCheers}
+              resetCheers={resetCheers}
+              toggleCheer={toggleCheer}
+              attendees={attendees}
+              userId={userId}
+              hasTeams={hasTeams}
+              assignments={assignments}
+              numTeams={numTeams}
+              isMobileWeb={isMobileWeb}
+              bottomInset={insets.bottom}
+            />
           </Pager>
 
           {/* Sticky footer — join/leave/waitlist/+1, only shown on Description tab */}
@@ -3596,14 +3299,6 @@ const styles = StyleSheet.create({
     minWidth: 20,
     textAlign: 'center',
   },
-  playerGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  playerCell: {
-    width: Platform.OS === 'web' ? '33.33%' : '50%',
-    padding: 3,
-  },
   /** One bordered row: draggable name area + remove X (X outside pan gesture, same look as before). */
   playerCardShell: {
     flexDirection: 'row',
@@ -3645,21 +3340,6 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 10,
     zIndex: 1000,
-  },
-  teamHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    marginBottom: theme.spacing.xs,
-  },
-  teamDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  teamHeading: {
-    fontSize: theme.font.size.sm,
-    fontWeight: theme.font.weight.semibold,
   },
   avatar: {
     width: 40,

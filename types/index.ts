@@ -443,6 +443,9 @@ export type AttendanceStatus = {
   denialReason: string | null // reason provided by host when denying; null if none given
 }
 
+/** A player's team placement on the event People/Cheers tabs. */
+export type TeamAssignment = { team: number | null; pinned: boolean }
+
 // ─── Chat Types ───────────────────────────────────────────────────────────────
 
 export type ConversationType = 'dm' | 'club'

@@ -13,6 +13,8 @@ export {
   DURATION_OPTIONS,
   CHEER_TYPES,
   CHEERS_MAX_PER_EVENT,
+  TEAM_COLORS,
+  TEAM_COLOR_NAMES,
 } from './events'
 export type { VenueLocation, EventTemplate, RecurrenceCadence, CheerTypeConfig } from './events'
 export {
