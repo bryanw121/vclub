@@ -64,6 +64,33 @@ test.describe('Events', () => {
     await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible()
   })
 
+  // Safety net for the event-detail refactor (splitting the four tab bodies into
+  // sibling components): drives every tab and asserts each renders its landmark,
+  // so an extraction that breaks a tab's JSX or prop wiring fails CI.
+  test('event detail — all four tabs render and switch', async ({ page }) => {
+    await page.getByText(OPEN_PLAY_EVENT).first().click()
+    await page.waitForURL(/\/event\//, { timeout: 20000 })
+
+    // Details is the default tab (quick-stats strip).
+    await expect(page.getByText('Duration').first()).toBeVisible({ timeout: 20000 })
+
+    // People tab — "Going" roster heading.
+    await page.getByTestId('event-tab-people').first().click()
+    await expect(page.getByText('Going', { exact: true }).first()).toBeVisible({ timeout: 15000 })
+
+    // Discussion tab — the comment composer.
+    await page.getByTestId('event-tab-discussion').first().click()
+    await expect(page.getByPlaceholder('Add a comment…').first()).toBeVisible({ timeout: 15000 })
+
+    // Cheers tab — seeded events are upcoming, so the not-yet-available gate shows.
+    await page.getByTestId('event-tab-cheers').first().click()
+    await expect(page.getByText(/Cheers open after the event ends/).first()).toBeVisible({ timeout: 15000 })
+
+    // Back to Details.
+    await page.getByTestId('event-tab-details').first().click()
+    await expect(page.getByText('Duration').first()).toBeVisible({ timeout: 15000 })
+  })
+
   test('open an event, then join and leave it', async ({ page }) => {
     await page.getByText(OPEN_PLAY_EVENT).first().click()
     await page.waitForURL(/\/event\//, { timeout: 20000 })

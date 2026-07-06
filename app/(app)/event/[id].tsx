@@ -2060,6 +2060,7 @@ export default function EventDetail() {
                 return (
                   <TouchableOpacity
                     key={label}
+                    testID={`event-tab-${label.toLowerCase()}`}
                     onPress={() => { if (i !== 3) { setSelectedCheerType(null); setPendingCheers([]) } setActiveTab(i) }}
                     style={[
                       { flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5, paddingVertical: 13 },
