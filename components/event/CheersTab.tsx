@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, StyleSheet } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { Button } from '../Button'
@@ -37,7 +37,7 @@ function CheerPersonCard({ profile, hasGiven, disabled, teamColor, onPress }: Ch
       onPress={onPress}
       disabled={disabled}
       style={[
-        styles.playerCardShell,
+        shared.playerCardShell,
         {
           borderColor: hasGiven ? activeColor : theme.colors.border,
           backgroundColor: hasGiven ? activeColor + '12' : disabled ? theme.colors.background : theme.colors.card,
@@ -46,7 +46,7 @@ function CheerPersonCard({ profile, hasGiven, disabled, teamColor, onPress }: Ch
       ]}
     >
       <View style={[
-        styles.avatar,
+        shared.playerCardAvatar,
         {
           borderColor: activeColor,
           backgroundColor: activeColor + '18',
@@ -57,10 +57,10 @@ function CheerPersonCard({ profile, hasGiven, disabled, teamColor, onPress }: Ch
         {avatarUri ? (
           <Image source={{ uri: avatarUri }} style={{ width: 40, height: 40 }} contentFit="cover" transition={200} />
         ) : (
-          <Text style={[styles.avatarInitial, { color: activeColor }]}>{initials}</Text>
+          <Text style={[shared.playerCardAvatarInitial, { color: activeColor }]}>{initials}</Text>
         )}
       </View>
-      <Text style={[styles.playerName, { color: hasGiven ? activeColor : theme.colors.text, flex: 1 }]} numberOfLines={1}>
+      <Text style={[shared.playerCardName, { color: hasGiven ? activeColor : theme.colors.text, flex: 1 }]} numberOfLines={1}>
         {displayName}
       </Text>
       {hasGiven && <Ionicons name="checkmark-circle" size={16} color={activeColor} />}
@@ -365,37 +365,3 @@ export function CheersTab({
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  // Card styles shared with the People tab's drag cards; kept local until the
-  // People tab is extracted, at which point these move to constants/styles.ts too.
-  playerCardShell: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    backgroundColor: theme.colors.card,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.sm,
-    gap: theme.spacing.xs,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInitial: {
-    fontSize: 13,
-    fontWeight: theme.font.weight.bold,
-    letterSpacing: 0.5,
-  },
-  playerName: {
-    fontSize: theme.font.size.md,
-    fontWeight: theme.font.weight.medium,
-    color: theme.colors.text,
-  },
-})

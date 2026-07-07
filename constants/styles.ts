@@ -186,4 +186,34 @@ export const shared = StyleSheet.create({
   teamHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs },
   teamDot: { width: 8, height: 8, borderRadius: 4 },
   teamHeading: { fontSize: font.size.sm, fontWeight: font.weight.semibold },
+  /** One bordered player/guest row (drag card in People, cheer card in Cheers). */
+  playerCardShell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    gap: spacing.xs,
+  },
+  playerCardAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playerCardAvatarInitial: {
+    fontSize: 13,
+    fontWeight: font.weight.bold,
+    letterSpacing: 0.5,
+  },
+  playerCardName: {
+    fontSize: font.size.md,
+    fontWeight: font.weight.medium,
+    color: colors.text,
+  },
 })
