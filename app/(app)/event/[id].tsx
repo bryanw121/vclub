@@ -20,6 +20,7 @@ import { shared, theme, CHEERS_MAX_PER_EVENT, LOCATIONS, TEAM_COLORS, TEAM_COLOR
 import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile, MentionUser, TeamAssignment } from '../../../types'
 import { CheersTab } from '../../../components/event/CheersTab'
 import { DetailsTab } from '../../../components/event/DetailsTab'
+import { DiscussionTab } from '../../../components/event/DiscussionTab'
 import {
   profileDisplayName,
   profileInitial,
@@ -2217,79 +2218,30 @@ export default function EventDetail() {
             </DocScrollView>
 
             {/* Tab 2: Discussion */}
-            <View style={[shared.screen, { flex: 1, minHeight: 0 }]}>
-              <ScrollView
-                ref={discussionTabScrollRef}
-                style={{ flex: 1 }}
-                contentContainerStyle={{
-                  flexGrow: 1,
-                  justifyContent: 'flex-end',
-                  paddingTop: theme.spacing.lg,
-                  paddingHorizontal: theme.spacing.lg,
-                  paddingBottom: theme.spacing.xs,
-                }}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="interactive"
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
-                onContentSizeChange={() => {
-                  if (activeTab === 2) scrollDiscussionToBottom(false)
-                }}
-              >
-                {commentsLoading && comments.length === 0 ? (
-                  <View style={{ paddingVertical: theme.spacing.lg, alignItems: 'center' }}>
-                    <ActivityIndicator color={theme.colors.primary} />
-                  </View>
-                ) : comments.length === 0 ? (
-                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={shared.caption}>No messages yet. Be the first to comment.</Text>
-                  </View>
-                ) : (
-                  <View style={{ gap: theme.spacing.xs }}>
-                    {comments.filter(c => !c.parent_id).map(c => (
-                      <EventCommentRow
-                        key={c.id}
-                        comment={c}
-                        replies={comments.filter(r => r.parent_id === c.id)}
-                        usernameToId={usernameToId}
-                        myId={userId}
-                        isHost={isHostOrCohost}
-                        onReply={setReplyToComment}
-                        onEdit={setEditingComment}
-                        onDelete={handleDeleteComment}
-                      />
-                    ))}
-                  </View>
-                )}
-              </ScrollView>
-
-              {userId ? (
-                <View
-                  style={{
-                    paddingHorizontal: theme.spacing.lg,
-                    paddingTop: theme.spacing.xs,
-                    paddingBottom:
-                      discussionTabKeyboardInset > 0
-                        ? discussionTabKeyboardInset + theme.spacing.sm
-                        : Math.max(insets.bottom, theme.spacing.md),
-                  }}
-                >
-                  <View onLayout={(e) => setDiscussionTabComposerHeight(Math.ceil(e.nativeEvent.layout.height))}>
-                    <DiscussionComposer
-                      showAnnouncementToggle={isHostOrCohost}
-                      mentionableUsers={mentionableUsers}
-                      onPost={handlePostComment}
-                      onFocusScroll={() => discussionTabScrollRef.current?.scrollToEnd({ animated: true })}
-                      replyToAuthor={replyToComment ? (replyToComment.profiles ? profileDisplayName(replyToComment.profiles) : 'Member') : null}
-                      onClearReply={() => setReplyToComment(null)}
-                      editingBody={editingComment?.body ?? null}
-                      onCancelEdit={() => setEditingComment(null)}
-                    />
-                  </View>
-                </View>
-              ) : (
-                <Text style={[shared.caption, { paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.lg }]}>Sign in to join the discussion.</Text>
-              )}
-            </View>
+            <DiscussionTab
+              scrollRef={discussionTabScrollRef}
+              isActive={activeTab === 2}
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              scrollToBottom={scrollDiscussionToBottom}
+              commentsLoading={commentsLoading}
+              comments={comments}
+              usernameToId={usernameToId}
+              userId={userId}
+              isHostOrCohost={isHostOrCohost}
+              onReply={setReplyToComment}
+              onEdit={setEditingComment}
+              onDelete={handleDeleteComment}
+              keyboardInset={discussionTabKeyboardInset}
+              bottomInset={insets.bottom}
+              onComposerLayout={setDiscussionTabComposerHeight}
+              mentionableUsers={mentionableUsers}
+              onPost={handlePostComment}
+              replyToComment={replyToComment}
+              editingComment={editingComment}
+              onClearReply={() => setReplyToComment(null)}
+              onCancelEdit={() => setEditingComment(null)}
+            />
 
             {/* Tab 3: Cheers */}
             <CheersTab
