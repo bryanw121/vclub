@@ -30,15 +30,9 @@ import {
   normalizeVolleyballPositions,
   normalizeVolleyballSkillLevel,
 } from '../../../utils'
-import { LinkedText } from '../../../components/LinkedText'
 import { DiscussionComposer } from '../../../components/DiscussionComposer'
 
 const EVENT_COMMENT_MAX_LEN = 2000
-
-function formatDiscussionBadgeCount(count: number): string {
-  if (count > 50) return '50+'
-  return String(count)
-}
 
 type RemoveModalState =
   | null

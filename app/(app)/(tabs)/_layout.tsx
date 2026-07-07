@@ -128,10 +128,6 @@ export default function TabsLayout() {
     setTimeout(() => router.push(path as any), 160);
   }
 
-  const onSettingsOrUserProfile =
-    pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname);
-  const showCreateOptions = activeTabIndex === 0 && !onSettingsOrUserProfile;
-
   const tabsContextValue = useMemo(() => ({
     goToTab,
     activeTabIndex,
