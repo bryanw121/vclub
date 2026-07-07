@@ -36,6 +36,13 @@ export function formatCommentTime(iso: string): string {
   })
 }
 
+/** Human duration label, e.g. "45 min" or "2h". */
+export function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`
+  const h = minutes / 60
+  return `${h}h`
+}
+
 /** Display name for lists and comments (matches event detail / attendee cards). */
 export function profileDisplayName(profile: Pick<Profile, 'username' | 'first_name' | 'last_name'>): string {
   if (profile.first_name && profile.last_name) {
