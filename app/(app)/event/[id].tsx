@@ -454,7 +454,7 @@ export default function EventDetail() {
       ] = await Promise.all([
         supabase
           .from('event_guests')
-          .select('id, event_id, status, added_by, joined_at, team_number, team_pinned, first_name, last_name')
+          .select('id, event_id, status, added_by, joined_at, team_number, team_pinned, first_name, last_name, adder:profiles!event_guests_added_by_fkey (id, username)')
           .eq('event_id', fetchId)
           .order('joined_at', { ascending: true }),
         supabase
@@ -471,15 +471,13 @@ export default function EventDetail() {
       setGuests(attendingGuests)
       setWaitlistGuests(allGuests.filter(g => g.status === 'waitlisted'))
 
-      const adderIds = [...new Set(allGuests.map(g => g.added_by))]
-      if (adderIds.length > 0) {
-        const { data: adderProfiles } = await supabase.from('profiles').select('id, username').in('id', adderIds)
-        const nameMap: Record<string, string> = {}
-        for (const p of adderProfiles ?? []) nameMap[(p as any).id] = (p as any).username
-        setAdderUsernames(nameMap)
-      } else {
-        setAdderUsernames({})
+      // Adder usernames come embedded on each guest row (no extra round-trip).
+      const nameMap: Record<string, string> = {}
+      for (const g of allGuests) {
+        const username = (g as any).adder?.username
+        if (username) nameMap[g.added_by] = username
       }
+      setAdderUsernames(nameMap)
 
       const map: Record<string, TeamAssignment> = {}
       let maxTeam = 1
@@ -508,7 +506,8 @@ export default function EventDetail() {
 
   async function handleRefresh() {
     setRefreshing(true)
-    setComments([])
+    // Don't clear comments first — fetchEvent updates them in place, so keeping
+    // the current list visible during refresh avoids an empty-flash.
     try {
       await fetchEvent({ silent: true })
     } finally {
