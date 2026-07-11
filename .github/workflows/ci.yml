@@ -28,6 +28,16 @@ jobs:
     name: Playwright E2E
     runs-on: ubuntu-latest
     needs: unit
+    # The e2e suites write to the single shared Supabase project (seed
+    # conversation sends/edits, event join/leave). Concurrent runs interfere
+    # through the DB and can exhaust connection limits — observed when three
+    # back-to-back merges spawned three parallel suites and one drowned in
+    # genuine fetch failures. Serialize e2e across ALL branches/PRs. A pending
+    # run superseded by a newer one shows as cancelled — rerun it manually if
+    # its PR still needs the check (rare at this team size).
+    concurrency:
+      group: e2e-shared-supabase
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
