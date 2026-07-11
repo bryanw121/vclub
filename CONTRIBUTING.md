@@ -59,15 +59,26 @@ Every push/PR to `main` runs `.github/workflows/ci.yml`:
   `e2e/` against it. This is the same artifact users get; a dev server is not
   a substitute.
 
-### Known flake — read before "fixing" a red e2e
+### Reading a red e2e — noise vs. signal
 
-`chat.spec.ts` (and occasionally the events join/leave test, which does live
-DB writes) intermittently fails with a wall of `TypeError: Failed to fetch` —
-Supabase network flakiness on the runner, not app code. The signature is
-*many unrelated tests failing with the same fetch error* while the tests
-covering your change pass. When you see it: `gh run rerun <id> --failed`
-before suspecting your diff. If the *same* test fails the same way twice with
-a real assertion error (not a fetch error), treat it as real.
+- **Ambient `TypeError: Failed to fetch` console noise** appears throughout
+  runs (even fully green ones): it indicates a degraded runner↔Supabase link
+  and aborted in-flight fetches. It's a *symptom*, not usually the failing
+  assertion — don't stop your diagnosis at it; find the actual `expect(...)`
+  error for the failing test.
+- **The historic flaky family** (chat context-menu, edit banner, reply
+  quotes, reactions, delete) was a fixed-wait race, not network: the app
+  intentionally ignores right-click on a message still in its optimistic
+  `_sending` state, and on a slow link the send confirmation outlived the
+  test's fixed sleep. Fixed by making `openContextMenu` retry until the menu
+  opens. If e2e flakes regress, prefer condition-based waits
+  (`expect().toPass()`, `waitFor`) over `waitForTimeout` sleeps — don't just
+  widen timeouts.
+- A test failing **twice with the same real assertion error** is real.
+  Genuine one-off infra failures still happen; `gh run rerun <id> --failed`
+  is fine *after* you've read the error, not instead of reading it.
+- The e2e write-tests (chat sends, events join/leave) hit the **live shared
+  DB** — a red can also mean seed data drifted (see **Database & test data**).
 
 ## Running locally
 
