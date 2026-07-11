@@ -213,6 +213,8 @@ export type EventGuest = {
   joined_at: string
   team_number: number | null
   team_pinned: boolean
+  /** Embedded from `profiles!event_guests_added_by_fkey` when the query requests it. */
+  adder?: Pick<Profile, 'id' | 'username'> | null
 }
 
 /**

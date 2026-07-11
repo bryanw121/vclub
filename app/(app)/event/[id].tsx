@@ -16,7 +16,7 @@ import { EventCommentRow } from '../../../components/EventCommentRow'
 import { Pager } from '../../../components/Pager'
 import { setDocScrollClaim } from '../../../lib/docScroll'
 import { shared, theme, CHEERS_MAX_PER_EVENT, LOCATIONS, TEAM_COLORS } from '../../../constants'
-import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile, MentionUser, TeamAssignment } from '../../../types'
+import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendee, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile, MentionUser, TeamAssignment } from '../../../types'
 import { CheersTab } from '../../../components/event/CheersTab'
 import { DetailsTab } from '../../../components/event/DetailsTab'
 import { DiscussionTab } from '../../../components/event/DiscussionTab'
@@ -50,7 +50,7 @@ type RemoveModalState =
       lastName: string
     }
 
-function ShareMenuItem({ icon, label, onPress, active }: { icon: string; label: string; onPress: () => void; active?: boolean }) {
+function ShareMenuItem({ icon, label, onPress, active }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; onPress: () => void; active?: boolean }) {
   const [hovered, setHovered] = useState(false)
   return (
     <Pressable
@@ -63,7 +63,7 @@ function ShareMenuItem({ icon, label, onPress, active }: { icon: string; label: 
       ]}
     >
       <Ionicons
-        name={icon as any}
+        name={icon}
         size={16}
         color={active ? theme.colors.success : theme.colors.text}
       />
@@ -196,7 +196,7 @@ export default function EventDetail() {
         const row = data as Profile
         setCurrentUserProfile({
           ...row,
-          skill_level: normalizeVolleyballSkillLevel((row as any).skill_level),
+          skill_level: normalizeVolleyballSkillLevel(row.skill_level),
         })
       }
     })
@@ -391,9 +391,9 @@ export default function EventDetail() {
       first_name: p.first_name,
       last_name: p.last_name,
       avatar_url: p.avatar_url,
-      selected_border: (p as any).selected_border ?? null,
+      selected_border: p.selected_border ?? null,
       position: normalizeVolleyballPositions(p.position),
-      skill_level: normalizeVolleyballSkillLevel((p as any).skill_level),
+      skill_level: normalizeVolleyballSkillLevel(p.skill_level),
       created_at: '',
     }
   }
@@ -474,7 +474,7 @@ export default function EventDetail() {
       // Adder usernames come embedded on each guest row (no extra round-trip).
       const nameMap: Record<string, string> = {}
       for (const g of allGuests) {
-        const username = (g as any).adder?.username
+        const username = g.adder?.username
         if (username) nameMap[g.added_by] = username
       }
       setAdderUsernames(nameMap)
@@ -736,23 +736,24 @@ export default function EventDetail() {
   }
 
   async function refreshAttendees() {
-    const { data: rows, error } = await supabase
+    const { data, error } = await supabase
       .from('event_attendees')
       .select('event_id, user_id, joined_at, team_number, team_pinned, status')
       .eq('event_id', id)
     if (error) { Alert.alert('Error', error.message); return }
+    const rows = (data ?? []) as EventAttendee[]
 
-    setEvent(prev => prev ? { ...prev, event_attendees: rows ?? [] } : prev)
+    setEvent(prev => prev ? { ...prev, event_attendees: rows } : prev)
 
-    const attendingRows = (rows ?? []).filter((a: any) => a.status === 'attending')
-    const waitlistRows = [...(rows ?? []).filter((a: any) => a.status === 'waitlisted')]
-      .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
-    const requestedRows = [...(rows ?? []).filter((a: any) => a.status === 'requested')]
-      .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
+    const attendingRows = rows.filter(a => a.status === 'attending')
+    const waitlistRows = [...rows.filter(a => a.status === 'waitlisted')]
+      .sort((a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
+    const requestedRows = [...rows.filter(a => a.status === 'requested')]
+      .sort((a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
 
-    const attendeeIds = attendingRows.map((a: any) => a.user_id)
-    const waitlistIds = waitlistRows.map((a: any) => a.user_id)
-    const requestedIds = requestedRows.map((a: any) => a.user_id)
+    const attendeeIds = attendingRows.map(a => a.user_id)
+    const waitlistIds = waitlistRows.map(a => a.user_id)
+    const requestedIds = requestedRows.map(a => a.user_id)
     const allProfileIds = [...new Set([...attendeeIds, ...waitlistIds, ...requestedIds])]
     const profilesMap = new Map<string, Profile>()
     if (allProfileIds.length > 0) {
@@ -760,7 +761,7 @@ export default function EventDetail() {
         .from('profiles')
         .select('id, username, first_name, last_name, avatar_url, position')
         .in('id', allProfileIds)
-      for (const p of profiles ?? []) profilesMap.set((p as any).id, p as Profile)
+      for (const p of (profiles ?? []) as Profile[]) profilesMap.set(p.id, p)
     }
     setAttendees(attendeeIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
     setWaitlistProfiles(waitlistIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
@@ -768,7 +769,7 @@ export default function EventDetail() {
 
     const map: Record<string, TeamAssignment> = {}
     let maxTeam = 1
-    for (const a of attendingRows as any[]) {
+    for (const a of attendingRows) {
       const t = a.team_number ?? null
       map[a.user_id] = { team: t, pinned: a.team_pinned ?? false }
       if (t && t > maxTeam) maxTeam = t
@@ -778,25 +779,22 @@ export default function EventDetail() {
       setNumTeams(prev => Math.max(prev, maxTeam))
     }
 
+    // Adder usernames come embedded on each guest row (same shape as fetchEvent).
     const { data: guestRows } = await supabase
       .from('event_guests')
-      .select('*')
+      .select('id, event_id, status, added_by, joined_at, team_number, team_pinned, first_name, last_name, adder:profiles!event_guests_added_by_fkey (id, username)')
       .eq('event_id', id)
       .order('joined_at', { ascending: true })
-    const allGuests = (guestRows ?? []) as EventGuest[]
+    const allGuests = (guestRows ?? []) as unknown as EventGuest[]
     const attendingGuests = allGuests.filter(g => g.status === 'attending')
     setGuests(attendingGuests)
     setWaitlistGuests(allGuests.filter(g => g.status === 'waitlisted'))
 
-    const adderIds = [...new Set(allGuests.map(g => g.added_by))]
-    if (adderIds.length > 0) {
-      const { data: adderProfiles } = await supabase.from('profiles').select('id, username').in('id', adderIds)
-      const nameMap: Record<string, string> = {}
-      for (const p of adderProfiles ?? []) nameMap[(p as any).id] = (p as any).username
-      setAdderUsernames(nameMap)
-    } else {
-      setAdderUsernames({})
+    const nameMap: Record<string, string> = {}
+    for (const g of allGuests) {
+      if (g.adder?.username) nameMap[g.added_by] = g.adder.username
     }
+    setAdderUsernames(nameMap)
 
     setAssignments(prev => {
       const next = { ...prev }
@@ -1187,13 +1185,13 @@ export default function EventDetail() {
   }
 
   async function handleCopyLink() {
-    await (navigator as any).clipboard.writeText(window.location.href)
+    await navigator.clipboard.writeText(window.location.href)
     setLinkCopied(true)
     setTimeout(() => setLinkCopied(false), 2000)
   }
 
   async function handleWebShare() {
-    await (navigator as any).share({ title: event?.title ?? 'Event', url: window.location.href })
+    await navigator.share({ title: event?.title ?? 'Event', url: window.location.href })
     setShareMenuVisible(false)
   }
 
@@ -1339,7 +1337,7 @@ export default function EventDetail() {
         containerOffsetY.value = rect.top
       }
     } else {
-      ;(containerRef.current as any)?.measure(
+      containerRef.current?.measure(
         (_x: number, _y: number, _w: number, _h: number, px: number, py: number) => {
           containerOffsetX.value = px
           containerOffsetY.value = py
@@ -1356,7 +1354,7 @@ export default function EventDetail() {
     setDraggingPlayerId(playerId)
     // Snapshot layout of every team drop zone
     Object.entries(teamZoneRefs.current).forEach(([key, ref]) => {
-      ;(ref as any)?.measure((_x: number, _y: number, _w: number, h: number, _px: number, py: number) => {
+      ref?.measure((_x: number, _y: number, _w: number, h: number, _px: number, py: number) => {
         teamZoneLayouts.current[key] = { top: py - 24, bottom: py + h + 24 }
       })
     })
@@ -1532,7 +1530,7 @@ export default function EventDetail() {
                     onPress={() => setShareMenuVisible(false)}
                   />
                   <View style={styles.shareMenu}>
-                    {!!(navigator as any).share && (
+                    {!!navigator.share && (
                       <ShareMenuItem icon="share-social-outline" label="Share…" onPress={handleWebShare} />
                     )}
                     <ShareMenuItem
@@ -2257,7 +2255,7 @@ export default function EventDetail() {
                     onPress={() => setShareMenuVisible(false)}
                   />
                   <View style={[styles.shareMenu, { top: 44, right: 0 }]}>
-                    {!!(navigator as any)?.share && (
+                    {!!navigator.share && (
                       <ShareMenuItem icon="share-social-outline" label="Share…" onPress={handleWebShare} />
                     )}
                     <ShareMenuItem
