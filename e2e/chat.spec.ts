@@ -66,8 +66,16 @@ async function openContextMenu(page: Page, messageText: string) {
   // can be slow); .last() targets the bubble when a reply quote also matches
   const target = page.getByText(messageText).last()
   await target.waitFor({ state: 'visible', timeout: 20000 })
-  await target.click({ button: 'right', force: true })
-  await page.waitForTimeout(600)
+  // The app intentionally ignores right-click while a message is still in its
+  // optimistic `_sending` state (MessageBubble.openActionMenu), and a freshly
+  // sent message can take several seconds to confirm on a slow CI↔Supabase
+  // link. A single forced click + fixed sleep races that guard — the historic
+  // cause of the flaky context-menu test family. Retry the click until the
+  // menu dialog actually opens.
+  await expect(async () => {
+    await target.click({ button: 'right', force: true })
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 1500 })
+  }).toPass({ timeout: 20000 })
 }
 
 // ---------------------------------------------------------------------------
