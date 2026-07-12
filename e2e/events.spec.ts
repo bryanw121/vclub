@@ -113,4 +113,35 @@ test.describe('Events', () => {
     await leaveBtn.click()
     await expect(joinBtn).toBeVisible({ timeout: 15000 })
   })
+
+  test('host adds a +1 guest, sees it on the roster, then removes it', async ({ page }) => {
+    // bryanw121 hosts the seed events, so host-only UI (+1 button, guest
+    // remove X) renders for the e2e account. Removal doubles as cleanup so
+    // the shared DB doesn't accumulate guests across runs.
+    const guestFirst = 'E2eguest'
+    const guestLast = `X${Date.now()}`
+
+    await page.getByText(OPEN_PLAY_EVENT).first().click()
+    await page.waitForURL(/\/event\//, { timeout: 20000 })
+
+    // Open the +1 modal from the sticky footer (Details tab is active by default).
+    await page.getByLabel('Add a +1 guest').first().click()
+    await expect(page.getByText('Add a +1')).toBeVisible({ timeout: 10000 })
+    await page.getByPlaceholder('First name').fill(guestFirst)
+    await page.getByPlaceholder('Last name').fill(guestLast)
+    await page.getByText('Add', { exact: true }).click()
+
+    // Guest card renders on the People tab as "First L." with an "…'s +1" note.
+    await page.getByTestId('event-tab-people').first().click()
+    const guestCardName = `${guestFirst} ${guestLast.charAt(0)}.`
+    await expect(page.getByText(guestCardName).first()).toBeVisible({ timeout: 15000 })
+
+    // Remove the guest (X → "Remove guest?" confirm modal) — cleans up.
+    await page.getByLabel(`Remove guest ${guestFirst} ${guestLast}`).first().click()
+    await expect(page.getByText('Remove guest?')).toBeVisible({ timeout: 10000 })
+    // Modal buttons arm after a short ghost-click guard delay.
+    await page.waitForTimeout(500)
+    await page.getByText('Remove', { exact: true }).click()
+    await expect(page.getByText(guestCardName)).toHaveCount(0, { timeout: 15000 })
+  })
 })
