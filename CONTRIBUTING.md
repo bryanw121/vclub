@@ -117,6 +117,28 @@ in `.env` (never committed).
 - **RLS is the security boundary.** Anything the client shouldn't be able to
   do must be blocked by policy, not by UI.
 
+## Releases & change tracking
+
+The app deploys continuously (Vercel builds `main` on every merge), so a
+"release" here is a **dated checkpoint with notes**, not an install artifact.
+Change tracking is mechanical, not manual:
+
+- **PR titles are the changelog.** Squash-merge keeps one descriptive commit
+  per change; there is no hand-maintained `CHANGELOG.md` to rot.
+- **Label your PRs** (`enhancement`, `performance`, `bug`, `security`, `test`,
+  `ci`, `documentation`) — `.github/release.yml` groups release notes by
+  those labels. Unlabeled PRs fall into "Other changes"; `skip-changelog`
+  excludes a PR entirely.
+- **Cutting a release** (when meaningful work has accumulated — after a
+  milestone, or every few weeks):
+
+  ```bash
+  gh release create vX.Y.Z --generate-notes
+  ```
+
+  Notes auto-generate from merged PRs since the previous tag. Bump
+  `package.json`'s `version` in the same breath so the two stay aligned.
+
 ## Parallel / agent work
 
 Independent `wave-1` issues can be developed concurrently — including by
