@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react'
+import React, { useEffect, useLayoutEffect, useState, useReducer, useRef, useCallback, useMemo } from 'react'
 import { Platform, View, Text, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal, Keyboard, KeyboardEvent, RefreshControl } from 'react-native'
 import { GestureDetector, Gesture } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, interpolate, Extrapolation } from 'react-native-reanimated'
@@ -16,7 +16,7 @@ import { EventCommentRow } from '../../../components/EventCommentRow'
 import { Pager } from '../../../components/Pager'
 import { setDocScrollClaim } from '../../../lib/docScroll'
 import { shared, theme, CHEERS_MAX_PER_EVENT, LOCATIONS, TEAM_COLORS } from '../../../constants'
-import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile, MentionUser, TeamAssignment } from '../../../types'
+import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendee, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile, MentionUser, TeamAssignment } from '../../../types'
 import { CheersTab } from '../../../components/event/CheersTab'
 import { DetailsTab } from '../../../components/event/DetailsTab'
 import { DiscussionTab } from '../../../components/event/DiscussionTab'
@@ -50,7 +50,57 @@ type RemoveModalState =
       lastName: string
     }
 
-function ShareMenuItem({ icon, label, onPress, active }: { icon: string; label: string; onPress: () => void; active?: boolean }) {
+// ─── Remove-confirm dialog state machine ─────────────────────────────────────
+// target / removing / buttonsReady always change together (open, arm, confirm,
+// close), so they live in one reducer instead of three coupled useStates.
+type RemoveDialogState = { target: RemoveModalState; removing: boolean; buttonsReady: boolean }
+const removeDialogInitial: RemoveDialogState = { target: null, removing: false, buttonsReady: false }
+type RemoveDialogAction =
+  | { type: 'open'; target: NonNullable<RemoveModalState> }
+  | { type: 'close' }
+  /** Buttons arm after a short delay so the ghost click that opened the dialog can't confirm it. */
+  | { type: 'armButtons' }
+  | { type: 'removeStart' }
+  | { type: 'removeEnd' }
+function removeDialogReducer(s: RemoveDialogState, a: RemoveDialogAction): RemoveDialogState {
+  switch (a.type) {
+    case 'open': return { target: a.target, removing: false, buttonsReady: false }
+    case 'close': return removeDialogInitial
+    case 'armButtons': return { ...s, buttonsReady: true }
+    case 'removeStart': return { ...s, removing: true }
+    case 'removeEnd': return { ...s, removing: false }
+  }
+}
+
+// ─── Add-guest (+1) modal state machine ──────────────────────────────────────
+type GuestModalState = { visible: boolean; firstName: string; lastName: string; adding: boolean }
+const guestModalInitial: GuestModalState = { visible: false, firstName: '', lastName: '', adding: false }
+type GuestModalAction =
+  | { type: 'open' }
+  /** Backdrop / hardware-back dismiss — hides but keeps the draft (matches prior behavior). */
+  | { type: 'dismiss' }
+  /** Cancel button — hides and clears the draft. */
+  | { type: 'cancel' }
+  | { type: 'setFirstName'; value: string }
+  | { type: 'setLastName'; value: string }
+  | { type: 'addStart' }
+  /** Guest saved — close, clear, stop the spinner. */
+  | { type: 'addSuccess' }
+  | { type: 'addEnd' }
+function guestModalReducer(s: GuestModalState, a: GuestModalAction): GuestModalState {
+  switch (a.type) {
+    case 'open': return { ...s, visible: true }
+    case 'dismiss': return { ...s, visible: false }
+    case 'cancel': return guestModalInitial
+    case 'setFirstName': return { ...s, firstName: a.value }
+    case 'setLastName': return { ...s, lastName: a.value }
+    case 'addStart': return { ...s, adding: true }
+    case 'addSuccess': return guestModalInitial
+    case 'addEnd': return { ...s, adding: false }
+  }
+}
+
+function ShareMenuItem({ icon, label, onPress, active }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; onPress: () => void; active?: boolean }) {
   const [hovered, setHovered] = useState(false)
   return (
     <Pressable
@@ -63,7 +113,7 @@ function ShareMenuItem({ icon, label, onPress, active }: { icon: string; label: 
       ]}
     >
       <Ionicons
-        name={icon as any}
+        name={icon}
         size={16}
         color={active ? theme.colors.success : theme.colors.text}
       />
@@ -112,19 +162,14 @@ export default function EventDetail() {
   const discussionSheetTranslateY = useSharedValue(0)
   const discussionBackdropOpacity = useSharedValue(0)
 
-  const [removeModal, setRemoveModal] = useState<RemoveModalState>(null)
-  const [removingAttendee, setRemovingAttendee] = useState(false)
-  const [removeModalButtonsReady, setRemoveModalButtonsReady] = useState(false)
+  const [removeDialog, dispatchRemoveDialog] = useReducer(removeDialogReducer, removeDialogInitial)
 
 
 
   const [guests, setGuests] = useState<EventGuest[]>([])
   const [waitlistGuests, setWaitlistGuests] = useState<EventGuest[]>([])
   const [adderUsernames, setAdderUsernames] = useState<Record<string, string>>({})
-  const [guestModalVisible, setGuestModalVisible] = useState(false)
-  const [guestFirstName, setGuestFirstName] = useState('')
-  const [guestLastName, setGuestLastName] = useState('')
-  const [addingGuest, setAddingGuest] = useState(false)
+  const [guestModal, dispatchGuestModal] = useReducer(guestModalReducer, guestModalInitial)
 
   const [numTeams, setNumTeams] = useState(2)
   const [assignments, setAssignments] = useState<Record<string, TeamAssignment>>({})
@@ -196,7 +241,7 @@ export default function EventDetail() {
         const row = data as Profile
         setCurrentUserProfile({
           ...row,
-          skill_level: normalizeVolleyballSkillLevel((row as any).skill_level),
+          skill_level: normalizeVolleyballSkillLevel(row.skill_level),
         })
       }
     })
@@ -212,10 +257,10 @@ export default function EventDetail() {
   // After the remove modal renders, allow interaction after a short delay so the
   // ghost mouseup/pointerup from the X button click can't immediately dismiss it.
   useEffect(() => {
-    if (removeModal === null) { setRemoveModalButtonsReady(false); return }
-    const t = setTimeout(() => setRemoveModalButtonsReady(true), 250)
+    if (removeDialog.target === null) return
+    const t = setTimeout(() => dispatchRemoveDialog({ type: 'armButtons' }), 250)
     return () => clearTimeout(t)
-  }, [removeModal])
+  }, [removeDialog.target])
 
   const closeDiscussionDrawer = useCallback(() => {
     setDiscussionDrawerOpen(false)
@@ -391,9 +436,9 @@ export default function EventDetail() {
       first_name: p.first_name,
       last_name: p.last_name,
       avatar_url: p.avatar_url,
-      selected_border: (p as any).selected_border ?? null,
+      selected_border: p.selected_border ?? null,
       position: normalizeVolleyballPositions(p.position),
-      skill_level: normalizeVolleyballSkillLevel((p as any).skill_level),
+      skill_level: normalizeVolleyballSkillLevel(p.skill_level),
       created_at: '',
     }
   }
@@ -474,7 +519,7 @@ export default function EventDetail() {
       // Adder usernames come embedded on each guest row (no extra round-trip).
       const nameMap: Record<string, string> = {}
       for (const g of allGuests) {
-        const username = (g as any).adder?.username
+        const username = g.adder?.username
         if (username) nameMap[g.added_by] = username
       }
       setAdderUsernames(nameMap)
@@ -736,23 +781,24 @@ export default function EventDetail() {
   }
 
   async function refreshAttendees() {
-    const { data: rows, error } = await supabase
+    const { data, error } = await supabase
       .from('event_attendees')
       .select('event_id, user_id, joined_at, team_number, team_pinned, status')
       .eq('event_id', id)
     if (error) { Alert.alert('Error', error.message); return }
+    const rows = (data ?? []) as EventAttendee[]
 
-    setEvent(prev => prev ? { ...prev, event_attendees: rows ?? [] } : prev)
+    setEvent(prev => prev ? { ...prev, event_attendees: rows } : prev)
 
-    const attendingRows = (rows ?? []).filter((a: any) => a.status === 'attending')
-    const waitlistRows = [...(rows ?? []).filter((a: any) => a.status === 'waitlisted')]
-      .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
-    const requestedRows = [...(rows ?? []).filter((a: any) => a.status === 'requested')]
-      .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
+    const attendingRows = rows.filter(a => a.status === 'attending')
+    const waitlistRows = [...rows.filter(a => a.status === 'waitlisted')]
+      .sort((a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
+    const requestedRows = [...rows.filter(a => a.status === 'requested')]
+      .sort((a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
 
-    const attendeeIds = attendingRows.map((a: any) => a.user_id)
-    const waitlistIds = waitlistRows.map((a: any) => a.user_id)
-    const requestedIds = requestedRows.map((a: any) => a.user_id)
+    const attendeeIds = attendingRows.map(a => a.user_id)
+    const waitlistIds = waitlistRows.map(a => a.user_id)
+    const requestedIds = requestedRows.map(a => a.user_id)
     const allProfileIds = [...new Set([...attendeeIds, ...waitlistIds, ...requestedIds])]
     const profilesMap = new Map<string, Profile>()
     if (allProfileIds.length > 0) {
@@ -760,7 +806,7 @@ export default function EventDetail() {
         .from('profiles')
         .select('id, username, first_name, last_name, avatar_url, position')
         .in('id', allProfileIds)
-      for (const p of profiles ?? []) profilesMap.set((p as any).id, p as Profile)
+      for (const p of (profiles ?? []) as Profile[]) profilesMap.set(p.id, p)
     }
     setAttendees(attendeeIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
     setWaitlistProfiles(waitlistIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
@@ -768,7 +814,7 @@ export default function EventDetail() {
 
     const map: Record<string, TeamAssignment> = {}
     let maxTeam = 1
-    for (const a of attendingRows as any[]) {
+    for (const a of attendingRows) {
       const t = a.team_number ?? null
       map[a.user_id] = { team: t, pinned: a.team_pinned ?? false }
       if (t && t > maxTeam) maxTeam = t
@@ -778,25 +824,22 @@ export default function EventDetail() {
       setNumTeams(prev => Math.max(prev, maxTeam))
     }
 
+    // Adder usernames come embedded on each guest row (same shape as fetchEvent).
     const { data: guestRows } = await supabase
       .from('event_guests')
-      .select('*')
+      .select('id, event_id, status, added_by, joined_at, team_number, team_pinned, first_name, last_name, adder:profiles!event_guests_added_by_fkey (id, username)')
       .eq('event_id', id)
       .order('joined_at', { ascending: true })
-    const allGuests = (guestRows ?? []) as EventGuest[]
+    const allGuests = (guestRows ?? []) as unknown as EventGuest[]
     const attendingGuests = allGuests.filter(g => g.status === 'attending')
     setGuests(attendingGuests)
     setWaitlistGuests(allGuests.filter(g => g.status === 'waitlisted'))
 
-    const adderIds = [...new Set(allGuests.map(g => g.added_by))]
-    if (adderIds.length > 0) {
-      const { data: adderProfiles } = await supabase.from('profiles').select('id, username').in('id', adderIds)
-      const nameMap: Record<string, string> = {}
-      for (const p of adderProfiles ?? []) nameMap[(p as any).id] = (p as any).username
-      setAdderUsernames(nameMap)
-    } else {
-      setAdderUsernames({})
+    const nameMap: Record<string, string> = {}
+    for (const g of allGuests) {
+      if (g.adder?.username) nameMap[g.added_by] = g.adder.username
     }
+    setAdderUsernames(nameMap)
 
     setAssignments(prev => {
       const next = { ...prev }
@@ -1036,17 +1079,17 @@ export default function EventDetail() {
   }
 
   async function handleAddGuest() {
-    if (!userId || !guestFirstName.trim() || !guestLastName.trim()) return
+    if (!userId || !guestModal.firstName.trim() || !guestModal.lastName.trim()) return
     try {
-      setAddingGuest(true)
+      dispatchGuestModal({ type: 'addStart' })
       const attendingCount = eventAttendeeRows(event ?? { event_attendees: [] }).filter(a => a.status === 'attending').length + guests.length
       const isFull = event?.max_attendees ? attendingCount >= event.max_attendees : false
       const status = isFull ? 'waitlisted' : 'attending'
       const { data, error } = await supabase.from('event_guests').insert({
         event_id: id,
         added_by: userId,
-        first_name: guestFirstName.trim(),
-        last_name: guestLastName.trim(),
+        first_name: guestModal.firstName.trim(),
+        last_name: guestModal.lastName.trim(),
         status,
       }).select().single()
       if (error) throw error
@@ -1060,42 +1103,41 @@ export default function EventDetail() {
       if (currentUserProfile && !adderUsernames[userId]) {
         setAdderUsernames(prev => ({ ...prev, [userId]: currentUserProfile.username }))
       }
-      setGuestFirstName('')
-      setGuestLastName('')
-      setGuestModalVisible(false)
+      dispatchGuestModal({ type: 'addSuccess' })
     } catch (e: any) {
       sentryError('handleAddGuest', e)
       Alert.alert('Error', 'Something went wrong. Please try again.')
     } finally {
-      setAddingGuest(false)
+      dispatchGuestModal({ type: 'addEnd' })
     }
   }
 
   function openRemoveGuestModal(g: EventGuest) {
-    if (removeModal !== null) return
-    setRemoveModal({ kind: 'guest', guestId: g.id, firstName: g.first_name, lastName: g.last_name })
+    if (removeDialog.target !== null) return
+    dispatchRemoveDialog({ type: 'open', target: { kind: 'guest', guestId: g.id, firstName: g.first_name, lastName: g.last_name } })
   }
 
   function openRemoveAttendeeModal(profile: Profile) {
-    if (removeModal !== null) return
-    setRemoveModal({
+    if (removeDialog.target !== null) return
+    dispatchRemoveDialog({ type: 'open', target: {
       kind: 'attendee',
       userId: profile.id,
       firstName: profile.first_name,
       lastName: profile.last_name,
       username: profile.username,
-    })
+    } })
   }
 
   async function confirmRemoveFromModal() {
     // confirmRemoveFromModal start
-    if (!removeModal) return
+    const target = removeDialog.target
+    if (!target) return
     try {
-      setRemovingAttendee(true)
-      if (removeModal.kind === 'guest') {
-        const { data, error } = await supabase.from('event_guests').delete().eq('id', removeModal.guestId).select()
+      dispatchRemoveDialog({ type: 'removeStart' })
+      if (target.kind === 'guest') {
+        const { data, error } = await supabase.from('event_guests').delete().eq('id', target.guestId).select()
         if (error) {
-          sentryError('confirmRemoveFromModal:guest', error, { guestId: removeModal.guestId })
+          sentryError('confirmRemoveFromModal:guest', error, { guestId: target.guestId })
           Alert.alert('Error', error.message)
           return
         }
@@ -1111,15 +1153,15 @@ export default function EventDetail() {
           .from('event_attendees')
           .delete()
           .eq('event_id', id)
-          .eq('user_id', removeModal.userId)
+          .eq('user_id', target.userId)
           .select()
         if (error) {
-          sentryError('confirmRemoveFromModal:attendee', error, { removedUserId: removeModal.userId })
+          sentryError('confirmRemoveFromModal:attendee', error, { removedUserId: target.userId })
           Alert.alert('Error', error.message)
           return
         }
         if (!data?.length) {
-          sentryError('confirmRemoveFromModal:attendee', new Error('Delete returned empty — missing RLS policy'), { removedUserId: removeModal.userId })
+          sentryError('confirmRemoveFromModal:attendee', new Error('Delete returned empty — missing RLS policy'), { removedUserId: target.userId })
           Alert.alert(
             'Could not remove',
             'Nothing was deleted. As host, add the Supabase policy so hosts can remove other attendees — run supabase/event_host_remove_attendees.sql in the SQL editor.'
@@ -1127,22 +1169,22 @@ export default function EventDetail() {
           return
         }
       }
-      if (removeModal.kind === 'guest') {
-        setGuests(prev => prev.filter(g => g.id !== removeModal.guestId))
-        setWaitlistGuests(prev => prev.filter(g => g.id !== removeModal.guestId))
-        setAssignments(prev => { const next = { ...prev }; delete next[removeModal.guestId]; return next })
+      if (target.kind === 'guest') {
+        setGuests(prev => prev.filter(g => g.id !== target.guestId))
+        setWaitlistGuests(prev => prev.filter(g => g.id !== target.guestId))
+        setAssignments(prev => { const next = { ...prev }; delete next[target.guestId]; return next })
       } else {
-        setAttendees(prev => prev.filter(p => p.id !== removeModal.userId))
-        setWaitlistProfiles(prev => prev.filter(p => p.id !== removeModal.userId))
-        setAssignments(prev => { const next = { ...prev }; delete next[removeModal.userId]; return next })
+        setAttendees(prev => prev.filter(p => p.id !== target.userId))
+        setWaitlistProfiles(prev => prev.filter(p => p.id !== target.userId))
+        setAssignments(prev => { const next = { ...prev }; delete next[target.userId]; return next })
         setEvent(prev => prev ? {
           ...prev,
-          event_attendees: (prev.event_attendees ?? []).filter((a: any) => a.user_id !== removeModal.userId),
+          event_attendees: (prev.event_attendees ?? []).filter((a: any) => a.user_id !== target.userId),
         } as EventWithDetails : prev)
       }
-      setRemoveModal(null)
+      dispatchRemoveDialog({ type: 'close' })
     } finally {
-      setRemovingAttendee(false)
+      dispatchRemoveDialog({ type: 'removeEnd' })
     }
   }
 
@@ -1187,13 +1229,13 @@ export default function EventDetail() {
   }
 
   async function handleCopyLink() {
-    await (navigator as any).clipboard.writeText(window.location.href)
+    await navigator.clipboard.writeText(window.location.href)
     setLinkCopied(true)
     setTimeout(() => setLinkCopied(false), 2000)
   }
 
   async function handleWebShare() {
-    await (navigator as any).share({ title: event?.title ?? 'Event', url: window.location.href })
+    await navigator.share({ title: event?.title ?? 'Event', url: window.location.href })
     setShareMenuVisible(false)
   }
 
@@ -1339,7 +1381,7 @@ export default function EventDetail() {
         containerOffsetY.value = rect.top
       }
     } else {
-      ;(containerRef.current as any)?.measure(
+      containerRef.current?.measure(
         (_x: number, _y: number, _w: number, _h: number, px: number, py: number) => {
           containerOffsetX.value = px
           containerOffsetY.value = py
@@ -1356,7 +1398,7 @@ export default function EventDetail() {
     setDraggingPlayerId(playerId)
     // Snapshot layout of every team drop zone
     Object.entries(teamZoneRefs.current).forEach(([key, ref]) => {
-      ;(ref as any)?.measure((_x: number, _y: number, _w: number, h: number, _px: number, py: number) => {
+      ref?.measure((_x: number, _y: number, _w: number, h: number, _px: number, py: number) => {
         teamZoneLayouts.current[key] = { top: py - 24, bottom: py + h + 24 }
       })
     })
@@ -1491,7 +1533,7 @@ export default function EventDetail() {
         // Doc-scroll mode: auto height so content extends the document (body scrolls)
         docScrollActive ? ({ minHeight: '100dvh' } as any) : { flex: 1 },
       ]}
-      pointerEvents={(removeModal !== null || denyModal !== null) ? 'none' : 'auto'}
+      pointerEvents={(removeDialog.target !== null || denyModal !== null) ? 'none' : 'auto'}
       onLayout={() => { measureContainerOffset() }}
     >
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
@@ -1532,7 +1574,7 @@ export default function EventDetail() {
                     onPress={() => setShareMenuVisible(false)}
                   />
                   <View style={styles.shareMenu}>
-                    {!!(navigator as any).share && (
+                    {!!navigator.share && (
                       <ShareMenuItem icon="share-social-outline" label="Share…" onPress={handleWebShare} />
                     )}
                     <ShareMenuItem
@@ -1856,7 +1898,7 @@ export default function EventDetail() {
                 </View>
                 {(eventStatus.isAttending || eventStatus.isOwner) && (
                   <TouchableOpacity
-                    onPress={() => setGuestModalVisible(true)}
+                    onPress={() => dispatchGuestModal({ type: 'open' })}
                     hitSlop={8}
                     accessibilityLabel="Add a +1 guest"
                     style={{
@@ -1984,37 +2026,37 @@ export default function EventDetail() {
       </Modal>
 
       {/* Add guest modal */}
-      <Modal visible={guestModalVisible} transparent animationType="fade" onRequestClose={() => setGuestModalVisible(false)}>
+      <Modal visible={guestModal.visible} transparent animationType="fade" onRequestClose={() => dispatchGuestModal({ type: 'dismiss' })}>
         <TouchableOpacity
           style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' }}
           activeOpacity={1}
-          onPress={() => setGuestModalVisible(false)}
+          onPress={() => dispatchGuestModal({ type: 'dismiss' })}
         >
           <TouchableOpacity activeOpacity={1} onPress={() => {}}>
             <View style={{ backgroundColor: theme.colors.card, borderRadius: theme.radius.lg, padding: theme.spacing.xl, width: 300, gap: theme.spacing.md }}>
               <Text style={{ fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>Add a +1</Text>
               <Input
                 placeholder="First name"
-                value={guestFirstName}
-                onChangeText={setGuestFirstName}
+                value={guestModal.firstName}
+                onChangeText={value => dispatchGuestModal({ type: 'setFirstName', value })}
                 autoCapitalize="words"
               />
               <Input
                 placeholder="Last name"
-                value={guestLastName}
-                onChangeText={setGuestLastName}
+                value={guestModal.lastName}
+                onChangeText={value => dispatchGuestModal({ type: 'setLastName', value })}
                 autoCapitalize="words"
               />
               <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
                 <View style={{ flex: 1 }}>
-                  <Button label="Cancel" onPress={() => { setGuestModalVisible(false); setGuestFirstName(''); setGuestLastName('') }} variant="secondary" />
+                  <Button label="Cancel" onPress={() => dispatchGuestModal({ type: 'cancel' })} variant="secondary" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Button
                     label="Add"
                     onPress={handleAddGuest}
-                    loading={addingGuest}
-                    disabled={!guestFirstName.trim() || !guestLastName.trim()}
+                    loading={guestModal.adding}
+                    disabled={!guestModal.firstName.trim() || !guestModal.lastName.trim()}
                   />
                 </View>
               </View>
@@ -2147,11 +2189,11 @@ export default function EventDetail() {
       {/* Remove attendee / guest — host confirmation
           Use backdrop Pressable + card as siblings (not nested TouchableOpacity). Nested touchables
           let Cancel bubble to the backdrop and cause a double-close / flash. */}
-      <Modal visible={removeModal !== null} transparent animationType="fade" onRequestClose={() => { if (!removingAttendee && removeModalButtonsReady) setRemoveModal(null) }}>
+      <Modal visible={removeDialog.target !== null} transparent animationType="fade" onRequestClose={() => { if (!removeDialog.removing && removeDialog.buttonsReady) dispatchRemoveDialog({ type: 'close' }) }}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <Pressable
             style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }]}
-            onPress={() => { if (!removingAttendee && removeModalButtonsReady) setRemoveModal(null) }}
+            onPress={() => { if (!removeDialog.removing && removeDialog.buttonsReady) dispatchRemoveDialog({ type: 'close' }) }}
           />
           <TouchableOpacity activeOpacity={1} onPress={() => {}}
             style={{
@@ -2165,21 +2207,21 @@ export default function EventDetail() {
             }}
           >
             <Text style={{ fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
-              {removeModal?.kind === 'guest' ? 'Remove guest?' : 'Remove attendee?'}
+              {removeDialog.target?.kind === 'guest' ? 'Remove guest?' : 'Remove attendee?'}
             </Text>
             <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>
               This person will be removed from the event. They can rejoin if there is space.
             </Text>
                 <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginTop: theme.spacing.xs }}>
                 <View style={{ flex: 1 }}>
-                <Button label="Cancel" onPress={() => setRemoveModal(null)} variant="secondary" disabled={removingAttendee || !removeModalButtonsReady} />
+                <Button label="Cancel" onPress={() => dispatchRemoveDialog({ type: 'close' })} variant="secondary" disabled={removeDialog.removing || !removeDialog.buttonsReady} />
                 </View>
               <View style={{ flex: 1 }}>
                 <Button
                   label="Remove"
                   onPress={() => { void confirmRemoveFromModal() }}
-                  loading={removingAttendee}
-                  disabled={removingAttendee || !removeModalButtonsReady}
+                  loading={removeDialog.removing}
+                  disabled={removeDialog.removing || !removeDialog.buttonsReady}
                   variant="danger"
                 />
               </View>
@@ -2257,7 +2299,7 @@ export default function EventDetail() {
                     onPress={() => setShareMenuVisible(false)}
                   />
                   <View style={[styles.shareMenu, { top: 44, right: 0 }]}>
-                    {!!(navigator as any)?.share && (
+                    {!!navigator.share && (
                       <ShareMenuItem icon="share-social-outline" label="Share…" onPress={handleWebShare} />
                     )}
                     <ShareMenuItem
