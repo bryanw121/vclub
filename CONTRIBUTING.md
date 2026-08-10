@@ -7,7 +7,14 @@ environment (single mainline + one Supabase project since July 2026).
 Code conventions (types, theme tokens, shared styles, gesture layering, data
 fetching rules) live in [`CLAUDE.md`](CLAUDE.md) — read it before your first
 change. This file covers **process**: how work is tracked, branched, verified,
-and merged.
+and merged, plus the **shared invariants** below that have each caused a real
+bug.
+
+> ⚠️ `CLAUDE.md`'s **Database Schema** section is stale — it describes three
+> tables from the original build. The live schema has many more (clubs,
+> tournaments, cheers, badges, notifications, chat). Treat `types/index.ts` and
+> the live database as the source of truth for schema, and `CLAUDE.md` as the
+> source of truth for conventions.
 
 ## Workflow
 
@@ -82,6 +89,15 @@ Every push/PR to `main` runs `.github/workflows/ci.yml`:
 
 ## Running locally
 
+**Node 20 or newer is required.** CI pins Node 20. On Node 18 the web export
+dies in Metro with `TypeError: configs.toReversed is not a function`
+(`Array.prototype.toReversed` is Node 20+), which looks like a code error but
+is purely the runtime. Check `node --version` before debugging a build failure:
+
+```bash
+nvm use 20              # or any 20+; v22 is known good
+```
+
 ```bash
 npm ci
 npx expo start            # dev: iOS / Android / web from Expo dev tools
@@ -98,6 +114,25 @@ npx playwright test       # or: npx playwright test e2e/events.spec.ts
 
 Environment: put `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 in `.env` (never committed).
+
+## Writing tests
+
+Unit tests live in `__tests__/*.test.ts(x)` and run under `jest-expo`.
+`jest.setup.js` already mocks AsyncStorage and supplies placeholder Supabase
+env vars, so importing a module that pulls in `lib/supabase` works without a
+network or a real `.env`. Unit tests must never hit the network.
+
+- **Test the pure part.** Where logic is worth asserting but lives next to a
+  query, split it out — `planBadgeAwards` is the pure half of
+  `checkAndAwardBadges` precisely so threshold rules are testable with no DB.
+- **Prove the guard isn't vacuous.** After writing a regression test,
+  re-introduce the bug and confirm it goes red. A test that passes against the
+  broken code is worse than no test — it advertises coverage that isn't there.
+- **Assert on stable identifiers in e2e.** Don't key a test on a member's
+  display name, event title, or anything a user can edit. One chat test
+  hard-coded a first/last name; the member renamed themselves and the test
+  went red with nothing wrong in the code. Prefer `@username`, a `testID`, or a
+  role — and see **Database & test data** for how seeds drift.
 
 ## Database & test data
 
@@ -116,6 +151,93 @@ in `.env` (never committed).
   relative-date fix is tracked in #12).
 - **RLS is the security boundary.** Anything the client shouldn't be able to
   do must be blocked by policy, not by UI.
+
+## Working on a live app
+
+vclub has real users on a single production Supabase project. There is no
+staging environment to catch a mistake, so:
+
+- **Backwards compatibility is the default.** Widen before you narrow: add a
+  column/field and keep reading the old one until nothing writes it. Never
+  rename or drop something the deployed client still reads — the web app
+  updates on merge, but installed native builds lag.
+- **Every rendering helper must survive incomplete data.** Most profile fields
+  are nullable and many real accounts only partially fill them out. Assume any
+  `first_name`, `last_name`, `avatar_url`, `bio`, or `position` can be null or
+  an empty string. Bugs here are invisible in dev (where your own account is
+  complete) and obvious to users.
+- **A user-visible presentation change is a product decision.** Anything that
+  changes what other members can see about someone — how much of their name
+  renders, what a profile exposes — gets raised before it ships, not after.
+  Where the call is reversible, put it behind a single named constant rather
+  than spreading the decision across call sites (see `DISPLAY_NAME_FORMAT`).
+- **RLS is the security boundary**, not the UI. If the client shouldn't be able
+  to do it, a policy must forbid it.
+- **Some data is granted by hand.** The Vex badge (`vex_spirit`) is never
+  auto-awarded — `VEX_MEMBER_ACTIVE` is `false` and rows are inserted manually.
+  Automated logic must never revoke, downgrade, or duplicate a badge it didn't
+  award. When writing such a grant, select the target by a stable key rather
+  than pasting a UUID, so the statement is idempotent and safe to replay:
+
+  ```sql
+  insert into user_badges (user_id, badge_type, tier)
+  select id, 'vex_spirit', 1 from profiles where username = 'someone'
+  on conflict do nothing;
+  ```
+
+## Shared invariants
+
+These have each been a real bug. Use the shared helper; don't re-derive the
+rule inline.
+
+### Member display names — `utils/index.ts`
+
+| Use | Helper |
+|---|---|
+| Anywhere a member appears in shared UI (rosters, comments, chat, clubs) | `profileDisplayName(profile)` |
+| A profile page header | `profileFullName(profile)` |
+| Avatar placeholder initials | `profileInitial(profile)` |
+
+Never write `[first_name, last_name].filter(Boolean).join(' ') || username`
+inline — there were once five divergent copies of that expression, and the
+shared one required *both* names before using either, so members who filled in
+only a first name silently rendered as their username on every event roster.
+The helper falls back first name → last name → username → `'Member'`, and
+treats whitespace-only values as unset.
+
+`DISPLAY_NAME_FORMAT` switches full ("Jordan Rivera") vs abbreviated
+("Jordan R."). `profileFullName` deliberately ignores it.
+
+### Member search — `buildMemberSearchFilter(term)`
+
+Never interpolate user input into a PostgREST `.or()` filter. PostgREST parses
+`or=(...)` as a comma-separated logic tree, so raw input corrupts it:
+
+- a comma (`Smith, John`) → **HTTP 400**, search breaks outright
+- a `)` → **HTTP 200 with wrong rows** — the filter silently truncates
+
+`buildMemberSearchFilter` quotes the value and strips LIKE/PostgREST wildcards
+(`%`, `_`, `*`) so a term can't match far more than typed. It returns `null`
+when nothing searchable remains — skip the query rather than fetching every
+profile.
+
+### Data fetching
+
+Beyond the rules in [`CLAUDE.md`](CLAUDE.md):
+
+- **Don't defeat a cache you just wrote.** `useBadges` maintains a 10-minute
+  memory + AsyncStorage cache; a single `fetchBadges(true)` in a focus effect
+  bypassed both on every visit to the tab. Pass `force` only for an explicit
+  user action (pull-to-refresh) or a write that invalidates the data.
+- **Throttle expensive derived work, but leave an escape hatch.**
+  `checkBadges` scans attendance and cheer history, so it's throttled — but
+  profile edits pass `force` because they can newly satisfy `profile_complete`
+  and the badge has to appear immediately.
+- **Batch writes.** Awarding used to `await` a badge insert *and* a
+  notification insert inside a loop over every badge definition. Collect the
+  work, then issue one insert.
+- **Count with `head: true`.** `select('id', { count: 'exact', head: true })` —
+  never fetch rows to call `.length` on them.
 
 ## Releases & change tracking
 
