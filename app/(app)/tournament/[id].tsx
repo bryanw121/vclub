@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient'
 import { supabase } from '../../../lib/supabase'
 import { theme, shared } from '../../../constants'
-import { profileDisplayName, resolveProfileAvatarUriSmall, formatCommentTime } from '../../../utils'
+import { profileDisplayName, resolveProfileAvatarUriSmall, formatCommentTime, buildMemberSearchFilter } from '../../../utils'
 import { DiscussionComposer } from '../../../components/DiscussionComposer'
 import { ProfileAvatar } from '../../../components/ProfileAvatar'
 import type {
@@ -408,11 +408,13 @@ export default function TournamentDetailScreen() {
 
   useEffect(() => {
     if (!inviteQuery.trim() || !myTeam) { setInviteResults([]); return }
+    const searchFilter = buildMemberSearchFilter(inviteQuery)
+    if (!searchFilter) { setInviteResults([]); return }
     const t = setTimeout(async () => {
       const { data } = await supabase
         .from('profiles')
         .select('id, username, first_name, last_name, avatar_url')
-        .or(`username.ilike.%${inviteQuery}%,first_name.ilike.%${inviteQuery}%,last_name.ilike.%${inviteQuery}%`)
+        .or(searchFilter)
         .neq('id', myId ?? '')
         .limit(20)
       setInviteResults((data ?? []) as Profile[])
