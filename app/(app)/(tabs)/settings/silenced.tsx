@@ -13,11 +13,12 @@ import { useFocusEffect } from 'expo-router'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { useSilencedUsers } from '../../../../hooks/useSilencedUsers'
 import { shared, theme } from '../../../../constants'
-import { profileAvatarSmallUri } from '../../../../utils'
+import { profileAvatarSmallUri, profileDisplayName } from '../../../../utils'
 
+/** "Unknown" for a missing profile; otherwise the shared member display name. */
 function displayName(p: { first_name: string | null; last_name: string | null; username: string } | null) {
   if (!p) return 'Unknown'
-  return [p.first_name, p.last_name].filter(Boolean).join(' ') || p.username
+  return profileDisplayName(p)
 }
 
 export default function SilencedPeopleScreen() {

@@ -11,7 +11,7 @@ import { ProfileAvatar } from '../../../components/ProfileAvatar'
 import { Toast } from '../../../components/Toast'
 import { BADGE_DEFINITIONS } from '../../../constants/badges'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
-import { resolveProfileAvatarUriWithError, normalizeVolleyballSkillLevel, volleyballSkillLevelLabel } from '../../../utils'
+import { resolveProfileAvatarUriWithError, normalizeVolleyballSkillLevel, volleyballSkillLevelLabel, profileFullName } from '../../../utils'
 import type { Profile, UserBadge } from '../../../types'
 
 const POS_ABBREV: Record<string, string> = {
@@ -131,9 +131,7 @@ export default function UserProfileDetail() {
     showToast(`${displayName || 'Player'} has been reported to the Vclub team.`, 'success')
   }
 
-  const displayName = profile
-    ? ([profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.username)
-    : ''
+  const displayName = profile ? profileFullName(profile) : ''
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>

@@ -12,13 +12,16 @@ import { useConversations } from '../../../hooks/useConversations'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
 import { useTabsContext } from '../../../contexts/tabs'
 import { timeAgo, lastMessagePreview } from '../../../utils/chatUtils'
-import { profileAvatarSmallUri } from '../../../utils'
+import { profileAvatarSmallUri, profileDisplayName } from '../../../utils'
 import type { ConversationRow, Profile } from '../../../types'
 
 function conversationTitle(row: ConversationRow): string {
   if (row.type === 'club') return row.club_name ?? 'Club Chat'
-  const parts = [row.other_user_first_name, row.other_user_last_name].filter(Boolean)
-  return parts.length ? parts.join(' ') : (row.other_user_username ?? 'Direct Message')
+  return profileDisplayName({
+    username: row.other_user_username ?? 'Direct Message',
+    first_name: row.other_user_first_name,
+    last_name: row.other_user_last_name,
+  })
 }
 
 // ── User search for starting a new DM ─────────────────────────────────────────
@@ -93,7 +96,7 @@ function NewDMModal({ visible, onDismiss, onSelect, silencedUserIds }: {
             data={results.filter(p => !silencedUserIds.has(p.id))}
             keyExtractor={p => p.id}
             renderItem={({ item }) => {
-              const name = [item.first_name, item.last_name].filter(Boolean).join(' ') || item.username
+              const name = profileDisplayName(item)
               return (
                 <TouchableOpacity
                   onPress={() => {
