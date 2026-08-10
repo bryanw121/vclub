@@ -43,19 +43,106 @@ export function formatDuration(minutes: number): string {
   return `${h}h`
 }
 
-/** Display name for lists and comments (matches event detail / attendee cards). */
-export function profileDisplayName(profile: Pick<Profile, 'username' | 'first_name' | 'last_name'>): string {
-  if (profile.first_name && profile.last_name) {
-    return `${profile.first_name} ${profile.last_name.charAt(0)}.`
-  }
-  return profile.username
+// ─── Member display names ─────────────────────────────────────────────────────
+
+type NameParts = Pick<Profile, 'username' | 'first_name' | 'last_name'>
+
+/**
+ * How a member's real name renders across shared surfaces (event rosters,
+ * comments, chat, clubs, tournaments).
+ *
+ *   'full'        → "Jordan Rivera"
+ *   'abbreviated' → "Jordan R."
+ *
+ * Deliberately a single switch: the last-name-visibility call is a product /
+ * privacy decision, so flipping it back is a one-line change here rather than
+ * an edit across every call site.
+ */
+export const DISPLAY_NAME_FORMAT: 'full' | 'abbreviated' = 'full'
+
+/** Trimmed value, or null when absent/blank — DB holds null *and* empty strings. */
+function cleanNamePart(value: string | null | undefined): string | null {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
 }
 
-export function profileInitial(profile: Pick<Profile, 'username' | 'first_name' | 'last_name'>): string {
-  if (profile.first_name && profile.last_name) {
-    return profile.first_name.charAt(0).toUpperCase() + profile.last_name.charAt(0).toUpperCase()
+/**
+ * The name shown for a member anywhere other than their own profile header.
+ *
+ * Falls back progressively: both names → whichever single name is set →
+ * username. Members who filled in only a first name previously fell all the
+ * way through to their username, which is why real names appeared to be
+ * "profile-only" on the events page.
+ */
+export function profileDisplayName(profile: NameParts): string {
+  const first = cleanNamePart(profile.first_name)
+  const last = cleanNamePart(profile.last_name)
+
+  if (first && last) {
+    return DISPLAY_NAME_FORMAT === 'full' ? `${first} ${last}` : `${first} ${last.charAt(0)}.`
   }
-  return profile.username.charAt(0).toUpperCase()
+  return first ?? last ?? cleanNamePart(profile.username) ?? 'Member'
+}
+
+/**
+ * The name for a profile *header* (own profile, another member's profile).
+ *
+ * Always the full real name — a profile page is where someone expects to see
+ * it in full, so this deliberately ignores `DISPLAY_NAME_FORMAT`. Flipping
+ * that switch back to 'abbreviated' must not turn a profile header into
+ * "Jordan R.".
+ */
+export function profileFullName(profile: NameParts): string {
+  const first = cleanNamePart(profile.first_name)
+  const last = cleanNamePart(profile.last_name)
+  const joined = [first, last].filter(Boolean).join(' ')
+  return joined || cleanNamePart(profile.username) || 'Member'
+}
+
+/** Avatar-placeholder initials. Mirrors `profileDisplayName`'s fallback order. */
+export function profileInitial(profile: NameParts): string {
+  const first = cleanNamePart(profile.first_name)
+  const last = cleanNamePart(profile.last_name)
+
+  if (first && last) return first.charAt(0).toUpperCase() + last.charAt(0).toUpperCase()
+  const single = first ?? last ?? cleanNamePart(profile.username)
+  return single ? single.charAt(0).toUpperCase() : '?'
+}
+
+// ─── Member search ────────────────────────────────────────────────────────────
+
+/** Columns searched by the "find a member" boxes (chat, event invite, tournament invite). */
+const MEMBER_SEARCH_COLUMNS = ['username', 'first_name', 'last_name'] as const
+
+/**
+ * Escapes one user-typed term for use as a PostgREST `ilike` value.
+ *
+ * Two separate hazards, both reachable by typing an ordinary name:
+ *  1. PostgREST parses `or=(...)` as a comma-separated logic tree, so a raw
+ *     `,` `.` `(` `)` in the term corrupts the tree — a comma 400s the request
+ *     outright, a `)` silently truncates the filter and returns wrong rows.
+ *     Wrapping the value in double quotes makes PostgREST treat it as a
+ *     literal (verified against the live API).
+ *  2. `%` and `_` are SQL LIKE wildcards and `*` is PostgREST's alias for `%`,
+ *     so leaving them in lets a term match far more than the user typed.
+ *     They're dropped, making search plain substring matching.
+ */
+export function escapeMemberSearchTerm(term: string): string {
+  return term
+    .trim()
+    .replace(/[\\"]/g, '\\$&')  // backslash + double quote — quoting's own escapes
+    .replace(/[%_*]/g, '')      // LIKE / PostgREST wildcards
+}
+
+/**
+ * Builds the `.or(...)` filter for a member search, or null when the term has
+ * no searchable characters left (caller should skip the query and show nothing
+ * rather than fetching every profile).
+ */
+export function buildMemberSearchFilter(rawTerm: string): string | null {
+  const escaped = escapeMemberSearchTerm(rawTerm)
+  if (!escaped) return null
+  return MEMBER_SEARCH_COLUMNS.map(col => `${col}.ilike."%${escaped}%"`).join(',')
 }
 
 export function cleanDate(d: Date) {

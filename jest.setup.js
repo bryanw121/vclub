@@ -5,3 +5,17 @@ const { configureInternal } = require('@testing-library/react-native/build/confi
 configureInternal({
   hostComponentNames: { text: 'Text', textInput: 'TextInput' },
 })
+
+// `lib/supabase` calls createClient() at module scope, which throws without a
+// URL. Unit tests never hit the network — they either exercise pure helpers or
+// mock the client — so stand in placeholders when a real .env isn't loaded.
+// Only fills gaps: CI supplies the real values as Actions secrets.
+process.env.EXPO_PUBLIC_SUPABASE_URL ||= 'http://localhost:54321'
+process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||= 'test-anon-key'
+
+// AsyncStorage is a native module with no JS implementation under Jest. Any test
+// that reaches `lib/supabase` (which constructs the client with an AsyncStorage
+// auth store) pulls it in transitively, so use the library's official mock.
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+)

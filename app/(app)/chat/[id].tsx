@@ -24,13 +24,14 @@ import { AnchorOptionsMenu, type AnchorRect } from '../../../components/AnchorOp
 import { MessageBubble } from '../../../components/MessageBubble'
 import { ReactionPicker } from '../../../components/ReactionPicker'
 import type { ConversationRow, MessageWithDetails, MentionUser } from '../../../types'
-import { profileAvatarSmallUri } from '../../../utils'
+import { profileAvatarSmallUri, profileDisplayName } from '../../../utils'
 
 const AVATAR_SIZE = 36
 
+/** Empty string for a missing profile; otherwise the shared member display name. */
 function displayName(p: { first_name: string | null; last_name: string | null; username: string } | null) {
   if (!p) return ''
-  return [p.first_name, p.last_name].filter(Boolean).join(' ') || p.username
+  return profileDisplayName(p)
 }
 
 export default function ChatRoomScreen() {
@@ -94,8 +95,7 @@ export default function ChatRoomScreen() {
       const users: MentionUser[] = (data ?? []).flatMap((row: any) => {
         const p = row.profiles
         if (!p) return []
-        const displayName = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.username
-        return [{ id: p.id, username: p.username, displayName }]
+        return [{ id: p.id, username: p.username, displayName: profileDisplayName(p) }]
       })
       setMentionableUsers(users)
     }

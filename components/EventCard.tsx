@@ -4,7 +4,7 @@ import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, usePathname } from 'expo-router'
 import { theme, eventAttendeeDisplayCount } from '../constants'
-import { profileAvatarSmallUri } from '../utils'
+import { profileAvatarSmallUri, profileDisplayName } from '../utils'
 import type { EventWithDetails, Tag } from '../types'
 
 // ─── Tag helpers ──────────────────────────────────────────────────────────────
@@ -157,7 +157,7 @@ function EventCardInner({
               <View style={{ flexDirection: 'row' }}>
                 {previews.map((p, i) => {
                   const uri = profileAvatarSmallUri(p.profiles?.avatar_url)
-                  const initials = p.profiles?.first_name?.[0]?.toUpperCase() ?? '?'
+                  const initials = p.profiles ? profileDisplayName(p.profiles).charAt(0).toUpperCase() : '?'
                   return (
                     <View key={p.user_id} style={{
                       width: 24, height: 24, borderRadius: 12,
@@ -367,7 +367,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp }:
             <View style={{ flexDirection: 'row' }}>
               {previews.map((p, i) => {
                 const uri = profileAvatarSmallUri(p.profiles?.avatar_url)
-                const initials = p.profiles?.first_name?.[0]?.toUpperCase() ?? '?'
+                const initials = p.profiles ? profileDisplayName(p.profiles).charAt(0).toUpperCase() : '?'
                 return (
                   <View key={p.user_id} style={{
                     width: 22, height: 22, borderRadius: 11,

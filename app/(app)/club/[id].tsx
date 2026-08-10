@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../../lib/supabase'
 import { shared, theme, CLUB_AVATARS_BUCKET, EVENT_CARD_LIST_SELECT } from '../../../constants'
-import { resolveClubAvatarUri } from '../../../utils'
+import { resolveClubAvatarUri, profileDisplayName } from '../../../utils'
 import { EventCard } from '../../../components/EventCard'
 import { MajorCityAutocomplete } from '../../../components/MajorCityAutocomplete'
 import { ClubPostCard, ClubPostComposerModal } from '../../../components/ClubPostCard'
@@ -46,9 +46,7 @@ const AVATAR_OVERLAP = AVATAR_SIZE / 2
 
 function MemberRow({ member }: { member: ClubWithDetails['club_members'][number] }) {
   const profile = member.profiles
-  const displayName = profile
-    ? [profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.username
-    : 'Unknown'
+  const displayName = profile ? profileDisplayName(profile) : 'Unknown'
   const initial = displayName.charAt(0).toUpperCase()
 
   return (
