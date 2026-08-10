@@ -141,7 +141,11 @@ test.describe('Chat', () => {
     await page.waitForTimeout(500)
     await page.getByRole('textbox').fill('jexy')
     await page.waitForTimeout(1500)
-    await page.getByText('jexy is so sexy').first().click({ force: true })
+    // Target the @username, not the display name: a member can rename
+    // themselves at any time, and this test previously hard-coded a first/last
+    // name that has since changed. The username is the stable identifier, and
+    // it's what the sibling search test asserts on.
+    await page.getByText('@jexyissexy').first().click({ force: true })
     await page.waitForTimeout(1500)
     expect(page.url()).toBe(CONVO_URL)
   })
