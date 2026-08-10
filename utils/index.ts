@@ -43,19 +43,70 @@ export function formatDuration(minutes: number): string {
   return `${h}h`
 }
 
-/** Display name for lists and comments (matches event detail / attendee cards). */
-export function profileDisplayName(profile: Pick<Profile, 'username' | 'first_name' | 'last_name'>): string {
-  if (profile.first_name && profile.last_name) {
-    return `${profile.first_name} ${profile.last_name.charAt(0)}.`
-  }
-  return profile.username
+// ─── Member display names ─────────────────────────────────────────────────────
+
+type NameParts = Pick<Profile, 'username' | 'first_name' | 'last_name'>
+
+/**
+ * How a member's real name renders across shared surfaces (event rosters,
+ * comments, chat, clubs, tournaments).
+ *
+ *   'full'        → "Jordan Rivera"
+ *   'abbreviated' → "Jordan R."
+ *
+ * Deliberately a single switch: the last-name-visibility call is a product /
+ * privacy decision, so flipping it back is a one-line change here rather than
+ * an edit across every call site.
+ */
+export const DISPLAY_NAME_FORMAT: 'full' | 'abbreviated' = 'full'
+
+/** Trimmed value, or null when absent/blank — DB holds null *and* empty strings. */
+function cleanNamePart(value: string | null | undefined): string | null {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
 }
 
-export function profileInitial(profile: Pick<Profile, 'username' | 'first_name' | 'last_name'>): string {
-  if (profile.first_name && profile.last_name) {
-    return profile.first_name.charAt(0).toUpperCase() + profile.last_name.charAt(0).toUpperCase()
+/**
+ * The name shown for a member anywhere other than their own profile header.
+ *
+ * Falls back progressively: both names → whichever single name is set →
+ * username. Members who filled in only a first name previously fell all the
+ * way through to their username, which is why real names appeared to be
+ * "profile-only" on the events page.
+ */
+export function profileDisplayName(profile: NameParts): string {
+  const first = cleanNamePart(profile.first_name)
+  const last = cleanNamePart(profile.last_name)
+
+  if (first && last) {
+    return DISPLAY_NAME_FORMAT === 'full' ? `${first} ${last}` : `${first} ${last.charAt(0)}.`
   }
-  return profile.username.charAt(0).toUpperCase()
+  return first ?? last ?? cleanNamePart(profile.username) ?? 'Member'
+}
+
+/**
+ * The name for a profile *header* (own profile, another member's profile).
+ *
+ * Always the full real name — a profile page is where someone expects to see
+ * it in full, so this deliberately ignores `DISPLAY_NAME_FORMAT`. Flipping
+ * that switch back to 'abbreviated' must not turn a profile header into
+ * "Jordan R.".
+ */
+export function profileFullName(profile: NameParts): string {
+  const first = cleanNamePart(profile.first_name)
+  const last = cleanNamePart(profile.last_name)
+  const joined = [first, last].filter(Boolean).join(' ')
+  return joined || cleanNamePart(profile.username) || 'Member'
+}
+
+/** Avatar-placeholder initials. Mirrors `profileDisplayName`'s fallback order. */
+export function profileInitial(profile: NameParts): string {
+  const first = cleanNamePart(profile.first_name)
+  const last = cleanNamePart(profile.last_name)
+
+  if (first && last) return first.charAt(0).toUpperCase() + last.charAt(0).toUpperCase()
+  const single = first ?? last ?? cleanNamePart(profile.username)
+  return single ? single.charAt(0).toUpperCase() : '?'
 }
 
 export function cleanDate(d: Date) {

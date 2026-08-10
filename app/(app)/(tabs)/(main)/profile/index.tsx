@@ -53,6 +53,7 @@ import {
   resolveProfileAvatarUriWithError,
   volleyballPositionsEqualUnordered,
   volleyballSkillLevelLabel,
+  profileFullName,
 } from '../../../../../utils'
 import type { Profile, VolleyballPosition, VolleyballSkillLevel } from '../../../../../types'
 import { useTabsContext } from '../../../../../contexts/tabs'
@@ -690,9 +691,7 @@ export default function MyProfile() {
                   Member since {new Date(profile.created_at).getFullYear().toString().slice(2)}
                 </Text>
                 <Text style={{ fontFamily: theme.fonts.display, fontSize: 22, letterSpacing: -0.5, color: '#FFFFFF', lineHeight: 24 }}>
-                  {profile.first_name && profile.last_name
-                    ? `${profile.first_name} ${profile.last_name}`
-                    : profile.username}
+                  {profileFullName(profile)}
                 </Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 2 }}>
                   {profile.position.slice(0, 2).map(pos => {

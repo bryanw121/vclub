@@ -275,7 +275,7 @@ export type EventWithDetails = Event & {
   clubs?: { id: string; name: string; avatar_url: string | null } | null
   attendee_previews?: Array<{
     user_id: string
-    profiles: Pick<Profile, 'id' | 'first_name' | 'last_name' | 'avatar_url'> | null
+    profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url'> | null
   }>
   /** Set to true for items normalized from the tournaments table. Cards use this to navigate to /tournament/[id] instead of /event/[id]. */
   _isTournament?: boolean
