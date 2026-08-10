@@ -12,7 +12,7 @@ import { useConversations } from '../../../hooks/useConversations'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
 import { useTabsContext } from '../../../contexts/tabs'
 import { timeAgo, lastMessagePreview } from '../../../utils/chatUtils'
-import { profileAvatarSmallUri, profileDisplayName } from '../../../utils'
+import { profileAvatarSmallUri, buildMemberSearchFilter, profileDisplayName } from '../../../utils'
 import type { ConversationRow, Profile } from '../../../types'
 
 function conversationTitle(row: ConversationRow): string {
@@ -37,13 +37,15 @@ function NewDMModal({ visible, onDismiss, onSelect, silencedUserIds }: {
 
   useEffect(() => {
     if (!query.trim()) { setResults([]); return }
+    const searchFilter = buildMemberSearchFilter(query)
+    if (!searchFilter) { setResults([]); return }
     const t = setTimeout(async () => {
       setSearching(true)
       const { data: { user } } = await supabase.auth.getUser()
       const { data } = await supabase
         .from('profiles')
         .select('id, username, first_name, last_name, avatar_url')
-        .or(`username.ilike.%${query.trim()}%,first_name.ilike.%${query.trim()}%,last_name.ilike.%${query.trim()}%`)
+        .or(searchFilter)
         .neq('id', user?.id ?? '')
         .limit(20)
       setResults((data ?? []) as Profile[])

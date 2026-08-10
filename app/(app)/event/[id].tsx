@@ -29,6 +29,7 @@ import {
   eventAttendeeRows,
   normalizeVolleyballPositions,
   normalizeVolleyballSkillLevel,
+  buildMemberSearchFilter,
 } from '../../../utils'
 import { DiscussionComposer } from '../../../components/DiscussionComposer'
 
@@ -563,11 +564,13 @@ export default function EventDetail() {
   async function searchCohostCandidates(query: string) {
     const q = query.trim()
     if (q.length < 2) { setCohostSearchResults([]); return }
+    const searchFilter = buildMemberSearchFilter(q)
+    if (!searchFilter) { setCohostSearchResults([]); return }
     setCohostSearching(true)
     const { data } = await supabase
       .from('profiles')
       .select('id, username, first_name, last_name, avatar_url, selected_border, position, created_at')
-      .or(`username.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
+      .or(searchFilter)
       .neq('id', userId ?? '')
       .neq('id', event?.created_by ?? '')
       .limit(10)
