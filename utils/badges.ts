@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { BADGE_DEFINITIONS, BETA_ACTIVE, VEX_MEMBER_ACTIVE, badgeTierLabel } from '../constants/badges'
+import type { BadgeDef } from '../constants/badges'
 import type { UserBadge, Profile } from '../types'
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
@@ -26,10 +27,11 @@ export async function collectBadgeStats(
   const now = new Date().toISOString()
 
   const [attendedRes, hostedRes, cheersReceivedRes, cheersGivenRes] = await Promise.all([
-    // Past events attended (status = attending, event already started)
+    // Past events attended (status = attending, event already started).
+    // head+count — only the tally is used, so the rows are never transferred.
     supabase
       .from('event_attendees')
-      .select('event_id, events!inner(event_date)')
+      .select('event_id, events!inner(event_date)', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('status', 'attending')
       .lt('events.event_date', now),
@@ -54,8 +56,8 @@ export async function collectBadgeStats(
       .eq('giver_id', userId),
   ])
 
-  // Attendee count
-  const attendedCount = (attendedRes.data ?? []).length
+  // Attendee count — from the head+count query above, so `data` is always null here
+  const attendedCount = attendedRes.count ?? 0
 
   // Hosted count + tournament check
   const hostedEvents = hostedRes.data ?? []
@@ -109,32 +111,35 @@ export async function collectBadgeStats(
  * existing tiers as needed. Fires a notification for each new award/upgrade.
  * Returns the list of newly awarded / upgraded badges.
  */
-export async function checkAndAwardBadges(
-  userId: string,
-  stats: BadgeStats,
-  existingBadges: UserBadge[],
-): Promise<UserBadge[]> {
-  const awarded: UserBadge[] = []
+/** Numeric value of the stat a badge is judged on. Booleans count as 1/0. */
+export function badgeStatValue(def: BadgeDef, stats: BadgeStats): number {
+  switch (def.stat) {
+    case 'beta_active':       return BETA_ACTIVE ? 1 : 0
+    case 'vex_member':        return VEX_MEMBER_ACTIVE ? 1 : 0
+    case 'tournament_hosted': return stats.tournament_hosted ? 1 : 0
+    case 'profile_complete':  return stats.profile_complete ? 1 : 0
+    default:                  return stats[def.stat as keyof BadgeStats] as number
+  }
+}
+
+export type BadgeAwardPlan = {
+  inserts: { badge_type: string; tier: number; label: string; description: string }[]
+  upgrades: { id: string; badge_type: string; tier: number; label: string; description: string }[]
+}
+
+/**
+ * Pure planning step: what should be awarded or upgraded, given stats and the
+ * badges a user already holds. Separated from the writes so the threshold logic
+ * is unit-testable without a database.
+ *
+ * A badge is never downgraded or revoked — manually granted badges (the Vex is
+ * awarded by hand; see `VEX_MEMBER_ACTIVE`) must survive every check.
+ */
+export function planBadgeAwards(stats: BadgeStats, existingBadges: UserBadge[]): BadgeAwardPlan {
+  const plan: BadgeAwardPlan = { inserts: [], upgrades: [] }
 
   for (const def of BADGE_DEFINITIONS) {
-    // Resolve numeric stat value for this badge's criterion
-    let statValue: number
-    switch (def.stat) {
-      case 'beta_active':
-        statValue = BETA_ACTIVE ? 1 : 0
-        break
-      case 'vex_member':
-        statValue = VEX_MEMBER_ACTIVE ? 1 : 0
-        break
-      case 'tournament_hosted':
-        statValue = stats.tournament_hosted ? 1 : 0
-        break
-      case 'profile_complete':
-        statValue = stats.profile_complete ? 1 : 0
-        break
-      default:
-        statValue = stats[def.stat as keyof BadgeStats] as number
-    }
+    const statValue = badgeStatValue(def, stats)
 
     // Highest tier the user qualifies for
     const qualifyingTiers = def.tiers.filter(t => statValue >= t.threshold)
@@ -144,43 +149,100 @@ export async function checkAndAwardBadges(
     const existing = existingBadges.find(b => b.badge_type === def.type)
 
     if (!existing) {
-      // Award brand-new badge
-      const { data, error } = await supabase
-        .from('user_badges')
-        .insert({ user_id: userId, badge_type: def.type, tier: highest.tier })
-        .select('id, user_id, badge_type, tier, awarded_at, display_order')
-        .single()
-
-      if (!error && data) {
-        awarded.push(data as UserBadge)
-        await supabase.from('notifications').insert({
-          user_id: userId,
-          notification_type: 'badge_earned',
-          title: `Badge unlocked: ${highest.label}`,
-          body: def.description,
-          data: { badge_type: def.type },
-        })
-      }
+      plan.inserts.push({
+        badge_type: def.type, tier: highest.tier,
+        label: highest.label, description: def.description,
+      })
     } else if (highest.tier > existing.tier) {
-      // Upgrade tier
-      const { data, error } = await supabase
-        .from('user_badges')
-        .update({ tier: highest.tier, awarded_at: new Date().toISOString() })
-        .eq('id', existing.id)
-        .select('id, user_id, badge_type, tier, awarded_at, display_order')
-        .single()
+      plan.upgrades.push({
+        id: existing.id, badge_type: def.type, tier: highest.tier,
+        label: badgeTierLabel(def, highest.tier), description: def.description,
+      })
+    }
+  }
 
-      if (!error && data) {
-        awarded.push(data as UserBadge)
-        await supabase.from('notifications').insert({
-          user_id: userId,
-          notification_type: 'badge_earned',
-          title: `Badge upgraded: ${badgeTierLabel(def, highest.tier)}`,
-          body: def.description,
-          data: { badge_type: def.type },
-        })
+  return plan
+}
+
+/**
+ * Compares current stats to badge thresholds. Inserts new badges and upgrades
+ * existing tiers as needed. Fires a notification for each new award/upgrade.
+ * Returns the list of newly awarded / upgraded badges.
+ *
+ * Writes are batched: this previously awaited a badge insert *and* a
+ * notification insert inside a loop over every badge definition, so a user
+ * qualifying for several badges paid that many serial round-trips.
+ */
+export async function checkAndAwardBadges(
+  userId: string,
+  stats: BadgeStats,
+  existingBadges: UserBadge[],
+): Promise<UserBadge[]> {
+  const plan = planBadgeAwards(stats, existingBadges)
+  if (plan.inserts.length === 0 && plan.upgrades.length === 0) return []
+
+  const awarded: UserBadge[] = []
+  const notifications: { badge_type: string; title: string; body: string }[] = []
+
+  // New badges — one insert for all of them.
+  if (plan.inserts.length > 0) {
+    const { data, error } = await supabase
+      .from('user_badges')
+      .insert(plan.inserts.map(i => ({ user_id: userId, badge_type: i.badge_type, tier: i.tier })))
+      .select('id, user_id, badge_type, tier, awarded_at, display_order')
+
+    if (!error && data) {
+      awarded.push(...(data as UserBadge[]))
+      for (const row of data as UserBadge[]) {
+        const planned = plan.inserts.find(i => i.badge_type === row.badge_type)
+        if (planned) {
+          notifications.push({
+            badge_type: planned.badge_type,
+            title: `Badge unlocked: ${planned.label}`,
+            body: planned.description,
+          })
+        }
       }
     }
+  }
+
+  // Tier upgrades — each targets a different row, so they run concurrently
+  // rather than one after another.
+  if (plan.upgrades.length > 0) {
+    const awardedAt = new Date().toISOString()
+    const results = await Promise.all(
+      plan.upgrades.map(u =>
+        supabase
+          .from('user_badges')
+          .update({ tier: u.tier, awarded_at: awardedAt })
+          .eq('id', u.id)
+          .select('id, user_id, badge_type, tier, awarded_at, display_order')
+          .single(),
+      ),
+    )
+    results.forEach((res, i) => {
+      if (!res.error && res.data) {
+        awarded.push(res.data as UserBadge)
+        notifications.push({
+          badge_type: plan.upgrades[i].badge_type,
+          title: `Badge upgraded: ${plan.upgrades[i].label}`,
+          body: plan.upgrades[i].description,
+        })
+      }
+    })
+  }
+
+  // One insert for every notification this check produced.
+  if (notifications.length > 0) {
+    await supabase.from('notifications').insert(
+      notifications.map(n => ({
+        user_id: userId,
+        notification_type: 'badge_earned',
+        title: n.title,
+        body: n.body,
+        data: { badge_type: n.badge_type },
+      })),
+    )
   }
 
   return awarded
