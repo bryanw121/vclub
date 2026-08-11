@@ -2,12 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { ConversationRow } from '../types'
 
-export function useConversations() {
+const REFETCH_DEBOUNCE_MS = 450
+
+/** Pass `enabled: false` while the Chat tab is mounted but inactive (neighbor prefetch). */
+export function useConversations(enabled = true) {
   const [conversations, setConversations] = useState<ConversationRow[]>([])
   const [loading, setLoading] = useState(true)
   const mountedRef = useRef(true)
+  const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetch = useCallback(async () => {
+    if (!enabled) return
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !mountedRef.current) return
     const { data } = await supabase.rpc('get_my_conversations')
@@ -20,18 +25,30 @@ export function useConversations() {
       setConversations(sorted)
       setLoading(false)
     }
-  }, [])
+  }, [enabled])
+
+  const scheduleFetch = useCallback(() => {
+    if (!enabled) return
+    if (refetchTimer.current) clearTimeout(refetchTimer.current)
+    refetchTimer.current = setTimeout(() => {
+      refetchTimer.current = null
+      void fetch()
+    }, REFETCH_DEBOUNCE_MS)
+  }, [enabled, fetch])
 
   useEffect(() => {
     mountedRef.current = true
+    if (!enabled) {
+      setLoading(false)
+      return () => { mountedRef.current = false }
+    }
+
     void fetch()
 
-    // Re-fetch when any message is inserted or conversation_members updated
     const channel = supabase
       .channel('conversations-list')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
-          // Optimistically update the matching conversation before the refetch returns
           const msg = payload.new as {
             conversation_id: string
             sender_id: string
@@ -56,21 +73,21 @@ export function useConversations() {
               return tb - ta
             })
           })
-          void fetch()
+          scheduleFetch()
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_members' },
-        () => { void fetch() })
+        () => { scheduleFetch() })
       .subscribe()
 
     return () => {
       mountedRef.current = false
+      if (refetchTimer.current) clearTimeout(refetchTimer.current)
       void supabase.removeChannel(channel)
     }
-  }, [fetch])
+  }, [enabled, fetch, scheduleFetch])
 
   const totalUnread = conversations.reduce((sum, c) => sum + (c.unread_count ?? 0), 0)
 
-  /** Immediately zero out the unread badge for a conversation (call when user opens it). */
   const clearUnread = useCallback((conversationId: string) => {
     setConversations(prev => prev.map(c =>
       c.conversation_id === conversationId ? { ...c, unread_count: 0 } : c

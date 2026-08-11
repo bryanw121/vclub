@@ -5,7 +5,7 @@ import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { Slot } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { TabsContext } from "../../../contexts/tabs";
+import { TabsActiveContext, TabsContext, TabsShellContext } from "../../../contexts/tabs";
 import { useWebNav } from "../../../contexts/webNav";
 import { theme } from "../../../constants";
 import { useChatUnread } from "../../../hooks/useChatUnread";
@@ -27,6 +27,7 @@ const FAB_OPTIONS = [
 ];
 
 const SIDEBAR_BREAKPOINT = 768;
+const noopSetTabBarHidden = (_hidden: boolean) => {};
 
 export default function TabsLayout() {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
@@ -128,37 +129,57 @@ export default function TabsLayout() {
     setTimeout(() => router.push(path as any), 160);
   }
 
-  const tabsContextValue = useMemo(() => ({
+  const tabsShellValue = useMemo(() => ({
     goToTab,
-    activeTabIndex,
     eventsRefreshTick,
     pagerBlocked,
     setTabBarHidden,
     tabBarHeight,
     docScrollActive,
-  }), [goToTab, activeTabIndex, eventsRefreshTick, pagerBlocked, setTabBarHidden, tabBarHeight, docScrollActive]);
+  }), [goToTab, eventsRefreshTick, pagerBlocked, setTabBarHidden, tabBarHeight, docScrollActive]);
+
+  const tabsActiveValue = useMemo(() => ({ activeTabIndex }), [activeTabIndex]);
+
+  const tabsContextValue = useMemo(() => ({
+    ...tabsShellValue,
+    activeTabIndex,
+  }), [tabsShellValue, activeTabIndex]);
+
+  const wideWebShellValue = useMemo(() => ({
+    goToTab: webNav.goToTab,
+    eventsRefreshTick,
+    pagerBlocked,
+    setTabBarHidden: noopSetTabBarHidden,
+    tabBarHeight: 0,
+    docScrollActive: false,
+  }), [webNav.goToTab, eventsRefreshTick, pagerBlocked]);
+
+  const wideWebActiveValue = useMemo(() => ({ activeTabIndex: 0 }), []);
+
+  const wideWebTabsValue = useMemo(() => ({
+    ...wideWebShellValue,
+    activeTabIndex: 0,
+  }), [wideWebShellValue]);
 
   // ── Web (wide): sidebar in (app)/_layout — let Expo Router render the route ─
   // Placed after all hooks so hook order is stable across the breakpoint.
   if (Platform.OS === "web" && !isNarrowWeb) {
     return (
-      <TabsContext.Provider value={{
-        goToTab: webNav.goToTab,
-        activeTabIndex: 0,
-        eventsRefreshTick,
-        pagerBlocked,
-        setTabBarHidden: () => {},
-        tabBarHeight: 0,
-        docScrollActive: false,
-      }}>
-        <View style={{ flex: 1 }}>
-          <Slot />
-        </View>
-      </TabsContext.Provider>
+      <TabsShellContext.Provider value={wideWebShellValue}>
+        <TabsActiveContext.Provider value={wideWebActiveValue}>
+          <TabsContext.Provider value={wideWebTabsValue}>
+            <View style={{ flex: 1 }}>
+              <Slot />
+            </View>
+          </TabsContext.Provider>
+        </TabsActiveContext.Provider>
+      </TabsShellContext.Provider>
     );
   }
 
   return (
+    <TabsShellContext.Provider value={tabsShellValue}>
+    <TabsActiveContext.Provider value={tabsActiveValue}>
     <TabsContext.Provider value={tabsContextValue}>
       <View style={[
         { backgroundColor: theme.colors.background, paddingTop: topInset },
@@ -349,5 +370,7 @@ export default function TabsLayout() {
         </Animated.View>
       </View>
     </TabsContext.Provider>
+    </TabsActiveContext.Provider>
+    </TabsShellContext.Provider>
   );
 }

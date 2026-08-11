@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { EVENT_CARD_LIST_SELECT } from '../constants'
+import { EVENT_CARD_LIST_SELECT, EVENT_CARD_MY_ATTENDANCE_SELECT } from '../constants'
 import { supabase } from '../lib/supabase'
 import { startOfToday } from '../utils'
+import { attachEventCardPreviews } from '../utils/eventCardPreviews'
 import { EventWithDetails } from '../types'
 
 const STALE_MS = 60_000 // treat cached events as fresh for 60 seconds
@@ -17,13 +18,26 @@ export function useEvents() {
     try {
       setLoading(true)
       setError(null)
-      const { data, error } = await supabase
+      const { data: { user } } = await supabase.auth.getUser()
+      const listSelect = user
+        ? `${EVENT_CARD_LIST_SELECT}, ${EVENT_CARD_MY_ATTENDANCE_SELECT}`
+        : EVENT_CARD_LIST_SELECT
+
+      let query = supabase
         .from('events')
-        .select(EVENT_CARD_LIST_SELECT)
+        .select(listSelect)
         .gte('event_date', startOfToday())
         .order('event_date', { ascending: true })
-      if (error) throw error
-      setEvents((data ?? []) as unknown as EventWithDetails[])
+      if (user) {
+        query = query.eq('my_attendance.user_id', user.id)
+      }
+
+      const { data, error: qErr } = await query
+      if (qErr) throw qErr
+      const withPreviews = await attachEventCardPreviews(
+        (data ?? []) as unknown as EventWithDetails[],
+      )
+      setEvents(withPreviews)
       lastFetchedAt.current = Date.now()
     } catch (e: any) {
       setError(e.message)

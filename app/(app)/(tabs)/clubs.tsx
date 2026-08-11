@@ -1,47 +1,20 @@
 /*
 -- Run in Supabase SQL editor:
--- create table public.clubs (
---   id uuid primary key default gen_random_uuid(),
---   name text not null,
---   description text,
---   membership_type text not null default 'open' check (membership_type in ('open', 'invite')),
---   created_by uuid not null references public.profiles(id),
---   avatar_url text,
---   created_at timestamptz not null default now()
--- );
--- create table public.club_members (
---   club_id uuid not null references public.clubs(id) on delete cascade,
---   user_id uuid not null references public.profiles(id) on delete cascade,
---   role text not null default 'member' check (role in ('owner', 'member')),
---   joined_at timestamptz not null default now(),
---   primary key (club_id, user_id)
--- );
--- alter table public.events add column if not exists club_id uuid references public.clubs(id) on delete set null;
--- alter table public.profiles add column if not exists is_admin boolean not null default false;
--- alter table public.clubs enable row level security;
--- create policy "Anyone reads clubs" on public.clubs for select using (true);
--- create policy "Admins insert clubs" on public.clubs for insert with check ((select is_admin from public.profiles where id = auth.uid()));
--- create policy "Owners update clubs" on public.clubs for update using (exists (select 1 from public.club_members where club_id = id and user_id = auth.uid() and role = 'owner'));
--- alter table public.club_members enable row level security;
--- create policy "Anyone reads club_members" on public.club_members for select using (true);
--- create policy "Users join open clubs" on public.club_members for insert with check (auth.uid() = user_id and (select membership_type from public.clubs where id = club_id) = 'open');
--- create policy "Users leave clubs" on public.club_members for delete using (auth.uid() = user_id);
--- create policy "Owners manage members" on public.club_members for all using (exists (select 1 from public.club_members cm2 where cm2.club_id = club_members.club_id and cm2.user_id = auth.uid() and cm2.role = 'owner'));
--- Storage: create bucket 'club-avatars' (private). Add policies: SELECT for authenticated, INSERT/UPDATE/DELETE for club owners.
+-- (schema comments retained from prior clubs setup — see git history for full DDL)
 */
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  FlatList,
   RefreshControl,
-  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  Image,
   Alert,
 } from 'react-native'
+import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Stack, useRouter, useFocusEffect } from 'expo-router'
@@ -49,19 +22,32 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
 import { shared, theme } from '../../../constants'
 import { DocScrollView } from '../../../components/DocScrollView'
-import { useTabsContext } from '../../../contexts/tabs'
+import { useTabsActive, useTabsShell } from '../../../contexts/tabs'
 import { resolveClubAvatarUri } from '../../../utils'
-import type { ClubWithDetails, MajorCity } from '../../../types'
+import type { Club, ClubMember, MajorCity } from '../../../types'
 
-const CLUB_LIST_SELECT =
-  'id, name, description, membership_type, created_by, avatar_url, cover_url, created_at, major_city_id, major_cities (id, display_name, city_name, admin_region, country_code), club_members (club_id, user_id, role, joined_at, profiles (id, username, first_name, last_name, avatar_url))'
+/** List payload: member count; membership embed is added when signed in. */
+const CLUB_LIST_SELECT_BASE =
+  'id, name, description, membership_type, created_by, avatar_url, cover_url, created_at, major_city_id, major_cities (id, display_name, city_name, admin_region, country_code), club_members(count)'
+
+const CLUB_LIST_MY_MEMBERSHIP = 'my_membership:club_members(club_id, user_id, role, joined_at)'
+
+type ClubListItem = Club & {
+  major_cities: MajorCity | null
+  club_members: { count: number }[]
+  my_membership?: Pick<ClubMember, 'club_id' | 'user_id' | 'role' | 'joined_at'>[]
+}
 
 /** PostgREST usually returns one embedded row as an object; normalize if it ever comes back as a single-element array. */
-function resolvedMajorCity(c: ClubWithDetails): MajorCity | null {
+function resolvedMajorCity(c: ClubListItem): MajorCity | null {
   const raw = c.major_cities as unknown
   if (raw == null) return null
   if (Array.isArray(raw)) return (raw[0] as MajorCity | undefined) ?? null
   return raw as MajorCity
+}
+
+function memberCount(club: ClubListItem): number {
+  return Number(club.club_members?.[0]?.count ?? 0)
 }
 
 /** Deterministic color for a club based on its name */
@@ -76,7 +62,7 @@ function clubColor(name: string): string {
 }
 
 type ClubCardProps = {
-  club: ClubWithDetails
+  club: ClubListItem
   isOwner: boolean
   isMember: boolean
   onPress: () => void
@@ -86,7 +72,7 @@ type ClubCardProps = {
 function ClubCard({ club, isOwner, isMember, onPress, onJoin }: ClubCardProps) {
   const [avatarUri, setAvatarUri] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
-  const memberCount = club.club_members.length
+  const count = memberCount(club)
   const initial = club.name.charAt(0).toUpperCase()
   const color = clubColor(club.name)
 
@@ -125,10 +111,9 @@ function ClubCard({ club, isOwner, isMember, onPress, onJoin }: ClubCardProps) {
       onPress={onPress}
       activeOpacity={0.72}
     >
-      {/* Avatar */}
       <View style={{ width: 54, height: 54, borderRadius: 14, overflow: 'hidden', flexShrink: 0 }}>
         {avatarUri ? (
-          <Image source={{ uri: avatarUri }} style={{ width: 54, height: 54 }} />
+          <Image source={{ uri: avatarUri }} style={{ width: 54, height: 54 }} contentFit="cover" transition={150} />
         ) : (
           <LinearGradient
             colors={[color, color + 'BB', color + '77'] as [string, string, string]}
@@ -143,17 +128,15 @@ function ClubCard({ club, isOwner, isMember, onPress, onJoin }: ClubCardProps) {
         )}
       </View>
 
-      {/* Info */}
       <View style={{ flex: 1, gap: 3, minWidth: 0 }}>
         <Text style={{ fontFamily: theme.fonts.display, fontSize: 16, letterSpacing: -0.3, color: theme.colors.text }} numberOfLines={1}>
           {club.name}
         </Text>
         <Text style={{ fontFamily: theme.fonts.body, fontSize: 11.5, color: theme.colors.subtext }} numberOfLines={1}>
-          {resolvedMajorCity(club)?.display_name ?? 'Unknown'} · {memberCount} members{isOwner ? ' · Owner' : ''}
+          {resolvedMajorCity(club)?.display_name ?? 'Unknown'} · {count} members{isOwner ? ' · Owner' : ''}
         </Text>
       </View>
 
-      {/* Joined badge or Join button */}
       {isMember ? (
         <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: theme.colors.cool + '20' }}>
           <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: theme.colors.cool }}>✓ Joined</Text>
@@ -179,64 +162,79 @@ type ClubFilter = 'joined' | 'nearby' | 'popular'
 export default function ClubsScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { docScrollActive, tabBarHeight } = useTabsContext()
-  const [clubs, setClubs] = useState<ClubWithDetails[]>([])
+  const { docScrollActive, tabBarHeight } = useTabsShell()
+  const { activeTabIndex } = useTabsActive()
+  const isActive = activeTabIndex === 1
+  const [clubs, setClubs] = useState<ClubListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [filter, setFilter] = useState<ClubFilter>('joined')
   const [searchQuery, setSearchQuery] = useState('')
+  const hasFetched = useRef(false)
 
-  async function fetchClubs(showRefreshing = false) {
+  const fetchClubs = useCallback(async (showRefreshing = false) => {
     if (showRefreshing) setRefreshing(true)
-    else setLoading(true)
+    else if (!hasFetched.current) setLoading(true)
     setFetchError(null)
 
     const { data: { session } } = await supabase.auth.getSession()
     const uid = session?.user.id ?? null
     setUserId(uid)
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('clubs')
-      .select(CLUB_LIST_SELECT)
+      .select(uid ? `${CLUB_LIST_SELECT_BASE}, ${CLUB_LIST_MY_MEMBERSHIP}` : CLUB_LIST_SELECT_BASE)
       .order('created_at', { ascending: false })
+    if (uid) {
+      query = query.eq('my_membership.user_id', uid)
+    }
+
+    const { data, error } = await query
 
     if (error) {
       console.error('clubs fetch error:', error)
       setFetchError(error.message)
     }
-    setClubs((data ?? []) as unknown as ClubWithDetails[])
+    setClubs((data ?? []) as unknown as ClubListItem[])
+    hasFetched.current = true
     if (showRefreshing) setRefreshing(false)
     else setLoading(false)
-  }
-
-  useEffect(() => {
-    fetchClubs()
   }, [])
 
+  // Fetch when this pager page becomes active (neighbor prefetch may mount early).
+  useEffect(() => {
+    if (!isActive) return
+    void fetchClubs()
+  }, [isActive, fetchClubs])
+
+  // Refetch when returning to the main shell while already on Clubs.
   useFocusEffect(useCallback(() => {
-    fetchClubs()
-  }, []))
+    if (!isActive || !hasFetched.current) return
+    void fetchClubs()
+  }, [isActive, fetchClubs]))
 
   function onRefresh() {
-    fetchClubs(true)
+    void fetchClubs(true)
   }
 
-  const myClubs = clubs.filter(c =>
-    c.club_members.some(m => m.user_id === userId)
-  )
-  const discoverClubs = clubs.filter(c =>
-    !c.club_members.some(m => m.user_id === userId)
-  )
+  const myClubs = useMemo(() =>
+    clubs.filter(c => (c.my_membership ?? []).some(m => m.user_id === userId)),
+  [clubs, userId])
 
-  const discoverOrdered =
+  const discoverClubs = useMemo(() =>
+    clubs.filter(c => !(c.my_membership ?? []).some(m => m.user_id === userId)),
+  [clubs, userId])
+
+  const discoverOrdered = useMemo(() =>
     filter === 'popular'
-      ? [...discoverClubs].sort((a, b) => b.club_members.length - a.club_members.length)
-      : discoverClubs
+      ? [...discoverClubs].sort((a, b) => memberCount(b) - memberCount(a))
+      : discoverClubs,
+  [discoverClubs, filter])
 
   const q = searchQuery.trim().toLowerCase()
-  function matchesSearch(c: ClubWithDetails): boolean {
+  function matchesSearch(c: ClubListItem): boolean {
     if (!q) return true
     const inName = c.name.toLowerCase().includes(q)
     const mc = resolvedMajorCity(c)
@@ -248,44 +246,43 @@ export default function ClubsScreen() {
     return inName || inRegion
   }
 
-  function isOwner(club: ClubWithDetails): boolean {
-    return club.club_members.some(m => m.user_id === userId && m.role === 'owner')
+  function isOwner(club: ClubListItem): boolean {
+    return (club.my_membership ?? []).some(m => m.user_id === userId && m.role === 'owner')
   }
 
-  function isMember(club: ClubWithDetails): boolean {
-    return club.club_members.some(m => m.user_id === userId)
+  function isMember(club: ClubListItem): boolean {
+    return (club.my_membership ?? []).some(m => m.user_id === userId)
   }
 
-  async function handleJoin(club: ClubWithDetails) {
+  async function handleJoin(club: ClubListItem) {
     if (!userId) return
-    // Optimistic update
     setClubs(prev => prev.map(c =>
       c.id !== club.id ? c : {
         ...c,
-        club_members: [...c.club_members, { club_id: c.id, user_id: userId, role: 'member', joined_at: new Date().toISOString(), profiles: null as any }],
+        club_members: [{ count: memberCount(c) + 1 }],
+        my_membership: [{ club_id: c.id, user_id: userId, role: 'member', joined_at: new Date().toISOString() }],
       }
     ))
     const { error } = await supabase
       .from('club_members')
       .insert({ club_id: club.id, user_id: userId, role: 'member' })
     if (error) {
-      // Revert on failure
       setClubs(prev => prev.map(c =>
-        c.id !== club.id ? c : { ...c, club_members: c.club_members.filter(m => m.user_id !== userId) }
+        c.id !== club.id ? c : {
+          ...c,
+          club_members: [{ count: Math.max(0, memberCount(c) - 1) }],
+          my_membership: [],
+        }
       ))
       Alert.alert('Could not join', error.message)
     }
   }
 
   const baseList = filter === 'joined' ? myClubs : discoverOrdered
-  // When searching, scan all clubs — otherwise "Joined" + search only searched empty myClubs for new users.
   const visibleClubs = (q ? clubs : baseList).filter(matchesSearch)
 
-  return (
-    <View style={[shared.screen, { paddingTop: insets.top }, docScrollActive && ({ flex: undefined } as any)]}>
-      <Stack.Screen options={{ headerShown: false }} />
-
-      {/* Header */}
+  const listHeader = (
+    <>
       <View style={{
         paddingHorizontal: theme.spacing.lg,
         paddingTop: theme.spacing.md,
@@ -318,7 +315,6 @@ export default function ClubsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Filter pills */}
       <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm }}>
         {([
           { id: 'joined',  label: 'Joined' },
@@ -377,22 +373,74 @@ export default function ClubsScreen() {
           />
         </View>
       </View>
+    </>
+  )
+
+  const emptyBody = (
+    <View style={[shared.card, { alignItems: 'center', gap: theme.spacing.sm, paddingVertical: theme.spacing.xl, marginHorizontal: theme.spacing.lg }]}>
+      <Ionicons name="people-outline" size={48} color={theme.colors.subtext} />
+      <Text style={[shared.caption, { textAlign: 'center', maxWidth: 260 }]}>
+        {searchQuery.trim()
+          ? 'No clubs match your search.'
+          : filter === 'joined'
+          ? "You haven't joined any clubs yet."
+          : filter === 'nearby'
+          ? discoverClubs.length > 0 ? "No clubs match this view — try another filter or search." : "No clubs yet. Check back soon!"
+          : clubs.length > 0 ? "You're in all available clubs!" : "No clubs yet. Check back soon!"}
+      </Text>
+    </View>
+  )
+
+  return (
+    <View style={[shared.screen, { paddingTop: insets.top }, docScrollActive && ({ flex: undefined } as any)]}>
+      <Stack.Screen options={{ headerShown: false }} />
 
       {loading ? (
-        <View style={shared.centered}>
-          <ActivityIndicator color={theme.colors.primary} />
-        </View>
+        <>
+          {listHeader}
+          <View style={shared.centered}>
+            <ActivityIndicator color={theme.colors.primary} />
+          </View>
+        </>
       ) : fetchError ? (
-        <View style={shared.centered}>
-          <Text style={[shared.caption, { color: theme.colors.error, textAlign: 'center', paddingHorizontal: theme.spacing.lg }]}>
-            {fetchError}
-          </Text>
-        </View>
-      ) : (
+        <>
+          {listHeader}
+          <View style={shared.centered}>
+            <Text style={[shared.caption, { color: theme.colors.error, textAlign: 'center', paddingHorizontal: theme.spacing.lg }]}>
+              {fetchError}
+            </Text>
+          </View>
+        </>
+      ) : docScrollActive ? (
         <DocScrollView
-          docScroll={docScrollActive}
+          docScroll
           style={shared.screen}
-          contentContainerStyle={{ padding: theme.spacing.lg, paddingTop: 4, paddingBottom: tabBarHeight + 32 }}
+          contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
+        >
+          {listHeader}
+          {visibleClubs.length === 0
+            ? emptyBody
+            : visibleClubs.map(club => (
+              <View key={club.id} style={{ paddingHorizontal: theme.spacing.lg }}>
+                <ClubCard
+                  club={club}
+                  isOwner={isOwner(club)}
+                  isMember={isMember(club)}
+                  onPress={() => router.push(`/club/${club.id}` as any)}
+                  onJoin={() => handleJoin(club)}
+                />
+              </View>
+            ))}
+        </DocScrollView>
+      ) : (
+        <FlatList
+          data={visibleClubs}
+          keyExtractor={c => c.id}
+          ListHeaderComponent={listHeader}
+          contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={7}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -401,33 +449,19 @@ export default function ClubsScreen() {
               colors={[theme.colors.primary]}
             />
           }
-        >
-          {visibleClubs.length === 0 ? (
-            <View style={[shared.card, { alignItems: 'center', gap: theme.spacing.sm, paddingVertical: theme.spacing.xl }]}>
-              <Ionicons name="people-outline" size={48} color={theme.colors.subtext} />
-              <Text style={[shared.caption, { textAlign: 'center', maxWidth: 260 }]}>
-                {searchQuery.trim()
-                  ? 'No clubs match your search.'
-                  : filter === 'joined'
-                  ? "You haven't joined any clubs yet."
-                  : filter === 'nearby'
-                  ? discoverClubs.length > 0 ? "No clubs match this view — try another filter or search." : "No clubs yet. Check back soon!"
-                  : clubs.length > 0 ? "You're in all available clubs!" : "No clubs yet. Check back soon!"}
-              </Text>
-            </View>
-          ) : (
-            visibleClubs.map(club => (
+          ListEmptyComponent={emptyBody}
+          renderItem={({ item: club }) => (
+            <View style={{ paddingHorizontal: theme.spacing.lg }}>
               <ClubCard
-                key={club.id}
                 club={club}
                 isOwner={isOwner(club)}
                 isMember={isMember(club)}
                 onPress={() => router.push(`/club/${club.id}` as any)}
                 onJoin={() => handleJoin(club)}
               />
-            ))
+            </View>
           )}
-        </DocScrollView>
+        />
       )}
     </View>
   )

@@ -7,10 +7,16 @@ const STALE_MS = 45_000
 const NOTIFICATION_SELECT =
   'id, user_id, notification_type, title, body, data, read_at, created_at'
 
-export function useNotifications() {
+type UseNotificationsOptions = {
+  /** When false (Events tab badge), only fetch unread count until the list is needed. Default true for inbox screens. */
+  fetchListOnMount?: boolean
+}
+
+export function useNotifications(opts: UseNotificationsOptions = {}) {
+  const fetchListOnMount = opts.fetchListOnMount !== false
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(fetchListOnMount)
   const [error, setError] = useState<string | null>(null)
   const lastFetchedAt = useRef(0)
 
@@ -57,8 +63,13 @@ export function useNotifications() {
   }, [fetchUnreadCount])
 
   useEffect(() => {
-    void fetchList(true)
-  }, [fetchList])
+    if (fetchListOnMount) {
+      void fetchList(true)
+    } else {
+      void fetchUnreadCount()
+      setLoading(false)
+    }
+  }, [fetchListOnMount, fetchList, fetchUnreadCount])
 
   const markRead = useCallback(
     async (id: string) => {

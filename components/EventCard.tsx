@@ -54,9 +54,11 @@ function EventCardInner({
   const pathname = usePathname()
   const [rsvpLoading, setRsvpLoading] = useState(false)
 
-  const isAttending = currentUserId
-    ? (event.attendee_previews ?? []).some(p => p.user_id === currentUserId)
-    : false
+  const isAttending = !!currentUserId && (
+    event.my_attendance != null
+      ? event.my_attendance.some(a => a.user_id === currentUserId)
+      : (event.attendee_previews ?? []).some(p => p.user_id === currentUserId)
+  )
 
   const attendeeCount = eventAttendeeDisplayCount(event)
   const spotsLeft = event.max_attendees != null ? Math.max(0, event.max_attendees - attendeeCount) : null
@@ -261,9 +263,11 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp }:
   const pathname = usePathname()
   const [rsvpLoading, setRsvpLoading] = useState(false)
 
-  const isAttending = currentUserId
-    ? (event.attendee_previews ?? []).some(p => p.user_id === currentUserId)
-    : false
+  const isAttending = !!currentUserId && (
+    event.my_attendance != null
+      ? event.my_attendance.some(a => a.user_id === currentUserId)
+      : (event.attendee_previews ?? []).some(p => p.user_id === currentUserId)
+  )
 
   const attendeeCount = eventAttendeeDisplayCount(event)
   const spotsLeft = event.max_attendees != null ? Math.max(0, event.max_attendees - attendeeCount) : null

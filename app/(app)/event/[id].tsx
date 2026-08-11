@@ -180,6 +180,23 @@ export default function EventDetail() {
     const t = parseInt(tab ?? '0', 10)
     return isNaN(t) ? 0 : Math.max(0, Math.min(3, t))
   })
+  // Lazy-mount Discussion/Cheers (and People if not the initial tab) after first visit.
+  const [mountedEventTabs, setMountedEventTabs] = useState(() => {
+    const initial = new Set<number>([0])
+    const t = parseInt(tab ?? '0', 10)
+    const start = isNaN(t) ? 0 : Math.max(0, Math.min(3, t))
+    initial.add(start)
+    if (start === 0) initial.add(1) // prefetch People next to Details
+    return initial
+  })
+  useEffect(() => {
+    setMountedEventTabs(prev => {
+      if (prev.has(activeTab)) return prev
+      const next = new Set(prev)
+      next.add(activeTab)
+      return next
+    })
+  }, [activeTab])
   const [descFooterHeight, setDescFooterHeight] = useState(80)
 
   // ── Document-scroll mode (mobile web) — Details & People tabs only.
@@ -1739,6 +1756,7 @@ export default function EventDetail() {
             autoHeight={docScrollActive}
           >
             {/* Tab 0: Details */}
+            {mountedEventTabs.has(0) ? (
             <DetailsTab
               event={event}
               docScrollActive={docScrollActive}
@@ -1759,8 +1777,10 @@ export default function EventDetail() {
               }}
               onManageCohosts={() => setCohostModalVisible(true)}
             />
+            ) : <View style={{ flex: 1 }} />}
 
             {/* Tab 1: People */}
+            {mountedEventTabs.has(1) ? (
             <PeopleTab
               docScrollActive={docScrollActive}
               refreshing={refreshing}
@@ -1797,8 +1817,10 @@ export default function EventDetail() {
               onDeny={(uid, displayName) => { setDenyModal({ userId: uid, displayName }); setDenyReason('') }}
               onApproveFromWaitlist={handleApproveFromWaitlist}
             />
+            ) : <View style={{ flex: 1 }} />}
 
             {/* Tab 2: Discussion */}
+            {mountedEventTabs.has(2) ? (
             <DiscussionTab
               scrollRef={discussionTabScrollRef}
               isActive={activeTab === 2}
@@ -1823,8 +1845,10 @@ export default function EventDetail() {
               onClearReply={() => setReplyToComment(null)}
               onCancelEdit={() => setEditingComment(null)}
             />
+            ) : <View style={{ flex: 1 }} />}
 
             {/* Tab 3: Cheers */}
+            {mountedEventTabs.has(3) ? (
             <CheersTab
               isEventOver={isEventOver}
               isAttending={eventStatus.isAttending}
@@ -1850,6 +1874,7 @@ export default function EventDetail() {
               isMobileWeb={isMobileWeb}
               bottomInset={insets.bottom}
             />
+            ) : <View style={{ flex: 1 }} />}
           </Pager>
 
           {/* Sticky footer — join/leave/waitlist/+1, only shown on Description tab */}
