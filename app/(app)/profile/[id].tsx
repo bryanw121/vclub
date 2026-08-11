@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl, Alert } from 'react-native'
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
@@ -11,7 +11,13 @@ import { ProfileAvatar } from '../../../components/ProfileAvatar'
 import { Toast } from '../../../components/Toast'
 import { BADGE_DEFINITIONS } from '../../../constants/badges'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
-import { resolveProfileAvatarUriWithError, normalizeVolleyballSkillLevel, volleyballSkillLevelLabel, profileFullName } from '../../../utils'
+import {
+  resolveProfileAvatarUriWithError,
+  normalizeVolleyballSkillLevel,
+  volleyballSkillLevelLabel,
+  profileFullName,
+  confirmDestructive,
+} from '../../../utils'
 import type { Profile, UserBadge } from '../../../types'
 
 const POS_ABBREV: Record<string, string> = {
@@ -110,20 +116,14 @@ export default function UserProfileDetail() {
       return
     }
 
-    Alert.alert(
+    confirmDestructive(
       'Silence this player?',
       'Their chat messages will be hidden. Events and club activity stay the same.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Silence',
-          style: 'destructive',
-          onPress: () => {
-            void silenceUser(id)
-            showToast(`${displayName || 'Player'} has been silenced.`, 'success')
-          },
-        },
-      ],
+      'Silence',
+      () => {
+        void silenceUser(id)
+        showToast(`${displayName || 'Player'} has been silenced.`, 'success')
+      },
     )
   }
 

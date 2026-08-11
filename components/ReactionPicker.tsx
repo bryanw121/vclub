@@ -15,6 +15,8 @@ type Props = {
   onReply: (message: MessageWithDetails) => void
   onEdit: (message: MessageWithDetails) => void
   onDelete: (messageId: string) => void
+  /** Incoming messages only — silence the sender. */
+  onSilence?: (senderId: string) => void
   onDismiss: () => void
 }
 
@@ -27,12 +29,14 @@ export function ReactionPicker({
   onReply,
   onEdit,
   onDelete,
+  onSilence,
   onDismiss,
 }: Props) {
   if (!message) return null
 
   const isOwn = Boolean(viewerUserId && message.sender_id === viewerUserId)
   const canEdit = isOwn && !message.deleted_at && !!message.content
+  const canSilence = !isOwn && !!onSilence && !message.deleted_at
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
@@ -102,6 +106,19 @@ export function ReactionPicker({
               >
                 <Ionicons name="trash-outline" size={18} color={theme.colors.error ?? '#EF4444'} />
                 <Text style={{ fontSize: theme.font.size.md, color: theme.colors.error ?? '#EF4444' }}>Delete</Text>
+              </TouchableOpacity>
+            )}
+
+            {canSilence && (
+              <TouchableOpacity
+                onPress={() => {
+                  onSilence(message.sender_id)
+                  onDismiss()
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 }}
+              >
+                <Ionicons name="eye-off-outline" size={18} color={theme.colors.error ?? '#EF4444'} />
+                <Text style={{ fontSize: theme.font.size.md, color: theme.colors.error ?? '#EF4444' }}>Silence user</Text>
               </TouchableOpacity>
             )}
           </View>
