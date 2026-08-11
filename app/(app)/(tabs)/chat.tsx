@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
-  ActivityIndicator, Image, Modal, Pressable, Alert, Platform, RefreshControl,
+  ActivityIndicator, Modal, Pressable, Alert, Platform, RefreshControl,
 } from 'react-native'
+import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect, Stack } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -10,7 +11,7 @@ import { supabase } from '../../../lib/supabase'
 import { theme, shared } from '../../../constants'
 import { useConversations } from '../../../hooks/useConversations'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
-import { useTabsContext } from '../../../contexts/tabs'
+import { useTabsActive, useTabsShell } from '../../../contexts/tabs'
 import { timeAgo, lastMessagePreview } from '../../../utils/chatUtils'
 import { profileAvatarSmallUri, buildMemberSearchFilter, profileDisplayName } from '../../../utils'
 import type { ConversationRow, Profile } from '../../../types'
@@ -117,7 +118,7 @@ function NewDMModal({ visible, onDismiss, onSelect, silencedUserIds }: {
                     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
                   }}>
                     {profileAvatarSmallUri(item.avatar_url, 120) ? (
-                      <Image source={{ uri: profileAvatarSmallUri(item.avatar_url, 120)! }} style={{ width: 44, height: 44 }} />
+                      <Image source={{ uri: profileAvatarSmallUri(item.avatar_url, 120)! }} style={{ width: 44, height: 44 }} contentFit="cover" transition={150} />
                     ) : (
                       <Ionicons name="person" size={22} color={theme.colors.subtext} />
                     )}
@@ -147,8 +148,10 @@ function NewDMModal({ visible, onDismiss, onSelect, silencedUserIds }: {
 export default function ChatScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { tabBarHeight } = useTabsContext()
-  const { conversations, loading, refetch, clearUnread } = useConversations()
+  const { tabBarHeight } = useTabsShell()
+  const { activeTabIndex } = useTabsActive()
+  const chatActive = activeTabIndex === 2
+  const { conversations, loading, refetch, clearUnread } = useConversations(chatActive)
   const { silencedUserIds, silenceUser } = useSilencedUsers()
   const [myId, setMyId] = useState<string | null>(null)
   const [newDMVisible, setNewDMVisible] = useState(false)
@@ -249,7 +252,7 @@ export default function ChatScreen() {
           flexShrink: 0,
         }}>
           {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={{ width: 52, height: 52 }} />
+            <Image source={{ uri: avatarUrl }} style={{ width: 52, height: 52 }} contentFit="cover" transition={150} />
           ) : (
             <Ionicons name={isClub ? 'people' : 'person'} size={26} color={theme.colors.subtext} />
           )}

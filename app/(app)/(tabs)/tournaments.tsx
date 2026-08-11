@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { theme } from '../../../constants'
-import { useTabsContext } from '../../../contexts/tabs'
+import { useTabsShell } from '../../../contexts/tabs'
 
 // ── Mock data — will be replaced by Supabase queries ─────────────────────────
 
@@ -37,7 +37,7 @@ function placeColor(p: number) {
 export default function TournamentsScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { tabBarHeight } = useTabsContext()
+  const { tabBarHeight } = useTabsShell()
   const [refreshing, setRefreshing] = useState(false)
 
   const onRefresh = useCallback(() => {

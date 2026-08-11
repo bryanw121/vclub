@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useCallback, memo, useEffect, useLayoutEffect } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
-import { Platform, View, ScrollView, FlatList, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions, ActivityIndicator, Modal, StyleSheet } from 'react-native'
+import { Platform, View, ScrollView, SectionList, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions, ActivityIndicator, Modal, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useMonthEvents } from '../../../../hooks/useMonthEvents'
 import { useNotifications } from '../../../../hooks/useNotifications'
@@ -8,7 +8,7 @@ import { EventCard, RowEventCard, type EventCardRsvpHandler } from '../../../../
 import { NotificationPopup } from '../../../../components/NotificationPopup'
 import { shared, theme } from '../../../../constants'
 import { EventWithDetails, type Notification } from '../../../../types'
-import { useTabsContext } from '../../../../contexts/tabs'
+import { useTabsShell } from '../../../../contexts/tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../../lib/supabase'
 
@@ -56,8 +56,8 @@ export default function EventsScreen() {
     markRead,
     markAllRead,
     loading: notifLoading,
-  } = useNotifications()
-  const { pagerBlocked, setTabBarHidden, tabBarHeight, eventsRefreshTick, docScrollActive } = useTabsContext()
+  } = useNotifications({ fetchListOnMount: false })
+  const { pagerBlocked, setTabBarHidden, tabBarHeight, eventsRefreshTick, docScrollActive } = useTabsShell()
   const { width: windowWidth } = useWindowDimensions()
   const isMobile = Platform.OS !== 'web' || windowWidth < 768
   const insets = useSafeAreaInsets()
@@ -158,6 +158,7 @@ export default function EventsScreen() {
   const unblockPager = useCallback(() => { pagerBlocked.current = false }, [pagerBlocked])
 
   const scrollRef   = useRef<ScrollView>(null)
+  const sectionListRef = useRef<SectionList<EventWithDetails, DateSection>>(null)
   const sectionYRef = useRef<Record<string, number>>({})
   const lastScrollY = useRef(0)
 
@@ -216,23 +217,32 @@ export default function EventsScreen() {
     setSelectedDate(dateStr)
     setCurWeekPage(idxForWeek(getWeekStart(new Date(dateStr + 'T00:00:00'))))
     setCurMonthPage(idxForMonth(dateStr.substring(0, 7)))
-    const y = sectionYRef.current[dateStr]
-    if (y !== undefined) {
-      setTimeout(() => {
-        if (docScrollRef.current) {
-          // Doc-scroll mode: sectionY is relative to the feed container — offset by
-          // the container's position in the document and scroll the window.
-          const node = feedContentRef.current as unknown as HTMLElement | null
-          if (node?.getBoundingClientRect) {
-            const top = node.getBoundingClientRect().top + window.scrollY + y
-            window.scrollTo({ top, behavior: 'smooth' })
-          }
-        } else {
-          scrollRef.current?.scrollTo({ y, animated: true })
+    const sectionIndex = sections.findIndex(s => s.date === dateStr)
+    setTimeout(() => {
+      if (docScrollRef.current) {
+        const y = sectionYRef.current[dateStr]
+        if (y === undefined) return
+        const node = feedContentRef.current as unknown as HTMLElement | null
+        if (node?.getBoundingClientRect) {
+          const top = node.getBoundingClientRect().top + window.scrollY + y
+          window.scrollTo({ top, behavior: 'smooth' })
         }
-      }, 50)
-    }
-  }, [])
+        return
+      }
+      if (sectionIndex >= 0) {
+        try {
+          sectionListRef.current?.scrollToLocation({
+            sectionIndex,
+            itemIndex: 0,
+            animated: true,
+            viewOffset: 8,
+          })
+        } catch {
+          /* SectionList may throw if layout isn't ready yet */
+        }
+      }
+    }, 50)
+  }, [sections])
 
   const goPrevWeek  = useCallback(() => setCurWeekPage(p => p - 1), [])
   const goNextWeek  = useCallback(() => setCurWeekPage(p => p + 1), [])
@@ -547,70 +557,95 @@ export default function EventsScreen() {
       </View>
 
       {(() => {
-        const feedChildren = (
-          <>
-            {loading && sections.length === 0 ? (
-              <ActivityIndicator style={{ marginTop: theme.spacing.xl }} color={theme.colors.primary} />
-            ) : sections.length === 0 ? (
-              <View style={{ alignItems: 'center', paddingTop: theme.spacing.xxl, gap: theme.spacing.sm }}>
-                <Ionicons name="calendar-outline" size={36} color={theme.colors.border} />
-                <Text style={shared.caption}>
-                  {activeFilter === 'all' ? 'No upcoming events — create one!' : 'No events match this filter'}
+        const emptyOrLoading = loading && sections.length === 0 ? (
+          <ActivityIndicator style={{ marginTop: theme.spacing.xl }} color={theme.colors.primary} />
+        ) : sections.length === 0 ? (
+          <View style={{ alignItems: 'center', paddingTop: theme.spacing.xxl, gap: theme.spacing.sm }}>
+            <Ionicons name="calendar-outline" size={36} color={theme.colors.border} />
+            <Text style={shared.caption}>
+              {activeFilter === 'all' ? 'No upcoming events — create one!' : 'No events match this filter'}
+            </Text>
+            {activeFilter !== 'all' && (
+              <TouchableOpacity onPress={() => setActiveFilter('all')}>
+                <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
+                  Clear filter
                 </Text>
-                {activeFilter !== 'all' && (
-                  <TouchableOpacity onPress={() => setActiveFilter('all')}>
-                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
-                      Clear filter
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ) : (
-              sections.map(section => (
-                <View key={section.date} onLayout={e => { sectionYRef.current[section.date] = e.nativeEvent.layout.y }}>
-                  <View style={feedStyles.sectionHeader}>
-                    <Text style={feedStyles.sectionDate}>{formatDayLabel(section.date)}</Text>
-                    <Text style={feedStyles.sectionCountText}>{section.data.length} {section.data.length === 1 ? 'event' : 'events'}</Text>
-                  </View>
-                  <View style={{ paddingHorizontal: theme.spacing.lg }}>
-                    {section.data.map(item => (
-                      <EventCard
-                        key={item.id}
-                        event={item}
-                        currentUserId={currentUserId}
-                        onRsvp={item._isTournament ? undefined : handleRsvp}
-                      />
-                    ))}
-                  </View>
-                </View>
-              ))
+              </TouchableOpacity>
             )}
-            {loading && sections.length > 0 && (
-              <ActivityIndicator style={{ marginVertical: theme.spacing.lg }} color={theme.colors.primary} />
-            )}
-          </>
+          </View>
+        ) : null
+
+        const renderSectionHeader = (section: DateSection) => (
+          <View
+            style={feedStyles.sectionHeader}
+            onLayout={e => { sectionYRef.current[section.date] = e.nativeEvent.layout.y }}
+          >
+            <Text style={feedStyles.sectionDate}>{formatDayLabel(section.date)}</Text>
+            <Text style={feedStyles.sectionCountText}>{section.data.length} {section.data.length === 1 ? 'event' : 'events'}</Text>
+          </View>
+        )
+
+        const renderEvent = (item: EventWithDetails) => (
+          <View style={{ paddingHorizontal: theme.spacing.lg }}>
+            <EventCard
+              event={item}
+              currentUserId={currentUserId}
+              onRsvp={item._isTournament ? undefined : handleRsvp}
+            />
+          </View>
         )
 
         // Doc-scroll mode: plain View in document flow — the BODY scrolls
         // (window scroll listener above handles load-more + tab bar hide).
+        // Keep full tree mounted so Safari/Chrome can collapse URL bars.
         if (docScrollActive) {
           return (
             <View ref={feedContentRef} style={{ paddingBottom: tabBarHeight + 32 }}>
-              {feedChildren}
+              {emptyOrLoading ?? sections.map(section => (
+                <View key={section.date} onLayout={e => { sectionYRef.current[section.date] = e.nativeEvent.layout.y }}>
+                  {renderSectionHeader(section)}
+                  {section.data.map(item => (
+                    <React.Fragment key={item.id}>{renderEvent(item)}</React.Fragment>
+                  ))}
+                </View>
+              ))}
+              {loading && sections.length > 0 && (
+                <ActivityIndicator style={{ marginVertical: theme.spacing.lg }} color={theme.colors.primary} />
+              )}
             </View>
           )
         }
 
+        if (emptyOrLoading) {
+          return (
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
+              refreshControl={<RefreshControl refreshing={eventsPullRefreshing} onRefresh={() => void handleEventsPullRefresh()} tintColor={theme.colors.primary} />}
+            >
+              {emptyOrLoading}
+            </ScrollView>
+          )
+        }
+
         return (
-          <ScrollView
-            ref={scrollRef}
+          <SectionList
+            ref={sectionListRef}
             style={{ flex: 1 }}
             contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
-            scrollEventThrottle={16}
-            onScroll={({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }) => {
-              if (contentSize.height - contentOffset.y - layoutMeasurement.height < 400) {
-                handleScrollNearBottom()
-              }
+            sections={sections}
+            keyExtractor={item => item.id}
+            renderItem={({ item }) => renderEvent(item)}
+            renderSectionHeader={({ section }) => renderSectionHeader(section)}
+            stickySectionHeadersEnabled={false}
+            initialNumToRender={6}
+            maxToRenderPerBatch={8}
+            windowSize={7}
+            removeClippedSubviews={Platform.OS === 'android'}
+            onEndReached={() => { handleScrollNearBottom() }}
+            onEndReachedThreshold={0.5}
+            scrollEventThrottle={64}
+            onScroll={({ nativeEvent: { contentOffset } }) => {
               if (Platform.OS === 'web') {
                 const y = contentOffset.y
                 const diff = y - lastScrollY.current
@@ -619,10 +654,13 @@ export default function EventsScreen() {
                 if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
               }
             }}
+            ListFooterComponent={
+              loading && sections.length > 0
+                ? <ActivityIndicator style={{ marginVertical: theme.spacing.lg }} color={theme.colors.primary} />
+                : null
+            }
             refreshControl={<RefreshControl refreshing={eventsPullRefreshing} onRefresh={() => void handleEventsPullRefresh()} tintColor={theme.colors.primary} />}
-          >
-            {feedChildren}
-          </ScrollView>
+          />
         )
       })()}
 
@@ -644,10 +682,8 @@ export default function EventsScreen() {
 
 // ─── Shared pager logic ───────────────────────────────────────────────────────
 //
-// useNativeDriver: false so stopAnimation() fires its callback synchronously.
-// This guarantees interrupted animations commit their state before the next
-// gesture starts, enabling rapid swiping without page-state divergence.
-
+// useNativeDriver: true keeps week/month strip swipes on the UI thread (same as
+// the main tab Pager). stopAnimation still receives the current value via callback.
 function usePager(
   widthRef: React.MutableRefObject<number>,
   translateX: Animated.Value,
@@ -658,9 +694,9 @@ function usePager(
 
   function snap(toValue: number, onComplete?: () => void) {
     translateX.stopAnimation()
-    Animated.spring(translateX, { toValue, useNativeDriver: false, tension: 60, friction: 11 })
-      .start(() => {
-        if (onComplete) {
+    Animated.spring(translateX, { toValue, useNativeDriver: true, tension: 60, friction: 11 })
+      .start(({ finished }) => {
+        if (finished && onComplete) {
           internalNavRef.current = true
           onComplete()
         }
@@ -671,7 +707,9 @@ function usePager(
     onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_, { dx, dy }) =>
       Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > 8,
-    onPanResponderGrant: () => { translateX.stopAnimation() },
+    onPanResponderGrant: () => {
+      translateX.stopAnimation(value => { translateX.setValue(value) })
+    },
     onPanResponderMove: (_, { dx }) => {
       translateX.setValue(-widthRef.current + dx)
     },
@@ -682,8 +720,8 @@ function usePager(
       else                                   snap(-w)
     },
     onPanResponderTerminate: () => {
-      translateX.stopAnimation()
-      Animated.spring(translateX, { toValue: -widthRef.current, useNativeDriver: false, tension: 60, friction: 11 }).start()
+      translateX.stopAnimation(value => { translateX.setValue(value) })
+      Animated.spring(translateX, { toValue: -widthRef.current, useNativeDriver: true, tension: 60, friction: 11 }).start()
     },
   })).current
 

@@ -1,22 +1,43 @@
 import { createContext, useContext, MutableRefObject } from "react";
 
-type TabsContextType = {
-  // Call this to programmatically navigate to a tab by index (0=Events, 1=Clubs, 2=Profile)
-  goToTab: (index: number) => void;
-  // Pager-controlled tab index (mobile / narrow web); wide web uses router only
+/**
+ * Values that change on every tab switch. Only the pager / tab bar should
+ * subscribe — feed screens use `TabsShellContext` so they don't re-render
+ * when `activeTabIndex` changes.
+ */
+type TabsActiveContextType = {
   activeTabIndex: number;
-  // Bumps when the tabs shell regains focus so Events can refetch (e.g. after host/event)
+};
+
+/**
+ * Stable-ish shell values for tab screens (padding, blockers, refresh ticks).
+ * `docScrollActive` still flips with the active tab on narrow web.
+ */
+type TabsShellContextType = {
+  goToTab: (index: number) => void;
   eventsRefreshTick: number;
-  // Set to true while a horizontal FlatList is scrolling to prevent the Pager from stealing the gesture
   pagerBlocked: MutableRefObject<boolean>;
-  // Hide or show the bottom tab bar (animated, web-mobile only)
   setTabBarHidden: (hidden: boolean) => void;
-  // Current measured height of the tab bar (0 on wide web where there is no tab bar)
   tabBarHeight: number;
-  // True when mobile web is in document-scroll mode (body scrolls so browser bars collapse)
   docScrollActive: boolean;
 };
 
+export type TabsContextType = TabsActiveContextType & TabsShellContextType;
+
+export const TabsActiveContext = createContext<TabsActiveContextType>({
+  activeTabIndex: 0,
+});
+
+export const TabsShellContext = createContext<TabsShellContextType>({
+  goToTab: () => {},
+  eventsRefreshTick: 0,
+  pagerBlocked: { current: false },
+  setTabBarHidden: () => {},
+  tabBarHeight: 0,
+  docScrollActive: false,
+});
+
+/** Full tabs API (active index + shell). Prefer the split hooks in new code. */
 export const TabsContext = createContext<TabsContextType>({
   goToTab: () => {},
   activeTabIndex: 0,
@@ -26,4 +47,9 @@ export const TabsContext = createContext<TabsContextType>({
   tabBarHeight: 0,
   docScrollActive: false,
 });
+
+export const useTabsActive = () => useContext(TabsActiveContext);
+export const useTabsShell = () => useContext(TabsShellContext);
+
+/** @deprecated Prefer `useTabsShell` / `useTabsActive` to avoid extra re-renders. */
 export const useTabsContext = () => useContext(TabsContext);

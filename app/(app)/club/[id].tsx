@@ -20,8 +20,9 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../../lib/supabase'
-import { shared, theme, CLUB_AVATARS_BUCKET, EVENT_CARD_LIST_SELECT } from '../../../constants'
+import { shared, theme, CLUB_AVATARS_BUCKET, EVENT_CARD_LIST_SELECT, EVENT_CARD_MY_ATTENDANCE_SELECT } from '../../../constants'
 import { resolveClubAvatarUri, profileDisplayName } from '../../../utils'
+import { attachEventCardPreviews } from '../../../utils/eventCardPreviews'
 import { EventCard } from '../../../components/EventCard'
 import { MajorCityAutocomplete } from '../../../components/MajorCityAutocomplete'
 import { ClubPostCard, ClubPostComposerModal } from '../../../components/ClubPostCard'
@@ -134,12 +135,20 @@ export default function ClubDetailScreen() {
         .select(CLUB_DETAIL_SELECT)
         .eq('id', id)
         .single(),
-      supabase
-        .from('events')
-        .select(EVENT_CARD_LIST_SELECT)
-        .eq('club_id', id)
-        .gte('event_date', new Date().toISOString())
-        .order('event_date', { ascending: true }),
+      (async () => {
+        const uid = session?.user.id
+        const listSelect = uid
+          ? `${EVENT_CARD_LIST_SELECT}, ${EVENT_CARD_MY_ATTENDANCE_SELECT}`
+          : EVENT_CARD_LIST_SELECT
+        let q = supabase
+          .from('events')
+          .select(listSelect)
+          .eq('club_id', id)
+          .gte('event_date', new Date().toISOString())
+          .order('event_date', { ascending: true })
+        if (uid) q = q.eq('my_attendance.user_id', uid)
+        return q
+      })(),
       supabase
         .from('events')
         .select('id', { count: 'exact', head: true })
@@ -161,7 +170,10 @@ export default function ClubDetailScreen() {
       setCoverUri(cover)
     }
 
-    setUpcomingEvents((eventsRes.data ?? []) as unknown as EventWithDetails[])
+    const upcoming = await attachEventCardPreviews(
+      (eventsRes.data ?? []) as unknown as EventWithDetails[],
+    )
+    setUpcomingEvents(upcoming)
     setPastCount(pastRes.count ?? 0)
 
     if (clubRes.data && session?.user.id) {

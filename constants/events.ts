@@ -94,8 +94,17 @@ export const DAY_LABELS_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as co
 export const EVENT_LIST_EVENT_COLUMNS =
   'id, created_by, club_id, title, location, event_date, duration_minutes, max_attendees, created_at, price'
 
-/** Main Events tab + club upcoming: host, RSVP count, tags, club badge. */
-export const EVENT_CARD_LIST_SELECT = `${EVENT_LIST_EVENT_COLUMNS}, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees_attending(count), event_guests_attending(count), event_attendees_waitlisted(count), attendee_previews:event_attendees_attending(user_id, profiles!event_attendees_user_id_fkey(id, username, first_name, last_name, avatar_url)), event_tags (tag_id, tags (id, name, category, display_order)), clubs (id, name, avatar_url)`
+/**
+ * Main Events tab + club upcoming: host, RSVP count, tags, club badge.
+ * Attendee avatars are hydrated separately via `get_event_card_attendee_previews`
+ * (capped at 3) — do not embed unbounded `event_attendees_attending → profiles` here.
+ * Optional `my_attendance` embed (viewer RSVP) is appended by list hooks when the user id is known.
+ */
+export const EVENT_CARD_LIST_SELECT = `${EVENT_LIST_EVENT_COLUMNS}, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees_attending(count), event_guests_attending(count), event_attendees_waitlisted(count), event_tags (tag_id, tags (id, name, category, display_order)), clubs (id, name, avatar_url)`
+
+/** Appended to list selects when signed in — left embed filtered to the current user. */
+export const EVENT_CARD_MY_ATTENDANCE_SELECT =
+  'my_attendance:event_attendees_attending(user_id)'
 
 /** Hosted / history settings lists: host + RSVP count only (no tag/club embeds). */
 export const EVENT_CARD_LIST_SELECT_MINIMAL = `${EVENT_LIST_EVENT_COLUMNS}, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees_attending(count), event_guests_attending(count), event_attendees_waitlisted(count)`

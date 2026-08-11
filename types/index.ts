@@ -277,6 +277,12 @@ export type EventWithDetails = Event & {
     user_id: string
     profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url'> | null
   }>
+  /**
+   * List/card queries only: current user's attending row (0–1 items), from a
+   * filtered `my_attendance:event_attendees_attending` embed. Prefer this over
+   * scanning `attendee_previews` for RSVP state (previews are capped at 3).
+   */
+  my_attendance?: Array<{ user_id: string }>
   /** Set to true for items normalized from the tournaments table. Cards use this to navigate to /tournament/[id] instead of /event/[id]. */
   _isTournament?: boolean
 }

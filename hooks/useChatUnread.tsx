@@ -48,6 +48,14 @@ export function ChatUnreadProvider({ children }: { children: React.ReactNode }) 
     void recompute()
 
     let channel: ReturnType<typeof supabase.channel> | null = null
+    let recomputeTimer: ReturnType<typeof setTimeout> | null = null
+    const scheduleRecompute = () => {
+      if (recomputeTimer) clearTimeout(recomputeTimer)
+      recomputeTimer = setTimeout(() => {
+        recomputeTimer = null
+        void recompute()
+      }, 450)
+    }
 
     void supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user || !mountedRef.current) return
@@ -56,22 +64,23 @@ export function ChatUnreadProvider({ children }: { children: React.ReactNode }) 
       channel = supabase
         .channel(`chat-unread-${user.id}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
-          () => { void recompute() })
+          () => { scheduleRecompute() })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_members' },
-          () => { void recompute() })
+          () => { scheduleRecompute() })
         .on('postgres_changes',
           { event: '*', schema: 'public', table: 'chat_silences', filter: `user_id=eq.${user.id}` },
-          () => { void recompute() })
+          () => { scheduleRecompute() })
         .subscribe()
     })
 
     const silencesSub = DeviceEventEmitter.addListener(CHAT_SILENCES_CHANGED_EVENT, () => {
-      void recompute()
+      scheduleRecompute()
     })
 
     return () => {
       mountedRef.current = false
       silencesSub.remove()
+      if (recomputeTimer) clearTimeout(recomputeTimer)
       if (channel) void supabase.removeChannel(channel)
     }
   }, [recompute])

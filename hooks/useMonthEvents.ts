@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { EVENT_CARD_LIST_SELECT } from '../constants'
+import { EVENT_CARD_LIST_SELECT, EVENT_CARD_MY_ATTENDANCE_SELECT } from '../constants'
 import { supabase } from '../lib/supabase'
 import { startOfToday } from '../utils'
+import { attachEventCardPreviews } from '../utils/eventCardPreviews'
 import { EventWithDetails } from '../types'
 
 const STALE_MS = 60_000
@@ -52,14 +53,24 @@ export function useMonthEvents() {
     const p = (async () => {
       setLoadingMonths(prev => new Set([...prev, month]))
       try {
+        const { data: { user } } = await supabase.auth.getUser()
+        const listSelect = user
+          ? `${EVENT_CARD_LIST_SELECT}, ${EVENT_CARD_MY_ATTENDANCE_SELECT}`
+          : EVENT_CARD_LIST_SELECT
+
+        let eventsQuery = supabase
+          .from('events')
+          .select(listSelect)
+          .gte('event_date', monthStart(month))
+          .lt('event_date', monthEnd(month))
+          .is('cancelled_at', null)
+          .order('event_date', { ascending: true })
+        if (user) {
+          eventsQuery = eventsQuery.eq('my_attendance.user_id', user.id)
+        }
+
         const [{ data: eventsData, error: eventsError }, { data: tournamentsData }] = await Promise.all([
-          supabase
-            .from('events')
-            .select(EVENT_CARD_LIST_SELECT)
-            .gte('event_date', monthStart(month))
-            .lt('event_date', monthEnd(month))
-            .is('cancelled_at', null)
-            .order('event_date', { ascending: true }),
+          eventsQuery,
           supabase
             .from('tournaments')
             .select('id, created_by, club_id, title, location, start_date, max_teams, price, skill_levels, status, created_at, profiles!tournaments_created_by_fkey(id, username, first_name, last_name, avatar_url), clubs(id, name, avatar_url)')
@@ -88,13 +99,17 @@ export function useMonthEvents() {
             clubs:                     t.clubs,
             event_tags:                [{ tag_id: '_tournament', tags: TOURNAMENT_TAG }],
             attendee_previews:         [],
+            my_attendance:             [],
             event_attendees_attending: [{ count: 0 }],
             event_guests_attending:    [{ count: 0 }],
             event_attendees_waitlisted:[{ count: 0 }],
             _isTournament:             true,
           }))
 
-          const combined = [...(eventsData as unknown as EventWithDetails[]), ...normalized]
+          const withPreviews = await attachEventCardPreviews(
+            (eventsData ?? []) as unknown as EventWithDetails[],
+          )
+          const combined = [...withPreviews, ...normalized]
           combined.sort((a, b) => a.event_date.localeCompare(b.event_date))
 
           cacheRef.current[month] = {

@@ -56,7 +56,7 @@ import {
   profileFullName,
 } from '../../../../../utils'
 import type { Profile, VolleyballPosition, VolleyballSkillLevel } from '../../../../../types'
-import { useTabsContext } from '../../../../../contexts/tabs'
+import { useTabsShell } from '../../../../../contexts/tabs'
 import { useBadges } from '../../../../../hooks/useBadges'
 
 type Section = 'menu' | 'edit'
@@ -297,7 +297,7 @@ function ProfileAvatar(props: AvatarProps) {
 
 export default function MyProfile() {
   const router = useRouter()
-  const { setTabBarHidden, tabBarHeight, docScrollActive } = useTabsContext()
+  const { setTabBarHidden, tabBarHeight, docScrollActive } = useTabsShell()
   const lastScrollY = useRef(0)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
