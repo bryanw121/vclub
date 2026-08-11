@@ -4,19 +4,21 @@
  * Run: npx playwright test e2e/events.spec.ts
  *
  * Test account: bryanw121 / password
- * Relies on seeded upcoming events in the shared Supabase project, tagged so the
- * feed's type filters have data:
- *   - "Friday Night Open Play"    → Open Play, unlimited capacity (always joinable)
- *   - "Monday Night Round Robin"  → Tournament
- * These are regular events (not tournament-table rows), so they route to
- * /event/[id] with the Join/Leave RSVP flow.
+ *
+ * Fixtures: beforeAll creates two relative-dated events hosted by bryanw121
+ * (`[e2e] Open Play`, `[e2e] Tournament`) and afterAll deletes them. No
+ * permanent shared seed events are required in the live DB.
  */
 
 import { test, expect, Page } from '@playwright/test'
+import {
+  OPEN_PLAY_EVENT,
+  TOURNAMENT_EVENT,
+  seedEventFixtures,
+  cleanupEventFixtures,
+} from './eventsFixtures'
 
 const BASE_URL = 'http://localhost:8081'
-const OPEN_PLAY_EVENT = 'Friday Night Open Play'
-const TOURNAMENT_EVENT = 'Monday Night Round Robin'
 
 async function login(page: Page) {
   await page.goto(`${BASE_URL}/login`)
@@ -29,7 +31,17 @@ async function login(page: Page) {
   await page.waitForTimeout(2500)
 }
 
+test.describe.configure({ mode: 'serial' })
+
 test.describe('Events', () => {
+  test.beforeAll(async () => {
+    await seedEventFixtures()
+  })
+
+  test.afterAll(async () => {
+    await cleanupEventFixtures()
+  })
+
   test.beforeEach(async ({ page }, testInfo) => {
     page.on('console', msg => {
       if (msg.type() === 'error') console.error(`[browser] ${msg.text()}`)
@@ -82,7 +94,7 @@ test.describe('Events', () => {
     await page.getByTestId('event-tab-discussion').first().click()
     await expect(page.getByPlaceholder('Add a comment…').first()).toBeVisible({ timeout: 15000 })
 
-    // Cheers tab — seeded events are upcoming, so the not-yet-available gate shows.
+    // Cheers tab — fixtures are upcoming, so the not-yet-available gate shows.
     await page.getByTestId('event-tab-cheers').first().click()
     await expect(page.getByText(/Cheers open after the event ends/).first()).toBeVisible({ timeout: 15000 })
 
@@ -115,9 +127,9 @@ test.describe('Events', () => {
   })
 
   test('host adds a +1 guest, sees it on the roster, then removes it', async ({ page }) => {
-    // bryanw121 hosts the seed events, so host-only UI (+1 button, guest
-    // remove X) renders for the e2e account. Removal doubles as cleanup so
-    // the shared DB doesn't accumulate guests across runs.
+    // bryanw121 hosts the fixtures, so host-only UI (+1 button, guest remove X)
+    // renders for the e2e account. Removal doubles as cleanup so the shared DB
+    // doesn't accumulate guests across runs.
     const guestFirst = 'E2eguest'
     const guestLast = `X${Date.now()}`
 

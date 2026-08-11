@@ -143,12 +143,11 @@ network or a real `.env`. Unit tests must never hit the network.
   the dashboard). The files in `supabase/migrations/` are **not in sync** with
   the applied history — never replay them onto a fresh project; baseline from
   `supabase db dump` instead.
-- **E2E seeds**: tests log in as `bryanw121` and rely on seeded events
-  ("Friday Night Open Play", "Monday Night Round Robin") plus a seed
-  conversation defined in `e2e/chat.spec.ts`. Seeds are fixed-date and can age
-  out of the *upcoming* feed, which reds the tag-filter test through no fault
-  of your diff — bump the seed dates forward if that happens (a durable
-  relative-date fix is tracked in #12).
+- **E2E seeds**: tests log in as `bryanw121`. Events e2e creates its own
+  relative-dated `[e2e]` fixtures in `beforeAll` and deletes them in
+  `afterAll` (see `e2e/eventsFixtures.ts`) — no permanent shared events are
+  required. Chat e2e still relies on a seed conversation defined in
+  `e2e/chat.spec.ts`.
 - **RLS is the security boundary.** Anything the client shouldn't be able to
   do must be blocked by policy, not by UI.
 
