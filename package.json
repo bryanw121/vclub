@@ -9,7 +9,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "docs:update": "node scripts/generate-architecture-doc.mjs",
+    "docs:check": "node scripts/generate-architecture-doc.mjs --check"
   },
   "jest": {
     "preset": "jest-expo",
