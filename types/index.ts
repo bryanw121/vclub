@@ -303,8 +303,10 @@ export type CreateEventForm = {
   date: Date             // Stored as JS Date locally; converted to ISO string on submit
   durationMinutes: number      // Event duration; default 120
   maxAttendees: number | null  // null = unlimited
-  price: number | null         // null = free
-  venmoHandle: string          // optional; only used when price > 0
+  /** Raw text as typed, e.g. "5.", "0.50". Parsed to a number only on submit —
+   *  storing a number here destroys in-progress input like a trailing "." */
+  priceText: string
+  venmoHandle: string          // optional; only used when the parsed price > 0
 }
 
 /**
