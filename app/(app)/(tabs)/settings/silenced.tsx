@@ -58,7 +58,7 @@ export default function SilencedPeopleScreen() {
           <View style={[shared.card, { alignItems: 'center', paddingVertical: theme.spacing.xl, gap: theme.spacing.sm }]}>
             <Ionicons name="eye-outline" size={40} color={theme.colors.subtext} />
             <Text style={[shared.body, { textAlign: 'center', color: theme.colors.subtext }]}>
-              No silenced users. Long-press a message in chat → Silence user.
+              No silenced users. Long-press a message (or use the ⋮ menu) → Silence user.
             </Text>
           </View>
         ) : (
