@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
-  ActivityIndicator, Modal, Pressable, Alert, Platform, RefreshControl,
+  ActivityIndicator, Modal, Pressable, Platform, RefreshControl,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
@@ -13,7 +13,7 @@ import { useConversations } from '../../../hooks/useConversations'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
 import { useTabsActive, useTabsShell } from '../../../contexts/tabs'
 import { timeAgo, lastMessagePreview } from '../../../utils/chatUtils'
-import { profileAvatarSmallUri, buildMemberSearchFilter, profileDisplayName } from '../../../utils'
+import { profileAvatarSmallUri, buildMemberSearchFilter, profileDisplayName, confirmDestructive } from '../../../utils'
 import type { ConversationRow, Profile } from '../../../types'
 
 function conversationTitle(row: ConversationRow): string {
@@ -200,13 +200,11 @@ export default function ChatScreen() {
   }
 
   function confirmSilenceFromList(otherUserId: string, label: string) {
-    Alert.alert(
+    confirmDestructive(
       'Silence this user?',
       `${label} — their chat messages will be hidden. Undo under Profile → Silenced people.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Silence', style: 'destructive', onPress: () => { void silenceUser(otherUserId) } },
-      ],
+      'Silence',
+      () => { void silenceUser(otherUserId) },
     )
   }
 
