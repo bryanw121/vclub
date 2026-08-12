@@ -92,7 +92,7 @@ export const DAY_LABELS_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as co
 // ─── Supabase list queries (EventCard / feeds) ─────────────────────────────────
 /** Core `events` columns for cards — omits `description` to shrink rows and JSON payload. */
 export const EVENT_LIST_EVENT_COLUMNS =
-  'id, created_by, club_id, title, location, event_date, duration_minutes, max_attendees, created_at, price'
+  'id, created_by, club_id, title, location, event_date, duration_minutes, max_attendees, created_at, price, requires_approval'
 
 /**
  * Main Events tab + club upcoming: host, RSVP count, tags, club badge.

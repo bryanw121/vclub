@@ -32,6 +32,7 @@ const EMPTY_FORM: CreateEventForm = {
   maxAttendees: null,
   price: null,
   venmoHandle: '',
+  requiresApproval: false,
 }
 
 const CADENCE_OPTIONS: { value: RecurrenceCadence; label: string }[] = [
@@ -197,6 +198,7 @@ export default function HostEventScreen() {
       maxAttendees: data.max_attendees,
       price: data.price ?? null,
       venmoHandle: data.venmo_handle ?? '',
+      requiresApproval: data.requires_approval ?? false,
     })
     setSelectedTagIds((data.event_tags ?? []).map((et: any) => et.tag_id))
     setSelectedClubId(data.club_id ?? null)
@@ -289,6 +291,7 @@ export default function HostEventScreen() {
             club_id: selectedClubId,
             price: form.price,
             venmo_handle: form.price && form.price > 0 ? (form.venmoHandle.trim() || null) : null,
+            requires_approval: form.requiresApproval,
           })
           .eq('id', editId)
         if (error) throw error
@@ -359,6 +362,7 @@ export default function HostEventScreen() {
           club_id: selectedClubId,
           price: form.price,
           venmo_handle: form.price && form.price > 0 ? (form.venmoHandle.trim() || null) : null,
+          requires_approval: form.requiresApproval,
         }))
 
         const { data: insertedEvents, error } = await supabase.from('events').insert(rows).select('id')
@@ -786,6 +790,30 @@ export default function HostEventScreen() {
               </View>
             </View>
           )}
+        </View>
+
+        {/* ── Approval ──
+            Deliberately its own card, right after Price, because approval used
+            to be inferred from `price > 0`. Hosts need to see that the two are
+            now independent: a free event can be screened, a paid one can be open. */}
+        <View style={hostStyles.fieldCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md }}>
+            <View style={{ flex: 1 }}>
+              <Text style={hostStyles.fieldLabel}>Require approval to join</Text>
+              <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, marginTop: 2 }}>
+                {form.requiresApproval
+                  ? 'Players request a spot and you approve each one.'
+                  : 'Anyone can join instantly until the event is full.'}
+              </Text>
+            </View>
+            <Switch
+              value={form.requiresApproval}
+              onValueChange={v => setField('requiresApproval', v)}
+              accessibilityLabel="Require approval to join this event"
+              trackColor={{ false: theme.colors.border, true: theme.colors.primary + '80' }}
+              thumbColor={form.requiresApproval ? theme.colors.primary : theme.colors.subtext}
+            />
+          </View>
         </View>
 
         {/* ── Recurrence (create only) ── */}
