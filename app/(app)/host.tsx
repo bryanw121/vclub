@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, PanResponder, ScrollView, Text, TextInput, View, TouchableOpacity, Switch, Modal, StyleSheet, Platform, RefreshControl } from 'react-native'
+import React, { useCallback, useEffect, useState } from 'react'
+import { ActivityIndicator, ScrollView, Text, TextInput, View, TouchableOpacity, Switch, Modal, StyleSheet, Platform, RefreshControl } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '../../lib/supabase'
@@ -446,80 +446,6 @@ export default function HostEventScreen() {
     )
   }
 
-  // ── Snap slider for max players ───────────────────────────────────────────
-  const CAPACITY_STOPS: Array<{ label: string; value: number | null }> = [
-    { label: '6',  value: 6    },
-    { label: '16', value: 16   },
-    { label: '24', value: 24   },
-    { label: '∞',  value: null },
-  ]
-
-  function SnapSlider() {
-    const trackRef   = useRef<View>(null)
-    const trackWidth = useRef(0)
-    const activeIdx  = CAPACITY_STOPS.findIndex(s => s.value === form.maxAttendees)
-    const thumbPct   = activeIdx < 0 ? 1 : activeIdx / (CAPACITY_STOPS.length - 1)
-
-    const panResponder = useRef(PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder:  () => true,
-      onPanResponderGrant: (e) => {
-        const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / trackWidth.current))
-        const idx = Math.round(ratio * (CAPACITY_STOPS.length - 1))
-        setField('maxAttendees', CAPACITY_STOPS[idx].value)
-      },
-      onPanResponderMove: (e) => {
-        const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / trackWidth.current))
-        const idx = Math.round(ratio * (CAPACITY_STOPS.length - 1))
-        setField('maxAttendees', CAPACITY_STOPS[idx].value)
-      },
-    })).current
-
-    return (
-      <View style={hostStyles.fieldCard}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
-          <Text style={hostStyles.fieldLabel}>Max players</Text>
-          <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 22, color: theme.colors.text, letterSpacing: -0.5 }}>
-            {form.maxAttendees === null ? '∞' : form.maxAttendees}
-          </Text>
-        </View>
-        <View
-          ref={trackRef}
-          onLayout={e => { trackWidth.current = e.nativeEvent.layout.width }}
-          style={{ height: 6, backgroundColor: theme.colors.border, borderRadius: 3, position: 'relative' }}
-          {...panResponder.panHandlers}
-        >
-          <View style={{ width: `${thumbPct * 100}%` as any, height: '100%', backgroundColor: theme.colors.primary, borderRadius: 3 }} />
-          <View style={{
-            position: 'absolute',
-            left: `${thumbPct * 100}%` as any,
-            top: '50%',
-            marginLeft: -9, marginTop: -9,
-            width: 18, height: 18, borderRadius: 9,
-            backgroundColor: theme.colors.card,
-            borderWidth: 3, borderColor: theme.colors.primary,
-          }} />
-        </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-          {CAPACITY_STOPS.map((s, i) => (
-            <TouchableOpacity
-              key={s.label}
-              onPress={() => setField('maxAttendees', s.value)}
-              hitSlop={8}
-              style={{ paddingVertical: 2, paddingHorizontal: 4 }}
-            >
-              <Text style={{
-                fontFamily: theme.fonts.bodySemiBold,
-                fontSize: 11,
-                color: i === activeIdx ? theme.colors.primary : theme.colors.subtext,
-              }}>{s.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-    )
-  }
-
   // ── Form view ─────────────────────────────────────────────────────────────
   if (initialLoading) {
     return (
@@ -695,8 +621,37 @@ export default function HostEventScreen() {
           </Modal>
         </View>
 
-        {/* ── Max players (draggable snap slider) ── */}
-        <SnapSlider />
+        {/* ── Max players ── */}
+        <View style={hostStyles.fieldCard}>
+          <Text style={hostStyles.fieldLabel}>Max players</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 }}>
+            <TextInput
+              value={form.maxAttendees != null ? String(form.maxAttendees) : ''}
+              onChangeText={v => {
+                const digits = v.replace(/[^0-9]/g, '')
+                if (digits === '') { setField('maxAttendees', null); return }
+                const n = parseInt(digits, 10)
+                if (Number.isFinite(n) && n > 0) setField('maxAttendees', n)
+              }}
+              placeholder="e.g. 18"
+              placeholderTextColor={theme.colors.subtext}
+              keyboardType="number-pad"
+              style={[hostStyles.fieldInput, { flex: 1 }]}
+            />
+            <TouchableOpacity
+              onPress={() => setField('maxAttendees', form.maxAttendees === null ? 18 : null)}
+              style={[hostStyles.chip, form.maxAttendees === null && hostStyles.chipActive]}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityState={{ selected: form.maxAttendees === null }}
+              accessibilityLabel="Unlimited players"
+            >
+              <Text style={[hostStyles.chipText, form.maxAttendees === null && hostStyles.chipTextActive]}>
+                Unlimited
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* ── Skill level tags ── */}
         {(() => {
