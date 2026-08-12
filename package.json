@@ -9,7 +9,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "TZ=America/Chicago jest",
+    "test:timezones": "for tz in America/Chicago America/Denver Europe/Berlin Asia/Tokyo UTC; do echo \"── TZ=$tz ──\"; TZ=$tz jest __tests__/calendarDates.test.ts || exit 1; done"
   },
   "jest": {
     "preset": "jest-expo",

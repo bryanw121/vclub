@@ -11,9 +11,10 @@ import { EventWithDetails, type Notification } from '../../../../types'
 import { useTabsShell } from '../../../../contexts/tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../../lib/supabase'
+import { eventLocalDateKey, localDateKey } from '../../../../utils'
 
 const _now = new Date()
-const TODAY = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`
+const TODAY = localDateKey(_now)
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
 const REF_WEEK  = getWeekStart(new Date())
@@ -197,11 +198,9 @@ export default function EventsScreen() {
     })
     const grouped: Record<string, EventWithDetails[]> = {}
     for (const event of [...filtered].sort((a, b) => a.event_date.localeCompare(b.event_date))) {
-      // Normalize to UTC (append Z if no timezone suffix) then extract local date
-      // so the section header matches the time shown on the event card.
-      const normalized = /[Z+]/.test(event.event_date) ? event.event_date : event.event_date + 'Z'
-      const d = new Date(normalized)
-      const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      // Local date, so the section header matches the time shown on the event
+      // card — and matches the calendar dot, which uses the same helper.
+      const date = eventLocalDateKey(event.event_date)
       if (!grouped[date]) grouped[date] = []
       grouped[date].push(event)
     }
@@ -749,7 +748,9 @@ const WeekStripContent = memo(function WeekStripContent({ weekDays, selectedDate
     <View style={{ paddingBottom: theme.spacing.sm, paddingTop: theme.spacing.xs }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         {weekDays.map(day => {
-          const dateStr = day.toISOString().split('T')[0]
+          // `day` is a local-midnight Date; toISOString() would shift it to the
+          // previous day for any viewer at a positive UTC offset.
+          const dateStr = localDateKey(day)
           const isSelected = dateStr === selectedDate
           const isToday = dateStr === TODAY
           const dots = markedDates[dateStr]?.marked ? (markedDates[dateStr]?.count ?? 1) : 0
@@ -1045,7 +1046,9 @@ function addMonths(month: string, n: number): string {
 function buildMarkedDates(events: EventWithDetails[], selectedDate: string) {
   const marks: Record<string, { marked?: boolean; dotColor?: string; selected?: boolean; selectedColor?: string; selectedDotColor?: string }> = {}
   for (const event of events) {
-    const day = event.event_date.split('T')[0]
+    // Must be the viewer's local date, not the raw UTC slice — a 7pm CDT event
+    // is stored as the next day in UTC and would dot the wrong square.
+    const day = eventLocalDateKey(event.event_date)
     marks[day] = { marked: true, dotColor: theme.colors.primary }
   }
   marks[selectedDate] = {
