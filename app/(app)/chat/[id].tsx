@@ -24,7 +24,7 @@ import { AnchorOptionsMenu, type AnchorRect } from '../../../components/AnchorOp
 import { MessageBubble } from '../../../components/MessageBubble'
 import { ReactionPicker } from '../../../components/ReactionPicker'
 import type { ConversationRow, MessageWithDetails, MentionUser } from '../../../types'
-import { profileAvatarSmallUri, profileDisplayName } from '../../../utils'
+import { profileAvatarSmallUri, profileDisplayName, confirmDestructive } from '../../../utils'
 
 const AVATAR_SIZE = 36
 
@@ -269,13 +269,11 @@ export default function ChatRoomScreen() {
   }
 
   const confirmSilenceUser = useCallback((senderId: string) => {
-    Alert.alert(
+    confirmDestructive(
       'Silence this user?',
       'Their chat messages will be hidden. Events and club activity stay the same. Undo anytime under Profile → Silenced people.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Silence', style: 'destructive', onPress: () => { void silenceUser(senderId) } },
-      ],
+      'Silence',
+      () => { void silenceUser(senderId) },
     )
   }, [silenceUser])
 
@@ -286,7 +284,11 @@ export default function ChatRoomScreen() {
       last_name: convRow.other_user_last_name,
       username: convRow.other_user_username ?? 'player',
     })
-    Alert.alert('Report submitted', `${name} has been reported to the Vclub team.`)
+    if (Platform.OS === 'web') {
+      window.alert(`${name} has been reported to the Vclub team.`)
+    } else {
+      Alert.alert('Report submitted', `${name} has been reported to the Vclub team.`)
+    }
   }, [convRow])
 
   const confirmReportDmUser = useCallback(() => {
@@ -297,17 +299,11 @@ export default function ChatRoomScreen() {
       username: convRow.other_user_username ?? 'player',
     })
 
-    Alert.alert(
+    confirmDestructive(
       'Report this player?',
       `Send a moderation report about ${name} to the Vclub team?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Report',
-          style: 'destructive',
-          onPress: submitStubDmReport,
-        },
-      ],
+      'Report',
+      submitStubDmReport,
     )
   }, [convRow, submitStubDmReport])
 
@@ -733,6 +729,7 @@ export default function ChatRoomScreen() {
           setTimeout(() => inputRef.current?.focus(), 50)
         }}
         onDelete={msgId => void deleteMessage(msgId)}
+        onSilence={confirmSilenceUser}
         onDismiss={() => setPickerVisible(false)}
       />
 

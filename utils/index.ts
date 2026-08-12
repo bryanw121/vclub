@@ -1,6 +1,8 @@
 import type { Profile, VolleyballPosition, VolleyballSkillLevel, EventAttendee, EventAttendeeCountEmbed } from '../types'
 import { AVATARS_BUCKET, CLUB_AVATARS_BUCKET } from '../constants/storage'
 
+export { confirmDestructive } from './confirm'
+
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!
 
 export function formatEventDate(dateString: string, style: 'short' | 'long' = 'short') {
