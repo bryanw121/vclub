@@ -88,6 +88,8 @@ test.describe('Chat', () => {
     await page.reload()
     await page.waitForTimeout(3000)
     await dismissErrorOverlays(page)
+    // Keep negative assertions from passing vacuously on the login screen.
+    await expect(chatHeader(page)).toBeVisible({ timeout: 20_000 })
     console.log(`→ ready: ${testInfo.title}`)
   })
 

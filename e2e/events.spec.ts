@@ -53,17 +53,17 @@ test.describe('Events', () => {
     await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 20000 })
 
     // Tournament filter: tournament event shown, open-play event gone.
-    await page.getByTestId('filter-tournament').first().click()
+    await page.getByText('Tournament', { exact: true }).first().click({ force: true })
     await expect(page.getByText(TOURNAMENT_EVENT).first()).toBeVisible()
     await expect(page.getByText(OPEN_PLAY_EVENT)).toHaveCount(0)
 
     // Open Play filter: open-play event back, tournament event gone.
-    await page.getByTestId('filter-open_play').first().click()
+    await page.getByText('Open Play', { exact: true }).first().click({ force: true })
     await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible()
     await expect(page.getByText(TOURNAMENT_EVENT)).toHaveCount(0)
 
     // All: both visible again.
-    await page.getByTestId('filter-all').first().click()
+    await page.getByText('All', { exact: true }).first().click({ force: true })
     await expect(page.getByText(TOURNAMENT_EVENT).first()).toBeVisible()
     await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible()
   })

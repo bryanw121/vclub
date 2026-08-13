@@ -28,10 +28,17 @@ export default defineConfig({
       retries: 0,
     },
     {
-      name: 'chromium',
-      testIgnore: '**/*.setup.ts',
+      name: 'auth-check',
+      testMatch: '**/auth.verify.ts',
       use: { storageState: AUTH_FILE },
       dependencies: ['setup'],
+      retries: 0,
+    },
+    {
+      name: 'chromium',
+      testIgnore: ['**/*.setup.ts', '**/auth.verify.ts'],
+      use: { storageState: AUTH_FILE },
+      dependencies: ['auth-check'],
     },
   ],
   // Assumes the Expo dev server is already running (`npx expo start --web`)
