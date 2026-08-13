@@ -18,18 +18,7 @@ import {
   cleanupEventFixtures,
 } from './eventsFixtures'
 
-const BASE_URL = 'http://localhost:8081'
-
-async function login(page: Page) {
-  await page.goto(`${BASE_URL}/login`)
-  await page.waitForTimeout(2000)
-  await page.getByRole('textbox').nth(0).fill('bryanw121')
-  await page.getByRole('textbox').nth(1).fill('password')
-  await page.getByText('Sign in', { exact: true }).click()
-  await page.waitForURL(`${BASE_URL}/`)
-  // Events feed loads on focus — give the month query time to resolve.
-  await page.waitForTimeout(2500)
-}
+const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8081'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -48,7 +37,10 @@ test.describe('Events', () => {
     })
     page.on('pageerror', err => console.error(`[page error] ${err.message}`))
     console.log(`→ starting: ${testInfo.title}`)
-    await login(page)
+    // auth.setup.ts signs in once per Playwright run and each test receives
+    // that stored session. Going directly to / proves the session restored.
+    await page.goto(`${BASE_URL}/`)
+    await expect(page.getByTestId('filter-all').first()).toBeVisible({ timeout: 20_000 })
   })
 
   test('feed lists upcoming events with filter chips', async ({ page }) => {
@@ -57,21 +49,26 @@ test.describe('Events', () => {
     await expect(page.getByTestId('filter-tournament').first()).toBeVisible()
   })
 
+  // Filter chips are clicked by testID, never by visible text: an event card's
+  // type tag renders the exact same strings ("Tournament", "Open Play"), so a
+  // text locator's .first() can resolve to the tag instead of the chip — and
+  // with { force: true } that misdirected click fails silently, leaving the
+  // filter unapplied.
   test('filtering by tag narrows the feed', async ({ page }) => {
     await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 20000 })
 
     // Tournament filter: tournament event shown, open-play event gone.
-    await page.getByTestId('filter-tournament').first().click()
+    await page.getByTestId('filter-tournament').first().dispatchEvent('click')
     await expect(page.getByText(TOURNAMENT_EVENT).first()).toBeVisible()
     await expect(page.getByText(OPEN_PLAY_EVENT)).toHaveCount(0)
 
     // Open Play filter: open-play event back, tournament event gone.
-    await page.getByTestId('filter-open_play').first().click()
+    await page.getByTestId('filter-open_play').first().dispatchEvent('click')
     await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible()
     await expect(page.getByText(TOURNAMENT_EVENT)).toHaveCount(0)
 
     // All: both visible again.
-    await page.getByTestId('filter-all').first().click()
+    await page.getByTestId('filter-all').first().dispatchEvent('click')
     await expect(page.getByText(TOURNAMENT_EVENT).first()).toBeVisible()
     await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible()
   })

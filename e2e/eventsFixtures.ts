@@ -34,6 +34,10 @@ function loadLocalEnv() {
       (value.startsWith("'") && value.endsWith("'"))
     ) {
       value = value.slice(1, -1)
+    } else {
+      // Match dotenv's handling of unquoted values such as
+      // KEY=actual-value # local note.
+      value = value.replace(/\s+#.*$/, '').trim()
     }
     if (process.env[key] === undefined) process.env[key] = value
   }
@@ -139,11 +143,13 @@ export async function seedEventFixtures(): Promise<void> {
     throw new Error(`Failed to tag e2e events: ${tagInsertError.message}`)
   }
 
-  await supabase.auth.signOut()
+  // The default global scope revokes every session for this user, including
+  // the browser state shared by the Playwright projects.
+  await supabase.auth.signOut({ scope: 'local' })
 }
 
 export async function cleanupEventFixtures(): Promise<void> {
   const { supabase, userId } = await signInE2eClient()
   await deleteE2eEvents(supabase, userId)
-  await supabase.auth.signOut()
+  await supabase.auth.signOut({ scope: 'local' })
 }
