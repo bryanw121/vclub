@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { Button } from '../Button'
 import { ProfileAvatar } from '../ProfileAvatar'
 import { DocScrollView } from '../DocScrollView'
+import { AnchorOptionsMenu, type AnchorMenuOption, type AnchorRect } from '../AnchorOptionsMenu'
 import { shared, theme, TEAM_COLORS, TEAM_COLOR_NAMES } from '../../constants'
 import type { EventWithDetails, Profile, AttendanceStatus, EventGuest, TeamAssignment } from '../../types'
 import { profileDisplayName, resolveProfileAvatarUriSmall, hostRosterSkillAndPositionsLine } from '../../utils'
@@ -22,9 +23,16 @@ type DraggableCardProps = {
   onDragEnd: (x: number, y: number) => void
   onRemove: () => void
   onTogglePin: () => void
+  /**
+   * When set, the corner control becomes a ⋯ menu instead of a bare ✕. The
+   * parent owns the option list so Message / View profile / Remove all live in
+   * one place rather than as competing controls on a 34pt-tall row.
+   */
+  onOpenMenu?: (rect: AnchorRect) => void
 }
 
-function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStart, onDragMove, onDragEnd, onRemove, onTogglePin }: DraggableCardProps) {
+function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStart, onDragMove, onDragEnd, onRemove, onTogglePin, onOpenMenu }: DraggableCardProps) {
+  const menuBtnRef = useRef<View>(null)
   const scale = useSharedValue(1)
   const opacity = useSharedValue(1)
   const [avatarUri, setAvatarUri] = useState<string | null>(null)
@@ -110,28 +118,43 @@ function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStar
           </GestureDetector>
         </Animated.View>
       </GestureDetector>
-      {isOwner && (() => {
-        const handleRemove = () => { onRemove() }
+      {(isOwner || onOpenMenu) && (() => {
+        // One corner control, not two. With a menu available it becomes ⋯ and
+        // Remove moves inside it; without one it stays the bare ✕ it was.
+        const useMenu = !!onOpenMenu
+        const label = useMenu
+          ? `Actions for ${profileDisplayName(profile)}`
+          : `Remove ${profileDisplayName(profile)}`
+        const activate = () => {
+          if (!onOpenMenu) { onRemove(); return }
+          menuBtnRef.current?.measureInWindow((x, y, w, h) => {
+            onOpenMenu({ x, y, width: w, height: h })
+          })
+        }
+        const glyph = <Ionicons name={useMenu ? 'ellipsis-horizontal' : 'close'} size={15} color={theme.colors.subtext} />
         return Platform.OS === 'web' ? (
           <View
+            ref={menuBtnRef}
             onStartShouldSetResponder={() => true}
-            onResponderRelease={handleRemove}
-            style={[styles.removeBtn, styles.removeBtnHit]}
+            onResponderRelease={activate}
+            style={[useMenu ? styles.rowMenuBtn : styles.removeBtn, styles.removeBtnHit]}
             accessibilityRole="button"
-            accessibilityLabel={`Remove ${profileDisplayName(profile)}`}
+            accessibilityLabel={label}
           >
-            <Ionicons name="close" size={15} color={theme.colors.subtext} />
+            {glyph}
           </View>
         ) : (
-          <GHTouchableOpacity
-            onPress={handleRemove}
-            style={[styles.removeBtn, styles.removeBtnHit]}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={`Remove ${profileDisplayName(profile)}`}
-          >
-            <Ionicons name="close" size={15} color={theme.colors.subtext} />
-          </GHTouchableOpacity>
+          <View ref={menuBtnRef} collapsable={false} style={useMenu ? undefined : styles.removeBtn}>
+            <GHTouchableOpacity
+              onPress={activate}
+              style={[useMenu ? styles.rowMenuBtn : null, styles.removeBtnHit]}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={label}
+            >
+              {glyph}
+            </GHTouchableOpacity>
+          </View>
         )
       })()}
     </View>
@@ -149,9 +172,11 @@ type DraggableGuestCardProps = {
   onDragEnd: (x: number, y: number) => void
   onRemove: () => void
   onTogglePin: () => void
+  onOpenMenu?: (rect: AnchorRect) => void
 }
 
-function DraggableGuestCard({ guest, adderUsername, teamColor, isPinned, isOwner, onDragStart, onDragMove, onDragEnd, onRemove, onTogglePin }: DraggableGuestCardProps) {
+function DraggableGuestCard({ guest, adderUsername, teamColor, isPinned, isOwner, onDragStart, onDragMove, onDragEnd, onRemove, onTogglePin, onOpenMenu }: DraggableGuestCardProps) {
+  const menuBtnRef = useRef<View>(null)
   const scale = useSharedValue(1)
   const opacity = useSharedValue(1)
 
@@ -201,28 +226,40 @@ function DraggableGuestCard({ guest, adderUsername, teamColor, isPinned, isOwner
           </GestureDetector>
         </Animated.View>
       </GestureDetector>
-      {isOwner && (() => {
-        const handleRemove = () => { onRemove() }
+      {(isOwner || onOpenMenu) && (() => {
+        const useMenu = !!onOpenMenu
+        const who = `${guest.first_name} ${guest.last_name}`
+        const label = useMenu ? `Actions for guest ${who}` : `Remove guest ${who}`
+        const activate = () => {
+          if (!onOpenMenu) { onRemove(); return }
+          menuBtnRef.current?.measureInWindow((x, y, w, h) => {
+            onOpenMenu({ x, y, width: w, height: h })
+          })
+        }
+        const glyph = <Ionicons name={useMenu ? 'ellipsis-horizontal' : 'close'} size={15} color={theme.colors.subtext} />
         return Platform.OS === 'web' ? (
           <View
+            ref={menuBtnRef}
             onStartShouldSetResponder={() => true}
-            onResponderRelease={handleRemove}
-            style={[styles.removeBtn, styles.removeBtnHit]}
+            onResponderRelease={activate}
+            style={[useMenu ? styles.rowMenuBtn : styles.removeBtn, styles.removeBtnHit]}
             accessibilityRole="button"
-            accessibilityLabel={`Remove guest ${guest.first_name} ${guest.last_name}`}
+            accessibilityLabel={label}
           >
-            <Ionicons name="close" size={15} color={theme.colors.subtext} />
+            {glyph}
           </View>
         ) : (
-          <GHTouchableOpacity
-            onPress={handleRemove}
-            style={[styles.removeBtn, styles.removeBtnHit]}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={`Remove guest ${guest.first_name} ${guest.last_name}`}
-          >
-            <Ionicons name="close" size={15} color={theme.colors.subtext} />
-          </GHTouchableOpacity>
+          <View ref={menuBtnRef} collapsable={false} style={useMenu ? undefined : styles.removeBtn}>
+            <GHTouchableOpacity
+              onPress={activate}
+              style={[useMenu ? styles.rowMenuBtn : null, styles.removeBtnHit]}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={label}
+            >
+              {glyph}
+            </GHTouchableOpacity>
+          </View>
         )
       })()}
     </View>
@@ -266,6 +303,19 @@ type Props = {
   onApproveRequest: (userId: string) => void
   onDeny: (userId: string, displayName: string) => void
   onApproveFromWaitlist: (userId: string) => void
+  /** Opens (or creates) a DM with this user. Only wired for hosts and co-hosts. */
+  onMessage?: (userId: string) => void
+  /**
+   * Host or co-host. Messaging from a roster is deliberately asymmetric: an
+   * organiser has a real operational need to reach one attendee, while
+   * attendee→attendee DMs from a roster are an unsolicited-contact vector and
+   * need their own design.
+   */
+  canMessage: boolean
+  /** Viewer's own id, so the roster never offers "message yourself". */
+  currentUserId: string | null
+  /** Users the viewer has silenced — no Message action for them. */
+  silencedUserIds: Set<string>
 }
 
 export function PeopleTab({
@@ -303,8 +353,84 @@ export function PeopleTab({
   onApproveRequest,
   onDeny,
   onApproveFromWaitlist,
+  onMessage,
+  canMessage,
+  currentUserId,
+  silencedUserIds,
 }: Props) {
+  const [rowMenu, setRowMenu] = useState<{ anchor: AnchorRect; options: AnchorMenuOption[] } | null>(null)
+
+  /** Can the viewer start a DM with this particular person right now? */
+  const canMessageUser = useCallback((userId: string) => (
+    canMessage
+    && !!onMessage
+    && userId !== currentUserId
+    && !silencedUserIds.has(userId)
+  ), [canMessage, onMessage, currentUserId, silencedUserIds])
+
+  /**
+   * Options for a member row. Message leads because it's the action this menu
+   * exists for; Remove is last and destructive.
+   */
+  const memberMenuOptions = useCallback((profile: Profile, opts?: { onRemove?: () => void }): AnchorMenuOption[] => {
+    const out: AnchorMenuOption[] = []
+    if (canMessageUser(profile.id)) {
+      out.push({ key: 'message', label: 'Message', onPress: () => onMessage?.(profile.id) })
+    }
+    out.push({ key: 'profile', label: 'View profile', onPress: () => onOpenProfile(profile.id) })
+    if (opts?.onRemove) {
+      out.push({ key: 'remove', label: 'Remove from event', destructive: true, onPress: opts.onRemove })
+    }
+    return out
+  }, [canMessageUser, onMessage, onOpenProfile])
+
+  /**
+   * A +1 has no account, so there's nobody to message. Offer the member who
+   * added them instead — that's who the host actually needs to reach.
+   */
+  const guestMenuOptions = useCallback((g: EventGuest, opts?: { onRemove?: () => void }): AnchorMenuOption[] => {
+    const out: AnchorMenuOption[] = []
+    if (canMessageUser(g.added_by)) {
+      const adder = adderUsernames[g.added_by]
+      out.push({
+        key: 'message-adder',
+        label: adder ? `Message ${adder}` : 'Message who added them',
+        onPress: () => onMessage?.(g.added_by),
+      })
+    }
+    if (opts?.onRemove) {
+      out.push({ key: 'remove', label: 'Remove guest', destructive: true, onPress: opts.onRemove })
+    }
+    return out
+  }, [canMessageUser, onMessage, adderUsernames])
+
+  /** ⋯ trigger for the flat request/waitlist rows (the roster cards have their own). */
+  function RowMenuButton({ options, label }: { options: AnchorMenuOption[]; label: string }) {
+    const ref = useRef<View>(null)
+    if (options.length < 2) return null
+    return (
+      <View ref={ref} collapsable={false}>
+        <TouchableOpacity
+          onPress={() => ref.current?.measureInWindow((x, y, w, h) => openRowMenu({ x, y, width: w, height: h }, options))}
+          style={styles.rowMenuBtn}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+        >
+          <Ionicons name="ellipsis-horizontal" size={16} color={theme.colors.subtext} />
+        </TouchableOpacity>
+      </View>
+    )
+  }
+
+  const openRowMenu = useCallback((anchor: AnchorRect, options: AnchorMenuOption[]) => {
+    if (options.length === 0) return
+    setRowMenu({ anchor, options })
+  }, [])
   function renderCard(profile: Profile) {
+    const rosterMenu = memberMenuOptions(
+      profile,
+      eventStatus.isOwner ? { onRemove: () => onRemoveAttendee(profile) } : undefined,
+    )
     const a = assignments[profile.id]
     const teamNum = a?.team ?? null
     const teamColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : null
@@ -319,6 +445,7 @@ export function PeopleTab({
         onDragEnd={onDragEnd}
         onRemove={() => onRemoveAttendee(profile)}
         onTogglePin={() => onTogglePin(profile.id)}
+        onOpenMenu={rosterMenu.length > 1 ? rect => openRowMenu(rect, rosterMenu) : undefined}
       />
     )
     if (eventStatus.isOwner) {
@@ -332,6 +459,10 @@ export function PeopleTab({
   }
 
   function renderGuestCard(g: EventGuest) {
+    const guestMenu = guestMenuOptions(
+      g,
+      eventStatus.isOwner ? { onRemove: () => onRemoveGuest(g) } : undefined,
+    )
     const a = assignments[g.id]
     const teamNum = a?.team ?? null
     const teamColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : null
@@ -348,12 +479,14 @@ export function PeopleTab({
           onDragEnd={onDragEnd}
           onRemove={() => onRemoveGuest(g)}
           onTogglePin={() => onTogglePin(g.id)}
+          onOpenMenu={guestMenu.length > 1 ? rect => openRowMenu(rect, guestMenu) : undefined}
         />
       </View>
     )
   }
 
   return (
+    <>
     <DocScrollView
       docScroll={docScrollActive}
       style={shared.screen}
@@ -506,6 +639,10 @@ export function PeopleTab({
                 >
                   <Text style={{ color: theme.colors.error, fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium }}>Deny</Text>
                 </TouchableOpacity>
+                <RowMenuButton
+                  options={memberMenuOptions(profile)}
+                  label={`Actions for ${profileDisplayName(profile)}`}
+                />
               </View>
             ))}
           </View>
@@ -543,6 +680,10 @@ export function PeopleTab({
                       <Text style={{ color: theme.colors.white, fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium }}>Approve</Text>
                     </TouchableOpacity>
                   )}
+                  <RowMenuButton
+                    options={memberMenuOptions(profile)}
+                    label={`Actions for ${profileDisplayName(profile)}`}
+                  />
                 </View>
               ))}
               {waitlistGuests.map((g, idx) => (
@@ -562,6 +703,15 @@ export function PeopleTab({
         </>
       )}
     </DocScrollView>
+    {/* One menu instance for the whole tab — a roster can run 12–24 rows, and
+        mounting a Modal per row is both wasteful and a stacking-order hazard. */}
+    <AnchorOptionsMenu
+      visible={rowMenu !== null}
+      anchor={rowMenu?.anchor ?? null}
+      options={rowMenu?.options ?? []}
+      onDismiss={() => setRowMenu(null)}
+    />
+    </>
   )
 }
 
@@ -606,6 +756,16 @@ const styles = StyleSheet.create({
   },
   removeBtn: {
     padding: 4,
+  },
+  /**
+   * The ⋯ menu trigger. 44pt minimum per the app's touch-target rule — the icon
+   * stays small, only the hit area grows, so the roster row looks unchanged.
+   */
+  rowMenuBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   removeBtnHit: {
     zIndex: 2,
