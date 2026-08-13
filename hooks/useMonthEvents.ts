@@ -12,14 +12,23 @@ type MonthEntry = {
   fetchedAt: number
 }
 
+/**
+ * Month bounds as UTC instants, derived from *local* midnight.
+ *
+ * `Date.UTC(y, m - 1, 1)` treats the calendar boundary as UTC midnight, which
+ * cuts the month in the wrong place for any viewer at a non-zero offset: a
+ * Jan 31 9pm CST event is Feb 1 in UTC, so it was fetched with February and
+ * went missing from the January view. Constructing a local Date instead pins
+ * the boundary to the month the viewer actually sees.
+ */
 function monthStart(month: string): string {
   const [y, m] = month.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, 1)).toISOString()
+  return new Date(y, m - 1, 1, 0, 0, 0, 0).toISOString()
 }
 
 function monthEnd(month: string): string {
   const [y, m] = month.split('-').map(Number)
-  return new Date(Date.UTC(y, m, 1)).toISOString()
+  return new Date(y, m, 1, 0, 0, 0, 0).toISOString()
 }
 
 export function useMonthEvents() {

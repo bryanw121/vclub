@@ -164,6 +164,14 @@ sequenceDiagram
   with the UI-only `_isTournament` flag
   ([`hooks/useMonthEvents.ts:61`](../hooks/useMonthEvents.ts#L61),
   [`hooks/useMonthEvents.ts:83`](../hooks/useMonthEvents.ts#L83)).
+- `events.event_date` is an instant, but calendars group it by the viewer's
+  local day. Suffix-less PostgREST timestamps are interpreted as UTC before
+  `eventLocalDateKey` derives the shared `YYYY-MM-DD` key used by dots and
+  feed sections; month queries use local-midnight boundaries converted to ISO
+  instants
+  ([`utils/index.ts:170`](../utils/index.ts#L170),
+  [`utils/index.ts:193`](../utils/index.ts#L193),
+  [`hooks/useMonthEvents.ts:24`](../hooks/useMonthEvents.ts#L24)).
 - Event detail fetches the event, creator, full attendee/profile rows, and tags.
   It then fetches comments plus guests/cohosts in additional requests
   ([`app/(app)/event/[id].tsx:464`](../app/%28app%29/event/%5Bid%5D.tsx#L464)).
@@ -173,15 +181,6 @@ sequenceDiagram
   ([`app/(app)/host.tsx:270`](../app/%28app%29/host.tsx#L270)). These steps are not
   wrapped in one database transaction, so a later failure can leave an earlier
   write committed.
-- Join approval is the persisted `events.requires_approval` boolean and is
-  independent of `price`. Event list projections read it, the host form writes
-  it, and `resolveJoinAction` applies existing RSVP state first, then capacity,
-  then approval. The migration defaults new rows to `false` and backfills
-  existing paid events to preserve their previous behavior
-  ([`constants/events.ts:94`](../constants/events.ts#L94),
-  [`app/(app)/host.tsx:201`](../app/%28app%29/host.tsx#L201),
-  [`utils/index.ts:187`](../utils/index.ts#L187),
-  [`supabase/migrations/20260812120000_events_requires_approval.sql:12`](../supabase/migrations/20260812120000_events_requires_approval.sql#L12)).
 
 The event entity cluster is:
 
@@ -375,7 +374,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Contract source fingerprint: `3b7ad1650b3d`
+> Contract source fingerprint: `1b2478f105ba`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -396,7 +395,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `clubs` | [`app/(app)/(tabs)/clubs.tsx:187`](../app/%28app%29/%28tabs%29/clubs.tsx#L187)<br>[`app/(app)/club/[id].tsx:134`](../app/%28app%29/club/%5Bid%5D.tsx#L134)<br>[`app/(app)/club/create.tsx:39`](../app/%28app%29/club/create.tsx#L39) |
 | `conversation_members` | [`supabase/functions/send-chat-push/index.ts:61`](../supabase/functions/send-chat-push/index.ts#L61) |
 | `conversations` | [`supabase/functions/send-chat-push/index.ts:54`](../supabase/functions/send-chat-push/index.ts#L54) |
-| `event_attendees` | [`app/(app)/(tabs)/(main)/index.tsx:81`](../app/%28app%29/%28tabs%29/%28main%29/index.tsx#L81)<br>[`app/(app)/event/[id].tsx:814`](../app/%28app%29/event/%5Bid%5D.tsx#L814)<br>[`app/(app)/host.tsx:311`](../app/%28app%29/host.tsx#L311)<br>[`utils/badges.ts:33`](../utils/badges.ts#L33) |
+| `event_attendees` | [`app/(app)/(tabs)/(main)/index.tsx:82`](../app/%28app%29/%28tabs%29/%28main%29/index.tsx#L82)<br>[`app/(app)/event/[id].tsx:814`](../app/%28app%29/event/%5Bid%5D.tsx#L814)<br>[`app/(app)/host.tsx:311`](../app/%28app%29/host.tsx#L311)<br>[`utils/badges.ts:33`](../utils/badges.ts#L33) |
 | `event_cohosts` | [`app/(app)/event/[id].tsx:533`](../app/%28app%29/event/%5Bid%5D.tsx#L533) |
 | `event_comments` | [`app/(app)/event/[id].tsx:506`](../app/%28app%29/event/%5Bid%5D.tsx#L506) |
 | `event_guests` | [`app/(app)/event/[id].tsx:528`](../app/%28app%29/event/%5Bid%5D.tsx#L528) |
@@ -420,7 +419,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `tournament_team_join_requests` | [`app/(app)/tournament/[id].tsx:269`](../app/%28app%29/tournament/%5Bid%5D.tsx#L269) |
 | `tournament_team_members` | [`app/(app)/tournament/[id].tsx:243`](../app/%28app%29/tournament/%5Bid%5D.tsx#L243) |
 | `tournament_teams` | [`app/(app)/tournament/[id].tsx:208`](../app/%28app%29/tournament/%5Bid%5D.tsx#L208) |
-| `tournaments` | [`app/(app)/tournament/[id].tsx:179`](../app/%28app%29/tournament/%5Bid%5D.tsx#L179)<br>[`app/(app)/tournament/create.tsx:673`](../app/%28app%29/tournament/create.tsx#L673)<br>[`hooks/useMonthEvents.ts:75`](../hooks/useMonthEvents.ts#L75) |
+| `tournaments` | [`app/(app)/tournament/[id].tsx:179`](../app/%28app%29/tournament/%5Bid%5D.tsx#L179)<br>[`app/(app)/tournament/create.tsx:673`](../app/%28app%29/tournament/create.tsx#L673)<br>[`hooks/useMonthEvents.ts:84`](../hooks/useMonthEvents.ts#L84) |
 | `user_badges` | [`app/(app)/profile/[id].tsx:54`](../app/%28app%29/profile/%5Bid%5D.tsx#L54)<br>[`hooks/useBadges.ts:79`](../hooks/useBadges.ts#L79)<br>[`utils/badges.ts:190`](../utils/badges.ts#L190) |
 | `user_event_templates` | [`app/(app)/host.tsx:216`](../app/%28app%29/host.tsx#L216) |
 
@@ -447,7 +446,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 |---|---|---|
 | Auth | `exchangeCodeForSession` | [`lib/socialAuth.ts:24`](../lib/socialAuth.ts#L24) |
 | Auth | `getSession` | [`app/_layout.tsx:34`](../app/_layout.tsx#L34)<br>[`app/(app)/(tabs)/(main)/profile/index.tsx:395`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L395)<br>[`app/(app)/(tabs)/clubs.tsx:182`](../app/%28app%29/%28tabs%29/clubs.tsx#L182)<br>[`app/(app)/(tabs)/settings/account.tsx:17`](../app/%28app%29/%28tabs%29/settings/account.tsx#L17)<br>[`app/(app)/(tabs)/settings/badges.tsx:90`](../app/%28app%29/%28tabs%29/settings/badges.tsx#L90)<br>[`app/(app)/(tabs)/settings/cheers.tsx:21`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L21)<br>+6 more files |
-| Auth | `getUser` | [`app/(app)/(tabs)/(main)/index.tsx:75`](../app/%28app%29/%28tabs%29/%28main%29/index.tsx#L75)<br>[`app/(app)/(tabs)/chat.tsx:45`](../app/%28app%29/%28tabs%29/chat.tsx#L45)<br>[`app/(app)/(tabs)/settings/feedback.tsx:36`](../app/%28app%29/%28tabs%29/settings/feedback.tsx#L36)<br>[`app/(app)/(tabs)/settings/history.tsx:45`](../app/%28app%29/%28tabs%29/settings/history.tsx#L45)<br>[`app/(app)/(tabs)/settings/hosted.tsx:16`](../app/%28app%29/%28tabs%29/settings/hosted.tsx#L16)<br>[`app/(app)/(tabs)/settings/notifications.tsx:27`](../app/%28app%29/%28tabs%29/settings/notifications.tsx#L27)<br>+12 more files |
+| Auth | `getUser` | [`app/(app)/(tabs)/(main)/index.tsx:76`](../app/%28app%29/%28tabs%29/%28main%29/index.tsx#L76)<br>[`app/(app)/(tabs)/chat.tsx:45`](../app/%28app%29/%28tabs%29/chat.tsx#L45)<br>[`app/(app)/(tabs)/settings/feedback.tsx:36`](../app/%28app%29/%28tabs%29/settings/feedback.tsx#L36)<br>[`app/(app)/(tabs)/settings/history.tsx:45`](../app/%28app%29/%28tabs%29/settings/history.tsx#L45)<br>[`app/(app)/(tabs)/settings/hosted.tsx:16`](../app/%28app%29/%28tabs%29/settings/hosted.tsx#L16)<br>[`app/(app)/(tabs)/settings/notifications.tsx:27`](../app/%28app%29/%28tabs%29/settings/notifications.tsx#L27)<br>+12 more files |
 | Auth | `onAuthStateChange` | [`app/(auth)/reset-password.tsx:26`](../app/%28auth%29/reset-password.tsx#L26)<br>[`hooks/useAuth.ts:15`](../hooks/useAuth.ts#L15) |
 | Auth | `resetPasswordForEmail` | [`app/(auth)/login.tsx:87`](../app/%28auth%29/login.tsx#L87) |
 | Auth | `setSession` | [`lib/socialAuth.ts:27`](../lib/socialAuth.ts#L27) |
