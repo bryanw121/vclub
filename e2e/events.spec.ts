@@ -18,18 +18,7 @@ import {
   cleanupEventFixtures,
 } from './eventsFixtures'
 
-const BASE_URL = 'http://localhost:8081'
-
-async function login(page: Page) {
-  await page.goto(`${BASE_URL}/login`)
-  await page.waitForTimeout(2000)
-  await page.getByRole('textbox').nth(0).fill('bryanw121')
-  await page.getByRole('textbox').nth(1).fill('password')
-  await page.getByText('Sign in', { exact: true }).click()
-  await page.waitForURL(`${BASE_URL}/`)
-  // Events feed loads on focus — give the month query time to resolve.
-  await page.waitForTimeout(2500)
-}
+const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8081'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -48,7 +37,10 @@ test.describe('Events', () => {
     })
     page.on('pageerror', err => console.error(`[page error] ${err.message}`))
     console.log(`→ starting: ${testInfo.title}`)
-    await login(page)
+    // auth.setup.ts signs in once per Playwright run and each test receives
+    // that stored session. Going directly to / proves the session restored.
+    await page.goto(`${BASE_URL}/`)
+    await expect(page.getByTestId('filter-all').first()).toBeVisible({ timeout: 20_000 })
   })
 
   test('feed lists upcoming events with filter chips', async ({ page }) => {
@@ -57,6 +49,11 @@ test.describe('Events', () => {
     await expect(page.getByTestId('filter-tournament').first()).toBeVisible()
   })
 
+  // Filter chips are clicked by testID, never by visible text: an event card's
+  // type tag renders the exact same strings ("Tournament", "Open Play"), so a
+  // text locator's .first() can resolve to the tag instead of the chip — and
+  // with { force: true } that misdirected click fails silently, leaving the
+  // filter unapplied.
   test('filtering by tag narrows the feed', async ({ page }) => {
     // Scoped to the feed: the "You're going" rail deliberately ignores the
     // active filter (it's a shortcut to your commitments, not a view of the
@@ -65,17 +62,17 @@ test.describe('Events', () => {
     await expect(feed.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 20000 })
 
     // Tournament filter: tournament event shown, open-play event gone.
-    await page.getByTestId('filter-tournament').first().click()
+    await page.getByTestId('filter-tournament').first().dispatchEvent('click')
     await expect(feed.getByText(TOURNAMENT_EVENT).first()).toBeVisible()
     await expect(feed.getByText(OPEN_PLAY_EVENT)).toHaveCount(0)
 
     // Open Play filter: open-play event back, tournament event gone.
-    await page.getByTestId('filter-open_play').first().click()
+    await page.getByTestId('filter-open_play').first().dispatchEvent('click')
     await expect(feed.getByText(OPEN_PLAY_EVENT).first()).toBeVisible()
     await expect(feed.getByText(TOURNAMENT_EVENT)).toHaveCount(0)
 
     // All: both visible again.
-    await page.getByTestId('filter-all').first().click()
+    await page.getByTestId('filter-all').first().dispatchEvent('click')
     await expect(feed.getByText(TOURNAMENT_EVENT).first()).toBeVisible()
     await expect(feed.getByText(OPEN_PLAY_EVENT).first()).toBeVisible()
   })
@@ -201,5 +198,46 @@ test.describe('Events', () => {
     // All restores the unfiltered feed.
     await page.getByTestId('filter-all').first().click()
     await expect(feed.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 15000 })
+  })
+
+  // Regression guard for #34: editing an event and going back showed the OLD
+  // title. The detail screen's focus refetch was gated purely on a 30s staleness
+  // window, and this whole round-trip finishes in a couple of seconds — so the
+  // window masked the change. Deliberately no reload and no pull-to-refresh
+  // anywhere in this test; that's the entire point.
+  test('editing an event shows the new title on the detail page without a refresh', async ({ page }) => {
+    const editedTitle = `[e2e] Edited ${Date.now()}`
+
+    await page.getByText(OPEN_PLAY_EVENT).first().click()
+    await page.waitForURL(/\/event\//, { timeout: 20000 })
+    // Assert on the detail page's own hero title, not a bare getByText: the feed
+    // stays mounted behind the pushed screen, so `getByText(title).first()`
+    // resolves to the hidden feed card and never becomes visible.
+    const heroTitle = page.getByTestId('event-hero-title')
+    await expect(heroTitle).toHaveText(OPEN_PLAY_EVENT, { timeout: 20000 })
+    const eventUrl = page.url()
+
+    async function renameTo(next: string) {
+      await page.getByTestId('event-edit-button').first().click()
+      await page.waitForURL(/\/host\?edit=/, { timeout: 20000 })
+      const titleField = page.getByPlaceholder('Friday Night Round Robin')
+      await expect(titleField).toBeVisible({ timeout: 20000 })
+      await titleField.fill(next)
+      await page.getByText('Save changes', { exact: true }).click()
+      // Success modal → Done runs router.back(), restoring the detail screen
+      // with its pre-edit React state intact. That restore is what used to be stale.
+      await expect(page.getByText('Event updated!')).toBeVisible({ timeout: 20000 })
+      await page.getByText('Done', { exact: true }).click()
+      await page.waitForURL(eventUrl, { timeout: 20000 })
+    }
+
+    await renameTo(editedTitle)
+    await expect(heroTitle).toHaveText(editedTitle, { timeout: 20000 })
+
+    // Restore the fixture title — this spec runs serially against a shared DB.
+    // (afterAll cleanup matches the `[e2e]` prefix, so it would collect the
+    // renamed row either way; this keeps reruns starting from a clean name.)
+    await renameTo(OPEN_PLAY_EVENT)
+    await expect(heroTitle).toHaveText(OPEN_PLAY_EVENT, { timeout: 20000 })
   })
 })
