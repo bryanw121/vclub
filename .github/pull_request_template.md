@@ -37,14 +37,16 @@ the CI run. Attach screenshots/video for user-visible UI changes on each exercis
 platform/form factor. If something was not run, explain why and the remaining risk.
 Do not include secrets, tokens, production user data, or other personal information.
 
-Which e2e/unit tests cover this change? If a user-visible behavior changed with no
-e2e, say why (see CONTRIBUTING.md — e2e at the outermost surface is the default). -->
+Which new or updated unit and integration tests cover this change? If either layer
+does not apply, say why. If a user-visible behavior changed with no e2e, say why
+(see CONTRIBUTING.md — e2e at the outermost surface is the default). -->
 
 ## Checklist
 
 - [ ] CI green (rerun once on the known `Failed to fetch` flake before debugging — see CONTRIBUTING.md)
 - [ ] Every UI change links its pre-implementation mock and explicit product-owner approval above
 - [ ] Test evidence above matches the final commit; untested scope and remaining risk are explicit
+- [ ] New or changed behavior has unit and integration coverage, or the evidence explains why a layer does not apply
 - [ ] Architecture inventory refreshed with `npm run docs:update` (`npm run docs:check` passes)
 - [ ] New dynamic routes have a `public/serve.json` rewrite
 - [ ] Types in `types/index.ts`, tokens from `theme.*`, shared styles in `constants/styles.ts` (per CLAUDE.md)
