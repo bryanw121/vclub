@@ -365,6 +365,9 @@ export default function EventsScreen() {
 
           {railNode}
 
+          {/* Tagged so e2e can scope feed assertions: the rail deliberately
+              ignores the active filter, so a page-wide text count would see it. */}
+          <View testID="events-feed">
           {loading && allEvents.length === 0 ? (
             <ActivityIndicator style={{ marginTop: theme.spacing.xl }} color={theme.colors.primary} />
           ) : allEvents.length === 0 ? (
@@ -419,6 +422,7 @@ export default function EventsScreen() {
               )}
             </>
           )}
+          </View>
         </ScrollView>
 
         {/* Right rail */}
@@ -627,6 +631,7 @@ export default function EventsScreen() {
           return (
             <View ref={feedContentRef} style={{ paddingBottom: tabBarHeight + 32 }}>
               <View style={{ paddingHorizontal: theme.spacing.lg }}>{railNode}</View>
+              <View testID="events-feed">
               {emptyOrLoading ?? sections.map(section => (
                 <View key={section.date} onLayout={e => { sectionYRef.current[section.date] = e.nativeEvent.layout.y }}>
                   {renderSectionHeader(section)}
@@ -638,6 +643,7 @@ export default function EventsScreen() {
               {loading && sections.length > 0 && (
                 <ActivityIndicator style={{ marginVertical: theme.spacing.lg }} color={theme.colors.primary} />
               )}
+              </View>
             </View>
           )
         }
@@ -664,6 +670,10 @@ export default function EventsScreen() {
             contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
             sections={sections}
             keyExtractor={item => item.id}
+            // No `events-feed` testID here on purpose: the rail lives in
+            // ListHeaderComponent, so tagging the list would include it and
+            // defeat the scoping. The two paths e2e actually drives (desktop and
+            // doc-scroll) keep the rail outside their tagged wrapper.
             ListHeaderComponent={
               <View style={{ paddingHorizontal: theme.spacing.lg }}>{railNode}</View>
             }

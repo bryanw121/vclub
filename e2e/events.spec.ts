@@ -58,22 +58,26 @@ test.describe('Events', () => {
   })
 
   test('filtering by tag narrows the feed', async ({ page }) => {
-    await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 20000 })
+    // Scoped to the feed: the "You're going" rail deliberately ignores the
+    // active filter (it's a shortcut to your commitments, not a view of the
+    // filter), so a page-wide count would always find the hosted fixtures.
+    const feed = page.getByTestId('events-feed')
+    await expect(feed.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 20000 })
 
     // Tournament filter: tournament event shown, open-play event gone.
     await page.getByTestId('filter-tournament').first().click()
-    await expect(page.getByText(TOURNAMENT_EVENT).first()).toBeVisible()
-    await expect(page.getByText(OPEN_PLAY_EVENT)).toHaveCount(0)
+    await expect(feed.getByText(TOURNAMENT_EVENT).first()).toBeVisible()
+    await expect(feed.getByText(OPEN_PLAY_EVENT)).toHaveCount(0)
 
     // Open Play filter: open-play event back, tournament event gone.
     await page.getByTestId('filter-open_play').first().click()
-    await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible()
-    await expect(page.getByText(TOURNAMENT_EVENT)).toHaveCount(0)
+    await expect(feed.getByText(OPEN_PLAY_EVENT).first()).toBeVisible()
+    await expect(feed.getByText(TOURNAMENT_EVENT)).toHaveCount(0)
 
     // All: both visible again.
     await page.getByTestId('filter-all').first().click()
-    await expect(page.getByText(TOURNAMENT_EVENT).first()).toBeVisible()
-    await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible()
+    await expect(feed.getByText(TOURNAMENT_EVENT).first()).toBeVisible()
+    await expect(feed.getByText(OPEN_PLAY_EVENT).first()).toBeVisible()
   })
 
   // Safety net for the event-detail refactor (splitting the four tab bodies into
@@ -186,13 +190,16 @@ test.describe('Events', () => {
     const mineChip = page.getByTestId('filter-mine').first()
     await expect(mineChip).toHaveText(/^Mine \d+$/)
 
-    // Both fixtures are hosted by this account, so Mine keeps them.
+    // Both fixtures are hosted by this account, so Mine keeps them in the feed
+    // itself — asserting against the rail would be vacuous, since the rail
+    // shows commitments regardless of filter.
+    const feed = page.getByTestId('events-feed')
     await mineChip.click()
-    await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 15000 })
-    await expect(page.getByText(TOURNAMENT_EVENT).first()).toBeVisible()
+    await expect(feed.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 15000 })
+    await expect(feed.getByText(TOURNAMENT_EVENT).first()).toBeVisible()
 
     // All restores the unfiltered feed.
     await page.getByTestId('filter-all').first().click()
-    await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 15000 })
+    await expect(feed.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 15000 })
   })
 })
