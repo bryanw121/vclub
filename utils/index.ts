@@ -451,3 +451,31 @@ export function resolveClubAvatarUri(ref: string | null | undefined): Promise<st
   if (/^https?:\/\//i.test(trimmed)) return Promise.resolve(trimmed)
   return Promise.resolve(`${SUPABASE_URL}/storage/v1/object/public/${CLUB_AVATARS_BUCKET}/${trimmed}`)
 }
+
+/**
+ * What has to change to turn `original` into `selected`.
+ *
+ * Event tags used to be saved by deleting every row for the event and
+ * re-inserting the whole set. Two un-transacted round-trips: if the insert
+ * failed, the event was left with **zero** tags and vanished from every feed
+ * filter except "All" — a failure a host would never connect back to the title
+ * edit they just made.
+ *
+ * A diff is failure-safe by construction rather than by transaction: a partial
+ * failure leaves some valid subset of tags, never an empty set. It also makes
+ * the common case (editing a title, tags untouched) write nothing at all.
+ *
+ * Duplicates and ordering in either input are irrelevant — both sides are
+ * treated as sets.
+ */
+export function diffTagIds(
+  original: readonly string[],
+  selected: readonly string[],
+): { toAdd: string[]; toRemove: string[] } {
+  const originalSet = new Set(original)
+  const selectedSet = new Set(selected)
+  return {
+    toAdd:    [...selectedSet].filter(id => !originalSet.has(id)),
+    toRemove: [...originalSet].filter(id => !selectedSet.has(id)),
+  }
+}
