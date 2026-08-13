@@ -163,7 +163,12 @@ export function DetailsTab({
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: theme.spacing.md }}>
             {stats.map(s => (
               <View key={s.l} style={{ flex: 1, backgroundColor: theme.colors.card, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' }}>
-                <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 20, letterSpacing: -0.5, color: theme.colors.text }}>{s.k}</Text>
+                <Text
+                  testID={s.l === 'Price' ? 'event-price-stat' : undefined}
+                  style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 20, letterSpacing: -0.5, color: theme.colors.text }}
+                >
+                  {s.k}
+                </Text>
                 <Text style={{ fontFamily: theme.fonts.body, fontSize: 10, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 0.7, textTransform: 'uppercase', marginTop: 2 }}>{s.l}</Text>
               </View>
             ))}

@@ -200,6 +200,35 @@ test.describe('Events', () => {
     await expect(feed.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 15000 })
   })
 
+  // #44: exercise the controlled input, Supabase write/read, and formatted
+  // detail output together. The fixture is restored to free before the test
+  // finishes, and afterAll still deletes it if an assertion interrupts us.
+  test('a decimal event price survives editing and renders with two places', async ({ page }) => {
+    await page.getByText(OPEN_PLAY_EVENT).first().click()
+    await page.waitForURL(/\/event\//, { timeout: 20000 })
+    const eventUrl = page.url()
+
+    async function savePrice(price: string) {
+      await page.getByTestId('event-edit-button').first().click()
+      await page.waitForURL(/\/host\?edit=/, { timeout: 20000 })
+      const priceInput = page.getByTestId('event-price-input')
+      await expect(priceInput).toBeVisible({ timeout: 20000 })
+      await priceInput.fill(price)
+      await expect(priceInput).toHaveValue(price)
+      await page.getByText('Save changes', { exact: true }).click()
+      await expect(page.getByText('Event updated!')).toBeVisible({ timeout: 20000 })
+      await page.getByText('Done', { exact: true }).click()
+      await page.waitForURL(eventUrl, { timeout: 20000 })
+    }
+
+    await savePrice('5.50')
+    await expect(page.getByTestId('event-price-stat')).toHaveText('$5.50', { timeout: 20000 })
+
+    // Restore shared state for subsequent tests and local reruns.
+    await savePrice('')
+    await expect(page.getByTestId('event-price-stat')).toHaveText('Free', { timeout: 20000 })
+  })
+
   // Regression guard for #34: editing an event and going back showed the OLD
   // title. The detail screen's focus refetch was gated purely on a 30s staleness
   // window, and this whole round-trip finishes in a couple of seconds — so the

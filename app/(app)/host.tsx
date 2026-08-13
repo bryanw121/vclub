@@ -723,6 +723,7 @@ export default function HostEventScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
             <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 15, color: theme.colors.subtext }}>$</Text>
             <TextInput
+              testID="event-price-input"
               // Bound to raw text. Never round-trip through parseFloat on
               // keystroke — that erases a trailing "." and any trailing zero,
               // which is why "5.50" was impossible to type.
