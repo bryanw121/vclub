@@ -15,6 +15,7 @@ import { Input } from '../../../components/Input'
 import { EventCommentRow } from '../../../components/EventCommentRow'
 import { Pager } from '../../../components/Pager'
 import { setDocScrollClaim } from '../../../lib/docScroll'
+import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
 import { eventKey, useDataVersion, shouldRefetch } from '../../../lib/dataVersion'
 import { shared, theme, CHEERS_MAX_PER_EVENT, LOCATIONS, TEAM_COLORS } from '../../../constants'
 import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendee, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile, MentionUser, TeamAssignment } from '../../../types'
@@ -271,6 +272,12 @@ export default function EventDetail() {
   // fast edit round-trip visible — it completes well inside the 30s window, so
   // staleness alone would never fire. `silent` keeps the old data on screen and
   // swaps it in place instead of flashing a spinner.
+  // Who this viewer has silenced — the roster must not offer to message them.
+  // Note this is one-directional by design of the RLS policy: `chat_silences`
+  // is readable only where `auth.uid() = user_id`, so a host cannot learn who
+  // has silenced *them*. See the PR for why that half is deferred.
+  const { silencedUserIds } = useSilencedUsers()
+
   const eventVersion = useDataVersion(eventKey(id))
   const seenEventVersion = useRef(eventVersion)
   useFocusEffect(
@@ -1276,6 +1283,22 @@ export default function EventDetail() {
     setShareMenuVisible(false)
   }
 
+  /**
+   * Open (or create) a DM with someone. Shared by the Details tab's "Message
+   * host" button and the People tab's per-row menu so there is one definition
+   * of what messaging someone from an event does.
+   */
+  async function openDmWith(userId: string) {
+    try {
+      const { data: convId, error } = await supabase.rpc('find_or_create_dm', { other_user_id: userId })
+      if (error) throw error
+      if (convId) router.push(`/chat/${convId}` as any)
+    } catch (e: any) {
+      sentryError('openDmWith', e)
+      Alert.alert('Error', 'Could not open that conversation. Please try again.')
+    }
+  }
+
   function handleDelete() {
     setDeleteConfirmVisible(true)
   }
@@ -1789,10 +1812,7 @@ export default function EventDetail() {
               isOwner={isOwner}
               currentUserProfile={currentUserProfile}
               onOpenProfile={hostId => router.push(`/profile/${hostId}` as any)}
-              onMessageHost={async hostId => {
-                const { data: convId } = await supabase.rpc('find_or_create_dm', { other_user_id: hostId })
-                if (convId) router.push(`/chat/${convId}` as any)
-              }}
+              onMessageHost={openDmWith}
               onManageCohosts={() => setCohostModalVisible(true)}
             />
             ) : <View style={{ flex: 1 }} />}
@@ -1833,6 +1853,10 @@ export default function EventDetail() {
               onSaveTeams={saveTeams}
               onApproveRequest={handleApproveRequest}
               onDeny={(uid, displayName) => { setDenyModal({ userId: uid, displayName }); setDenyReason('') }}
+              onMessage={openDmWith}
+              canMessage={isHostOrCohost}
+              currentUserId={userId}
+              silencedUserIds={silencedUserIds}
               onApproveFromWaitlist={handleApproveFromWaitlist}
             />
             ) : <View style={{ flex: 1 }} />}
