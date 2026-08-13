@@ -115,6 +115,13 @@ export type Event = {
   /** Entry fee in USD; null means free. */
   price?: number | null
   venmo_handle?: string | null
+  /**
+   * Host must approve each join request before the player is attending.
+   * Independent of `price` — previously this was inferred from `price > 0`,
+   * which made a paid event silently approval-gated and a free event
+   * impossible to screen.
+   */
+  requires_approval?: boolean
 }
 
 /** Cheer categories for post-event peer recognition */
@@ -305,6 +312,8 @@ export type CreateEventForm = {
   maxAttendees: number | null  // null = unlimited
   price: number | null         // null = free
   venmoHandle: string          // optional; only used when price > 0
+  /** Host reviews each join request. Independent of price — see events.requires_approval. */
+  requiresApproval: boolean
 }
 
 /**

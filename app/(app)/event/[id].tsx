@@ -14,6 +14,8 @@ import { ProfileAvatar } from '../../../components/ProfileAvatar'
 import { Input } from '../../../components/Input'
 import { EventCommentRow } from '../../../components/EventCommentRow'
 import { Pager } from '../../../components/Pager'
+import { AnchorOptionsMenu, type AnchorMenuOption, type AnchorRect } from '../../../components/AnchorOptionsMenu'
+import { HeaderAction } from '../../../components/HeaderAction'
 import { setDocScrollClaim } from '../../../lib/docScroll'
 import { eventKey, useDataVersion, shouldRefetch } from '../../../lib/dataVersion'
 import { shared, theme, CHEERS_MAX_PER_EVENT, LOCATIONS, TEAM_COLORS } from '../../../constants'
@@ -31,6 +33,7 @@ import {
   normalizeVolleyballPositions,
   normalizeVolleyballSkillLevel,
   buildMemberSearchFilter,
+  resolveJoinAction,
 } from '../../../utils'
 import { DiscussionComposer } from '../../../components/DiscussionComposer'
 
@@ -126,6 +129,7 @@ function ShareMenuItem({ icon, label, onPress, active }: { icon: React.Component
   )
 }
 
+
 export default function EventDetail() {
   const { id, from, tab } = useLocalSearchParams<{ id: string; from?: string; tab?: string }>()
   const router = useRouter()
@@ -149,6 +153,11 @@ export default function EventDetail() {
   const [joining, setJoining] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [shareMenuVisible, setShareMenuVisible] = useState(false)
+  /** Host overflow (⋯) — keeps destructive actions off the main header row. */
+  const [overflowAnchor, setOverflowAnchor] = useState<AnchorRect | null>(null)
+  const [overflowVisible, setOverflowVisible] = useState(false)
+  const webOverflowRef = useRef<View>(null)
+  const floatOverflowRef = useRef<View>(null)
   const [linkCopied, setLinkCopied] = useState(false)
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false)
   const [comments, setComments] = useState<EventCommentWithAuthor[]>([])
@@ -1280,6 +1289,32 @@ export default function EventDetail() {
     setDeleteConfirmVisible(true)
   }
 
+  /** Measure the ⋯ button so the menu can anchor under it, then open. */
+  function openOverflowMenu(ref: React.RefObject<View | null>) {
+    const node = ref.current
+    if (!node) return
+    node.measureInWindow((x, y, width, height) => {
+      setOverflowAnchor({ x, y, width, height })
+      setOverflowVisible(true)
+    })
+  }
+
+  const overflowOptions: AnchorMenuOption[] = useMemo(() => [
+    {
+      key: 'cohosts',
+      label: 'Manage co-hosts',
+      onPress: () => { setOverflowVisible(false); setCohostModalVisible(true) },
+    },
+    {
+      key: 'delete',
+      label: 'Delete event',
+      destructive: true,
+      // Still routes through the existing confirmation dialog — moving delete
+      // behind ⋯ is defence in depth, not a replacement for confirming.
+      onPress: () => { setOverflowVisible(false); handleDelete() },
+    },
+  ], [])
+
   async function confirmDelete() {
     setDeleteConfirmVisible(false)
     try {
@@ -1547,7 +1582,10 @@ export default function EventDetail() {
   const waitlistIdx = waitlistEntries.findIndex((a: any) => a.user_id === userId)
   const totalAttending = attendingEntries.length + guests.length
   const myRequestEntry = attendeeRows.find((a: any) => a.user_id === userId && (a.status === 'requested' || a.status === 'denied'))
-  const isPaidEvent = (event?.price ?? 0) > 0
+  // Approval is an explicit host setting, no longer inferred from `price > 0`.
+  // Events created before the requires_approval migration were backfilled from
+  // price, so this is behaviour-preserving for them.
+  const requiresApproval = event?.requires_approval === true
   const eventStatus: AttendanceStatus = {
     count: totalAttending,
     spotsLeft: event?.max_attendees ? event.max_attendees - totalAttending : null,
@@ -1561,6 +1599,15 @@ export default function EventDetail() {
     isDenied: myRequestEntry?.status === 'denied',
     denialReason: myRequestEntry?.status === 'denied' ? (myRequestEntry.denial_reason ?? null) : null,
   }
+
+  const joinAction = resolveJoinAction({
+    isAttending: eventStatus.isAttending,
+    isWaitlisted: eventStatus.isWaitlisted,
+    isRequested: eventStatus.isRequested,
+    isDenied: eventStatus.isDenied,
+    isFull: eventStatus.isFull,
+    requiresApproval,
+  })
 
   return (
     <View
@@ -1584,26 +1631,26 @@ export default function EventDetail() {
         }}>
           <Pressable
             onPress={goBack}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
             style={({ pressed }) => ({
-              width: 36, height: 36, borderRadius: 18,
+              width: 44, height: 44, borderRadius: 22,
               alignItems: 'center', justifyContent: 'center',
               backgroundColor: pressed ? theme.colors.primary + '14' : 'transparent',
             })}
           >
             <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
           </Pressable>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
             <View>
-              <Pressable
+              <HeaderAction
+                icon="share-outline"
+                label="Share"
+                variant="secondary"
+                tone={theme.colors.text}
                 onPress={handleShare}
-                style={({ pressed }) => ({
-                  width: 36, height: 36, borderRadius: 18,
-                  alignItems: 'center', justifyContent: 'center',
-                  backgroundColor: pressed ? theme.colors.primary + '14' : 'transparent',
-                })}
-              >
-                <Ionicons name="share-outline" size={20} color={theme.colors.primary} />
-              </Pressable>
+                accessibilityLabel="Share this event"
+              />
               {shareMenuVisible && (
                 <>
                   <TouchableOpacity
@@ -1625,30 +1672,24 @@ export default function EventDetail() {
               )}
             </View>
             {isHostOrCohost && (<>
-              <Pressable
+              <HeaderAction
                 testID="event-edit-button"
+                icon="create-outline"
+                label="Edit"
+                variant="primary"
                 onPress={() => router.push(`/host?edit=${id}` as any)}
-                style={({ pressed }) => ({
-                  width: 36, height: 36, borderRadius: 18,
-                  alignItems: 'center', justifyContent: 'center',
-                  backgroundColor: pressed ? theme.colors.primary + '14' : 'transparent',
-                })}
-              >
-                <Ionicons name="create-outline" size={20} color={theme.colors.primary} />
-              </Pressable>
-              <Pressable
-                onPress={handleDelete}
-                style={({ pressed }) => ({
-                  width: 36, height: 36, borderRadius: 18,
-                  alignItems: 'center', justifyContent: 'center',
-                  backgroundColor: pressed ? theme.colors.error + '14' : 'transparent',
-                })}
-              >
-                {deleting
-                  ? <ActivityIndicator size="small" color={theme.colors.error} />
-                  : <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
-                }
-              </Pressable>
+                accessibilityLabel="Edit this event"
+              />
+              {/* Destructive actions live behind ⋯ so they aren't a mis-tap from Edit. */}
+              <View ref={webOverflowRef} collapsable={false}>
+                <HeaderAction
+                  icon="ellipsis-horizontal"
+                  variant="secondary"
+                  busy={deleting}
+                  onPress={() => openOverflowMenu(webOverflowRef)}
+                  accessibilityLabel="More event actions"
+                />
+              </View>
             </>)}
           </View>
         </View>
@@ -1913,31 +1954,39 @@ export default function EventDetail() {
             >
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm }}>
                 <View style={{ flex: 1 }}>
-                  {eventStatus.isAttending ? (
+                  {/* Branch order lives in resolveJoinAction (utils), where the
+                      full state matrix is unit-tested — capacity must beat
+                      approval, which the previous inline chain got wrong. */}
+                  {joinAction === 'leave' ? (
                     <Button label="Leave event" onPress={() => handleToggleAttendance('leave')} loading={joining} variant="secondary" />
-                  ) : eventStatus.isWaitlisted ? (
+                  ) : joinAction === 'leave-waitlist' ? (
                     <View style={{ gap: theme.spacing.xs }}>
                       <Button label="Leave Waitlist" onPress={handleLeaveWaitlist} loading={joining} variant="secondary" />
                       <Text style={[shared.caption, { textAlign: 'center' }]}>
                         You are #{eventStatus.waitlistPosition} on the waitlist
                       </Text>
                     </View>
-                  ) : eventStatus.isRequested ? (
+                  ) : joinAction === 'cancel-request' ? (
                     <View style={{ gap: theme.spacing.xs }}>
                       <Button label="Cancel Request" onPress={handleCancelRequest} loading={joining} variant="secondary" />
                       <Text style={[shared.caption, { textAlign: 'center' }]}>Pending host approval</Text>
                     </View>
-                  ) : eventStatus.isDenied ? (
+                  ) : joinAction === 'rerequest' ? (
                     <View style={{ gap: theme.spacing.xs }}>
                       <Button label="Request Again" onPress={handleRerequest} loading={joining} />
                       <Text style={[shared.caption, { textAlign: 'center', color: theme.colors.error }]}>
                         Request denied{eventStatus.denialReason ? `: "${eventStatus.denialReason}"` : ''}
                       </Text>
                     </View>
-                  ) : isPaidEvent ? (
-                    <Button label="Request to Join" onPress={handleRequestToJoin} loading={joining} />
-                  ) : eventStatus.isFull ? (
+                  ) : joinAction === 'waitlist' ? (
                     <Button label="Join Waitlist" onPress={handleJoinWaitlist} loading={joining} />
+                  ) : joinAction === 'request' ? (
+                    <View style={{ gap: theme.spacing.xs }}>
+                      <Button label="Request to Join" onPress={handleRequestToJoin} loading={joining} />
+                      <Text style={[shared.caption, { textAlign: 'center' }]}>
+                        The host reviews requests for this event
+                      </Text>
+                    </View>
                   ) : (
                     <Button label="Join event" onPress={() => handleToggleAttendance('join')} loading={joining} />
                   )}
@@ -2276,6 +2325,14 @@ export default function EventDetail() {
         </View>
       </Modal>
 
+      {/* Host overflow menu (⋯) — destructive actions, off the main header row */}
+      <AnchorOptionsMenu
+        visible={overflowVisible}
+        anchor={overflowAnchor}
+        options={overflowOptions}
+        onDismiss={() => setOverflowVisible(false)}
+      />
+
       {/* Delete confirmation modal */}
       <Modal visible={deleteConfirmVisible} transparent animationType="fade" onRequestClose={() => setDeleteConfirmVisible(false)}>
         <TouchableOpacity
@@ -2331,13 +2388,13 @@ export default function EventDetail() {
           {/* Action pills */}
           <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
             <View style={{ position: 'relative' }}>
-              <Pressable
+              <HeaderAction
+                icon="share-outline"
+                label="Share"
+                variant="secondary"
                 onPress={handleShare}
-                style={({ pressed }) => [styles.floatBtn, pressed && { opacity: 0.75 }]}
-                hitSlop={8}
-              >
-                <Ionicons name="share-outline" size={19} color={theme.colors.text} />
-              </Pressable>
+                accessibilityLabel="Share this event"
+              />
               {shareMenuVisible && (
                 <>
                   <TouchableOpacity
@@ -2360,24 +2417,24 @@ export default function EventDetail() {
             </View>
             {isHostOrCohost && (
               <>
-                <Pressable
+                <HeaderAction
                   testID="event-edit-button"
+                  icon="create-outline"
+                  label="Edit"
+                  variant="primary"
                   onPress={() => router.push(`/host?edit=${id}` as any)}
-                  style={({ pressed }) => [styles.floatBtn, pressed && { opacity: 0.75 }]}
-                  hitSlop={8}
-                >
-                  <Ionicons name="create-outline" size={19} color={theme.colors.text} />
-                </Pressable>
-                <Pressable
-                  onPress={handleDelete}
-                  style={({ pressed }) => [styles.floatBtn, pressed && { opacity: 0.75 }]}
-                  hitSlop={8}
-                >
-                  {deleting
-                    ? <ActivityIndicator size="small" color={theme.colors.error} />
-                    : <Ionicons name="trash-outline" size={19} color={theme.colors.error} />
-                  }
-                </Pressable>
+                  accessibilityLabel="Edit this event"
+                />
+                {/* Destructive actions live behind ⋯ so they aren't a mis-tap from Edit. */}
+                <View ref={floatOverflowRef} collapsable={false}>
+                  <HeaderAction
+                    icon="ellipsis-horizontal"
+                    variant="secondary"
+                    busy={deleting}
+                    onPress={() => openOverflowMenu(floatOverflowRef)}
+                    accessibilityLabel="More event actions"
+                  />
+                </View>
               </>
             )}
           </View>
@@ -2413,9 +2470,10 @@ export default function EventDetail() {
 
 const styles = StyleSheet.create({
   floatBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    // 44pt minimum touch target (Apple HIG / Material / CLAUDE.md).
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: theme.colors.card,
     alignItems: 'center',
     justifyContent: 'center',

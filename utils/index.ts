@@ -159,6 +159,48 @@ export function startOfToday() {
   return d.toISOString()
 }
 
+/** Which primary action the event page's sticky footer offers a viewer. */
+export type JoinAction =
+  | 'leave'          // already attending
+  | 'leave-waitlist' // on the waitlist
+  | 'cancel-request' // request pending host approval
+  | 'rerequest'      // previously denied
+  | 'waitlist'       // event is full
+  | 'request'        // host screens joins
+  | 'join'           // open, has space
+
+/**
+ * Decide the join-button state.
+ *
+ * Extracted from the event page's JSX ternary chain because the ordering here
+ * is load-bearing and was wrong: the old chain tested "is this a paid event"
+ * *before* "is this event full", so a full paid event kept offering "Request to
+ * Join" past `max_attendees` and could never reach its waitlist.
+ *
+ * Order matters, most-specific first:
+ *  1. the viewer's existing relationship to the event (attending / waitlisted /
+ *     requested / denied) always wins — it describes a row that already exists;
+ *  2. then capacity, which is a hard limit no approval setting overrides;
+ *  3. then the host's approval setting;
+ *  4. otherwise a plain join.
+ */
+export function resolveJoinAction(s: {
+  isAttending: boolean
+  isWaitlisted: boolean
+  isRequested: boolean
+  isDenied: boolean
+  isFull: boolean
+  requiresApproval: boolean
+}): JoinAction {
+  if (s.isAttending) return 'leave'
+  if (s.isWaitlisted) return 'leave-waitlist'
+  if (s.isRequested) return 'cancel-request'
+  if (s.isDenied) return 'rerequest'
+  if (s.isFull) return 'waitlist'
+  if (s.requiresApproval) return 'request'
+  return 'join'
+}
+
 /**
  * Parse an `events.event_date` value into a Date.
  *
