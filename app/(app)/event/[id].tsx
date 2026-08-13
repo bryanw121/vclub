@@ -15,6 +15,7 @@ import { Input } from '../../../components/Input'
 import { EventCommentRow } from '../../../components/EventCommentRow'
 import { Pager } from '../../../components/Pager'
 import { setDocScrollClaim } from '../../../lib/docScroll'
+import { eventKey, useDataVersion, shouldRefetch } from '../../../lib/dataVersion'
 import { shared, theme, CHEERS_MAX_PER_EVENT, LOCATIONS, TEAM_COLORS } from '../../../constants'
 import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendee, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile, MentionUser, TeamAssignment } from '../../../types'
 import { CheersTab } from '../../../components/event/CheersTab'
@@ -265,11 +266,27 @@ export default function EventDetail() {
     })
   }, [])
 
+  // Refetch on focus when this event was mutated elsewhere (the edit screen), or
+  // when the cached copy has simply gone stale. The version check is what makes a
+  // fast edit round-trip visible — it completes well inside the 30s window, so
+  // staleness alone would never fire. `silent` keeps the old data on screen and
+  // swaps it in place instead of flashing a spinner.
+  const eventVersion = useDataVersion(eventKey(id))
+  const seenEventVersion = useRef(eventVersion)
   useFocusEffect(
     useCallback(() => {
-      const stale = Date.now() - lastFetchedAt.current > 30_000
-      if (stale) void fetchEvent({ silent: true })
-    }, [id]),
+      const refetch = shouldRefetch({
+        version: eventVersion,
+        seenVersion: seenEventVersion.current,
+        lastFetchedAt: lastFetchedAt.current,
+        now: Date.now(),
+        staleAfterMs: 30_000,
+      })
+      if (refetch) {
+        seenEventVersion.current = eventVersion
+        void fetchEvent({ silent: true })
+      }
+    }, [id, eventVersion]), // eslint-disable-line react-hooks/exhaustive-deps
   )
 
   // After the remove modal renders, allow interaction after a short delay so the
@@ -1609,6 +1626,7 @@ export default function EventDetail() {
             </View>
             {isHostOrCohost && (<>
               <Pressable
+                testID="event-edit-button"
                 onPress={() => router.push(`/host?edit=${id}` as any)}
                 style={({ pressed }) => ({
                   width: 36, height: 36, borderRadius: 18,
@@ -2343,6 +2361,7 @@ export default function EventDetail() {
             {isHostOrCohost && (
               <>
                 <Pressable
+                  testID="event-edit-button"
                   onPress={() => router.push(`/host?edit=${id}` as any)}
                   style={({ pressed }) => [styles.floatBtn, pressed && { opacity: 0.75 }]}
                   hitSlop={8}

@@ -156,4 +156,41 @@ test.describe('Events', () => {
     await page.getByText('Remove', { exact: true }).click()
     await expect(page.getByText(guestCardName)).toHaveCount(0, { timeout: 15000 })
   })
+
+  // Regression guard for #34: editing an event and going back showed the OLD
+  // title. The detail screen's focus refetch was gated purely on a 30s staleness
+  // window, and this whole round-trip finishes in a couple of seconds — so the
+  // window masked the change. Deliberately no reload and no pull-to-refresh
+  // anywhere in this test; that's the entire point.
+  test('editing an event shows the new title on the detail page without a refresh', async ({ page }) => {
+    const editedTitle = `[e2e] Edited ${Date.now()}`
+
+    await page.getByText(OPEN_PLAY_EVENT).first().click()
+    await page.waitForURL(/\/event\//, { timeout: 20000 })
+    await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 20000 })
+    const eventUrl = page.url()
+
+    async function renameTo(next: string) {
+      await page.getByTestId('event-edit-button').first().click()
+      await page.waitForURL(/\/host\?edit=/, { timeout: 20000 })
+      const titleField = page.getByPlaceholder('Friday Night Round Robin')
+      await expect(titleField).toBeVisible({ timeout: 20000 })
+      await titleField.fill(next)
+      await page.getByText('Save changes', { exact: true }).click()
+      // Success modal → Done runs router.back(), restoring the detail screen
+      // with its pre-edit React state intact. That restore is what used to be stale.
+      await expect(page.getByText('Event updated!')).toBeVisible({ timeout: 20000 })
+      await page.getByText('Done', { exact: true }).click()
+      await page.waitForURL(eventUrl, { timeout: 20000 })
+    }
+
+    await renameTo(editedTitle)
+    await expect(page.getByText(editedTitle).first()).toBeVisible({ timeout: 20000 })
+    await expect(page.getByText(OPEN_PLAY_EVENT)).toHaveCount(0)
+
+    // Restore the fixture title — this spec runs serially against a shared DB
+    // and afterAll cleanup matches on the original name.
+    await renameTo(OPEN_PLAY_EVENT)
+    await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 20000 })
+  })
 })
