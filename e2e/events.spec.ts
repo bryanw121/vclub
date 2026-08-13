@@ -167,7 +167,11 @@ test.describe('Events', () => {
 
     await page.getByText(OPEN_PLAY_EVENT).first().click()
     await page.waitForURL(/\/event\//, { timeout: 20000 })
-    await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 20000 })
+    // Assert on the detail page's own hero title, not a bare getByText: the feed
+    // stays mounted behind the pushed screen, so `getByText(title).first()`
+    // resolves to the hidden feed card and never becomes visible.
+    const heroTitle = page.getByTestId('event-hero-title')
+    await expect(heroTitle).toHaveText(OPEN_PLAY_EVENT, { timeout: 20000 })
     const eventUrl = page.url()
 
     async function renameTo(next: string) {
@@ -185,12 +189,12 @@ test.describe('Events', () => {
     }
 
     await renameTo(editedTitle)
-    await expect(page.getByText(editedTitle).first()).toBeVisible({ timeout: 20000 })
-    await expect(page.getByText(OPEN_PLAY_EVENT)).toHaveCount(0)
+    await expect(heroTitle).toHaveText(editedTitle, { timeout: 20000 })
 
-    // Restore the fixture title — this spec runs serially against a shared DB
-    // and afterAll cleanup matches on the original name.
+    // Restore the fixture title — this spec runs serially against a shared DB.
+    // (afterAll cleanup matches the `[e2e]` prefix, so it would collect the
+    // renamed row either way; this keeps reruns starting from a clean name.)
     await renameTo(OPEN_PLAY_EVENT)
-    await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 20000 })
+    await expect(heroTitle).toHaveText(OPEN_PLAY_EVENT, { timeout: 20000 })
   })
 })

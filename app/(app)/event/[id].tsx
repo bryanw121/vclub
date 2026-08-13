@@ -1710,7 +1710,7 @@ export default function EventDetail() {
                       ))}
                     </View>
                     {/* Title */}
-                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 28, letterSpacing: -0.8, color: '#fff', lineHeight: 32 }}>
+                    <Text testID="event-hero-title" style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 28, letterSpacing: -0.8, color: '#fff', lineHeight: 32 }}>
                       {event.title}
                     </Text>
                     {/* Location + duration */}
