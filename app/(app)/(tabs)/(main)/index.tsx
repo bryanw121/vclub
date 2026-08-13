@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons'
 import { useMonthEvents } from '../../../../hooks/useMonthEvents'
 import { useNotifications } from '../../../../hooks/useNotifications'
 import { EventCard, RowEventCard, type EventCardRsvpHandler } from '../../../../components/EventCard'
+import { MyEventsRail } from '../../../../components/MyEventsRail'
+import { myStatusFor, useMyUpcomingEvents } from '../../../../hooks/useMyUpcomingEvents'
 import { NotificationPopup } from '../../../../components/NotificationPopup'
 import { shared, theme } from '../../../../constants'
 import { EventWithDetails, type Notification } from '../../../../types'
@@ -37,9 +39,13 @@ function idxForMonth(month: string): number {
   return MONTH_CENTER + (y - ry) * 12 + (m - rm)
 }
 
-type FilterChip = 'all' | 'open_play' | 'tournament' | 'not_full'
+type FilterChip = 'mine' | 'all' | 'open_play' | 'tournament' | 'not_full'
 
+// "Mine" leads the row but is deliberately NOT the default filter — opening the
+// Events tab on an empty screen is the worst possible first run for a new member,
+// and it hides the rest of the club from everyone else.
 const FILTER_CHIPS: { id: FilterChip; label: string }[] = [
+  { id: 'mine',       label: 'Mine'       },
   { id: 'all',        label: 'All'        },
   { id: 'open_play',  label: 'Open Play'  },
   { id: 'tournament', label: 'Tournament' },
@@ -184,6 +190,7 @@ export default function EventsScreen() {
   const sections: DateSection[] = useMemo(() => {
     const filtered = events.filter(event => {
       if (activeFilter === 'all') return true
+      if (activeFilter === 'mine') return !!currentUserId && myStatusFor(event, currentUserId) !== null
       const tags = event.event_tags?.map(et => et.tags.name.toLowerCase()) ?? []
       if (activeFilter === 'open_play')  return tags.some(t => t.includes('open play') || t.includes('open-play'))
       if (activeFilter === 'tournament') return tags.some(t => t.includes('tournament'))
@@ -208,7 +215,22 @@ export default function EventsScreen() {
       grouped[date].sort((a, b) => a.event_date.localeCompare(b.event_date))
     }
     return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([date, data]) => ({ date, data }))
-  }, [events, activeFilter])
+  }, [events, activeFilter, currentUserId])
+
+  // "You're going" rail. Derived from events already in memory — no extra query
+  // on the happy path, and it re-derives whenever the feed does, so an RSVP made
+  // from a feed card lands in the rail without a manual refresh.
+  const myUpcoming = useMyUpcomingEvents(events, currentUserId)
+
+  const railNode = (
+    <MyEventsRail
+      items={myUpcoming}
+      onPressEvent={eventId => router.push(`/event/${eventId}` as any)}
+      // "See all" switches the feed to Mine rather than growing the rail — one
+      // place to look for the long list, and the rail stays above the fold.
+      onSeeAll={() => setActiveFilter('mine')}
+    />
+  )
 
   const markedDates = useMemo(() => buildMarkedDates(events, selectedDate), [events, selectedDate])
 
@@ -325,6 +347,7 @@ export default function EventsScreen() {
           <View style={{ flexDirection: 'row', gap: 6, marginBottom: 18, flexWrap: 'wrap' }}>
             {FILTER_CHIPS.map(chip => {
               const active = activeFilter === chip.id
+              const badge = chip.id === 'mine' && myUpcoming.length > 0 ? myUpcoming.length : null
               return (
                 <TouchableOpacity
                   key={chip.id}
@@ -333,13 +356,18 @@ export default function EventsScreen() {
                   style={[feedStyles.chip, active && feedStyles.chipActive]}
                 >
                   <Text style={[feedStyles.chipLabel, active && feedStyles.chipLabelActive]}>
-                    {chip.label}
+                    {badge !== null ? `${chip.label} ${badge}` : chip.label}
                   </Text>
                 </TouchableOpacity>
               )
             })}
           </View>
 
+          {railNode}
+
+          {/* Tagged so e2e can scope feed assertions: the rail deliberately
+              ignores the active filter, so a page-wide text count would see it. */}
+          <View testID="events-feed">
           {loading && allEvents.length === 0 ? (
             <ActivityIndicator style={{ marginTop: theme.spacing.xl }} color={theme.colors.primary} />
           ) : allEvents.length === 0 ? (
@@ -394,6 +422,7 @@ export default function EventsScreen() {
               )}
             </>
           )}
+          </View>
         </ScrollView>
 
         {/* Right rail */}
@@ -539,6 +568,7 @@ export default function EventsScreen() {
         >
           {FILTER_CHIPS.map(chip => {
             const active = activeFilter === chip.id
+            const badge = chip.id === 'mine' && myUpcoming.length > 0 ? myUpcoming.length : null
             return (
               <TouchableOpacity
                 key={chip.id}
@@ -547,7 +577,7 @@ export default function EventsScreen() {
                 style={[feedStyles.chip, active && feedStyles.chipActive]}
               >
                 <Text style={[feedStyles.chipLabel, active && feedStyles.chipLabelActive]}>
-                  {chip.label}
+                  {badge !== null ? `${chip.label} ${badge}` : chip.label}
                 </Text>
               </TouchableOpacity>
             )
@@ -600,6 +630,8 @@ export default function EventsScreen() {
         if (docScrollActive) {
           return (
             <View ref={feedContentRef} style={{ paddingBottom: tabBarHeight + 32 }}>
+              <View style={{ paddingHorizontal: theme.spacing.lg }}>{railNode}</View>
+              <View testID="events-feed">
               {emptyOrLoading ?? sections.map(section => (
                 <View key={section.date} onLayout={e => { sectionYRef.current[section.date] = e.nativeEvent.layout.y }}>
                   {renderSectionHeader(section)}
@@ -611,6 +643,7 @@ export default function EventsScreen() {
               {loading && sections.length > 0 && (
                 <ActivityIndicator style={{ marginVertical: theme.spacing.lg }} color={theme.colors.primary} />
               )}
+              </View>
             </View>
           )
         }
@@ -622,6 +655,9 @@ export default function EventsScreen() {
               contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
               refreshControl={<RefreshControl refreshing={eventsPullRefreshing} onRefresh={() => void handleEventsPullRefresh()} tintColor={theme.colors.primary} />}
             >
+              {/* The rail is derived from all loaded events, so it can be
+                  non-empty even when the active filter matches nothing. */}
+              <View style={{ paddingHorizontal: theme.spacing.lg }}>{railNode}</View>
               {emptyOrLoading}
             </ScrollView>
           )
@@ -634,6 +670,13 @@ export default function EventsScreen() {
             contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
             sections={sections}
             keyExtractor={item => item.id}
+            // No `events-feed` testID here on purpose: the rail lives in
+            // ListHeaderComponent, so tagging the list would include it and
+            // defeat the scoping. The two paths e2e actually drives (desktop and
+            // doc-scroll) keep the rail outside their tagged wrapper.
+            ListHeaderComponent={
+              <View style={{ paddingHorizontal: theme.spacing.lg }}>{railNode}</View>
+            }
             renderItem={({ item }) => renderEvent(item)}
             renderSectionHeader={({ section }) => renderSectionHeader(section)}
             stickySectionHeadersEnabled={false}

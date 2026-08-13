@@ -285,11 +285,14 @@ export type EventWithDetails = Event & {
     profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url'> | null
   }>
   /**
-   * List/card queries only: current user's attending row (0–1 items), from a
-   * filtered `my_attendance:event_attendees_attending` embed. Prefer this over
-   * scanning `attendee_previews` for RSVP state (previews are capped at 3).
+   * List/card queries only: the current user's own `event_attendees` row (0–1
+   * items), from a filtered `my_attendance` embed. Prefer this over scanning
+   * `attendee_previews` for RSVP state (previews are capped at 3).
+   *
+   * `status` is absent on rows from older callers that embedded the
+   * attending-only view; treat a missing status as `'attending'`.
    */
-  my_attendance?: Array<{ user_id: string }>
+  my_attendance?: Array<{ user_id: string; status?: EventAttendee['status'] }>
   /** Set to true for items normalized from the tournaments table. Cards use this to navigate to /tournament/[id] instead of /event/[id]. */
   _isTournament?: boolean
 }
@@ -462,6 +465,22 @@ export type AttendanceStatus = {
 
 /** A player's team placement on the event People/Cheers tabs. */
 export type TeamAssignment = { team: number | null; pinned: boolean }
+
+/**
+ * How the viewer is connected to an upcoming event, for the "You're going" rail.
+ * Ordered by commitment: hosting outranks attending, which outranks waitlisted.
+ */
+export type MyEventStatus = 'hosting' | 'attending' | 'waitlisted' | 'requested'
+
+/** One card in the "You're going" rail — an event plus the viewer's relationship to it. */
+export type MyUpcomingEvent = {
+  event: EventWithDetails
+  status: MyEventStatus
+  /** 1-based waitlist position, hydrated separately. Null until known or when not waitlisted. */
+  waitlistPosition: number | null
+  /** True while the event is underway — started, but not yet past its duration. */
+  inProgress: boolean
+}
 
 // ─── Chat Types ───────────────────────────────────────────────────────────────
 

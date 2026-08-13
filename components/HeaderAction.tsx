@@ -17,7 +17,7 @@ import { theme } from '../constants/theme'
 export const HEADER_ACTION_MIN = 44
 
 export function HeaderAction({
-  icon, label, onPress, variant = 'plain', busy, tone, accessibilityLabel, onLayout,
+  icon, label, onPress, variant = 'plain', busy, tone, accessibilityLabel, onLayout, testID,
 }: {
   icon: React.ComponentProps<typeof Ionicons>['name']
   label?: string
@@ -27,12 +27,15 @@ export function HeaderAction({
   tone?: string
   accessibilityLabel?: string
   onLayout?: (e: any) => void
+  /** Forwarded so e2e can target a specific header action (see event-edit-button). */
+  testID?: string
 }) {
   const filled = variant === 'primary'
   const outlined = variant === 'secondary'
   const fg = tone ?? (filled ? theme.colors.white : theme.colors.text)
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       onLayout={onLayout}
       accessibilityRole="button"

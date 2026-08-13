@@ -48,6 +48,7 @@ supabase/.temp/
 /.playwright-mcp/
 /playwright-report/
 /test-results/
+/playwright/.auth/
 
 # yarn — this project standardizes on npm (package-lock.json)
 .yarnrc

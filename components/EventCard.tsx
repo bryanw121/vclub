@@ -7,6 +7,20 @@ import { theme, eventAttendeeDisplayCount } from '../constants'
 import { profileAvatarSmallUri, profileDisplayName } from '../utils'
 import type { EventWithDetails, Tag } from '../types'
 
+// ─── Attendance helpers ───────────────────────────────────────────────────────
+
+/**
+ * Is this viewer-scoped `my_attendance` row an actual RSVP?
+ *
+ * The embed now reads the base `event_attendees` table, so it also returns
+ * waitlisted, requested and denied rows. Presence alone would show "Going ✓" to
+ * someone who is only on the waitlist. Rows with no `status` come from the older
+ * attending-only view and are attending by construction.
+ */
+function isAttendingRow(row: { status?: string }): boolean {
+  return (row.status ?? 'attending') === 'attending'
+}
+
 // ─── Tag helpers ──────────────────────────────────────────────────────────────
 
 function isTournament(tags: Tag[]): boolean {
@@ -56,7 +70,7 @@ function EventCardInner({
 
   const isAttending = !!currentUserId && (
     event.my_attendance != null
-      ? event.my_attendance.some(a => a.user_id === currentUserId)
+      ? event.my_attendance.some(a => a.user_id === currentUserId && isAttendingRow(a))
       : (event.attendee_previews ?? []).some(p => p.user_id === currentUserId)
   )
 
@@ -265,7 +279,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp }:
 
   const isAttending = !!currentUserId && (
     event.my_attendance != null
-      ? event.my_attendance.some(a => a.user_id === currentUserId)
+      ? event.my_attendance.some(a => a.user_id === currentUserId && isAttendingRow(a))
       : (event.attendee_previews ?? []).some(p => p.user_id === currentUserId)
   )
 
