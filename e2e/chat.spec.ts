@@ -8,22 +8,13 @@
 
 import { test, expect, Page } from '@playwright/test'
 
-const BASE_URL = 'http://localhost:8081'
+const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8081'
 const CONVO_ID = '01bc0c4f-2e83-4402-afce-5fc7ddd729f9'
 const CONVO_URL = `${BASE_URL}/chat/${CONVO_ID}`
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-async function login(page: Page) {
-  await page.goto(`${BASE_URL}/login`)
-  await page.waitForTimeout(2000)
-  await page.getByRole('textbox').nth(0).fill('bryanw121')
-  await page.getByRole('textbox').nth(1).fill('password')
-  await page.getByText('Sign in', { exact: true }).click()
-  await page.waitForURL(`${BASE_URL}/`)
-}
 
 async function dismissErrorOverlays(page: Page) {
   const dismissBtns = await page.getByText('Dismiss').all()
@@ -91,8 +82,8 @@ test.describe('Chat', () => {
     page.on('pageerror', err => console.error(`[page error] ${err.message}`))
 
     console.log(`→ starting: ${testInfo.title}`)
-    await login(page)
-    // Navigate to chat and wait for it to fully load (reload clears lock errors)
+    // Authentication is performed once by auth.setup.ts and restored into
+    // each browser context. Navigate to chat and wait for it to fully load.
     await page.goto(`${BASE_URL}/chat`)
     await page.reload()
     await page.waitForTimeout(3000)

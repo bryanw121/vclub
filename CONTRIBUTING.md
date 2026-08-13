@@ -179,7 +179,12 @@ network or a real `.env`. Unit tests must never hit the network.
   the dashboard). The files in `supabase/migrations/` are **not in sync** with
   the applied history — never replay them onto a fresh project; baseline from
   `supabase db dump` instead.
-- **E2E seeds**: tests log in as `bryanw121`. Events e2e creates its own
+- **E2E authentication**: `e2e/auth.setup.ts` logs in as `bryanw121` once per
+  Playwright run and saves ignored browser state under `playwright/.auth/`.
+  Specs consume that state; do not add per-test password logins. The setup
+  retries transient Supabase failures and accepts `E2E_USERNAME` /
+  `E2E_PASSWORD` overrides for local runs.
+- **E2E seeds**: Events e2e creates its own
   relative-dated `[e2e]` fixtures in `beforeAll` and deletes them in
   `afterAll` (see `e2e/eventsFixtures.ts`) — no permanent shared events are
   required. Chat e2e still relies on a seed conversation defined in

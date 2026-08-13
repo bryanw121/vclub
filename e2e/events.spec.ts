@@ -18,18 +18,7 @@ import {
   cleanupEventFixtures,
 } from './eventsFixtures'
 
-const BASE_URL = 'http://localhost:8081'
-
-async function login(page: Page) {
-  await page.goto(`${BASE_URL}/login`)
-  await page.waitForTimeout(2000)
-  await page.getByRole('textbox').nth(0).fill('bryanw121')
-  await page.getByRole('textbox').nth(1).fill('password')
-  await page.getByText('Sign in', { exact: true }).click()
-  await page.waitForURL(`${BASE_URL}/`)
-  // Events feed loads on focus — give the month query time to resolve.
-  await page.waitForTimeout(2500)
-}
+const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8081'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -48,7 +37,10 @@ test.describe('Events', () => {
     })
     page.on('pageerror', err => console.error(`[page error] ${err.message}`))
     console.log(`→ starting: ${testInfo.title}`)
-    await login(page)
+    // auth.setup.ts signs in once per Playwright run and each test receives
+    // that stored session. Going directly to / proves the session restored.
+    await page.goto(`${BASE_URL}/`)
+    await expect(page.getByTestId('filter-all').first()).toBeVisible({ timeout: 20_000 })
   })
 
   test('feed lists upcoming events with filter chips', async ({ page }) => {

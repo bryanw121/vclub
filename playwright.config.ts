@@ -1,4 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
+import path from 'node:path'
+
+const AUTH_FILE = path.join(process.cwd(), 'playwright/.auth/user.json')
 
 export default defineConfig({
   testDir: './e2e',
@@ -18,6 +21,19 @@ export default defineConfig({
     trace: 'on-first-retry',                     // captured on the retry after a flaky failure
     video: 'off',                                // screenshots + traces are sufficient for debugging
   },
+  projects: [
+    {
+      name: 'setup',
+      testMatch: '**/*.setup.ts',
+      retries: 0,
+    },
+    {
+      name: 'chromium',
+      testIgnore: '**/*.setup.ts',
+      use: { storageState: AUTH_FILE },
+      dependencies: ['setup'],
+    },
+  ],
   // Assumes the Expo dev server is already running (`npx expo start --web`)
   // To auto-start it, uncomment the webServer block below:
   // webServer: {
