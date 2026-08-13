@@ -120,7 +120,7 @@ test.describe('Events', () => {
     // Join → button flips to Leave, Details tab shows "You're going".
     await joinBtn.click()
     await expect(leaveBtn).toBeVisible({ timeout: 15000 })
-    await expect(page.getByText("You're going").first()).toBeVisible()
+    await expect(page.getByText("You're going", { exact: true }).first()).toBeVisible()
 
     // Leave → back to Join (cleans up shared-account state).
     await leaveBtn.click()
