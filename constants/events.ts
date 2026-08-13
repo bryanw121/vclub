@@ -102,8 +102,29 @@ export const EVENT_LIST_EVENT_COLUMNS =
  */
 export const EVENT_CARD_LIST_SELECT = `${EVENT_LIST_EVENT_COLUMNS}, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees_attending(count), event_guests_attending(count), event_attendees_waitlisted(count), event_tags (tag_id, tags (id, name, category, display_order)), clubs (id, name, avatar_url)`
 
-/** Appended to list selects when signed in — left embed filtered to the current user. */
+/**
+ * Appended to list selects when signed in — embed filtered to the current user,
+ * so it returns at most one row per event.
+ *
+ * Embeds the base `event_attendees` table rather than the attending-only view so
+ * the row carries `status`: the "You're going" rail has to tell attending from
+ * waitlisted from pending-approval, and the view drops the latter two entirely.
+ * RLS is unchanged — `event_attendees_attending` is `security_invoker`, so it
+ * already reads the base table as the calling user.
+ *
+ * Anything reading this must check `status`, not mere presence — see
+ * `EVENT_CARD_MY_ATTENDANCE_SELECT_ATTENDING_ONLY` for the fallback shape.
+ */
 export const EVENT_CARD_MY_ATTENDANCE_SELECT =
+  'my_attendance:event_attendees(user_id, status)'
+
+/**
+ * Previous shape, kept as a runtime fallback. The migration files in
+ * `supabase/migrations/` are known to lag the live schema, so if the widened
+ * embed above is ever rejected by PostgREST the feed retries with this one and
+ * degrades to attending-only rather than rendering an empty screen.
+ */
+export const EVENT_CARD_MY_ATTENDANCE_SELECT_ATTENDING_ONLY =
   'my_attendance:event_attendees_attending(user_id)'
 
 /** Hosted / history settings lists: host + RSVP count only (no tag/club embeds). */
