@@ -81,6 +81,13 @@ bug.
   - pure internal logic with no observable flow change → unit tests are
     enough, but say so in the PR body.
 
+  **Add or update unit and integration tests with every behavior change when
+  those layers apply.** Unit tests must cover new or changed isolated logic;
+  integration tests (including Playwright e2e for user-visible flows) must
+  cover the affected boundary between components, services, or the database.
+  If either layer genuinely does not apply, state why in the PR's test evidence
+  instead of silently omitting it.
+
   **Coverage comes first when refactoring thinly-tested code**: land a
   safety-net e2e that drives the surface as its *own* commit, then refactor
   against it (this is how the `event/[id].tsx` god-component was split).
