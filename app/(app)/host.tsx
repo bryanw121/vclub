@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '../../lib/supabase'
 import { Sentry } from '../../lib/sentry'
+import { bumpVersion, eventKey } from '../../lib/dataVersion'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
 import { DatePickerField } from '../../components/DatePickerField'
@@ -333,6 +334,13 @@ export default function HostEventScreen() {
             }
           }
         }
+
+        // Tell the event detail screen its cached copy is out of date. Without
+        // this it keeps showing the pre-edit row: its focus refetch only fires
+        // after 30s of staleness, and an edit round-trip is much faster.
+        // Bump after the tag rewrite and waitlist promotion so the refetch sees
+        // every part of this save, not just the events row.
+        bumpVersion(eventKey(editId))
 
         setSuccessMessage('Event updated!')
         setSuccessModal(true)
