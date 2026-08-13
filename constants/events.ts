@@ -90,9 +90,17 @@ export type RecurrenceCadence = 'weekly' | 'biweekly' | 'monthly'
 export const DAY_LABELS_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const
 
 // ─── Supabase list queries (EventCard / feeds) ─────────────────────────────────
-/** Core `events` columns for cards — omits `description` to shrink rows and JSON payload. */
+/**
+ * Core `events` columns for cards — omits `description` to shrink rows and JSON payload.
+ *
+ * Deliberately does NOT select `requires_approval`: no feed card renders it, and
+ * naming a column that the live schema may not have yet would 400 *every* feed
+ * query for every user. The event detail screen selects `*`, so it picks the
+ * column up once the migration lands and reads `undefined` (→ approval off,
+ * i.e. the previous behaviour) until then.
+ */
 export const EVENT_LIST_EVENT_COLUMNS =
-  'id, created_by, club_id, title, location, event_date, duration_minutes, max_attendees, created_at, price, requires_approval'
+  'id, created_by, club_id, title, location, event_date, duration_minutes, max_attendees, created_at, price'
 
 /**
  * Main Events tab + club upcoming: host, RSVP count, tags, club badge.
