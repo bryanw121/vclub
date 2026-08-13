@@ -157,30 +157,42 @@ test.describe('Events', () => {
     await expect(page.getByText(guestCardName)).toHaveCount(0, { timeout: 15000 })
   })
 
-  // #41: the "You're going" rail. bryanw121 hosts the fixtures, so the rail is
-  // always populated for this account — a hosted event counts as a commitment.
-  test("the You're going rail lists the events this account is committed to", async ({ page }) => {
+  // #41: the "You're going" rail. bryanw121 hosts both fixtures, so the account
+  // always has at least two upcoming commitments and the rail is guaranteed
+  // non-empty. Deliberately NOT asserting that a specific fixture appears in the
+  // rail: it's capped at 3 and sorted soonest-first, and the fixtures are seeded
+  // +2/+3 days out, so any real event this account hosts sooner would push them
+  // out — a true behaviour, not a regression.
+  test("the You're going rail shows this account's commitments and opens one", async ({ page }) => {
     const rail = page.getByTestId('my-events-rail')
     await expect(rail).toBeVisible({ timeout: 20000 })
 
-    // Hosted fixtures appear in the rail, tagged HOSTING.
-    await expect(rail.getByText(OPEN_PLAY_EVENT).first()).toBeVisible()
+    // Hosted events count as commitments and are tagged HOSTING.
     await expect(rail.getByText('HOSTING').first()).toBeVisible()
 
-    // Tapping a rail card opens that event.
-    await rail.getByText(OPEN_PLAY_EVENT).first().click()
+    // The header counts every commitment, not just the (capped) visible cards.
+    const headerCount = await rail.getByText(/^YOU'RE GOING · \d+$/).first().textContent()
+    expect(Number(headerCount!.split('·')[1].trim())).toBeGreaterThanOrEqual(2)
+
+    // Tapping a card opens that event.
+    await rail.getByTestId(/^my-event-card-/).first().click()
     await page.waitForURL(/\/event\//, { timeout: 20000 })
   })
 
-  test('the Mine filter narrows the feed to registered events and All restores it', async ({ page }) => {
+  test('the Mine chip carries a count and filters without losing the hosted fixtures', async ({ page }) => {
     await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 20000 })
 
-    // Default filter is All, not Mine — a new member must not land on an empty screen.
-    await page.getByTestId('filter-mine').first().click()
-    await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 15000 })
+    // The chip shows how many commitments there are — at least the two fixtures.
+    const mineChip = page.getByTestId('filter-mine').first()
+    await expect(mineChip).toHaveText(/^Mine \d+$/)
 
-    await page.getByTestId('filter-all').first().click()
+    // Both fixtures are hosted by this account, so Mine keeps them.
+    await mineChip.click()
     await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 15000 })
     await expect(page.getByText(TOURNAMENT_EVENT).first()).toBeVisible()
+
+    // All restores the unfiltered feed.
+    await page.getByTestId('filter-all').first().click()
+    await expect(page.getByText(OPEN_PLAY_EVENT).first()).toBeVisible({ timeout: 15000 })
   })
 })
