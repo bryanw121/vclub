@@ -69,6 +69,24 @@ async function openContextMenu(page: Page, messageText: string) {
   }).toPass({ timeout: 20000 })
 }
 
+/**
+ * Send through the real composer, but retry the action if the shared Supabase
+ * request drops before even the optimistic bubble appears. The CI account uses
+ * one remote project and an intermittent fetch failure otherwise makes the
+ * context-menu step wait for a message that was never sent.
+ */
+async function sendMessageAndWait(page: Page, messageText: string) {
+  const input = page.getByRole('textbox', { name: 'Message' })
+  const bubble = page.getByText(messageText).last()
+
+  await expect(async () => {
+    if (await bubble.isVisible().catch(() => false)) return
+    await input.fill(messageText)
+    await page.keyboard.press('Enter')
+    await expect(bubble).toBeVisible({ timeout: 5000 })
+  }).toPass({ timeout: 30_000, intervals: [0, 1000, 2000, 3000] })
+}
+
 // ---------------------------------------------------------------------------
 // Suite
 // ---------------------------------------------------------------------------
@@ -374,18 +392,14 @@ test.describe('Chat', () => {
     await gotoConversation(page)
 
     const target = `e2e-reply-quote-target-${Date.now()}`
-    await page.getByRole('textbox', { name: 'Message' }).fill(target)
-    await page.keyboard.press('Enter')
-    await page.waitForTimeout(1500)
+    await sendMessageAndWait(page, target)
 
     await openContextMenu(page, target)
     await page.getByRole('dialog').getByText('Reply', { exact: true }).click({ force: true })
     await page.waitForTimeout(600)
 
     const unique = `e2e-reply-${Date.now()}`
-    await page.getByRole('textbox', { name: 'Message' }).fill(unique)
-    await page.keyboard.press('Enter')
-    await page.waitForTimeout(2000)
+    await sendMessageAndWait(page, unique)
 
     await expect(page.getByText(unique)).toBeVisible()
     // The quote above the reply repeats the target text — so it appears twice
