@@ -11,6 +11,8 @@ import { EventWithDetails, type Notification } from '../../../../types'
 import { useTabsShell } from '../../../../contexts/tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../../lib/supabase'
+import { getSessionUser } from '../../../../lib/sessionUser'
+import { addMonths as addMonthKey } from '../../../../utils/monthKeys'
 
 const _now = new Date()
 const TODAY = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`
@@ -48,7 +50,7 @@ const FILTER_CHIPS: { id: FilterChip; label: string }[] = [
 type DateSection = { date: string; data: EventWithDetails[] }
 export default function EventsScreen() {
   const router = useRouter()
-  const { events, loading, loadMonth, invalidateAll, loadedMonths, reachedEnd } = useMonthEvents()
+  const { events, loading, loadMonth, loadMonthSpan, invalidateAll, loadedMonths, reachedEnd } = useMonthEvents()
   const {
     notifications: notifItems,
     unreadCount,
@@ -72,7 +74,7 @@ export default function EventsScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setCurrentUserId(user?.id ?? null))
+    getSessionUser().then(user => setCurrentUserId(user?.id ?? null))
   }, [])
 
   const handleRsvp: EventCardRsvpHandler = useCallback(async (eventId, action) => {
@@ -101,17 +103,13 @@ export default function EventsScreen() {
     visibleMonths.forEach(m => { void loadMonth(m) })
   }, [visibleMonths, loadMonth])
 
-  // On desktop, eagerly load the next 3 months on mount so the grid isn't sparse
+  // On desktop, one range query for the current month plus the next 3 so the
+  // grid isn't sparse. Microtask-batched with the visible-month load above.
   useEffect(() => {
     if (isMobile) return
-    const [y, mo] = TODAY.substring(0, 7).split('-').map(Number)
-    for (let i = 1; i <= 3; i++) {
-      const totalMo = mo + i
-      const yr = y + Math.floor((totalMo - 1) / 12)
-      const mn = ((totalMo - 1) % 12) + 1
-      void loadMonth(`${yr}-${String(mn).padStart(2, '0')}`)
-    }
-  }, [isMobile]) // eslint-disable-line react-hooks/exhaustive-deps
+    const current = TODAY.substring(0, 7)
+    void loadMonthSpan(current, addMonthKey(current, 3))
+  }, [isMobile, loadMonthSpan])
 
   // Force-reload visible months after create/edit (no cache clear — avoids flash)
   useEffect(() => {

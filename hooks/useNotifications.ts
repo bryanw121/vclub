@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { getSessionUser } from '../lib/sessionUser'
 import type { Notification } from '../types'
 
 const STALE_MS = 45_000
@@ -21,7 +22,7 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
   const lastFetchedAt = useRef(0)
 
   const fetchUnreadCount = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user) {
       setUnreadCount(0)
       return
@@ -36,7 +37,7 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
 
   const fetchList = useCallback(async (force = false) => {
     if (!force && Date.now() - lastFetchedAt.current < STALE_MS) return
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user) {
       setNotifications([])
       setUnreadCount(0)

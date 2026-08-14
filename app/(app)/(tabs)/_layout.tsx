@@ -11,6 +11,7 @@ import { theme } from "../../../constants";
 import { useChatUnread } from "../../../hooks/useChatUnread";
 import { useDocScrollMode } from "../../../hooks/useDocScrollMode";
 import { useIsNarrowWeb } from "../../../hooks/useIsNarrowWeb";
+import { shouldRefreshEventsOnFocus } from "../../../utils/monthKeys";
 
 // Pager indices: 0=Events, 1=Clubs, 2=Chat, 3=Profile
 const MOBILE_NAV_TABS = [
@@ -34,10 +35,12 @@ export default function TabsLayout() {
   const [eventsRefreshTick, setEventsRefreshTick] = useState(0);
   const pagerBlocked = useRef(false);
 
-  const focusCount = useRef(0);
+  const blurredAtMs = useRef<number | null>(null);
   useFocusEffect(useCallback(() => {
-    focusCount.current += 1;
-    if (focusCount.current > 1) setEventsRefreshTick(t => t + 1);
+    if (shouldRefreshEventsOnFocus(blurredAtMs.current, Date.now())) {
+      setEventsRefreshTick(t => t + 1);
+    }
+    return () => { blurredAtMs.current = Date.now(); };
   }, []));
 
   const [fabOpen, setFabOpen] = useState(false);
