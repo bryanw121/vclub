@@ -8,7 +8,7 @@ card therefore shows `12` without exposing personal data.
 - [Desktop web — 1440 × 1000](desktop-web.png)
 - [Mobile web — 390 × 844](mobile-web.png)
 
-Captured from implementation commit `7a5eb27` with:
+Captured from the implementation tree now at commit `5003de2` with:
 
 ```bash
 E2E_BASE_URL=http://localhost:56357 \
@@ -19,3 +19,6 @@ The temporary capture spec was removed after the screenshots were produced;
 the durable count/detail/refresh regression is in `e2e/profile.spec.ts`.
 Result: authentication setup, restored-session verification, desktop web, and
 mobile web all passed without retries.
+
+The implementation was rebased after PR #57 merged concurrently; Git verified
+the pre- and post-rebase trees are byte-for-byte identical.
