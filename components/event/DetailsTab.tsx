@@ -8,7 +8,7 @@ import { DocScrollView } from '../DocScrollView'
 import { LinkedText } from '../LinkedText'
 import { shared, theme, LOCATIONS } from '../../constants'
 import type { EventWithDetails, Profile, AttendanceStatus, EventCohostWithProfile } from '../../types'
-import { profileDisplayName, profileInitial, formatDuration, resolveProfileAvatarUriSmall } from '../../utils'
+import { profileDisplayName, profileInitial, formatDuration, formatPrice, formatPriceAmount, resolveProfileAvatarUriSmall } from '../../utils'
 
 function formatEndTime(startIso: string, durationMinutes: number): string {
   const normalized = /[Z+]/.test(startIso) ? startIso : startIso + 'Z'
@@ -152,9 +152,7 @@ export function DetailsTab({
       {/* ── Quick-stats strip ── */}
       {(() => {
         const dur = formatDuration(event.duration_minutes ?? 120)
-        const priceStr = event.price != null && event.price > 0
-          ? `$${event.price % 1 === 0 ? event.price : event.price.toFixed(2)}`
-          : 'Free'
+        const priceStr = formatPrice(event.price)
         const capStr = event.max_attendees ? `${totalAttending}/${event.max_attendees}` : '∞'
         const stats = [
           { k: dur,      l: 'Duration' },
@@ -165,7 +163,12 @@ export function DetailsTab({
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: theme.spacing.md }}>
             {stats.map(s => (
               <View key={s.l} style={{ flex: 1, backgroundColor: theme.colors.card, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' }}>
-                <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 20, letterSpacing: -0.5, color: theme.colors.text }}>{s.k}</Text>
+                <Text
+                  testID={s.l === 'Price' ? 'event-price-stat' : undefined}
+                  style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 20, letterSpacing: -0.5, color: theme.colors.text }}
+                >
+                  {s.k}
+                </Text>
                 <Text style={{ fontFamily: theme.fonts.body, fontSize: 10, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 0.7, textTransform: 'uppercase', marginTop: 2 }}>{s.l}</Text>
               </View>
             ))}
@@ -390,7 +393,7 @@ export function DetailsTab({
               </Text>
               {event.price != null && event.price > 0 ? (
                 <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
-                  ${event.price % 1 === 0 ? event.price : event.price.toFixed(2)}
+                  {formatPrice(event.price)}
                 </Text>
               ) : (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -406,7 +409,7 @@ export function DetailsTab({
         {/* Pay via Venmo — shown to non-owners when price > 0 and venmo_handle set */}
         {!isOwner && event.price != null && event.price > 0 && event.venmo_handle && (() => {
           const handle = event.venmo_handle
-          const amount = event.price % 1 === 0 ? String(event.price) : event.price.toFixed(2)
+          const amount = formatPriceAmount(event.price)
           const name = currentUserProfile ? profileDisplayName(currentUserProfile) : ''
           const date = new Date(event.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
           const noteParts = [event.title, 'entry fee', name, date].filter(Boolean)

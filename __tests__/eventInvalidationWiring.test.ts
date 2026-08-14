@@ -22,7 +22,10 @@ describe('host.tsx publishes the invalidation signal', () => {
 
   it('bumps only after the whole save (tags + waitlist), not right after the events update', () => {
     const bumpAt = host.indexOf('bumpVersion(eventKey(editId))')
-    const tagsAt = host.indexOf("from('event_tags').delete()")
+    // Anchored on the tag-write entry point rather than a specific query
+    // string: #45 replaced delete-all-then-reinsert with a diff, and the old
+    // literal anchor silently stopped matching.
+    const tagsAt = host.indexOf('diffTagIds(originalTagIdsRef.current, selectedTagIds)')
     const waitlistAt = host.lastIndexOf("status: 'attending'")
     expect(bumpAt).toBeGreaterThan(-1)
     expect(tagsAt).toBeGreaterThan(-1)
