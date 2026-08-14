@@ -220,6 +220,17 @@ erDiagram
   CLUB o|--o{ EVENT : owns
 ```
 
+### Profiles and cheers
+
+- The own-profile screen loads the signed-in `profiles` row and an exact,
+  head-only count of `cheers` rows where that profile is the receiver in
+  parallel. Pull-to-refresh repeats both the profile and Cheers reads; a failed
+  count refresh retains the last known value instead of replacing it with a
+  misleading zero. The same receiver relationship drives the existing Cheers
+  detail screen, so the card total and detail total share one database contract
+  ([`app/(app)/(tabs)/(main)/profile/index.tsx`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx),
+  [`app/(app)/(tabs)/settings/cheers.tsx`](../app/%28app%29/%28tabs%29/settings/cheers.tsx)).
+
 ### Clubs
 
 Club screens use direct PostgREST reads and writes:
@@ -390,7 +401,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Contract source fingerprint: `629b0e0f06c3`
+> Contract source fingerprint: `1d6f08f178a3`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -403,7 +414,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Table or view | Frontend/server call sites |
 |---|---|
 | `chat_silences` | [`hooks/useChatUnread.tsx:30`](../hooks/useChatUnread.tsx#L30)<br>[`hooks/useSilencedUsers.ts:32`](../hooks/useSilencedUsers.ts#L32) |
-| `cheers` | [`app/(app)/(tabs)/(main)/profile/index.tsx:406`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L406)<br>[`app/(app)/(tabs)/settings/cheers.tsx:26`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L26)<br>[`app/(app)/event/[id].tsx:681`](../app/%28app%29/event/%5Bid%5D.tsx#L681)<br>[`app/(app)/profile/[id].tsx:53`](../app/%28app%29/profile/%5Bid%5D.tsx#L53)<br>[`utils/badges.ts:48`](../utils/badges.ts#L48) |
+| `cheers` | [`app/(app)/(tabs)/(main)/profile/index.tsx:407`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L407)<br>[`app/(app)/(tabs)/settings/cheers.tsx:26`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L26)<br>[`app/(app)/event/[id].tsx:681`](../app/%28app%29/event/%5Bid%5D.tsx#L681)<br>[`app/(app)/profile/[id].tsx:53`](../app/%28app%29/profile/%5Bid%5D.tsx#L53)<br>[`utils/badges.ts:48`](../utils/badges.ts#L48) |
 | `club_members` | [`app/(app)/(tabs)/clubs.tsx:267`](../app/%28app%29/%28tabs%29/clubs.tsx#L267)<br>[`app/(app)/chat/[id].tsx:91`](../app/%28app%29/chat/%5Bid%5D.tsx#L91)<br>[`app/(app)/club/[id].tsx:221`](../app/%28app%29/club/%5Bid%5D.tsx#L221)<br>[`app/(app)/host.tsx:168`](../app/%28app%29/host.tsx#L168)<br>[`app/(app)/tournament/create.tsx:736`](../app/%28app%29/tournament/create.tsx#L736) |
 | `club_post_comments` | [`components/ClubPostCard.tsx:107`](../components/ClubPostCard.tsx#L107) |
 | `club_post_likes` | [`app/(app)/club/[id].tsx:112`](../app/%28app%29/club/%5Bid%5D.tsx#L112)<br>[`components/ClubPostCard.tsx:78`](../components/ClubPostCard.tsx#L78) |
@@ -422,7 +433,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `message_reactions` | [`hooks/useMessages.ts:246`](../hooks/useMessages.ts#L246) |
 | `messages` | [`hooks/useMessages.ts:21`](../hooks/useMessages.ts#L21) |
 | `notifications` | [`app/(app)/event/[id].tsx:644`](../app/%28app%29/event/%5Bid%5D.tsx#L644)<br>[`hooks/useNotifications.ts:30`](../hooks/useNotifications.ts#L30)<br>[`utils/badges.ts:237`](../utils/badges.ts#L237) |
-| `profiles` | [`app/_layout.tsx:38`](../app/_layout.tsx#L38)<br>[`app/(app)/(tabs)/(main)/profile/index.tsx:402`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L402)<br>[`app/(app)/(tabs)/chat.tsx:47`](../app/%28app%29/%28tabs%29/chat.tsx#L47)<br>[`app/(app)/(tabs)/settings/badges.tsx:93`](../app/%28app%29/%28tabs%29/settings/badges.tsx#L93)<br>[`app/(app)/(tabs)/settings/notifications.tsx:33`](../app/%28app%29/%28tabs%29/settings/notifications.tsx#L33)<br>[`app/(app)/event/[id].tsx:255`](../app/%28app%29/event/%5Bid%5D.tsx#L255)<br>+4 more files |
+| `profiles` | [`app/_layout.tsx:38`](../app/_layout.tsx#L38)<br>[`app/(app)/(tabs)/(main)/profile/index.tsx:403`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L403)<br>[`app/(app)/(tabs)/chat.tsx:47`](../app/%28app%29/%28tabs%29/chat.tsx#L47)<br>[`app/(app)/(tabs)/settings/badges.tsx:93`](../app/%28app%29/%28tabs%29/settings/badges.tsx#L93)<br>[`app/(app)/(tabs)/settings/notifications.tsx:33`](../app/%28app%29/%28tabs%29/settings/notifications.tsx#L33)<br>[`app/(app)/event/[id].tsx:255`](../app/%28app%29/event/%5Bid%5D.tsx#L255)<br>+4 more files |
 | `push_tokens` | [`supabase/functions/send-chat-push/index.ts:71`](../supabase/functions/send-chat-push/index.ts#L71)<br>[`utils/pushNotifications.ts:46`](../utils/pushNotifications.ts#L46) |
 | `tags` | [`app/(app)/host.tsx:166`](../app/%28app%29/host.tsx#L166) |
 | `tournament_comments` | [`app/(app)/tournament/[id].tsx:282`](../app/%28app%29/tournament/%5Bid%5D.tsx#L282) |
@@ -461,7 +472,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Surface | Name | Call sites |
 |---|---|---|
 | Auth | `exchangeCodeForSession` | [`lib/socialAuth.ts:24`](../lib/socialAuth.ts#L24) |
-| Auth | `getSession` | [`app/_layout.tsx:34`](../app/_layout.tsx#L34)<br>[`app/(app)/(tabs)/(main)/profile/index.tsx:396`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L396)<br>[`app/(app)/(tabs)/clubs.tsx:182`](../app/%28app%29/%28tabs%29/clubs.tsx#L182)<br>[`app/(app)/(tabs)/settings/account.tsx:17`](../app/%28app%29/%28tabs%29/settings/account.tsx#L17)<br>[`app/(app)/(tabs)/settings/badges.tsx:90`](../app/%28app%29/%28tabs%29/settings/badges.tsx#L90)<br>[`app/(app)/(tabs)/settings/cheers.tsx:21`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L21)<br>+6 more files |
+| Auth | `getSession` | [`app/_layout.tsx:34`](../app/_layout.tsx#L34)<br>[`app/(app)/(tabs)/(main)/profile/index.tsx:397`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L397)<br>[`app/(app)/(tabs)/clubs.tsx:182`](../app/%28app%29/%28tabs%29/clubs.tsx#L182)<br>[`app/(app)/(tabs)/settings/account.tsx:17`](../app/%28app%29/%28tabs%29/settings/account.tsx#L17)<br>[`app/(app)/(tabs)/settings/badges.tsx:90`](../app/%28app%29/%28tabs%29/settings/badges.tsx#L90)<br>[`app/(app)/(tabs)/settings/cheers.tsx:21`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L21)<br>+6 more files |
 | Auth | `getUser` | [`app/(app)/(tabs)/(main)/index.tsx:82`](../app/%28app%29/%28tabs%29/%28main%29/index.tsx#L82)<br>[`app/(app)/(tabs)/chat.tsx:45`](../app/%28app%29/%28tabs%29/chat.tsx#L45)<br>[`app/(app)/(tabs)/settings/feedback.tsx:36`](../app/%28app%29/%28tabs%29/settings/feedback.tsx#L36)<br>[`app/(app)/(tabs)/settings/history.tsx:45`](../app/%28app%29/%28tabs%29/settings/history.tsx#L45)<br>[`app/(app)/(tabs)/settings/hosted.tsx:16`](../app/%28app%29/%28tabs%29/settings/hosted.tsx#L16)<br>[`app/(app)/(tabs)/settings/notifications.tsx:27`](../app/%28app%29/%28tabs%29/settings/notifications.tsx#L27)<br>+12 more files |
 | Auth | `onAuthStateChange` | [`app/(auth)/reset-password.tsx:26`](../app/%28auth%29/reset-password.tsx#L26)<br>[`hooks/useAuth.ts:15`](../hooks/useAuth.ts#L15) |
 | Auth | `resetPasswordForEmail` | [`app/(auth)/login.tsx:87`](../app/%28auth%29/login.tsx#L87) |
@@ -478,7 +489,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Realtime table | `conversation_members` | [`hooks/useChatUnread.tsx:68`](../hooks/useChatUnread.tsx#L68)<br>[`hooks/useConversations.ts:78`](../hooks/useConversations.ts#L78) |
 | Realtime table | `message_reactions` | [`hooks/useMessages.ts:127`](../hooks/useMessages.ts#L127) |
 | Realtime table | `messages` | [`hooks/useChatUnread.tsx:66`](../hooks/useChatUnread.tsx#L66)<br>[`hooks/useConversations.ts:50`](../hooks/useConversations.ts#L50)<br>[`hooks/useMessages.ts:91`](../hooks/useMessages.ts#L91) |
-| Storage bucket | `avatars` | [`app/(app)/(tabs)/(main)/profile/index.tsx:567`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L567) |
+| Storage bucket | `avatars` | [`app/(app)/(tabs)/(main)/profile/index.tsx:568`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L568) |
 | Storage bucket | `chat-images` | [`hooks/useMessages.ts:276`](../hooks/useMessages.ts#L276) |
 | Storage bucket | `club-avatars` | [`app/(app)/club/[id].tsx:275`](../app/%28app%29/club/%5Bid%5D.tsx#L275) |
 | Edge Function | `places-proxy` | [`components/LocationPickerField.tsx:74`](../components/LocationPickerField.tsx#L74) |

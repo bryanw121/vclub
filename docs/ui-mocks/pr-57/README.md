@@ -1,6 +1,6 @@
 # PR #57 proposed UI: own-profile Cheers count
 
-Status: **proposed — product-owner approval required before rebuilding PR #57**.
+Status: **approved** in [PR #57](https://github.com/bryanw121/vclub/pull/57#issuecomment-5288702536).
 
 ![Proposed own-profile Cheers count](profile-cheers-count.jpg)
 

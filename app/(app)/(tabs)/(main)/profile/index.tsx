@@ -54,6 +54,7 @@ import {
   volleyballPositionsEqualUnordered,
   volleyballSkillLevelLabel,
   profileFullName,
+  resolveReceivedCheersCount,
 } from '../../../../../utils'
 import type { Profile, VolleyballPosition, VolleyballSkillLevel } from '../../../../../types'
 import { useTabsShell } from '../../../../../contexts/tabs'
@@ -409,7 +410,7 @@ export default function MyProfile() {
     // A local save happened while this fetch was in-flight — discard stale result.
     if (profileGenRef.current !== gen) return
 
-    setTotalCheers(cheersRes.count ?? 0)
+    setTotalCheers(previous => resolveReceivedCheersCount(cheersRes, previous))
 
     if (!profileRes.error) {
       const row = profileRes.data as Partial<Profile>
@@ -735,7 +736,10 @@ export default function MyProfile() {
                 { n: 0, l: 'Trophies' },
               ] as const).map((s) => (
                 <View key={s.l} style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center' }}>
-                  <Text style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: '#FFFFFF' }}>{s.n}</Text>
+                  <Text
+                    testID={s.l === 'Cheers' ? 'profile-cheers-count' : 'profile-trophies-count'}
+                    style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: '#FFFFFF' }}
+                  >{s.n}</Text>
                   <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>{s.l}</Text>
                 </View>
               ))}

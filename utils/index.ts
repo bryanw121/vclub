@@ -453,6 +453,19 @@ export function resolveClubAvatarUri(ref: string | null | undefined): Promise<st
 }
 
 /**
+ * Applies an exact received-cheers count without erasing a known value when a
+ * refresh request fails. A successful head-only count can legitimately be
+ * null, which represents zero rows.
+ */
+export function resolveReceivedCheersCount(
+  result: { count: number | null; error: unknown | null },
+  previousCount: number,
+): number {
+  if (result.error) return previousCount
+  return result.count ?? 0
+}
+
+/**
  * What has to change to turn `original` into `selected`.
  *
  * Event tags used to be saved by deleting every row for the event and
