@@ -51,12 +51,28 @@ describe('host.tsx drives the tag write from the diff', () => {
 describe('host.tsx surfaces tag-write failures distinctly', () => {
   it('checks the error on both the insert and the delete', () => {
     expect(host).toMatch(/if \(addError\) throw new TagWriteError/)
-    expect(host).toMatch(/if \(removeError\) throw new TagWriteError/)
+    expect(host).toMatch(/if \(removeError\) \{/)
+    expect(host).toMatch(/throw new TagWriteError\(removeError\.message\)/)
   })
 
   it('tells the user the event itself saved when only tags failed', () => {
     expect(host).toMatch(/e instanceof TagWriteError/)
     expect(host).toMatch(/Event saved — tags not updated/)
+    expect(host).toMatch(/Your event details were saved, but its tags were left unchanged\./)
+  })
+
+  it('compensates successful additions if the following removal fails', () => {
+    expect(host).toMatch(/if \(removeError\) \{[\s\S]*?\.in\('tag_id', toAdd\)[\s\S]*?rollback failed/)
+  })
+
+  it('does not claim tags are unchanged if the compensation also fails', () => {
+    expect(host).toMatch(/tagsMayHaveChanged/)
+    expect(host).toMatch(/tags may not match your changes/)
+  })
+
+  it('keeps every failure on the form behind a Close action', () => {
+    expect(host).toMatch(/onPress=\{saveOutcome === 'saved' \? goBack : \(\) => setSuccessModal\(false\)\}/)
+    expect(host).toMatch(/saveOutcome === 'saved' \? 'Done' : 'Close'/)
   })
 
   it('opens the result modal on failure — otherwise the error is invisible', () => {

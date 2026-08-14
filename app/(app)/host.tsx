@@ -96,9 +96,12 @@ function generateEventDates(
  * that already succeeded.
  */
 class TagWriteError extends Error {
-  constructor(message: string) {
+  readonly tagsMayHaveChanged: boolean
+
+  constructor(message: string, tagsMayHaveChanged = false) {
     super(message)
     this.name = 'TagWriteError'
+    this.tagsMayHaveChanged = tagsMayHaveChanged
   }
 }
 
@@ -129,7 +132,7 @@ export default function HostEventScreen() {
   const [successModal, setSuccessModal] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   /** Drives the result modal's body copy and whether it reads as a failure. */
-  const [saveOutcome, setSaveOutcome] = useState<'saved' | 'tags-failed' | 'failed'>('saved')
+  const [saveOutcome, setSaveOutcome] = useState<'saved' | 'tags-failed' | 'tags-uncertain' | 'failed'>('saved')
   // Save as template
   const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   const [templateName, setTemplateName] = useState('')
@@ -318,9 +321,9 @@ export default function HostEventScreen() {
           .eq('id', editId)
         if (error) throw error
 
-        // Diff rather than delete-all-then-reinsert: a failure here leaves the
-        // event with a valid subset of its tags instead of none. Editing a
-        // title with tags untouched writes nothing at all.
+        // Diff rather than delete-all-then-reinsert: a failure never exposes
+        // the old empty-set window. Editing a title with tags untouched writes
+        // nothing at all.
         const { toAdd, toRemove } = diffTagIds(originalTagIdsRef.current, selectedTagIds)
         if (toAdd.length > 0) {
           const { error: addError } = await supabase.from('event_tags').insert(
@@ -334,7 +337,23 @@ export default function HostEventScreen() {
             .delete()
             .eq('event_id', editId)
             .in('tag_id', toRemove)
-          if (removeError) throw new TagWriteError(removeError.message)
+          if (removeError) {
+            // Adds landed before the remove failed. Compensate so the approved
+            // partial-save message can truthfully say the old tag set remains.
+            // If even the compensation fails, surface an explicit uncertain
+            // state instead of claiming the tags are unchanged.
+            if (toAdd.length > 0) {
+              const { error: rollbackError } = await supabase
+                .from('event_tags')
+                .delete()
+                .eq('event_id', editId)
+                .in('tag_id', toAdd)
+              if (rollbackError) {
+                throw new TagWriteError(`${removeError.message}; rollback failed: ${rollbackError.message}`, true)
+              }
+            }
+            throw new TagWriteError(removeError.message)
+          }
         }
         // The event row is saved; a second save in this session diffs from here.
         originalTagIdsRef.current = [...selectedTagIds]
@@ -440,7 +459,7 @@ export default function HostEventScreen() {
     } catch (e: any) {
       Sentry.captureException(e)
       if (e instanceof TagWriteError) {
-        setSaveOutcome('tags-failed')
+        setSaveOutcome(e.tagsMayHaveChanged ? 'tags-uncertain' : 'tags-failed')
         setSuccessMessage('Event saved — tags not updated')
       } else {
         setSaveOutcome('failed')
@@ -529,16 +548,18 @@ export default function HostEventScreen() {
             <Text style={shared.modalTitle}>{successMessage}</Text>
             <Text style={shared.modalBody}>
               {saveOutcome === 'tags-failed'
-                ? 'Your event details were saved, but its tags were left unchanged. Reopen the event to try the tags again.'
+                ? 'Your event details were saved, but its tags were left unchanged.'
+                : saveOutcome === 'tags-uncertain'
+                  ? 'Your event details were saved, but its tags may not match your changes. Reopen the event and review them.'
                 : saveOutcome === 'failed'
                   ? 'Nothing was saved. Check your connection and try again.'
                   : isEdit ? 'Your changes have been saved.' : 'Your event is now live for members to join.'}
             </Text>
             <TouchableOpacity
               style={shared.modalButton}
-              onPress={saveOutcome === 'failed' ? () => setSuccessModal(false) : goBack}
+              onPress={saveOutcome === 'saved' ? goBack : () => setSuccessModal(false)}
             >
-              <Text style={shared.modalButtonText}>{saveOutcome === 'failed' ? 'Close' : 'Done'}</Text>
+              <Text style={shared.modalButtonText}>{saveOutcome === 'saved' ? 'Done' : 'Close'}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>

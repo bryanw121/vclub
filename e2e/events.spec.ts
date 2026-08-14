@@ -320,4 +320,42 @@ test.describe('Events', () => {
     await renameTo(OPEN_PLAY_EVENT)
     await expect(heroTitle).toHaveText(OPEN_PLAY_EVENT, { timeout: 20_000 })
   })
+
+  test('a tag write failure keeps the host on the edit form with the approved recovery message', async ({ page }) => {
+    const feed = page.getByTestId('events-feed')
+    await feed.getByText(OPEN_PLAY_EVENT).first().click()
+    await page.waitForURL(/\/event\//, { timeout: 20_000 })
+    await page.getByTestId('event-edit-button').first().click()
+    await page.waitForURL(/\/host\?edit=/, { timeout: 20_000 })
+
+    const titleField = page.getByPlaceholder('Friday Night Round Robin')
+    await expect(titleField).toBeVisible({ timeout: 20_000 })
+
+    // Isolate the failure to the tag insert. The event row is allowed to save,
+    // matching the partial-success state this modal exists to explain.
+    await page.route('**/rest/v1/event_tags*', async route => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ message: 'forced tag write failure' }),
+        })
+        return
+      }
+      await route.continue()
+    })
+
+    await page.getByText('BB', { exact: true }).click()
+    await page.getByText('Save changes', { exact: true }).click()
+
+    await expect(page.getByText('Event saved — tags not updated', { exact: true })).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByText('Your event details were saved, but its tags were left unchanged.', { exact: true })).toBeVisible()
+    await expect(page.getByText('Close', { exact: true })).toBeVisible()
+
+    await page.getByText('Close', { exact: true }).click()
+    await expect(page).toHaveURL(/\/host\?edit=/)
+    await expect(titleField).toBeVisible()
+    await expect(page.getByText('Event saved — tags not updated', { exact: true })).toHaveCount(0)
+    await page.unroute('**/rest/v1/event_tags*')
+  })
 })
