@@ -78,7 +78,10 @@ export default function ProfileCheersScreen() {
         {/* Summary cards */}
         <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
           <View style={[shared.card, { flex: 1, alignItems: 'center', gap: theme.spacing.xs }]}>
-            <Text style={{ fontSize: theme.font.size.xxl, fontWeight: theme.font.weight.bold, color: theme.colors.primary }}>
+            <Text
+              testID="cheers-received-count"
+              style={{ fontSize: theme.font.size.xxl, fontWeight: theme.font.weight.bold, color: theme.colors.primary }}
+            >
               {totalReceived}
             </Text>
             <Text style={[shared.caption, { textAlign: 'center' }]}>cheers received</Text>
