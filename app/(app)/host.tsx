@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, ScrollView, Text, TextInput, View, TouchableOpacity, Switch, Modal, StyleSheet, Platform, RefreshControl } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
@@ -12,7 +12,7 @@ import { LocationPickerField } from '../../components/LocationPickerField'
 import type { LocationValue } from '../../components/LocationPickerField'
 import { shared, theme, LOCATIONS, DAY_LABELS_SHORT, DURATION_OPTIONS, DEFAULT_DURATION_MINUTES } from '../../constants'
 import type { RecurrenceCadence } from '../../constants'
-import { cleanDate, normalizePriceText, parsePrice, sanitizePriceInput } from '../../utils'
+import { cleanDate, diffTagIds, normalizePriceText, parsePrice, sanitizePriceInput } from '../../utils'
 import type { CreateEventForm, Tag, UserEventTemplate } from '../../types'
 
 function roundToNearest5(): Date {
@@ -90,6 +90,21 @@ function generateEventDates(
   return dates
 }
 
+/**
+ * The event row saved but its tags did not. Distinguished from a generic
+ * failure so the user is told their edit landed — otherwise they retry a save
+ * that already succeeded.
+ */
+class TagWriteError extends Error {
+  readonly tagsMayHaveChanged: boolean
+
+  constructor(message: string, tagsMayHaveChanged = false) {
+    super(message)
+    this.name = 'TagWriteError'
+    this.tagsMayHaveChanged = tagsMayHaveChanged
+  }
+}
+
 export default function HostEventScreen() {
   const router = useRouter()
 
@@ -116,6 +131,8 @@ export default function HostEventScreen() {
   const [userId, setUserId] = useState<string | null>(null)
   const [successModal, setSuccessModal] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  /** Drives the result modal's body copy and whether it reads as a failure. */
+  const [saveOutcome, setSaveOutcome] = useState<'saved' | 'tags-failed' | 'tags-uncertain' | 'failed'>('saved')
   // Save as template
   const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   const [templateName, setTemplateName] = useState('')
@@ -127,6 +144,9 @@ export default function HostEventScreen() {
   // Tags
   const [availableTags, setAvailableTags] = useState<Tag[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
+  // The tag set as it exists in the DB, so the save diffs against that rather
+  // than against mutated UI state. Set on load, refreshed after each save.
+  const originalTagIdsRef = useRef<string[]>([])
 
   // Club
   const [ownedClubs, setOwnedClubs] = useState<{ id: string; name: string }[]>([])
@@ -199,7 +219,9 @@ export default function HostEventScreen() {
       priceText: data.price != null ? Number(data.price).toFixed(2) : '',
       venmoHandle: data.venmo_handle ?? '',
     })
-    setSelectedTagIds((data.event_tags ?? []).map((et: any) => et.tag_id))
+    const loadedTagIds = (data.event_tags ?? []).map((et: any) => et.tag_id)
+    setSelectedTagIds(loadedTagIds)
+    originalTagIdsRef.current = loadedTagIds
     setSelectedClubId(data.club_id ?? null)
   }
 
@@ -271,6 +293,7 @@ export default function HostEventScreen() {
   async function handleSubmit() {
     try {
       setLoading(true)
+      setSaveOutcome('saved')
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not logged in')
 
@@ -298,13 +321,42 @@ export default function HostEventScreen() {
           .eq('id', editId)
         if (error) throw error
 
-        await supabase.from('event_tags').delete().eq('event_id', editId)
-        if (selectedTagIds.length > 0) {
-          const { error: tagError } = await supabase.from('event_tags').insert(
-            selectedTagIds.map(tagId => ({ event_id: editId, tag_id: tagId }))
+        // Diff rather than delete-all-then-reinsert: a failure never exposes
+        // the old empty-set window. Editing a title with tags untouched writes
+        // nothing at all.
+        const { toAdd, toRemove } = diffTagIds(originalTagIdsRef.current, selectedTagIds)
+        if (toAdd.length > 0) {
+          const { error: addError } = await supabase.from('event_tags').insert(
+            toAdd.map(tagId => ({ event_id: editId, tag_id: tagId }))
           )
-          if (tagError) throw tagError
+          if (addError) throw new TagWriteError(addError.message)
         }
+        if (toRemove.length > 0) {
+          const { error: removeError } = await supabase
+            .from('event_tags')
+            .delete()
+            .eq('event_id', editId)
+            .in('tag_id', toRemove)
+          if (removeError) {
+            // Adds landed before the remove failed. Compensate so the approved
+            // partial-save message can truthfully say the old tag set remains.
+            // If even the compensation fails, surface an explicit uncertain
+            // state instead of claiming the tags are unchanged.
+            if (toAdd.length > 0) {
+              const { error: rollbackError } = await supabase
+                .from('event_tags')
+                .delete()
+                .eq('event_id', editId)
+                .in('tag_id', toAdd)
+              if (rollbackError) {
+                throw new TagWriteError(`${removeError.message}; rollback failed: ${rollbackError.message}`, true)
+              }
+            }
+            throw new TagWriteError(removeError.message)
+          }
+        }
+        // The event row is saved; a second save in this session diffs from here.
+        originalTagIdsRef.current = [...selectedTagIds]
 
         // Auto-promote waitlisted users when capacity is expanded
         if (form.maxAttendees === null) {
@@ -406,7 +458,16 @@ export default function HostEventScreen() {
       }
     } catch (e: any) {
       Sentry.captureException(e)
-      setSuccessMessage('Something went wrong. Please try again.')
+      if (e instanceof TagWriteError) {
+        setSaveOutcome(e.tagsMayHaveChanged ? 'tags-uncertain' : 'tags-failed')
+        setSuccessMessage('Event saved — tags not updated')
+      } else {
+        setSaveOutcome('failed')
+        setSuccessMessage('Something went wrong. Please try again.')
+      }
+      // The modal is the only place `successMessage` renders, so without this
+      // every failure was silent — the form just stopped with no explanation.
+      setSuccessModal(true)
     } finally {
       setLoading(false)
     }
@@ -483,11 +544,22 @@ export default function HostEventScreen() {
       <Modal visible={successModal} transparent animationType="none" onRequestClose={() => setSuccessModal(false)}>
         <TouchableOpacity style={shared.modalOverlay} onPress={() => setSuccessModal(false)}>
           <View style={shared.modalCard}>
-            <Text style={shared.modalEmoji}>🏐</Text>
+            <Text style={shared.modalEmoji}>{saveOutcome === 'saved' ? '🏐' : '⚠️'}</Text>
             <Text style={shared.modalTitle}>{successMessage}</Text>
-            <Text style={shared.modalBody}>{isEdit ? 'Your changes have been saved.' : 'Your event is now live for members to join.'}</Text>
-            <TouchableOpacity style={shared.modalButton} onPress={goBack}>
-              <Text style={shared.modalButtonText}>Done</Text>
+            <Text style={shared.modalBody}>
+              {saveOutcome === 'tags-failed'
+                ? 'Your event details were saved, but its tags were left unchanged.'
+                : saveOutcome === 'tags-uncertain'
+                  ? 'Your event details were saved, but its tags may not match your changes. Reopen the event and review them.'
+                : saveOutcome === 'failed'
+                  ? 'Nothing was saved. Check your connection and try again.'
+                  : isEdit ? 'Your changes have been saved.' : 'Your event is now live for members to join.'}
+            </Text>
+            <TouchableOpacity
+              style={shared.modalButton}
+              onPress={saveOutcome === 'saved' ? goBack : () => setSuccessModal(false)}
+            >
+              <Text style={shared.modalButtonText}>{saveOutcome === 'saved' ? 'Done' : 'Close'}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
