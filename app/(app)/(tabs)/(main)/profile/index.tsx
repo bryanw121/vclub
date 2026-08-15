@@ -54,6 +54,7 @@ import {
   volleyballPositionsEqualUnordered,
   volleyballSkillLevelLabel,
   profileFullName,
+  resolveReceivedCheersCount,
 } from '../../../../../utils'
 import type { Profile, VolleyballPosition, VolleyballSkillLevel } from '../../../../../types'
 import { useTabsShell } from '../../../../../contexts/tabs'
@@ -300,6 +301,7 @@ export default function MyProfile() {
   const { setTabBarHidden, tabBarHeight, docScrollActive } = useTabsShell()
   const lastScrollY = useRef(0)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [totalCheers, setTotalCheers] = useState(0)
   const [loading, setLoading] = useState(true)
   // Incremented on every local save so stale in-flight fetches don't overwrite newer state.
   const profileGenRef = useRef(0)
@@ -396,14 +398,19 @@ export default function MyProfile() {
     const userId = session?.user?.id
     if (!userId) { setLoading(false); return }
 
-    const profileRes = await supabase
-      .from('profiles')
-      .select('id, username, first_name, last_name, avatar_url, position, skill_level, created_at, selected_border, selected_card_bg, bio')
-      .eq('id', userId)
-      .single()
+    const [profileRes, cheersRes] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, username, first_name, last_name, avatar_url, position, skill_level, created_at, selected_border, selected_card_bg, bio')
+        .eq('id', userId)
+        .single(),
+      supabase.from('cheers').select('id', { count: 'exact', head: true }).eq('receiver_id', userId),
+    ])
 
     // A local save happened while this fetch was in-flight — discard stale result.
     if (profileGenRef.current !== gen) return
+
+    setTotalCheers(previous => resolveReceivedCheersCount(cheersRes, previous))
 
     if (!profileRes.error) {
       const row = profileRes.data as Partial<Profile>
@@ -725,11 +732,14 @@ export default function MyProfile() {
                 <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>Skill</Text>
               </View>
               {([
-                { n: 0, l: 'Cheers' },
+                { n: totalCheers, l: 'Cheers' },
                 { n: 0, l: 'Trophies' },
               ] as const).map((s) => (
                 <View key={s.l} style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center' }}>
-                  <Text style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: '#FFFFFF' }}>{s.n}</Text>
+                  <Text
+                    testID={s.l === 'Cheers' ? 'profile-cheers-count' : 'profile-trophies-count'}
+                    style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: '#FFFFFF' }}
+                  >{s.n}</Text>
                   <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>{s.l}</Text>
                 </View>
               ))}

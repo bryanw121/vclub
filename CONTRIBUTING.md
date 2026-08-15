@@ -26,14 +26,46 @@ bug.
      before writing code
 2. **Comment "in progress" on the issue** the moment you pick it up, so the
    board shows who's on what.
-3. **Branch from `main`**: `area/short-slug` (e.g. `perf/loading-optimizations-p1`,
+3. **Get UI changes approved before implementation.** Every change that alters
+   visible UI — including layout, styling, copy, controls, states, or responsive
+   behavior — needs a mock attached to the issue and explicit written approval
+   from the product owner. Link both in the PR. If implementation will deviate
+   materially from the approved mock, attach the revision and get approval
+   again before merging. The implementer cannot self-approve.
+4. **Branch from `main`**: `area/short-slug` (e.g. `perf/loading-optimizations-p1`,
    `docs/contributing`, `feat/points-ledger`). One issue = one lane = one branch = one PR.
-4. **Open a PR into `main`.** Fill in the PR template (see **PR requirements**).
-5. **CI must be green** before merge. Watch the checks after every push —
+5. **Refresh the architecture inventory** with `npm run docs:update`. Commit the
+   generated change whenever contract-bearing code changed; `npm run docs:check`
+   is the same freshness check CI runs.
+6. **Open a PR into `main`.** Fill in the PR template (see **PR requirements**).
+7. **CI must be green** before merge. Watch the checks after every push —
    don't fire-and-forget.
 
 ## PR requirements
 
+- **Attach the approved mock for every UI change.** The PR must link the mock
+  and the product owner's explicit written approval. Approval must predate the
+  implementation, cover the version being built, and come from someone other
+  than the implementer. A UI change without both artifacts is not ready to
+  merge, even when CI is green.
+- **Attach test evidence for the final change.** The PR body must show the
+  result, not only list commands someone could run:
+  - record each command or click-through actually exercised and whether it
+    passed; include the meaningful summary (test count/result) or a link to the
+    relevant CI run;
+  - attach screenshots or a short recording for user-visible UI changes on
+    every affected platform/form factor that was exercised;
+  - keep evidence current with the final commit. If a required check was not
+    run or a platform was not exercised, say why and describe the remaining
+    risk instead of implying it passed.
+
+  Never include secrets, access tokens, production user data, or other personal
+  information in logs or screenshots.
+- **Keep the human architecture explanation accurate.** `npm run docs:update`
+  maintains the mechanical table/RPC/model/enum inventory, but it cannot infer
+  intent. If a change alters a request/response shape, relationship, security
+  boundary, or end-to-end flow, update the surrounding prose or Mermaid diagram
+  in `docs/request-response-and-data-model.md` in the same PR.
 - **"How to verify / reproduce" is filled with concrete steps** — runnable
   commands and/or a click-through. This is how changes get verified without
   reading the diff. Be honest about scope: state what was actually exercised
@@ -49,6 +81,13 @@ bug.
   - pure internal logic with no observable flow change → unit tests are
     enough, but say so in the PR body.
 
+  **Add or update unit and integration tests with every behavior change when
+  those layers apply.** Unit tests must cover new or changed isolated logic;
+  integration tests (including Playwright e2e for user-visible flows) must
+  cover the affected boundary between components, services, or the database.
+  If either layer genuinely does not apply, state why in the PR's test evidence
+  instead of silently omitting it.
+
   **Coverage comes first when refactoring thinly-tested code**: land a
   safety-net e2e that drives the surface as its *own* commit, then refactor
   against it (this is how the `event/[id].tsx` god-component was split).
@@ -61,6 +100,9 @@ bug.
 
 Every push/PR to `main` runs `.github/workflows/ci.yml`:
 
+- **Architecture documentation** — `npm run docs:check` regenerates the
+  code-derived inventory in `docs/request-response-and-data-model.md` in memory
+  and fails when the committed document is stale.
 - **Unit tests** — `npm test` (Jest) + `npm run typecheck` (tsc, strict).
 - **Playwright E2E** — builds the real web export, serves it, and runs
   `e2e/` against it. This is the same artifact users get; a dev server is not
@@ -105,6 +147,7 @@ npx expo start --web      # dev: web directly
 
 npm run typecheck         # gate 1
 npm test                  # gate 2
+npm run docs:check        # generated architecture inventory is current
 
 # Gate 3 — mirror CI exactly (static export, not the dev server):
 npm run build:web
@@ -143,7 +186,15 @@ network or a real `.env`. Unit tests must never hit the network.
   the dashboard). The files in `supabase/migrations/` are **not in sync** with
   the applied history — never replay them onto a fresh project; baseline from
   `supabase db dump` instead.
-- **E2E seeds**: tests log in as `bryanw121`. Events e2e creates its own
+- **E2E authentication**: `e2e/auth.setup.ts` logs in as `bryanw121` once per
+  Playwright run and saves ignored browser state under `playwright/.auth/`.
+  `e2e/auth.verify.ts` proves that state restores in a fresh context before
+  functional specs start; do not add per-test password logins. The setup
+  retries transient Supabase failures and accepts `E2E_USERNAME` /
+  `E2E_PASSWORD` overrides for local runs. Fixture clients that use the same
+  account must sign out with `{ scope: 'local' }`; the default global sign-out
+  revokes the browser session shared by every spec.
+- **E2E seeds**: Events e2e creates its own
   relative-dated `[e2e]` fixtures in `beforeAll` and deletes them in
   `afterAll` (see `e2e/eventsFixtures.ts`) — no permanent shared events are
   required. Chat e2e still relies on a seed conversation defined in

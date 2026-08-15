@@ -8,22 +8,13 @@
 
 import { test, expect, Page } from '@playwright/test'
 
-const BASE_URL = 'http://localhost:8081'
+const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8081'
 const CONVO_ID = '01bc0c4f-2e83-4402-afce-5fc7ddd729f9'
 const CONVO_URL = `${BASE_URL}/chat/${CONVO_ID}`
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-async function login(page: Page) {
-  await page.goto(`${BASE_URL}/login`)
-  await page.waitForTimeout(2000)
-  await page.getByRole('textbox').nth(0).fill('bryanw121')
-  await page.getByRole('textbox').nth(1).fill('password')
-  await page.getByText('Sign in', { exact: true }).click()
-  await page.waitForURL(`${BASE_URL}/`)
-}
 
 async function dismissErrorOverlays(page: Page) {
   const dismissBtns = await page.getByText('Dismiss').all()
@@ -78,6 +69,24 @@ async function openContextMenu(page: Page, messageText: string) {
   }).toPass({ timeout: 20000 })
 }
 
+/**
+ * Send through the real composer, but retry the action if the shared Supabase
+ * request drops before even the optimistic bubble appears. The CI account uses
+ * one remote project and an intermittent fetch failure otherwise makes the
+ * context-menu step wait for a message that was never sent.
+ */
+async function sendMessageAndWait(page: Page, messageText: string) {
+  const input = page.getByRole('textbox', { name: 'Message' })
+  const bubble = page.getByText(messageText).last()
+
+  await expect(async () => {
+    if (await bubble.isVisible().catch(() => false)) return
+    await input.fill(messageText)
+    await page.keyboard.press('Enter')
+    await expect(bubble).toBeVisible({ timeout: 5000 })
+  }).toPass({ timeout: 30_000, intervals: [0, 1000, 2000, 3000] })
+}
+
 // ---------------------------------------------------------------------------
 // Suite
 // ---------------------------------------------------------------------------
@@ -91,12 +100,14 @@ test.describe('Chat', () => {
     page.on('pageerror', err => console.error(`[page error] ${err.message}`))
 
     console.log(`→ starting: ${testInfo.title}`)
-    await login(page)
-    // Navigate to chat and wait for it to fully load (reload clears lock errors)
+    // Authentication is performed once by auth.setup.ts and restored into
+    // each browser context. Navigate to chat and wait for it to fully load.
     await page.goto(`${BASE_URL}/chat`)
     await page.reload()
     await page.waitForTimeout(3000)
     await dismissErrorOverlays(page)
+    // Keep negative assertions from passing vacuously on the login screen.
+    await expect(chatHeader(page)).toBeVisible({ timeout: 20_000 })
     console.log(`→ ready: ${testInfo.title}`)
   })
 
@@ -381,18 +392,14 @@ test.describe('Chat', () => {
     await gotoConversation(page)
 
     const target = `e2e-reply-quote-target-${Date.now()}`
-    await page.getByRole('textbox', { name: 'Message' }).fill(target)
-    await page.keyboard.press('Enter')
-    await page.waitForTimeout(1500)
+    await sendMessageAndWait(page, target)
 
     await openContextMenu(page, target)
     await page.getByRole('dialog').getByText('Reply', { exact: true }).click({ force: true })
     await page.waitForTimeout(600)
 
     const unique = `e2e-reply-${Date.now()}`
-    await page.getByRole('textbox', { name: 'Message' }).fill(unique)
-    await page.keyboard.press('Enter')
-    await page.waitForTimeout(2000)
+    await sendMessageAndWait(page, unique)
 
     await expect(page.getByText(unique)).toBeVisible()
     // The quote above the reply repeats the target text — so it appears twice

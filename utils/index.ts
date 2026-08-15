@@ -147,6 +147,75 @@ export function buildMemberSearchFilter(rawTerm: string): string | null {
   return MEMBER_SEARCH_COLUMNS.map(col => `${col}.ilike."%${escaped}%"`).join(',')
 }
 
+// ─── Money ────────────────────────────────────────────────────────────────────
+
+/** Max digits after the decimal point in a price. USD — cents. */
+const PRICE_DECIMALS = 2
+/** Guards against a paste like "999999999999" producing nonsense. */
+const PRICE_MAX_INTEGER_DIGITS = 6
+
+/**
+ * Clean a price field's raw text **without normalising it**.
+ *
+ * Deliberately returns a string and preserves in-progress input like `"5."` or
+ * `"2.50"`. The price field used to hold a `number` and round-trip every
+ * keystroke through `parseFloat` → `String`, which destroyed exactly those:
+ * typing `5` `.` `5` `0` gave `5` → `5` (the dot vanished, because
+ * `String(parseFloat("5."))` is `"5"`) → `55` → `550`. Trailing zeros were
+ * unreachable for the same reason, so no host could enter $5.50.
+ *
+ * Also collapses multiple decimal points. `"1.2.3"` previously reached
+ * `parseFloat`, which silently returns `1.2` — an event priced $1.20 with no
+ * indication anything was dropped.
+ */
+export function sanitizePriceInput(raw: string): string {
+  const stripped = raw.replace(/[^0-9.]/g, '')
+  if (stripped === '') return ''
+
+  const firstDot = stripped.indexOf('.')
+  let intPart = firstDot === -1 ? stripped : stripped.slice(0, firstDot)
+  let decPart = firstDot === -1 ? null : stripped.slice(firstDot + 1).replace(/\./g, '')
+
+  // Trim a runaway integer part, but keep a lone "." usable as ".5".
+  if (intPart.length > PRICE_MAX_INTEGER_DIGITS) intPart = intPart.slice(0, PRICE_MAX_INTEGER_DIGITS)
+  if (decPart !== null) decPart = decPart.slice(0, PRICE_DECIMALS)
+
+  return decPart === null ? intPart : `${intPart}.${decPart}`
+}
+
+/**
+ * Price text → the number to persist. Empty or zero means a free event (null),
+ * matching how the rest of the app tests for a paid event (`price > 0`).
+ */
+export function parsePrice(text: string): number | null {
+  const cleaned = sanitizePriceInput(text)
+  if (cleaned === '' || cleaned === '.') return null
+  const n = Number.parseFloat(cleaned)
+  if (!Number.isFinite(n) || n <= 0) return null
+  // Round to cents so float noise never reaches the DB.
+  return Math.round(n * 100) / 100
+}
+
+/** Normalise for display on blur: `5.5` → `5.50`, `.5` → `0.50`, `5.` → `5.00`. */
+export function normalizePriceText(text: string): string {
+  const n = parsePrice(text)
+  return n === null ? '' : n.toFixed(PRICE_DECIMALS)
+}
+
+/**
+ * Price for display. Whole dollars stay clean (`$5`), fractional amounts always
+ * show both cents digits (`$5.50`, never `$5.5`).
+ */
+export function formatPrice(price: number | null | undefined): string {
+  if (price == null || price <= 0) return 'Free'
+  return `$${price % 1 === 0 ? price : price.toFixed(PRICE_DECIMALS)}`
+}
+
+/** Bare amount for a payment deep link — no currency symbol. */
+export function formatPriceAmount(price: number): string {
+  return price % 1 === 0 ? String(price) : price.toFixed(PRICE_DECIMALS)
+}
+
 export function cleanDate(d: Date) {
   const clean = new Date(d)
   clean.setSeconds(0, 0)
@@ -157,6 +226,41 @@ export function startOfToday() {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
   return d.toISOString()
+}
+
+/**
+ * Parse an `events.event_date` value into a Date.
+ *
+ * The column is `timestamp without time zone`, so PostgREST returns values with
+ * no timezone suffix ("2026-08-12T00:00:00") even though the instant stored is
+ * UTC. Appending `Z` when there's no offset marker keeps `new Date()` from
+ * interpreting it as local time.
+ */
+export function parseEventDate(iso: string): Date {
+  if (!iso.includes('T')) return new Date(iso + 'T00:00:00Z')
+  // Look for the zone designator in the *time* part only — the date part is
+  // full of hyphens, so a naive /[Z+]/ test misses a negative offset like
+  // "-05:00" and appends a second designator, producing an Invalid Date.
+  const timePart = iso.slice(iso.indexOf('T') + 1)
+  const hasZone = /Z$|[+-]\d{2}:?\d{2}$/.test(timePart)
+  return new Date(hasZone ? iso : iso + 'Z')
+}
+
+/**
+ * "YYYY-MM-DD" in the *viewer's* timezone — the app's single calendar-key format.
+ *
+ * Every calendar surface (week strip, month grid, event dots, feed date
+ * sections, scroll-to-date anchors) must key off this. Slicing the raw ISO
+ * string instead yields the UTC date, which is a different day for any event
+ * after 7pm in US Central — that mismatch put event dots on the wrong day.
+ */
+export function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Calendar key for an event, in the viewer's timezone. */
+export function eventLocalDateKey(iso: string): string {
+  return localDateKey(parseEventDate(iso))
 }
 
 type EventAttendeesRelation = readonly (EventAttendee | EventAttendeeCountEmbed)[] | null | undefined
@@ -346,4 +450,45 @@ export function resolveClubAvatarUri(ref: string | null | undefined): Promise<st
   const trimmed = ref.trim()
   if (/^https?:\/\//i.test(trimmed)) return Promise.resolve(trimmed)
   return Promise.resolve(`${SUPABASE_URL}/storage/v1/object/public/${CLUB_AVATARS_BUCKET}/${trimmed}`)
+}
+
+/**
+ * Applies an exact received-cheers count without erasing a known value when a
+ * refresh request fails. A successful head-only count can legitimately be
+ * null, which represents zero rows.
+ */
+export function resolveReceivedCheersCount(
+  result: { count: number | null; error: unknown | null },
+  previousCount: number,
+): number {
+  if (result.error) return previousCount
+  return result.count ?? 0
+}
+
+/**
+ * What has to change to turn `original` into `selected`.
+ *
+ * Event tags used to be saved by deleting every row for the event and
+ * re-inserting the whole set. Two un-transacted round-trips: if the insert
+ * failed, the event was left with **zero** tags and vanished from every feed
+ * filter except "All" — a failure a host would never connect back to the title
+ * edit they just made.
+ *
+ * A diff is failure-safe by construction rather than by transaction: a partial
+ * failure leaves some valid subset of tags, never an empty set. It also makes
+ * the common case (editing a title, tags untouched) write nothing at all.
+ *
+ * Duplicates and ordering in either input are irrelevant — both sides are
+ * treated as sets.
+ */
+export function diffTagIds(
+  original: readonly string[],
+  selected: readonly string[],
+): { toAdd: string[]; toRemove: string[] } {
+  const originalSet = new Set(original)
+  const selectedSet = new Set(selected)
+  return {
+    toAdd:    [...selectedSet].filter(id => !originalSet.has(id)),
+    toRemove: [...originalSet].filter(id => !selectedSet.has(id)),
+  }
 }

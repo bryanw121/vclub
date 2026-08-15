@@ -23,18 +23,18 @@ describe('monthKeys', () => {
     expect(enumerateMonths('2026-11', '2026-08')).toEqual([])
   })
 
-  it('uses UTC month bounds', () => {
-    expect(monthStartIso('2026-08')).toBe('2026-08-01T00:00:00.000Z')
-    expect(monthEndIso('2026-08')).toBe('2026-09-01T00:00:00.000Z')
-    expect(monthEndIso('2026-11')).toBe('2026-12-01T00:00:00.000Z')
+  it('uses local-midnight month bounds', () => {
+    expect(monthStartIso('2026-08')).toBe(new Date(2026, 7, 1, 0, 0, 0, 0).toISOString())
+    expect(monthEndIso('2026-08')).toBe(new Date(2026, 8, 1, 0, 0, 0, 0).toISOString())
+    expect(monthEndIso('2026-11')).toBe(new Date(2026, 11, 1, 0, 0, 0, 0).toISOString())
   })
 
   it('buckets events into the requested months and drops out-of-span rows', () => {
     const buckets = bucketByMonthKey(
       [
-        { event_date: '2026-08-13T18:00:00.000Z' },
-        { event_date: '2026-09-01T00:00:00.000Z' },
-        { event_date: '2026-12-01T00:00:00.000Z' },
+        { event_date: '2026-08-15T18:00:00.000Z' },
+        { event_date: '2026-09-15T18:00:00.000Z' },
+        { event_date: '2026-12-15T18:00:00.000Z' },
       ],
       ['2026-08', '2026-09', '2026-10'],
     )
@@ -42,7 +42,7 @@ describe('monthKeys', () => {
     expect(buckets['2026-08']).toHaveLength(1)
     expect(buckets['2026-09']).toHaveLength(1)
     expect(buckets['2026-10']).toHaveLength(0)
-    expect(monthKeyFromIso('2026-09-01T00:00:00.000Z')).toBe('2026-09')
+    expect(monthKeyFromIso('2026-09-15T18:00:00.000Z')).toBe('2026-09')
   })
 
   it('only cache-busts the events feed after a real blur, not an instant remount', () => {

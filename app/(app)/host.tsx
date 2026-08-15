@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, PanResponder, ScrollView, Text, TextInput, View, TouchableOpacity, Switch, Modal, StyleSheet, Platform, RefreshControl } from 'react-native'
+import { ActivityIndicator, ScrollView, Text, TextInput, View, TouchableOpacity, Switch, Modal, StyleSheet, Platform, RefreshControl } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '../../lib/supabase'
 import { Sentry } from '../../lib/sentry'
+import { bumpVersion, eventKey } from '../../lib/dataVersion'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
 import { DatePickerField } from '../../components/DatePickerField'
@@ -11,7 +12,7 @@ import { LocationPickerField } from '../../components/LocationPickerField'
 import type { LocationValue } from '../../components/LocationPickerField'
 import { shared, theme, LOCATIONS, DAY_LABELS_SHORT, DURATION_OPTIONS, DEFAULT_DURATION_MINUTES } from '../../constants'
 import type { RecurrenceCadence } from '../../constants'
-import { cleanDate } from '../../utils'
+import { cleanDate, diffTagIds, normalizePriceText, parsePrice, sanitizePriceInput } from '../../utils'
 import type { CreateEventForm, Tag, UserEventTemplate } from '../../types'
 
 function roundToNearest5(): Date {
@@ -30,7 +31,7 @@ const EMPTY_FORM: CreateEventForm = {
   date: roundToNearest5(),
   durationMinutes: DEFAULT_DURATION_MINUTES,
   maxAttendees: null,
-  price: null,
+  priceText: '',
   venmoHandle: '',
 }
 
@@ -89,6 +90,21 @@ function generateEventDates(
   return dates
 }
 
+/**
+ * The event row saved but its tags did not. Distinguished from a generic
+ * failure so the user is told their edit landed — otherwise they retry a save
+ * that already succeeded.
+ */
+class TagWriteError extends Error {
+  readonly tagsMayHaveChanged: boolean
+
+  constructor(message: string, tagsMayHaveChanged = false) {
+    super(message)
+    this.name = 'TagWriteError'
+    this.tagsMayHaveChanged = tagsMayHaveChanged
+  }
+}
+
 export default function HostEventScreen() {
   const router = useRouter()
 
@@ -115,6 +131,8 @@ export default function HostEventScreen() {
   const [userId, setUserId] = useState<string | null>(null)
   const [successModal, setSuccessModal] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  /** Drives the result modal's body copy and whether it reads as a failure. */
+  const [saveOutcome, setSaveOutcome] = useState<'saved' | 'tags-failed' | 'tags-uncertain' | 'failed'>('saved')
   // Save as template
   const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   const [templateName, setTemplateName] = useState('')
@@ -126,6 +144,9 @@ export default function HostEventScreen() {
   // Tags
   const [availableTags, setAvailableTags] = useState<Tag[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
+  // The tag set as it exists in the DB, so the save diffs against that rather
+  // than against mutated UI state. Set on load, refreshed after each save.
+  const originalTagIdsRef = useRef<string[]>([])
 
   // Club
   const [ownedClubs, setOwnedClubs] = useState<{ id: string; name: string }[]>([])
@@ -195,10 +216,12 @@ export default function HostEventScreen() {
       date: new Date(data.event_date),
       durationMinutes: data.duration_minutes ?? DEFAULT_DURATION_MINUTES,
       maxAttendees: data.max_attendees,
-      price: data.price ?? null,
+      priceText: data.price != null ? Number(data.price).toFixed(2) : '',
       venmoHandle: data.venmo_handle ?? '',
     })
-    setSelectedTagIds((data.event_tags ?? []).map((et: any) => et.tag_id))
+    const loadedTagIds = (data.event_tags ?? []).map((et: any) => et.tag_id)
+    setSelectedTagIds(loadedTagIds)
+    originalTagIdsRef.current = loadedTagIds
     setSelectedClubId(data.club_id ?? null)
   }
 
@@ -270,8 +293,13 @@ export default function HostEventScreen() {
   async function handleSubmit() {
     try {
       setLoading(true)
+      setSaveOutcome('saved')
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not logged in')
+
+      // Text → number happens once, here at the write boundary. Keeping the
+      // form state as raw text is what lets a host type "5.50" at all.
+      const parsedPrice = parsePrice(form.priceText)
 
       if (isEdit && editId) {
         // ── Update existing event ──────────────────────────────
@@ -287,19 +315,48 @@ export default function HostEventScreen() {
             duration_minutes: form.durationMinutes,
             max_attendees: form.maxAttendees,
             club_id: selectedClubId,
-            price: form.price,
-            venmo_handle: form.price && form.price > 0 ? (form.venmoHandle.trim() || null) : null,
+            price: parsedPrice,
+            venmo_handle: parsedPrice && parsedPrice > 0 ? (form.venmoHandle.trim() || null) : null,
           })
           .eq('id', editId)
         if (error) throw error
 
-        await supabase.from('event_tags').delete().eq('event_id', editId)
-        if (selectedTagIds.length > 0) {
-          const { error: tagError } = await supabase.from('event_tags').insert(
-            selectedTagIds.map(tagId => ({ event_id: editId, tag_id: tagId }))
+        // Diff rather than delete-all-then-reinsert: a failure never exposes
+        // the old empty-set window. Editing a title with tags untouched writes
+        // nothing at all.
+        const { toAdd, toRemove } = diffTagIds(originalTagIdsRef.current, selectedTagIds)
+        if (toAdd.length > 0) {
+          const { error: addError } = await supabase.from('event_tags').insert(
+            toAdd.map(tagId => ({ event_id: editId, tag_id: tagId }))
           )
-          if (tagError) throw tagError
+          if (addError) throw new TagWriteError(addError.message)
         }
+        if (toRemove.length > 0) {
+          const { error: removeError } = await supabase
+            .from('event_tags')
+            .delete()
+            .eq('event_id', editId)
+            .in('tag_id', toRemove)
+          if (removeError) {
+            // Adds landed before the remove failed. Compensate so the approved
+            // partial-save message can truthfully say the old tag set remains.
+            // If even the compensation fails, surface an explicit uncertain
+            // state instead of claiming the tags are unchanged.
+            if (toAdd.length > 0) {
+              const { error: rollbackError } = await supabase
+                .from('event_tags')
+                .delete()
+                .eq('event_id', editId)
+                .in('tag_id', toAdd)
+              if (rollbackError) {
+                throw new TagWriteError(`${removeError.message}; rollback failed: ${rollbackError.message}`, true)
+              }
+            }
+            throw new TagWriteError(removeError.message)
+          }
+        }
+        // The event row is saved; a second save in this session diffs from here.
+        originalTagIdsRef.current = [...selectedTagIds]
 
         // Auto-promote waitlisted users when capacity is expanded
         if (form.maxAttendees === null) {
@@ -334,6 +391,13 @@ export default function HostEventScreen() {
           }
         }
 
+        // Tell the event detail screen its cached copy is out of date. Without
+        // this it keeps showing the pre-edit row: its focus refetch only fires
+        // after 30s of staleness, and an edit round-trip is much faster.
+        // Bump after the tag rewrite and waitlist promotion so the refetch sees
+        // every part of this save, not just the events row.
+        bumpVersion(eventKey(editId))
+
         setSuccessMessage('Event updated!')
         setSuccessModal(true)
       } else {
@@ -357,8 +421,8 @@ export default function HostEventScreen() {
           max_attendees: form.maxAttendees,
           created_by: user.id,
           club_id: selectedClubId,
-          price: form.price,
-          venmo_handle: form.price && form.price > 0 ? (form.venmoHandle.trim() || null) : null,
+          price: parsedPrice,
+          venmo_handle: parsedPrice && parsedPrice > 0 ? (form.venmoHandle.trim() || null) : null,
         }))
 
         const { data: insertedEvents, error } = await supabase.from('events').insert(rows).select('id')
@@ -394,7 +458,16 @@ export default function HostEventScreen() {
       }
     } catch (e: any) {
       Sentry.captureException(e)
-      setSuccessMessage('Something went wrong. Please try again.')
+      if (e instanceof TagWriteError) {
+        setSaveOutcome(e.tagsMayHaveChanged ? 'tags-uncertain' : 'tags-failed')
+        setSuccessMessage('Event saved — tags not updated')
+      } else {
+        setSaveOutcome('failed')
+        setSuccessMessage('Something went wrong. Please try again.')
+      }
+      // The modal is the only place `successMessage` renders, so without this
+      // every failure was silent — the form just stopped with no explanation.
+      setSuccessModal(true)
     } finally {
       setLoading(false)
     }
@@ -446,80 +519,6 @@ export default function HostEventScreen() {
     )
   }
 
-  // ── Snap slider for max players ───────────────────────────────────────────
-  const CAPACITY_STOPS: Array<{ label: string; value: number | null }> = [
-    { label: '6',  value: 6    },
-    { label: '16', value: 16   },
-    { label: '24', value: 24   },
-    { label: '∞',  value: null },
-  ]
-
-  function SnapSlider() {
-    const trackRef   = useRef<View>(null)
-    const trackWidth = useRef(0)
-    const activeIdx  = CAPACITY_STOPS.findIndex(s => s.value === form.maxAttendees)
-    const thumbPct   = activeIdx < 0 ? 1 : activeIdx / (CAPACITY_STOPS.length - 1)
-
-    const panResponder = useRef(PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder:  () => true,
-      onPanResponderGrant: (e) => {
-        const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / trackWidth.current))
-        const idx = Math.round(ratio * (CAPACITY_STOPS.length - 1))
-        setField('maxAttendees', CAPACITY_STOPS[idx].value)
-      },
-      onPanResponderMove: (e) => {
-        const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / trackWidth.current))
-        const idx = Math.round(ratio * (CAPACITY_STOPS.length - 1))
-        setField('maxAttendees', CAPACITY_STOPS[idx].value)
-      },
-    })).current
-
-    return (
-      <View style={hostStyles.fieldCard}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
-          <Text style={hostStyles.fieldLabel}>Max players</Text>
-          <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 22, color: theme.colors.text, letterSpacing: -0.5 }}>
-            {form.maxAttendees === null ? '∞' : form.maxAttendees}
-          </Text>
-        </View>
-        <View
-          ref={trackRef}
-          onLayout={e => { trackWidth.current = e.nativeEvent.layout.width }}
-          style={{ height: 6, backgroundColor: theme.colors.border, borderRadius: 3, position: 'relative' }}
-          {...panResponder.panHandlers}
-        >
-          <View style={{ width: `${thumbPct * 100}%` as any, height: '100%', backgroundColor: theme.colors.primary, borderRadius: 3 }} />
-          <View style={{
-            position: 'absolute',
-            left: `${thumbPct * 100}%` as any,
-            top: '50%',
-            marginLeft: -9, marginTop: -9,
-            width: 18, height: 18, borderRadius: 9,
-            backgroundColor: theme.colors.card,
-            borderWidth: 3, borderColor: theme.colors.primary,
-          }} />
-        </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-          {CAPACITY_STOPS.map((s, i) => (
-            <TouchableOpacity
-              key={s.label}
-              onPress={() => setField('maxAttendees', s.value)}
-              hitSlop={8}
-              style={{ paddingVertical: 2, paddingHorizontal: 4 }}
-            >
-              <Text style={{
-                fontFamily: theme.fonts.bodySemiBold,
-                fontSize: 11,
-                color: i === activeIdx ? theme.colors.primary : theme.colors.subtext,
-              }}>{s.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-    )
-  }
-
   // ── Form view ─────────────────────────────────────────────────────────────
   if (initialLoading) {
     return (
@@ -545,11 +544,22 @@ export default function HostEventScreen() {
       <Modal visible={successModal} transparent animationType="none" onRequestClose={() => setSuccessModal(false)}>
         <TouchableOpacity style={shared.modalOverlay} onPress={() => setSuccessModal(false)}>
           <View style={shared.modalCard}>
-            <Text style={shared.modalEmoji}>🏐</Text>
+            <Text style={shared.modalEmoji}>{saveOutcome === 'saved' ? '🏐' : '⚠️'}</Text>
             <Text style={shared.modalTitle}>{successMessage}</Text>
-            <Text style={shared.modalBody}>{isEdit ? 'Your changes have been saved.' : 'Your event is now live for members to join.'}</Text>
-            <TouchableOpacity style={shared.modalButton} onPress={goBack}>
-              <Text style={shared.modalButtonText}>Done</Text>
+            <Text style={shared.modalBody}>
+              {saveOutcome === 'tags-failed'
+                ? 'Your event details were saved, but its tags were left unchanged.'
+                : saveOutcome === 'tags-uncertain'
+                  ? 'Your event details were saved, but its tags may not match your changes. Reopen the event and review them.'
+                : saveOutcome === 'failed'
+                  ? 'Nothing was saved. Check your connection and try again.'
+                  : isEdit ? 'Your changes have been saved.' : 'Your event is now live for members to join.'}
+            </Text>
+            <TouchableOpacity
+              style={shared.modalButton}
+              onPress={saveOutcome === 'saved' ? goBack : () => setSuccessModal(false)}
+            >
+              <Text style={shared.modalButtonText}>{saveOutcome === 'saved' ? 'Done' : 'Close'}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -695,8 +705,37 @@ export default function HostEventScreen() {
           </Modal>
         </View>
 
-        {/* ── Max players (draggable snap slider) ── */}
-        <SnapSlider />
+        {/* ── Max players ── */}
+        <View style={hostStyles.fieldCard}>
+          <Text style={hostStyles.fieldLabel}>Max players</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 }}>
+            <TextInput
+              value={form.maxAttendees != null ? String(form.maxAttendees) : ''}
+              onChangeText={v => {
+                const digits = v.replace(/[^0-9]/g, '')
+                if (digits === '') { setField('maxAttendees', null); return }
+                const n = parseInt(digits, 10)
+                if (Number.isFinite(n) && n > 0) setField('maxAttendees', n)
+              }}
+              placeholder="e.g. 18"
+              placeholderTextColor={theme.colors.subtext}
+              keyboardType="number-pad"
+              style={[hostStyles.fieldInput, { flex: 1 }]}
+            />
+            <TouchableOpacity
+              onPress={() => setField('maxAttendees', form.maxAttendees === null ? 18 : null)}
+              style={[hostStyles.chip, form.maxAttendees === null && hostStyles.chipActive]}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityState={{ selected: form.maxAttendees === null }}
+              accessibilityLabel="Unlimited players"
+            >
+              <Text style={[hostStyles.chipText, form.maxAttendees === null && hostStyles.chipTextActive]}>
+                Unlimited
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* ── Skill level tags ── */}
         {(() => {
@@ -756,20 +795,21 @@ export default function HostEventScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
             <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 15, color: theme.colors.subtext }}>$</Text>
             <TextInput
-              value={form.price != null ? String(form.price) : ''}
-              onChangeText={v => {
-                const trimmed = v.replace(/[^0-9.]/g, '')
-                if (trimmed === '' || trimmed === '.') { setField('price', null); return }
-                const n = parseFloat(trimmed)
-                setField('price', isNaN(n) ? null : n)
-              }}
+              testID="event-price-input"
+              // Bound to raw text. Never round-trip through parseFloat on
+              // keystroke — that erases a trailing "." and any trailing zero,
+              // which is why "5.50" was impossible to type.
+              value={form.priceText}
+              onChangeText={v => setField('priceText', sanitizePriceInput(v))}
+              onBlur={() => setField('priceText', normalizePriceText(form.priceText))}
               placeholder="0.00 — leave blank for free"
               placeholderTextColor={theme.colors.subtext}
               keyboardType="decimal-pad"
+              inputMode="decimal"
               style={[hostStyles.fieldInput, { flex: 1 }]}
             />
           </View>
-          {!!form.price && form.price > 0 && (
+          {(parsePrice(form.priceText) ?? 0) > 0 && (
             <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 12 }}>
               <Text style={hostStyles.fieldLabel}>Venmo handle (optional)</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>

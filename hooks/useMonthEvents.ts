@@ -1,5 +1,9 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { EVENT_CARD_LIST_SELECT, EVENT_CARD_MY_ATTENDANCE_SELECT } from '../constants'
+import {
+  EVENT_CARD_LIST_SELECT,
+  EVENT_CARD_MY_ATTENDANCE_SELECT,
+  EVENT_CARD_MY_ATTENDANCE_SELECT_ATTENDING_ONLY,
+} from '../constants'
 import { supabase } from '../lib/supabase'
 import { getSessionUser } from '../lib/sessionUser'
 import { startOfToday } from '../utils'
@@ -93,23 +97,35 @@ export function useMonthEvents() {
       setLoadingMonths(prev => new Set([...prev, ...span]))
       try {
         const user = await getSessionUser()
-        const listSelect = user
-          ? `${EVENT_CARD_LIST_SELECT}, ${EVENT_CARD_MY_ATTENDANCE_SELECT}`
-          : EVENT_CARD_LIST_SELECT
 
-        let eventsQuery = supabase
-          .from('events')
-          .select(listSelect)
-          .gte('event_date', monthStartIso(span[0]))
-          .lt('event_date', monthEndIso(span[span.length - 1]))
-          .is('cancelled_at', null)
-          .order('event_date', { ascending: true })
-        if (user) {
-          eventsQuery = eventsQuery.eq('my_attendance.user_id', user.id)
+        const buildEventsQuery = (mySelect: string | null) => {
+          let q = supabase
+            .from('events')
+            .select(mySelect ? `${EVENT_CARD_LIST_SELECT}, ${mySelect}` : EVENT_CARD_LIST_SELECT)
+            .gte('event_date', monthStartIso(span[0]))
+            .lt('event_date', monthEndIso(span[span.length - 1]))
+            .is('cancelled_at', null)
+            .order('event_date', { ascending: true })
+          if (user) q = q.eq('my_attendance.user_id', user.id)
+          return q
+        }
+
+        /**
+         * The `my_attendance` embed reads the base `event_attendees` table so the
+         * row carries `status`. Migration files lag the live schema here, so if
+         * PostgREST rejects that shape, fall back to the attending-only view: the
+         * rail loses its waitlisted/pending states but the feed still renders.
+         * Failing closed would blank the Events tab for every user.
+         */
+        const runEventsQuery = async () => {
+          const first = await buildEventsQuery(user ? EVENT_CARD_MY_ATTENDANCE_SELECT : null)
+          if (!first.error || !user) return first
+          console.warn('[useMonthEvents] my_attendance embed rejected, retrying attending-only:', first.error.message)
+          return buildEventsQuery(EVENT_CARD_MY_ATTENDANCE_SELECT_ATTENDING_ONLY)
         }
 
         const [{ data: eventsData, error: eventsError }, { data: tournamentsData }] = await Promise.all([
-          eventsQuery,
+          runEventsQuery(),
           supabase
             .from('tournaments')
             .select('id, created_by, club_id, title, location, start_date, max_teams, price, skill_levels, status, created_at, profiles!tournaments_created_by_fkey(id, username, first_name, last_name, avatar_url), clubs(id, name, avatar_url)')
