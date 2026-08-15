@@ -5,7 +5,14 @@ import {
   EVENT_CARD_MY_ATTENDANCE_SELECT_ATTENDING_ONLY,
 } from '../constants'
 import { supabase } from '../lib/supabase'
+import { getSessionUser } from '../lib/sessionUser'
 import { startOfToday } from '../utils'
+import {
+  bucketByMonthKey,
+  enumerateMonths,
+  monthEndIso,
+  monthStartIso,
+} from '../utils/monthKeys'
 import { attachEventCardPreviews } from '../utils/eventCardPreviews'
 import { EventWithDetails } from '../types'
 
@@ -16,23 +23,32 @@ type MonthEntry = {
   fetchedAt: number
 }
 
-/**
- * Month bounds as UTC instants, derived from *local* midnight.
- *
- * `Date.UTC(y, m - 1, 1)` treats the calendar boundary as UTC midnight, which
- * cuts the month in the wrong place for any viewer at a non-zero offset: a
- * Jan 31 9pm CST event is Feb 1 in UTC, so it was fetched with February and
- * went missing from the January view. Constructing a local Date instead pins
- * the boundary to the month the viewer actually sees.
- */
-function monthStart(month: string): string {
-  const [y, m] = month.split('-').map(Number)
-  return new Date(y, m - 1, 1, 0, 0, 0, 0).toISOString()
-}
+const TOURNAMENT_TAG = { id: '_tournament', name: 'Tournament', category: 'event_type', display_order: 2, created_at: '' }
 
-function monthEnd(month: string): string {
-  const [y, m] = month.split('-').map(Number)
-  return new Date(y, m, 1, 0, 0, 0, 0).toISOString()
+function normalizeTournaments(tournamentsData: unknown[] | null): EventWithDetails[] {
+  return (tournamentsData ?? []).map((t: any) => ({
+    id:                         t.id,
+    created_by:                 t.created_by,
+    club_id:                    t.club_id,
+    title:                      t.title,
+    description:                null,
+    location:                   t.location,
+    event_date:                 t.start_date,
+    duration_minutes:           0,
+    max_attendees:              t.max_teams ?? null,
+    created_at:                 t.created_at,
+    price:                      t.price ?? 0,
+    cancelled_at:               null,
+    profiles:                   t.profiles,
+    clubs:                      t.clubs,
+    event_tags:                 [{ tag_id: '_tournament', tags: TOURNAMENT_TAG }],
+    attendee_previews:          [],
+    my_attendance:              [],
+    event_attendees_attending:  [{ count: 0 }],
+    event_guests_attending:     [{ count: 0 }],
+    event_attendees_waitlisted: [{ count: 0 }],
+    _isTournament:              true,
+  }))
 }
 
 export function useMonthEvents() {
@@ -45,35 +61,49 @@ export function useMonthEvents() {
   const [tick, setTick] = useState(0)
   const [reachedEnd, setReachedEnd] = useState(false)
 
-  const loadMonth = useCallback(async (month: string, force = false) => {
-    const entry = cacheRef.current[month]
-    if (!force && entry && Date.now() - entry.fetchedAt < STALE_MS) return
+  const queueRef = useRef<{ months: string[]; force: boolean; waiters: Array<{
+    resolve: () => void
+    reject: (e: unknown) => void
+  }> }>({ months: [], force: false, waiters: [] })
+  const flushScheduled = useRef(false)
 
-    // Join or wait out an in-flight load, then re-check (force always continues to a fresh fetch)
-    for (;;) {
-      const existing = pendingByMonth.current[month]
-      if (existing) {
-        await existing
-        if (!force) {
-          const e = cacheRef.current[month]
-          if (e && Date.now() - e.fetchedAt < STALE_MS) return
-        }
-        continue
-      }
-      break
+  const fetchMonths = useCallback(async (months: string[], force = false) => {
+    const unique = [...new Set(months)].sort()
+    if (unique.length === 0) return
+
+    const isFresh = (month: string) => {
+      const entry = cacheRef.current[month]
+      return !!entry && Date.now() - entry.fetchedAt < STALE_MS
     }
 
+    let needed = force ? unique : unique.filter(m => !isFresh(m))
+    if (needed.length === 0) return
+
+    // Join overlapping in-flight fetches, then re-check
+    const overlapping = new Set<Promise<void>>()
+    for (const month of needed) {
+      const existing = pendingByMonth.current[month]
+      if (existing) overlapping.add(existing)
+    }
+    if (overlapping.size > 0) {
+      await Promise.all([...overlapping])
+      needed = force ? unique : unique.filter(m => !isFresh(m))
+      if (needed.length === 0) return
+    }
+
+    const span = enumerateMonths(needed[0], needed[needed.length - 1])
+
     const p = (async () => {
-      setLoadingMonths(prev => new Set([...prev, month]))
+      setLoadingMonths(prev => new Set([...prev, ...span]))
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await getSessionUser()
 
         const buildEventsQuery = (mySelect: string | null) => {
           let q = supabase
             .from('events')
             .select(mySelect ? `${EVENT_CARD_LIST_SELECT}, ${mySelect}` : EVENT_CARD_LIST_SELECT)
-            .gte('event_date', monthStart(month))
-            .lt('event_date', monthEnd(month))
+            .gte('event_date', monthStartIso(span[0]))
+            .lt('event_date', monthEndIso(span[span.length - 1]))
             .is('cancelled_at', null)
             .order('event_date', { ascending: true })
           if (user) q = q.eq('my_attendance.user_id', user.id)
@@ -99,67 +129,73 @@ export function useMonthEvents() {
           supabase
             .from('tournaments')
             .select('id, created_by, club_id, title, location, start_date, max_teams, price, skill_levels, status, created_at, profiles!tournaments_created_by_fkey(id, username, first_name, last_name, avatar_url), clubs(id, name, avatar_url)')
-            .gte('start_date', monthStart(month))
-            .lt('start_date', monthEnd(month))
+            .gte('start_date', monthStartIso(span[0]))
+            .lt('start_date', monthEndIso(span[span.length - 1]))
             .neq('status', 'draft')
             .neq('status', 'cancelled'),
         ])
 
-        if (!eventsError) {
-          const TOURNAMENT_TAG = { id: '_tournament', name: 'Tournament', category: 'event_type', display_order: 2, created_at: '' }
-          const normalized: EventWithDetails[] = (tournamentsData ?? []).map((t: any) => ({
-            id:                        t.id,
-            created_by:                t.created_by,
-            club_id:                   t.club_id,
-            title:                     t.title,
-            description:               null,
-            location:                  t.location,
-            event_date:                t.start_date,
-            duration_minutes:          0,
-            max_attendees:             t.max_teams ?? null,
-            created_at:                t.created_at,
-            price:                     t.price ?? 0,
-            cancelled_at:              null,
-            profiles:                  t.profiles,
-            clubs:                     t.clubs,
-            event_tags:                [{ tag_id: '_tournament', tags: TOURNAMENT_TAG }],
-            attendee_previews:         [],
-            my_attendance:             [],
-            event_attendees_attending: [{ count: 0 }],
-            event_guests_attending:    [{ count: 0 }],
-            event_attendees_waitlisted:[{ count: 0 }],
-            _isTournament:             true,
-          }))
+        if (eventsError) return
 
-          const withPreviews = await attachEventCardPreviews(
-            (eventsData ?? []) as unknown as EventWithDetails[],
-          )
-          const combined = [...withPreviews, ...normalized]
-          combined.sort((a, b) => a.event_date.localeCompare(b.event_date))
+        const withPreviews = await attachEventCardPreviews(
+          (eventsData ?? []) as unknown as EventWithDetails[],
+        )
+        const combined = [...withPreviews, ...normalizeTournaments(tournamentsData as unknown[] | null)]
+        combined.sort((a, b) => a.event_date.localeCompare(b.event_date))
 
-          cacheRef.current[month] = {
-            events: combined,
-            fetchedAt: Date.now(),
-          }
-          if (combined.length === 0) setReachedEnd(true)
-          setTick(t => t + 1)
+        const buckets = bucketByMonthKey(combined, span)
+        const now = Date.now()
+        for (const month of span) {
+          cacheRef.current[month] = { events: buckets[month] ?? [], fetchedAt: now }
         }
+        if ((buckets[span[span.length - 1]] ?? []).length === 0) setReachedEnd(true)
+        setTick(t => t + 1)
       } finally {
         setLoadingMonths(prev => {
           const next = new Set(prev)
-          next.delete(month)
+          for (const month of span) next.delete(month)
           return next
         })
       }
     })()
 
-    pendingByMonth.current[month] = p
+    for (const month of span) pendingByMonth.current[month] = p
     try {
       await p
     } finally {
-      if (pendingByMonth.current[month] === p) delete pendingByMonth.current[month]
+      for (const month of span) {
+        if (pendingByMonth.current[month] === p) delete pendingByMonth.current[month]
+      }
     }
-  }, []) // stable — reads cacheRef directly, no closure over state
+  }, [])
+
+  const enqueue = useCallback((months: string[], force = false) => {
+    return new Promise<void>((resolve, reject) => {
+      const q = queueRef.current
+      q.months.push(...months)
+      q.force = q.force || force
+      q.waiters.push({ resolve, reject })
+      if (flushScheduled.current) return
+      flushScheduled.current = true
+      queueMicrotask(() => {
+        flushScheduled.current = false
+        const { months: queued, force: queuedForce, waiters } = queueRef.current
+        queueRef.current = { months: [], force: false, waiters: [] }
+        void fetchMonths(queued, queuedForce).then(
+          () => { waiters.forEach(w => w.resolve()) },
+          (e) => { waiters.forEach(w => w.reject(e)) },
+        )
+      })
+    })
+  }, [fetchMonths])
+
+  const loadMonth = useCallback((month: string, force = false) => {
+    return enqueue([month], force)
+  }, [enqueue])
+
+  const loadMonthSpan = useCallback((startMonth: string, endMonth: string, force = false) => {
+    return enqueue(enumerateMonths(startMonth, endMonth), force)
+  }, [enqueue])
 
   const invalidateMonth = useCallback((month: string) => {
     delete cacheRef.current[month]
@@ -189,5 +225,5 @@ export function useMonthEvents() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const loadedMonths = useMemo(() => Object.keys(cacheRef.current).sort(), [tick])
 
-  return { events, loadMonth, invalidateMonth, invalidateAll, loading, isMonthLoaded, loadedMonths, reachedEnd }
+  return { events, loadMonth, loadMonthSpan, invalidateMonth, invalidateAll, loading, isMonthLoaded, loadedMonths, reachedEnd }
 }

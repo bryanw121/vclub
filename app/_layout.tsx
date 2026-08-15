@@ -98,7 +98,7 @@ function RootLayout() {
   }
 
   useEffect(() => {
-    if (loading) return
+    if (loading || !fontsLoaded) return
 
     const wasUnknown = prevSessionRef.current === undefined
     const wasLoggedOut = prevSessionRef.current === null
@@ -118,7 +118,7 @@ function RootLayout() {
       setSplashVisible(false)
     }
     // Token refreshes (wasLoggedIn → isLoggedIn): do nothing
-  }, [loading, session])
+  }, [loading, session, fontsLoaded])
 
   // Keep Sentry user context in sync with auth state
   useEffect(() => {
@@ -140,8 +140,9 @@ function RootLayout() {
     else if (session && inAuthGroup && !onResetPassword) router.replace('/(app)')
   }, [session, loading, splashVisible])
 
-  // Don't render until fonts are ready — prevents layout flash on native
-  if (!fontsLoaded) return null
+  // Mount the tree immediately so data fetching starts during font download +
+  // splash. Keep the splash covering the UI until fonts are ready to avoid FOUT.
+  const coverWithSplash = splashVisible || !fontsLoaded
 
   return (
     <SentryErrorBoundary>
@@ -159,7 +160,7 @@ function RootLayout() {
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
       </Stack>
 
-      {splashVisible && (
+      {coverWithSplash && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
           <AppSplash opacity={splashOpacity} />
         </View>

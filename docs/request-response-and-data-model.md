@@ -159,11 +159,11 @@ sequenceDiagram
   preview RPC is `SECURITY INVOKER`, so it retains the caller's database
   permissions
   ([`supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql:2`](../supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql#L2)).
-- `useMonthEvents` performs the event and tournament reads in parallel,
-  normalizes tournaments into the `EventWithDetails` card shape, and marks them
-  with the UI-only `_isTournament` flag
-  ([`hooks/useMonthEvents.ts:61`](../hooks/useMonthEvents.ts#L61),
-  [`hooks/useMonthEvents.ts:83`](../hooks/useMonthEvents.ts#L83)).
+- `useMonthEvents` performs the event and tournament reads in parallel over a
+  month span, normalizes tournaments into the `EventWithDetails` card shape, and
+  marks them with the UI-only `_isTournament` flag
+  ([`hooks/useMonthEvents.ts:28`](../hooks/useMonthEvents.ts#L28),
+  [`hooks/useMonthEvents.ts:127`](../hooks/useMonthEvents.ts#L127)).
 - `events.event_date` is an instant, but calendars group it by the viewer's
   local day. Suffix-less PostgREST timestamps are interpreted as UTC before
   `eventLocalDateKey` derives the shared `YYYY-MM-DD` key used by dots and
@@ -171,7 +171,7 @@ sequenceDiagram
   instants
   ([`utils/index.ts:170`](../utils/index.ts#L170),
   [`utils/index.ts:193`](../utils/index.ts#L193),
-  [`hooks/useMonthEvents.ts:24`](../hooks/useMonthEvents.ts#L24)).
+  [`utils/monthKeys.ts:19`](../utils/monthKeys.ts#L19)).
 - Event detail fetches the event, creator, full attendee/profile rows, and tags.
   It then fetches comments plus guests/cohosts in additional requests
   ([`app/(app)/event/[id].tsx:464`](../app/%28app%29/event/%5Bid%5D.tsx#L464)).
@@ -317,7 +317,7 @@ erDiagram
 - The inbox reads at most 80 `notifications` rows. The unread badge uses an
   exact, `head: true` count so row bodies are not downloaded
   ([`hooks/useNotifications.ts:23`](../hooks/useNotifications.ts#L23),
-  [`hooks/useNotifications.ts:37`](../hooks/useNotifications.ts#L37)).
+  [`hooks/useNotifications.ts:38`](../hooks/useNotifications.ts#L38)).
 - `mark_notification_read` and `mark_all_notifications_read` are
   security-definer RPCs that still scope updates to `auth.uid()`
   ([`supabase/migrations/20260402120000_notifications_inbox.sql:97`](../supabase/migrations/20260402120000_notifications_inbox.sql#L97)).
@@ -401,7 +401,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Contract source fingerprint: `1d6f08f178a3`
+> Contract source fingerprint: `3a5822a8e045`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -413,7 +413,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 
 | Table or view | Frontend/server call sites |
 |---|---|
-| `chat_silences` | [`hooks/useChatUnread.tsx:30`](../hooks/useChatUnread.tsx#L30)<br>[`hooks/useSilencedUsers.ts:32`](../hooks/useSilencedUsers.ts#L32) |
+| `chat_silences` | [`hooks/useChatUnread.tsx:31`](../hooks/useChatUnread.tsx#L31)<br>[`hooks/useSilencedUsers.ts:32`](../hooks/useSilencedUsers.ts#L32) |
 | `cheers` | [`app/(app)/(tabs)/(main)/profile/index.tsx:407`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L407)<br>[`app/(app)/(tabs)/settings/cheers.tsx:26`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L26)<br>[`app/(app)/event/[id].tsx:681`](../app/%28app%29/event/%5Bid%5D.tsx#L681)<br>[`app/(app)/profile/[id].tsx:53`](../app/%28app%29/profile/%5Bid%5D.tsx#L53)<br>[`utils/badges.ts:48`](../utils/badges.ts#L48) |
 | `club_members` | [`app/(app)/(tabs)/clubs.tsx:267`](../app/%28app%29/%28tabs%29/clubs.tsx#L267)<br>[`app/(app)/chat/[id].tsx:91`](../app/%28app%29/chat/%5Bid%5D.tsx#L91)<br>[`app/(app)/club/[id].tsx:221`](../app/%28app%29/club/%5Bid%5D.tsx#L221)<br>[`app/(app)/host.tsx:168`](../app/%28app%29/host.tsx#L168)<br>[`app/(app)/tournament/create.tsx:736`](../app/%28app%29/tournament/create.tsx#L736) |
 | `club_post_comments` | [`components/ClubPostCard.tsx:107`](../components/ClubPostCard.tsx#L107) |
@@ -422,17 +422,17 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `clubs` | [`app/(app)/(tabs)/clubs.tsx:187`](../app/%28app%29/%28tabs%29/clubs.tsx#L187)<br>[`app/(app)/club/[id].tsx:134`](../app/%28app%29/club/%5Bid%5D.tsx#L134)<br>[`app/(app)/club/create.tsx:39`](../app/%28app%29/club/create.tsx#L39) |
 | `conversation_members` | [`supabase/functions/send-chat-push/index.ts:61`](../supabase/functions/send-chat-push/index.ts#L61) |
 | `conversations` | [`supabase/functions/send-chat-push/index.ts:54`](../supabase/functions/send-chat-push/index.ts#L54) |
-| `event_attendees` | [`app/(app)/(tabs)/(main)/index.tsx:88`](../app/%28app%29/%28tabs%29/%28main%29/index.tsx#L88)<br>[`app/(app)/event/[id].tsx:822`](../app/%28app%29/event/%5Bid%5D.tsx#L822)<br>[`app/(app)/host.tsx:365`](../app/%28app%29/host.tsx#L365)<br>[`hooks/useMyUpcomingEvents.ts:100`](../hooks/useMyUpcomingEvents.ts#L100)<br>[`utils/badges.ts:33`](../utils/badges.ts#L33) |
+| `event_attendees` | [`app/(app)/(tabs)/(main)/index.tsx:90`](../app/%28app%29/%28tabs%29/%28main%29/index.tsx#L90)<br>[`app/(app)/event/[id].tsx:822`](../app/%28app%29/event/%5Bid%5D.tsx#L822)<br>[`app/(app)/host.tsx:365`](../app/%28app%29/host.tsx#L365)<br>[`hooks/useMyUpcomingEvents.ts:100`](../hooks/useMyUpcomingEvents.ts#L100)<br>[`utils/badges.ts:33`](../utils/badges.ts#L33) |
 | `event_cohosts` | [`app/(app)/event/[id].tsx:541`](../app/%28app%29/event/%5Bid%5D.tsx#L541) |
 | `event_comments` | [`app/(app)/event/[id].tsx:514`](../app/%28app%29/event/%5Bid%5D.tsx#L514) |
 | `event_guests` | [`app/(app)/event/[id].tsx:536`](../app/%28app%29/event/%5Bid%5D.tsx#L536) |
 | `event_tags` | [`app/(app)/host.tsx:329`](../app/%28app%29/host.tsx#L329) |
-| `events` | [`app/(app)/(tabs)/settings/history.tsx:50`](../app/%28app%29/%28tabs%29/settings/history.tsx#L50)<br>[`app/(app)/(tabs)/settings/hosted.tsx:20`](../app/%28app%29/%28tabs%29/settings/hosted.tsx#L20)<br>[`app/(app)/club/[id].tsx:144`](../app/%28app%29/club/%5Bid%5D.tsx#L144)<br>[`app/(app)/event/[id].tsx:489`](../app/%28app%29/event/%5Bid%5D.tsx#L489)<br>[`app/(app)/host.tsx:178`](../app/%28app%29/host.tsx#L178)<br>[`hooks/useEvents.ts:27`](../hooks/useEvents.ts#L27)<br>+2 more files |
+| `events` | [`app/(app)/(tabs)/settings/history.tsx:50`](../app/%28app%29/%28tabs%29/settings/history.tsx#L50)<br>[`app/(app)/(tabs)/settings/hosted.tsx:20`](../app/%28app%29/%28tabs%29/settings/hosted.tsx#L20)<br>[`app/(app)/club/[id].tsx:144`](../app/%28app%29/club/%5Bid%5D.tsx#L144)<br>[`app/(app)/event/[id].tsx:489`](../app/%28app%29/event/%5Bid%5D.tsx#L489)<br>[`app/(app)/host.tsx:178`](../app/%28app%29/host.tsx#L178)<br>[`hooks/useEvents.ts:28`](../hooks/useEvents.ts#L28)<br>+2 more files |
 | `feedback_submissions` | [`app/(app)/(tabs)/settings/feedback.tsx:46`](../app/%28app%29/%28tabs%29/settings/feedback.tsx#L46) |
 | `major_cities` | [`components/MajorCityAutocomplete.tsx:27`](../components/MajorCityAutocomplete.tsx#L27) |
 | `message_reactions` | [`hooks/useMessages.ts:246`](../hooks/useMessages.ts#L246) |
 | `messages` | [`hooks/useMessages.ts:21`](../hooks/useMessages.ts#L21) |
-| `notifications` | [`app/(app)/event/[id].tsx:644`](../app/%28app%29/event/%5Bid%5D.tsx#L644)<br>[`hooks/useNotifications.ts:30`](../hooks/useNotifications.ts#L30)<br>[`utils/badges.ts:237`](../utils/badges.ts#L237) |
+| `notifications` | [`app/(app)/event/[id].tsx:644`](../app/%28app%29/event/%5Bid%5D.tsx#L644)<br>[`hooks/useNotifications.ts:31`](../hooks/useNotifications.ts#L31)<br>[`utils/badges.ts:237`](../utils/badges.ts#L237) |
 | `profiles` | [`app/_layout.tsx:38`](../app/_layout.tsx#L38)<br>[`app/(app)/(tabs)/(main)/profile/index.tsx:403`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L403)<br>[`app/(app)/(tabs)/chat.tsx:47`](../app/%28app%29/%28tabs%29/chat.tsx#L47)<br>[`app/(app)/(tabs)/settings/badges.tsx:93`](../app/%28app%29/%28tabs%29/settings/badges.tsx#L93)<br>[`app/(app)/(tabs)/settings/notifications.tsx:33`](../app/%28app%29/%28tabs%29/settings/notifications.tsx#L33)<br>[`app/(app)/event/[id].tsx:255`](../app/%28app%29/event/%5Bid%5D.tsx#L255)<br>+4 more files |
 | `push_tokens` | [`supabase/functions/send-chat-push/index.ts:71`](../supabase/functions/send-chat-push/index.ts#L71)<br>[`utils/pushNotifications.ts:46`](../utils/pushNotifications.ts#L46) |
 | `tags` | [`app/(app)/host.tsx:166`](../app/%28app%29/host.tsx#L166) |
@@ -446,7 +446,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `tournament_team_join_requests` | [`app/(app)/tournament/[id].tsx:269`](../app/%28app%29/tournament/%5Bid%5D.tsx#L269) |
 | `tournament_team_members` | [`app/(app)/tournament/[id].tsx:243`](../app/%28app%29/tournament/%5Bid%5D.tsx#L243) |
 | `tournament_teams` | [`app/(app)/tournament/[id].tsx:208`](../app/%28app%29/tournament/%5Bid%5D.tsx#L208) |
-| `tournaments` | [`app/(app)/tournament/[id].tsx:179`](../app/%28app%29/tournament/%5Bid%5D.tsx#L179)<br>[`app/(app)/tournament/create.tsx:673`](../app/%28app%29/tournament/create.tsx#L673)<br>[`hooks/useMonthEvents.ts:100`](../hooks/useMonthEvents.ts#L100) |
+| `tournaments` | [`app/(app)/tournament/[id].tsx:179`](../app/%28app%29/tournament/%5Bid%5D.tsx#L179)<br>[`app/(app)/tournament/create.tsx:673`](../app/%28app%29/tournament/create.tsx#L673)<br>[`hooks/useMonthEvents.ts:130`](../hooks/useMonthEvents.ts#L130) |
 | `user_badges` | [`app/(app)/profile/[id].tsx:54`](../app/%28app%29/profile/%5Bid%5D.tsx#L54)<br>[`hooks/useBadges.ts:79`](../hooks/useBadges.ts#L79)<br>[`utils/badges.ts:190`](../utils/badges.ts#L190) |
 | `user_event_templates` | [`app/(app)/host.tsx:237`](../app/%28app%29/host.tsx#L237) |
 
@@ -459,10 +459,10 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `find_or_create_dm` | [`app/(app)/(tabs)/chat.tsx:193`](../app/%28app%29/%28tabs%29/chat.tsx#L193)<br>[`app/(app)/event/[id].tsx:1793`](../app/%28app%29/event/%5Bid%5D.tsx#L1793)<br>[`app/(app)/profile/[id].tsx:106`](../app/%28app%29/profile/%5Bid%5D.tsx#L106) | Not checked in |
 | `get_email_by_username` | [`app/(auth)/login.tsx:109`](../app/%28auth%29/login.tsx#L109) | Not checked in |
 | `get_event_card_attendee_previews` | [`utils/eventCardPreviews.ts:23`](../utils/eventCardPreviews.ts#L23) | [`supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql:2`](../supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql#L2) |
-| `get_my_conversations` | [`app/(app)/chat/[id].tsx:108`](../app/%28app%29/chat/%5Bid%5D.tsx#L108)<br>[`hooks/useChatUnread.tsx:29`](../hooks/useChatUnread.tsx#L29)<br>[`hooks/useConversations.ts:18`](../hooks/useConversations.ts#L18) | Not checked in |
-| `mark_all_notifications_read` | [`hooks/useNotifications.ts:90`](../hooks/useNotifications.ts#L90) | [`supabase/migrations/20260402120000_notifications_inbox.sql:112`](../supabase/migrations/20260402120000_notifications_inbox.sql#L112) |
+| `get_my_conversations` | [`app/(app)/chat/[id].tsx:108`](../app/%28app%29/chat/%5Bid%5D.tsx#L108)<br>[`hooks/useChatUnread.tsx:30`](../hooks/useChatUnread.tsx#L30)<br>[`hooks/useConversations.ts:18`](../hooks/useConversations.ts#L18) | Not checked in |
+| `mark_all_notifications_read` | [`hooks/useNotifications.ts:91`](../hooks/useNotifications.ts#L91) | [`supabase/migrations/20260402120000_notifications_inbox.sql:112`](../supabase/migrations/20260402120000_notifications_inbox.sql#L112) |
 | `mark_conversation_read` | [`hooks/useMessages.ts:207`](../hooks/useMessages.ts#L207) | Not checked in |
-| `mark_notification_read` | [`hooks/useNotifications.ts:76`](../hooks/useNotifications.ts#L76) | [`supabase/migrations/20260402120000_notifications_inbox.sql:98`](../supabase/migrations/20260402120000_notifications_inbox.sql#L98) |
+| `mark_notification_read` | [`hooks/useNotifications.ts:77`](../hooks/useNotifications.ts#L77) | [`supabase/migrations/20260402120000_notifications_inbox.sql:98`](../supabase/migrations/20260402120000_notifications_inbox.sql#L98) |
 
 ### Other Supabase surfaces
 
@@ -472,8 +472,8 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Surface | Name | Call sites |
 |---|---|---|
 | Auth | `exchangeCodeForSession` | [`lib/socialAuth.ts:24`](../lib/socialAuth.ts#L24) |
-| Auth | `getSession` | [`app/_layout.tsx:34`](../app/_layout.tsx#L34)<br>[`app/(app)/(tabs)/(main)/profile/index.tsx:397`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L397)<br>[`app/(app)/(tabs)/clubs.tsx:182`](../app/%28app%29/%28tabs%29/clubs.tsx#L182)<br>[`app/(app)/(tabs)/settings/account.tsx:17`](../app/%28app%29/%28tabs%29/settings/account.tsx#L17)<br>[`app/(app)/(tabs)/settings/badges.tsx:90`](../app/%28app%29/%28tabs%29/settings/badges.tsx#L90)<br>[`app/(app)/(tabs)/settings/cheers.tsx:21`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L21)<br>+6 more files |
-| Auth | `getUser` | [`app/(app)/(tabs)/(main)/index.tsx:82`](../app/%28app%29/%28tabs%29/%28main%29/index.tsx#L82)<br>[`app/(app)/(tabs)/chat.tsx:45`](../app/%28app%29/%28tabs%29/chat.tsx#L45)<br>[`app/(app)/(tabs)/settings/feedback.tsx:36`](../app/%28app%29/%28tabs%29/settings/feedback.tsx#L36)<br>[`app/(app)/(tabs)/settings/history.tsx:45`](../app/%28app%29/%28tabs%29/settings/history.tsx#L45)<br>[`app/(app)/(tabs)/settings/hosted.tsx:16`](../app/%28app%29/%28tabs%29/settings/hosted.tsx#L16)<br>[`app/(app)/(tabs)/settings/notifications.tsx:27`](../app/%28app%29/%28tabs%29/settings/notifications.tsx#L27)<br>+12 more files |
+| Auth | `getSession` | [`app/_layout.tsx:34`](../app/_layout.tsx#L34)<br>[`app/(app)/(tabs)/(main)/profile/index.tsx:397`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L397)<br>[`app/(app)/(tabs)/clubs.tsx:182`](../app/%28app%29/%28tabs%29/clubs.tsx#L182)<br>[`app/(app)/(tabs)/settings/account.tsx:17`](../app/%28app%29/%28tabs%29/settings/account.tsx#L17)<br>[`app/(app)/(tabs)/settings/badges.tsx:90`](../app/%28app%29/%28tabs%29/settings/badges.tsx#L90)<br>[`app/(app)/(tabs)/settings/cheers.tsx:21`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L21)<br>+7 more files |
+| Auth | `getUser` | [`app/(app)/(tabs)/chat.tsx:45`](../app/%28app%29/%28tabs%29/chat.tsx#L45)<br>[`app/(app)/(tabs)/settings/feedback.tsx:36`](../app/%28app%29/%28tabs%29/settings/feedback.tsx#L36)<br>[`app/(app)/(tabs)/settings/history.tsx:45`](../app/%28app%29/%28tabs%29/settings/history.tsx#L45)<br>[`app/(app)/(tabs)/settings/hosted.tsx:16`](../app/%28app%29/%28tabs%29/settings/hosted.tsx#L16)<br>[`app/(app)/(tabs)/settings/notifications.tsx:27`](../app/%28app%29/%28tabs%29/settings/notifications.tsx#L27)<br>[`app/(app)/event/[id].tsx:251`](../app/%28app%29/event/%5Bid%5D.tsx#L251)<br>+8 more files |
 | Auth | `onAuthStateChange` | [`app/(auth)/reset-password.tsx:26`](../app/%28auth%29/reset-password.tsx#L26)<br>[`hooks/useAuth.ts:15`](../hooks/useAuth.ts#L15) |
 | Auth | `resetPasswordForEmail` | [`app/(auth)/login.tsx:87`](../app/%28auth%29/login.tsx#L87) |
 | Auth | `setSession` | [`lib/socialAuth.ts:27`](../lib/socialAuth.ts#L27) |
@@ -485,10 +485,10 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Auth | `signUp` | [`app/(auth)/register.tsx:70`](../app/%28auth%29/register.tsx#L70) |
 | Auth | `updateUser` | [`app/(auth)/reset-password.tsx:45`](../app/%28auth%29/reset-password.tsx#L45) |
 | Auth | `verifyOtp` | [`lib/socialAuth.ts:97`](../lib/socialAuth.ts#L97) |
-| Realtime table | `chat_silences` | [`hooks/useChatUnread.tsx:71`](../hooks/useChatUnread.tsx#L71)<br>[`hooks/useSilencedUsers.ts:64`](../hooks/useSilencedUsers.ts#L64) |
-| Realtime table | `conversation_members` | [`hooks/useChatUnread.tsx:68`](../hooks/useChatUnread.tsx#L68)<br>[`hooks/useConversations.ts:78`](../hooks/useConversations.ts#L78) |
+| Realtime table | `chat_silences` | [`hooks/useChatUnread.tsx:72`](../hooks/useChatUnread.tsx#L72)<br>[`hooks/useSilencedUsers.ts:64`](../hooks/useSilencedUsers.ts#L64) |
+| Realtime table | `conversation_members` | [`hooks/useChatUnread.tsx:69`](../hooks/useChatUnread.tsx#L69)<br>[`hooks/useConversations.ts:78`](../hooks/useConversations.ts#L78) |
 | Realtime table | `message_reactions` | [`hooks/useMessages.ts:127`](../hooks/useMessages.ts#L127) |
-| Realtime table | `messages` | [`hooks/useChatUnread.tsx:66`](../hooks/useChatUnread.tsx#L66)<br>[`hooks/useConversations.ts:50`](../hooks/useConversations.ts#L50)<br>[`hooks/useMessages.ts:91`](../hooks/useMessages.ts#L91) |
+| Realtime table | `messages` | [`hooks/useChatUnread.tsx:67`](../hooks/useChatUnread.tsx#L67)<br>[`hooks/useConversations.ts:50`](../hooks/useConversations.ts#L50)<br>[`hooks/useMessages.ts:91`](../hooks/useMessages.ts#L91) |
 | Storage bucket | `avatars` | [`app/(app)/(tabs)/(main)/profile/index.tsx:568`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L568) |
 | Storage bucket | `chat-images` | [`hooks/useMessages.ts:276`](../hooks/useMessages.ts#L276) |
 | Storage bucket | `club-avatars` | [`app/(app)/club/[id].tsx:275`](../app/%28app%29/club/%5Bid%5D.tsx#L275) |

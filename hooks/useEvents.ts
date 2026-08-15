@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { EVENT_CARD_LIST_SELECT, EVENT_CARD_MY_ATTENDANCE_SELECT } from '../constants'
 import { supabase } from '../lib/supabase'
+import { getSessionUser } from '../lib/sessionUser'
 import { startOfToday } from '../utils'
 import { attachEventCardPreviews } from '../utils/eventCardPreviews'
 import { EventWithDetails } from '../types'
@@ -18,7 +19,7 @@ export function useEvents() {
     try {
       setLoading(true)
       setError(null)
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getSessionUser()
       const listSelect = user
         ? `${EVENT_CARD_LIST_SELECT}, ${EVENT_CARD_MY_ATTENDANCE_SELECT}`
         : EVENT_CARD_LIST_SELECT

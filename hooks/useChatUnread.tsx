@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { DeviceEventEmitter } from 'react-native'
 import { supabase } from '../lib/supabase'
+import { getSessionUser } from '../lib/sessionUser'
 import type { ConversationRow } from '../types'
 
 /** Emitted from `useSilencedUsers` after silence/unsilence so the tab badge updates even without Realtime on `chat_silences`. */
@@ -22,7 +23,7 @@ export function ChatUnreadProvider({ children }: { children: React.ReactNode }) 
   const mountedRef = useRef(true)
 
   const recompute = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user || !mountedRef.current) return
 
     const [{ data: convData, error: convErr }, { data: silenceData, error: silenceErr }] = await Promise.all([
@@ -57,7 +58,7 @@ export function ChatUnreadProvider({ children }: { children: React.ReactNode }) 
       }, 450)
     }
 
-    void supabase.auth.getUser().then(({ data: { user } }) => {
+    void getSessionUser().then(user => {
       if (!user || !mountedRef.current) return
 
       // One channel multiplexes all three change streams (was two channels).
