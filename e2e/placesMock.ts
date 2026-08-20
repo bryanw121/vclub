@@ -18,6 +18,18 @@ export const MOCK_VENUE_REGION = 'Austin, TX'
 /** Deliberately not the proxy's Austin bias centre, so a hardcoded default can't pass. */
 export const MOCK_VENUE_COORDS = { lat: 30.401234, lng: -97.712345 }
 
+/**
+ * A street-address prediction. The proxy used to send `types=establishment`,
+ * which made this shape impossible to receive at all — so a test that selects
+ * it is the regression guard for that config never coming back.
+ */
+export const MOCK_ADDRESS_PLACE_ID = 'e2e-mock-place-2'
+export const MOCK_ADDRESS_MAIN = '1100 Congress Ave'
+export const MOCK_ADDRESS_SECONDARY = 'Austin, TX, USA'
+/** What formatVenueDisplay must store: street line plus city, no state or country. */
+export const MOCK_ADDRESS_SAVED = '1100 Congress Ave, Austin'
+export const MOCK_ADDRESS_COORDS = { lat: 30.274567, lng: -97.740345 }
+
 export type ProxyCall = {
   action: string
   input?: string
@@ -62,18 +74,34 @@ export async function mockPlacesProxy(page: Page): Promise<ProxyCall[]> {
     const payload = body.action === 'autocomplete'
       ? {
           status: 'OK',
-          predictions: [{
-            place_id: MOCK_PLACE_ID,
-            description: `${MOCK_VENUE_NAME}, ${MOCK_VENUE_REGION}`,
-            structured_formatting: {
-              main_text: MOCK_VENUE_NAME,
-              secondary_text: MOCK_VENUE_REGION,
+          predictions: [
+            {
+              place_id: MOCK_PLACE_ID,
+              description: `${MOCK_VENUE_NAME}, ${MOCK_VENUE_REGION}`,
+              types: ['establishment', 'point_of_interest'],
+              structured_formatting: {
+                main_text: MOCK_VENUE_NAME,
+                secondary_text: MOCK_VENUE_REGION,
+              },
             },
-          }],
+            {
+              place_id: MOCK_ADDRESS_PLACE_ID,
+              description: `${MOCK_ADDRESS_MAIN}, ${MOCK_ADDRESS_SECONDARY}`,
+              types: ['street_address', 'geocode'],
+              structured_formatting: {
+                main_text: MOCK_ADDRESS_MAIN,
+                secondary_text: MOCK_ADDRESS_SECONDARY,
+              },
+            },
+          ],
         }
       : {
           status: 'OK',
-          result: { geometry: { location: MOCK_VENUE_COORDS } },
+          result: {
+            geometry: {
+              location: body.place_id === MOCK_ADDRESS_PLACE_ID ? MOCK_ADDRESS_COORDS : MOCK_VENUE_COORDS,
+            },
+          },
         }
 
     await route.fulfill({

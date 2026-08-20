@@ -75,6 +75,39 @@ The server-only exceptions are:
 - `/api/tunnel`, a Vercel function that validates and forwards Sentry envelopes
   ([`api/tunnel.ts:5`](../api/tunnel.ts#L5)).
 
+### Why the venue picker calls Places the way it does
+
+Google Places is the only metered third-party API in the app, so the client
+side of `places-proxy` is shaped around *not* spending it. Five deliberate
+mechanisms, all in
+[`components/LocationPickerField.tsx`](../components/LocationPickerField.tsx):
+
+1. **A session token per modal open.** Autocomplete requests and the closing
+   Place Details lookup share one `sessiontoken`, so Google bills the whole
+   search as a single session instead of per keystroke. A fresh token is minted
+   on each open, and the token is spent by the Details call on selection.
+2. **A three-character floor and a 600ms debounce.** Nothing reaches the
+   network until the query is worth running, which collapses a typed venue name
+   into roughly one request.
+3. **A two-layer cache.** A module-level `Map` for the session and a 24h
+   `AsyncStorage` entry keyed `gmaps:<v>:<query>` across launches. A cache hit
+   returns predictions without a request *and* without consuming the session
+   token.
+4. **Recent and common venues are answered locally.** Re-picking a venue the
+   host has used before, or one of the `LOCATIONS` constants, resolves from
+   state with zero Places traffic — which is the dominant case for a club that
+   plays the same gyms every week.
+5. **`fields=geometry` on Details.** The narrowest Basic-Data field set, so the
+   closing call stays in the cheapest tier.
+
+Note that `latitude`/`longitude` are currently **write-only**: they are stored
+and round-tripped through the host form, but nothing reads them — "Show in
+Maps" builds a text query from `location` instead
+([`components/event/DetailsTab.tsx:22`](../components/event/DetailsTab.tsx#L22)).
+The Details call is kept anyway because it fires once per *saved event* rather
+than per keystroke, so its volume is negligible, and dropping it would discard
+the coordinates that a future distance sort or map view would need.
+
 ## What a request and response look like
 
 | Interface | Request shape | Response shape | Contract location |
@@ -369,7 +402,7 @@ These are the only bespoke HTTP request/response contracts in the repository:
 
 | Path | Inbound request | Outbound request | Response to caller |
 |---|---|---|---|
-| `places-proxy` autocomplete | `POST { action: 'autocomplete', input, sessiontoken }` through `functions.invoke` | Google Places autocomplete query, restricted to US establishments near Austin | Google JSON; the component reads `predictions[]` with `place_id`, `description`, and `structured_formatting` |
+| `places-proxy` autocomplete | `POST { action: 'autocomplete', input, sessiontoken }` through `functions.invoke` | Google Places autocomplete query, restricted to the US and biased toward Austin. No `types` filter, so both named establishments and street addresses come back | Google JSON; the component reads `predictions[]` with `place_id`, `description`, `types`, and `structured_formatting` |
 | `places-proxy` details | `POST { action: 'details', place_id, sessiontoken }` | Google Place Details query for `geometry` | Google JSON; the component reads `result.geometry.location.{lat,lng}` |
 | `send-chat-push` | Database webhook `POST` whose `record` has message `id`, `conversation_id`, `sender_id`, `content`, and `image_url` | One Expo Push message per recipient token | Plain-text `OK`, `No recipients`, or `No tokens`; this response goes to the webhook, not the app |
 | `/api/tunnel` | Raw Sentry envelope in an HTTP `POST` | Same envelope to the `sentry.io` project encoded by its DSN | Empty response with the upstream status; invalid envelopes/hosts return 400 and non-POST methods return 405 |
@@ -401,7 +434,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Contract source fingerprint: `6bfaa7d0b47c`
+> Contract source fingerprint: `2251f2a76c9c`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -492,7 +525,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Storage bucket | `avatars` | [`app/(app)/(tabs)/(main)/profile/index.tsx:568`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L568) |
 | Storage bucket | `chat-images` | [`hooks/useMessages.ts:276`](../hooks/useMessages.ts#L276) |
 | Storage bucket | `club-avatars` | [`app/(app)/club/[id].tsx:275`](../app/%28app%29/club/%5Bid%5D.tsx#L275) |
-| Edge Function | `places-proxy` | [`components/LocationPickerField.tsx:74`](../components/LocationPickerField.tsx#L74) |
+| Edge Function | `places-proxy` | [`components/LocationPickerField.tsx:69`](../components/LocationPickerField.tsx#L69) |
 
 </details>
 
@@ -512,6 +545,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Tournament Team Management | [`TournamentTeamInvitationStatus`](../types/index.ts#L750), [`TournamentTeamInvitation`](../types/index.ts#L751), [`TournamentJoinRequestStatus`](../types/index.ts#L761), [`TournamentTeamJoinRequest`](../types/index.ts#L762) |
 | Tournament Prizes | [`TournamentPrize`](../types/index.ts#L773) |
 | Tournament Team with roster | [`TournamentTeamWithRoster`](../types/index.ts#L785) |
+| Google Places prediction | [`GooglePlacePrediction`](../types/index.ts#L799) |
 
 ### Constrained string values
 

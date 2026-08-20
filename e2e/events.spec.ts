@@ -23,6 +23,10 @@ import {
   MOCK_VENUE_NAME,
   MOCK_VENUE_REGION,
   MOCK_VENUE_COORDS,
+  MOCK_ADDRESS_PLACE_ID,
+  MOCK_ADDRESS_MAIN,
+  MOCK_ADDRESS_SAVED,
+  MOCK_ADDRESS_COORDS,
   mockPlacesProxy,
   unmockPlacesProxy,
   clearPlacesCache,
@@ -440,6 +444,61 @@ test.describe('Events', () => {
     expect(proxyCalls.map(c => c.action)).toEqual(['autocomplete', 'details'])
     expect(proxyCalls[0].input).toBe('Mock Volleyball')
     expect(proxyCalls[1].place_id).toBe(MOCK_PLACE_ID)
+    expect(proxyCalls[1].sessiontoken).toBe(proxyCalls[0].sessiontoken)
+
+    await unmockPlacesProxy(page)
+  })
+
+  // The proxy used to send `types=establishment`, which made street addresses
+  // impossible to return — "1100 Congress Ave" found nothing while "Gregory Gym"
+  // worked. This drives the address path end to end: that an address prediction
+  // is offered at all, and that it is saved with its city attached rather than
+  // as a bare, ambiguous street line.
+  test('a street-address result is offered and saved with its city', async ({ page }) => {
+    const feed = page.getByTestId('events-feed')
+    await feed.getByText(TOURNAMENT_EVENT).first().click()
+    await page.waitForURL(/\/event\//, { timeout: 20_000 })
+    const eventUrl = page.url()
+
+    await page.getByTestId('event-edit-button').first().click()
+    await page.waitForURL(/\/host\?edit=/, { timeout: 20_000 })
+
+    const proxyCalls = await mockPlacesProxy(page)
+    await clearPlacesCache(page)
+
+    await page.getByTestId('location-picker-trigger').click()
+    const search = page.getByTestId('location-picker-input')
+    await expect(search).toBeVisible({ timeout: 15_000 })
+    await search.fill('1100 Congress')
+
+    // Both shapes come back from one query — a venue picker needs named places
+    // AND addresses, which is exactly what the removed `types` filter prevented.
+    await expect(page.getByTestId(`location-result-google-${MOCK_PLACE_ID}`)).toBeVisible({ timeout: 15_000 })
+    const address = page.getByTestId(`location-result-google-${MOCK_ADDRESS_PLACE_ID}`)
+    await expect(address).toBeVisible()
+    await expect(address).toContainText(MOCK_ADDRESS_MAIN)
+
+    await address.click()
+    await expect(search).toHaveCount(0, { timeout: 15_000 })
+
+    await page.getByText('Save changes', { exact: true }).click()
+    await expect(page.getByText('Event updated!')).toBeVisible({ timeout: 20_000 })
+    await page.getByText('Done', { exact: true }).click()
+    await page.waitForURL(eventUrl, { timeout: 20_000 })
+
+    // City attached, state and country left off — a bare "1100 Congress Ave"
+    // would be the regression this guards.
+    await expect(page.getByTestId('event-location-name')).toHaveText(MOCK_ADDRESS_SAVED, { timeout: 20_000 })
+
+    const stored = await readEventLocation(TOURNAMENT_EVENT)
+    expect(stored.location).toBe(MOCK_ADDRESS_SAVED)
+    expect(stored.location).not.toMatch(/TX|USA/)
+    expect(stored.latitude).toBeCloseTo(MOCK_ADDRESS_COORDS.lat, 4)
+    expect(stored.longitude).toBeCloseTo(MOCK_ADDRESS_COORDS.lng, 4)
+
+    // Still one session: the address details lookup reuses the autocomplete token.
+    expect(proxyCalls.map(c => c.action)).toEqual(['autocomplete', 'details'])
+    expect(proxyCalls[1].place_id).toBe(MOCK_ADDRESS_PLACE_ID)
     expect(proxyCalls[1].sessiontoken).toBe(proxyCalls[0].sessiontoken)
 
     await unmockPlacesProxy(page)

@@ -8,6 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../lib/supabase'
 import { theme } from '../constants'
 import { LOCATIONS } from '../constants/events'
+import { formatVenueDisplay } from '../utils'
+import type { GooglePlacePrediction } from '../types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -17,14 +19,7 @@ export type LocationValue = {
   longitude: number | null
 }
 
-type GooglePrediction = {
-  place_id: string
-  description: string
-  structured_formatting: {
-    main_text: string
-    secondary_text: string
-  }
-}
+type GooglePrediction = GooglePlacePrediction
 
 type Props = {
   value: LocationValue | null
@@ -170,21 +165,33 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
   const debounceRef               = useRef<ReturnType<typeof setTimeout> | null>(null)
   // One session token per modal open — groups all autocomplete + final details into one billing session
   const sessionTokenRef           = useRef<string>(newSessionToken())
+  // Monotonic id of the most recently *issued* search. A slower earlier request
+  // must not overwrite a newer one's results — the picker fires on a 600ms
+  // debounce over a live network, so responses can land out of order and leave
+  // the list showing predictions for a query the user already moved past.
+  const searchSeqRef              = useRef(0)
 
   // Debounced autocomplete
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (query.length < MIN_LEN) { setResults([]); return }
+    if (query.length < MIN_LEN) {
+      searchSeqRef.current += 1 // invalidate anything in flight
+      setResults([])
+      return
+    }
 
     debounceRef.current = setTimeout(async () => {
+      const seq = ++searchSeqRef.current
       setLoading(true)
       try {
         const data = await autocomplete(query, sessionTokenRef.current)
+        if (seq !== searchSeqRef.current) return // superseded — drop the stale response
         setResults(data)
       } catch {
+        if (seq !== searchSeqRef.current) return
         setResults([])
       } finally {
-        setLoading(false)
+        if (seq === searchSeqRef.current) setLoading(false)
       }
     }, DEBOUNCE_MS)
 
@@ -208,7 +215,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
     try {
       const coords = await getPlaceCoords(prediction.place_id, token)
       onChange({
-        display: prediction.structured_formatting.main_text,
+        display: formatVenueDisplay(prediction),
         latitude: coords?.lat ?? null,
         longitude: coords?.lng ?? null,
       })

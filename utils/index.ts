@@ -1,4 +1,4 @@
-import type { Profile, VolleyballPosition, VolleyballSkillLevel, EventAttendee, EventAttendeeCountEmbed } from '../types'
+import type { Profile, VolleyballPosition, VolleyballSkillLevel, EventAttendee, EventAttendeeCountEmbed, GooglePlacePrediction } from '../types'
 import { AVATARS_BUCKET, CLUB_AVATARS_BUCKET } from '../constants/storage'
 
 export { confirmDestructive } from './confirm'
@@ -491,4 +491,47 @@ export function diffTagIds(
     toAdd:    [...selectedSet].filter(id => !originalSet.has(id)),
     toRemove: [...originalSet].filter(id => !selectedSet.has(id)),
   }
+}
+
+// ─── Venue display name ───────────────────────────────────────────────────────
+
+/**
+ * How a selected Places prediction becomes the single `events.location` string.
+ *
+ * There is one column for the venue, so an address-type result has to carry its
+ * own locality or it saves as a bare, ambiguous street line ("1100 Congress Ave").
+ * A named establishment already reads unambiguously, so it keeps `main_text`
+ * alone — which is exactly what live events store today, so no existing venue
+ * changes appearance.
+ *
+ * This is the single switch for that decision: set it to 'main-text-only' to
+ * restore the previous behaviour for every result type. (Distinct from
+ * DISPLAY_NAME_FORMAT above, which governs member names.)
+ */
+export const VENUE_DISPLAY_FORMAT: 'main-text-only' | 'address-gets-locality' = 'address-gets-locality'
+
+/** Google marks named places with one of these; anything else is treated as an address. */
+const ESTABLISHMENT_TYPES = ['establishment', 'point_of_interest', 'premise']
+
+/**
+ * Build the venue string stored on the event.
+ *
+ * Only ever appends the locality (the first segment of `secondary_text`, i.e.
+ * the city — not the state or country, which would bloat every event card).
+ * Skips the append when `main_text` already ends with that locality, so
+ * "Austin Sports Center, Austin, TX" never becomes "… Austin, Austin".
+ */
+export function formatVenueDisplay(prediction: GooglePlacePrediction): string {
+  const main = prediction.structured_formatting.main_text?.trim() ?? ''
+  if (VENUE_DISPLAY_FORMAT === 'main-text-only') return main
+
+  const isEstablishment = (prediction.types ?? []).some(t => ESTABLISHMENT_TYPES.includes(t))
+  if (isEstablishment || !main) return main
+
+  const locality = (prediction.structured_formatting.secondary_text ?? '')
+    .split(',')[0]
+    .trim()
+  if (!locality) return main
+  if (main.toLowerCase().endsWith(locality.toLowerCase())) return main
+  return `${main}, ${locality}`
 }

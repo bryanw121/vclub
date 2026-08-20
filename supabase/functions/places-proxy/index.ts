@@ -38,12 +38,17 @@ Deno.serve(async (req) => {
     let url: string
 
     if (body.action === 'autocomplete' && body.input) {
+      // NOTE: `types` is deliberately omitted. The legacy Autocomplete API accepts
+      // exactly ONE type collection and they cannot be combined, so the previous
+      // `types: 'establishment'` made street addresses impossible to return —
+      // searching "1100 Congress Ave" found nothing while "Gregory Gym" worked.
+      // Omitting it returns establishments AND addresses, which is what a venue
+      // picker needs. Do not set it back to a single collection.
       const params = new URLSearchParams({
         input: body.input,
         location: LOCATION,
         radius: RADIUS,
         components: 'country:us',
-        types: 'establishment',
         sessiontoken: body.sessiontoken,
         key: GOOGLE_KEY,
       })
