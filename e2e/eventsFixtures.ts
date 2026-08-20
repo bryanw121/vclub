@@ -89,6 +89,32 @@ async function deleteE2eEvents(supabase: SupabaseClient, userId: string) {
   if (error) throw new Error(`Failed to clean e2e events: ${error.message}`)
 }
 
+/**
+ * Read a fixture's stored venue straight from the DB. The UI renders the venue
+ * name but never the coordinates, so this is the only way to prove that the
+ * lat/lng returned by a Places `details` lookup actually reached the row.
+ */
+export async function readEventLocation(title: string): Promise<{
+  location: string | null
+  latitude: number | null
+  longitude: number | null
+}> {
+  const { supabase, userId } = await signInE2eClient()
+  const { data, error } = await supabase
+    .from('events')
+    .select('location, latitude, longitude')
+    .eq('created_by', userId)
+    .eq('title', title)
+    .single()
+  await supabase.auth.signOut({ scope: 'local' })
+  if (error || !data) throw new Error(`Could not read location for "${title}": ${error?.message ?? 'not found'}`)
+  return {
+    location: data.location ?? null,
+    latitude: data.latitude ?? null,
+    longitude: data.longitude ?? null,
+  }
+}
+
 export async function seedEventFixtures(): Promise<void> {
   const { supabase, userId } = await signInE2eClient()
 

@@ -16,7 +16,17 @@ import {
   TOURNAMENT_EVENT,
   seedEventFixtures,
   cleanupEventFixtures,
+  readEventLocation,
 } from './eventsFixtures'
+import {
+  MOCK_PLACE_ID,
+  MOCK_VENUE_NAME,
+  MOCK_VENUE_REGION,
+  MOCK_VENUE_COORDS,
+  mockPlacesProxy,
+  unmockPlacesProxy,
+  clearPlacesCache,
+} from './placesMock'
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8081'
 
@@ -357,5 +367,81 @@ test.describe('Events', () => {
     await expect(titleField).toBeVisible()
     await expect(page.getByText('Event saved — tags not updated', { exact: true })).toHaveCount(0)
     await page.unroute('**/rest/v1/event_tags*')
+  })
+
+  // The venue picker is the app's only Google Places consumer, and every
+  // keystroke past three characters is billable quota — so this drives it
+  // against a mocked places-proxy instead of the live edge function. Nothing
+  // else in the suite opens the picker, so without this the whole
+  // search → select → persist path ships untested.
+  //
+  // Deliberately no restore step: this test runs last in the serial file and
+  // afterAll deletes the `[e2e]` fixtures outright, so leaving the mock venue
+  // on the row affects nothing. (The picker has no free-text entry either —
+  // restoring would mean clicking a "Recent" row that is only present if the
+  // account's five most recent venues still include E2E Gym.)
+  test('the venue picker writes a searched Google place onto the event', async ({ page }) => {
+    const feed = page.getByTestId('events-feed')
+    await feed.getByText(OPEN_PLAY_EVENT).first().click()
+    await page.waitForURL(/\/event\//, { timeout: 20_000 })
+    const eventUrl = page.url()
+
+    // Precondition: the fixture's seeded venue, with no coordinates.
+    await expect(page.getByTestId('event-location-name')).toHaveText('E2E Gym', { timeout: 20_000 })
+
+    await page.getByTestId('event-edit-button').first().click()
+    await page.waitForURL(/\/host\?edit=/, { timeout: 20_000 })
+
+    const proxyCalls = await mockPlacesProxy(page)
+    await clearPlacesCache(page)
+
+    const trigger = page.getByTestId('location-picker-trigger')
+    await expect(trigger).toContainText('E2E Gym', { timeout: 20_000 })
+    await trigger.click()
+
+    // Under MIN_LEN the component short-circuits before the network, so this
+    // first fill proves the debounce gate, not the mock.
+    const search = page.getByTestId('location-picker-input')
+    await expect(search).toBeVisible({ timeout: 15_000 })
+    await search.fill('Mo')
+    await page.waitForTimeout(1_000) // past the picker's 600ms debounce, so this isn't vacuous
+    await expect(page.getByTestId(`location-result-google-${MOCK_PLACE_ID}`)).toHaveCount(0)
+    expect(proxyCalls).toHaveLength(0)
+
+    // Past the gate: the mocked prediction renders with Google's structured
+    // main/secondary text split.
+    await search.fill('Mock Volleyball')
+    const prediction = page.getByTestId(`location-result-google-${MOCK_PLACE_ID}`)
+    await expect(prediction).toBeVisible({ timeout: 15_000 })
+    await expect(prediction).toContainText(MOCK_VENUE_NAME)
+    await expect(prediction).toContainText(MOCK_VENUE_REGION)
+
+    // Selecting closes the sheet and fires the details lookup for coordinates.
+    await prediction.click()
+    await expect(search).toHaveCount(0, { timeout: 15_000 })
+    await expect(trigger).toContainText(MOCK_VENUE_NAME, { timeout: 15_000 })
+
+    await page.getByText('Save changes', { exact: true }).click()
+    await expect(page.getByText('Event updated!')).toBeVisible({ timeout: 20_000 })
+    await page.getByText('Done', { exact: true }).click()
+    await page.waitForURL(eventUrl, { timeout: 20_000 })
+
+    await expect(page.getByTestId('event-location-name')).toHaveText(MOCK_VENUE_NAME, { timeout: 20_000 })
+
+    // The UI never renders coordinates, so read the row back: this is what
+    // proves the `details` response reached the database and not just the form.
+    const stored = await readEventLocation(OPEN_PLAY_EVENT)
+    expect(stored.location).toBe(MOCK_VENUE_NAME)
+    expect(stored.latitude).toBeCloseTo(MOCK_VENUE_COORDS.lat, 4)
+    expect(stored.longitude).toBeCloseTo(MOCK_VENUE_COORDS.lng, 4)
+
+    // Exactly one autocomplete and one details call, sharing a session token —
+    // that pairing is what keeps Places billing to a single session per open.
+    expect(proxyCalls.map(c => c.action)).toEqual(['autocomplete', 'details'])
+    expect(proxyCalls[0].input).toBe('Mock Volleyball')
+    expect(proxyCalls[1].place_id).toBe(MOCK_PLACE_ID)
+    expect(proxyCalls[1].sessiontoken).toBe(proxyCalls[0].sessiontoken)
+
+    await unmockPlacesProxy(page)
   })
 })

@@ -325,7 +325,7 @@ export function DetailsTab({
                   <Ionicons name="location-outline" size={18} color={theme.colors.primary} />
                 </View>
                 <View style={{ flex: 1, paddingTop: 2 }}>
-                  <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
+                  <Text testID="event-location-name" style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
                     {venue ? venue.label : event.location}
                   </Text>
                   {address && (

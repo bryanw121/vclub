@@ -113,15 +113,17 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 function ResultRow({
-  icon, title, subtitle, onPress,
+  icon, title, subtitle, onPress, testID,
 }: {
   icon: React.ComponentProps<typeof Ionicons>['name']
   title: string
   subtitle?: string
   onPress: () => void
+  testID?: string
 }) {
   return (
     <TouchableOpacity
+      testID={testID}
       onPress={onPress}
       activeOpacity={0.7}
       style={{
@@ -234,7 +236,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
   return (
     <>
       {/* ── Trigger ── */}
-      <TouchableOpacity onPress={openSheet} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+      <TouchableOpacity testID="location-picker-trigger" onPress={openSheet} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
         <Ionicons
           name="location-outline"
           size={16}
@@ -281,6 +283,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
             }}>
               <Ionicons name="search-outline" size={16} color={theme.colors.subtext} />
               <TextInput
+                testID="location-picker-input"
                 autoFocus
                 value={query}
                 onChangeText={setQuery}
@@ -320,6 +323,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
                 {recentVenues.map((v, i) => (
                   <ResultRow
                     key={i}
+                    testID={`location-result-recent-${v.display}`}
                     icon="time-outline"
                     title={v.display}
                     onPress={() => selectDirect(v)}
@@ -335,6 +339,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
                 {filteredCommon.map(loc => (
                   <ResultRow
                     key={loc.id}
+                    testID={`location-result-common-${loc.id}`}
                     icon="business-outline"
                     title={loc.label}
                     subtitle={loc.address}
@@ -351,6 +356,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
                 {results.map(p => (
                   <ResultRow
                     key={p.place_id}
+                    testID={`location-result-google-${p.place_id}`}
                     icon="location-outline"
                     title={p.structured_formatting.main_text}
                     subtitle={p.structured_formatting.secondary_text}
