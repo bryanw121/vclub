@@ -8,6 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../lib/supabase'
 import { theme } from '../constants'
 import { LOCATIONS } from '../constants/events'
+import { formatVenueDisplay } from '../utils'
+import type { GooglePlacePrediction } from '../types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -17,14 +19,7 @@ export type LocationValue = {
   longitude: number | null
 }
 
-type GooglePrediction = {
-  place_id: string
-  description: string
-  structured_formatting: {
-    main_text: string
-    secondary_text: string
-  }
-}
+type GooglePrediction = GooglePlacePrediction
 
 type Props = {
   value: LocationValue | null
@@ -113,15 +108,17 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 function ResultRow({
-  icon, title, subtitle, onPress,
+  icon, title, subtitle, onPress, testID,
 }: {
   icon: React.ComponentProps<typeof Ionicons>['name']
   title: string
   subtitle?: string
   onPress: () => void
+  testID?: string
 }) {
   return (
     <TouchableOpacity
+      testID={testID}
       onPress={onPress}
       activeOpacity={0.7}
       style={{
@@ -168,21 +165,33 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
   const debounceRef               = useRef<ReturnType<typeof setTimeout> | null>(null)
   // One session token per modal open — groups all autocomplete + final details into one billing session
   const sessionTokenRef           = useRef<string>(newSessionToken())
+  // Monotonic id of the most recently *issued* search. A slower earlier request
+  // must not overwrite a newer one's results — the picker fires on a 600ms
+  // debounce over a live network, so responses can land out of order and leave
+  // the list showing predictions for a query the user already moved past.
+  const searchSeqRef              = useRef(0)
 
   // Debounced autocomplete
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (query.length < MIN_LEN) { setResults([]); return }
+    if (query.length < MIN_LEN) {
+      searchSeqRef.current += 1 // invalidate anything in flight
+      setResults([])
+      return
+    }
 
     debounceRef.current = setTimeout(async () => {
+      const seq = ++searchSeqRef.current
       setLoading(true)
       try {
         const data = await autocomplete(query, sessionTokenRef.current)
+        if (seq !== searchSeqRef.current) return // superseded — drop the stale response
         setResults(data)
       } catch {
+        if (seq !== searchSeqRef.current) return
         setResults([])
       } finally {
-        setLoading(false)
+        if (seq === searchSeqRef.current) setLoading(false)
       }
     }, DEBOUNCE_MS)
 
@@ -206,7 +215,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
     try {
       const coords = await getPlaceCoords(prediction.place_id, token)
       onChange({
-        display: prediction.structured_formatting.main_text,
+        display: formatVenueDisplay(prediction),
         latitude: coords?.lat ?? null,
         longitude: coords?.lng ?? null,
       })
@@ -234,7 +243,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
   return (
     <>
       {/* ── Trigger ── */}
-      <TouchableOpacity onPress={openSheet} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+      <TouchableOpacity testID="location-picker-trigger" onPress={openSheet} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
         <Ionicons
           name="location-outline"
           size={16}
@@ -281,6 +290,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
             }}>
               <Ionicons name="search-outline" size={16} color={theme.colors.subtext} />
               <TextInput
+                testID="location-picker-input"
                 autoFocus
                 value={query}
                 onChangeText={setQuery}
@@ -320,6 +330,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
                 {recentVenues.map((v, i) => (
                   <ResultRow
                     key={i}
+                    testID={`location-result-recent-${v.display}`}
                     icon="time-outline"
                     title={v.display}
                     onPress={() => selectDirect(v)}
@@ -335,6 +346,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
                 {filteredCommon.map(loc => (
                   <ResultRow
                     key={loc.id}
+                    testID={`location-result-common-${loc.id}`}
                     icon="business-outline"
                     title={loc.label}
                     subtitle={loc.address}
@@ -351,6 +363,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
                 {results.map(p => (
                   <ResultRow
                     key={p.place_id}
+                    testID={`location-result-google-${p.place_id}`}
                     icon="location-outline"
                     title={p.structured_formatting.main_text}
                     subtitle={p.structured_formatting.secondary_text}

@@ -789,3 +789,20 @@ export type TournamentTeamWithRoster = TournamentTeam & {
   join_requests?: TournamentTeamJoinRequest[]
   invitations?: TournamentTeamInvitation[]
 }
+
+// ─── Google Places prediction ─────────────────────────────────────────────────
+
+/**
+ * One autocomplete prediction as returned by the Places proxy. Only the fields
+ * the venue picker actually reads are declared.
+ */
+export type GooglePlacePrediction = {
+  place_id: string
+  description: string
+  /** Google's classification, e.g. ['establishment', …] or ['street_address', 'geocode']. */
+  types?: string[]
+  structured_formatting: {
+    main_text: string
+    secondary_text: string
+  }
+}
