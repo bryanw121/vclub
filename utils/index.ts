@@ -510,8 +510,18 @@ export function diffTagIds(
  */
 export const VENUE_DISPLAY_FORMAT: 'main-text-only' | 'address-gets-locality' = 'address-gets-locality'
 
-/** Google marks named places with one of these; anything else is treated as an address. */
-const ESTABLISHMENT_TYPES = ['establishment', 'point_of_interest', 'premise']
+/**
+ * Google marks named places with one of these; anything else is treated as an
+ * address.
+ *
+ * `premise` is deliberately NOT here. It reads like "a named building", but
+ * Google returns `['geocode', 'premise']` for ordinary street addresses — a
+ * live call for "1100 Congress Ave" comes back exactly that way. Treating
+ * `premise` as an establishment therefore suppressed the locality on the most
+ * common address shape of all, which is the whole case this function exists
+ * for. Verified against the deployed proxy, not assumed.
+ */
+const ESTABLISHMENT_TYPES = ['establishment', 'point_of_interest']
 
 /**
  * Build the venue string stored on the event.

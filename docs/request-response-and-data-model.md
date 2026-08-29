@@ -434,7 +434,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Contract source fingerprint: `2251f2a76c9c`
+> Contract source fingerprint: `7b9e501a1744`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
