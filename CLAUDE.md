@@ -156,6 +156,9 @@ Nobody has to sign in to look around. Guests see Events, Clubs, event pages, clu
 - Account-only routes are listed in `utils/authGate.ts` (`isProtectedPath`); the root layout bounces guests on those to login. Add new account-only routes there.
 - RLS: anything a guest screen reads must have a SELECT policy for `anon` (events, attendees, profiles, clubs, tags already do).
 
+### Sessions from other Austin venues (Volley ATX)
+`external_sessions` holds sessions other venues and groups run (Volleyworld, ACES, ATX Beach, Reclub meets...). The Volley ATX repo (`bryanw121/volleyball-atx`, `scripts/sync-vclub.mjs`) upserts it after each nightly scrape with the service role; vclub only reads it (anon SELECT policy). `useMonthEvents` fetches it with events/tournaments and `utils/feedItems.ts` normalizes rows into `EventWithDetails` with `_external` set; the feed renders those with `ExternalSessionCard`, which links out to the venue's sign-up (no RSVP). They show under All and the "Around Austin" chip, never under Mine or Not Full.
+
 ### Login accepts email or username
 If the login field doesn't look like an email, `login.tsx` queries `profiles` for that username, calls the `get_email_by_user_id` RPC, then signs in with the resolved email.
 

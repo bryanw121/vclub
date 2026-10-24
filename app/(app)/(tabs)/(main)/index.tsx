@@ -6,6 +6,7 @@ import { useMonthEvents } from '../../../../hooks/useMonthEvents'
 import { useNotifications } from '../../../../hooks/useNotifications'
 import { EventCard, RowEventCard, type EventCardRsvpHandler } from '../../../../components/EventCard'
 import { MyEventsRail } from '../../../../components/MyEventsRail'
+import { ExternalSessionCard } from '../../../../components/ExternalSessionCard'
 import { myStatusFor, useMyUpcomingEvents } from '../../../../hooks/useMyUpcomingEvents'
 import { NotificationPopup } from '../../../../components/NotificationPopup'
 import { shared, theme } from '../../../../constants'
@@ -43,7 +44,7 @@ function idxForMonth(month: string): number {
   return MONTH_CENTER + (y - ry) * 12 + (m - rm)
 }
 
-type FilterChip = 'mine' | 'all' | 'open_play' | 'tournament' | 'not_full'
+type FilterChip = 'mine' | 'all' | 'open_play' | 'tournament' | 'not_full' | 'austin'
 
 // "Mine" leads the row but is deliberately NOT the default filter — opening the
 // Events tab on an empty screen is the worst possible first run for a new member,
@@ -54,6 +55,8 @@ const FILTER_CHIPS: { id: FilterChip; label: string }[] = [
   { id: 'open_play',  label: 'Open Play'  },
   { id: 'tournament', label: 'Tournament' },
   { id: 'not_full',   label: 'Not Full'   },
+  // Sessions other Austin venues run (Volley ATX data) — also included in All.
+  { id: 'austin',     label: 'Around Austin' },
 ]
 
 type DateSection = { date: string; data: EventWithDetails[] }
@@ -190,11 +193,14 @@ export default function EventsScreen() {
   const sections: DateSection[] = useMemo(() => {
     const filtered = events.filter(event => {
       if (activeFilter === 'all') return true
+      if (activeFilter === 'austin') return !!event._external
       if (activeFilter === 'mine') return !!currentUserId && myStatusFor(event, currentUserId) !== null
       const tags = event.event_tags?.map(et => et.tags.name.toLowerCase()) ?? []
       if (activeFilter === 'open_play')  return tags.some(t => t.includes('open play') || t.includes('open-play'))
       if (activeFilter === 'tournament') return tags.some(t => t.includes('tournament'))
       if (activeFilter === 'not_full') {
+        // Capacity at other venues is unknown, so they can't be called "not full".
+        if (event._external) return false
         if (!event.max_attendees) return true
         const count = event.event_attendees_attending?.[0]
           ? Number(event.event_attendees_attending[0].count)
@@ -305,6 +311,8 @@ export default function EventsScreen() {
 
   // Flatten all events from sections for desktop grid layout
   const allEvents = useMemo(() => sections.flatMap(s => s.data), [sections])
+  // "Next up" links to an event page, so it skips sessions at other venues.
+  const nextClubEvent = useMemo(() => allEvents.find(e => !e._external), [allEvents])
 
   // ── Desktop layout ────────────────────────────────────────────────────────
   if (!isMobile) {
@@ -413,11 +421,11 @@ export default function EventsScreen() {
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                       {monthEvents.map(item => (
                         <View key={item.id} style={{ width: 'calc(50% - 5px)' as any }}>
-                          <RowEventCard
+                          {item._external ? <ExternalSessionCard session={item._external} /> : <RowEventCard
                             event={item}
                             currentUserId={currentUserId}
                             onRsvp={item._isTournament ? undefined : handleRsvp}
-                          />
+                          />}
                         </View>
                       ))}
                     </View>
@@ -462,13 +470,13 @@ export default function EventsScreen() {
             </View>
 
             {/* Your next event */}
-            {allEvents[0] && (
+            {nextClubEvent && (
               <>
                 <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, fontWeight: '700', letterSpacing: 1, color: theme.colors.subtext, textTransform: 'uppercase', marginBottom: 10 }}>
                   Next up
                 </Text>
                 <TouchableOpacity
-                  onPress={() => router.push(`/event/${allEvents[0].id}` as any)}
+                  onPress={() => router.push(`/event/${nextClubEvent.id}` as any)}
                   activeOpacity={0.85}
                   style={{ backgroundColor: theme.colors.primary, borderRadius: 16, padding: 14, marginBottom: 6 }}
                 >
@@ -478,11 +486,11 @@ export default function EventsScreen() {
                     </View>
                   </View>
                   <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 17, letterSpacing: -0.3, color: '#fff', marginBottom: 4 }} numberOfLines={1}>
-                    {allEvents[0].title}
+                    {nextClubEvent.title}
                   </Text>
-                  {allEvents[0].location && (
+                  {nextClubEvent.location && (
                     <Text style={{ fontFamily: theme.fonts.body, fontSize: 11.5, color: 'rgba(255,255,255,0.7)' }} numberOfLines={1}>
-                      {allEvents[0].location}
+                      {nextClubEvent.location}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -626,11 +634,15 @@ export default function EventsScreen() {
 
         const renderEvent = (item: EventWithDetails) => (
           <View style={{ paddingHorizontal: theme.spacing.lg }}>
-            <EventCard
-              event={item}
-              currentUserId={currentUserId}
-              onRsvp={item._isTournament ? undefined : handleRsvp}
-            />
+            {item._external ? (
+              <ExternalSessionCard session={item._external} />
+            ) : (
+              <EventCard
+                event={item}
+                currentUserId={currentUserId}
+                onRsvp={item._isTournament ? undefined : handleRsvp}
+              />
+            )}
           </View>
         )
 

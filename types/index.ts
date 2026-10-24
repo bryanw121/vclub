@@ -288,6 +288,27 @@ export type EventWithDetails = Event & {
   my_attendance?: Array<{ user_id: string; status?: EventAttendee['status'] }>
   /** Set to true for items normalized from the tournaments table. Cards use this to navigate to /tournament/[id] instead of /event/[id]. */
   _isTournament?: boolean
+  /** Set for sessions run elsewhere in Austin (Volley ATX data). Rendered by ExternalSessionCard, which links out to the venue's sign-up. */
+  _external?: ExternalSession
+}
+
+/** Row of `external_sessions`: a session another Austin venue or group runs, synced nightly from Volley ATX. */
+export type ExternalSession = {
+  id: string
+  source_id: string
+  title: string
+  venue: string
+  city: string | null
+  surface: 'indoor' | 'sand' | 'grass' | null
+  session_type: string | null
+  level: string | null
+  price: string | null
+  starts_at: string
+  ends_at: string | null
+  signup_url: string | null
+  signup_label: string | null
+  note: string | null
+  verified_at: string | null
 }
 
 // ─── Form Types ───────────────────────────────────────────────────────────────

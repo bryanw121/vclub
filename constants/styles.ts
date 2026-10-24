@@ -219,6 +219,75 @@ export const shared = StyleSheet.create({
   },
 
   // ─── Update required screen ───────────────────────────────────────────────
+  // ── External session card (Volley ATX sessions in the Events feed) ─────────
+  externalCard: {
+    backgroundColor: theme.colors.card,
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: theme.spacing.sm,
+    flexDirection: 'row',
+    gap: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderStyle: 'dashed',
+  },
+  externalDateBlock: {
+    width: 56,
+    flexShrink: 0,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  externalDay: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 10,
+    letterSpacing: 1,
+  },
+  externalDate: {
+    fontFamily: theme.fonts.display,
+    fontSize: 28,
+    lineHeight: 30,
+    letterSpacing: -1.2,
+  },
+  externalBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  externalKicker: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: theme.font.size.xs,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: theme.colors.subtext,
+  },
+  externalTitle: {
+    fontFamily: theme.fonts.displaySemiBold,
+    fontSize: theme.font.size.lg,
+    color: theme.colors.text,
+  },
+  externalMeta: {
+    fontFamily: theme.fonts.body,
+    fontSize: theme.font.size.sm,
+    color: theme.colors.subtext,
+  },
+  externalSignup: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: theme.spacing.xs,
+    minHeight: 32,
+    paddingHorizontal: theme.spacing.sm + 2,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.primarySoft,
+  },
+  externalSignupLabel: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: theme.font.size.sm,
+    color: theme.colors.text,
+  },
   // ── Guest mode (SignInPrompt, SignInButton) ──────────────────────────────
   signInPromptContainer: {
     flex: 1,
