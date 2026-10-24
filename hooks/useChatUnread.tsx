@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { DeviceEventEmitter } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { useSession } from '../contexts/session'
@@ -24,10 +24,10 @@ const INITIAL_DELAY_MS = 1500
 export function ChatUnreadProvider({ children }: { children: React.ReactNode }) {
   const { userId } = useSession()
   const [count, setCount] = useState(0)
-  const mountedRef = useRef(true)
 
-  const recompute = useCallback(async () => {
-    if (!userId || !mountedRef.current) return
+  /** `isCurrent` lets a result that lands after sign-out / user switch be dropped. */
+  const recompute = useCallback(async (isCurrent: () => boolean) => {
+    if (!userId || !isCurrent()) return
 
     const [{ data: convData, error: convErr }, { data: silenceData, error: silenceErr }] = await Promise.all([
       supabase.rpc('get_my_conversations'),
@@ -44,24 +44,25 @@ export function ChatUnreadProvider({ children }: { children: React.ReactNode }) 
       if (r.type === 'dm' && r.other_user_id && silenced.has(r.other_user_id)) continue
       total += Number(r.unread_count ?? 0)
     }
-    if (mountedRef.current) setCount(total)
+    if (isCurrent()) setCount(total)
   }, [userId])
 
   useEffect(() => {
-    mountedRef.current = true
     // Guests have no conversations; signing out clears the badge.
     if (!userId) {
       setCount(0)
       return
     }
-    const initialTimer = setTimeout(() => { void recompute() }, INITIAL_DELAY_MS)
+    let cancelled = false
+    const isCurrent = () => !cancelled
+    const initialTimer = setTimeout(() => { void recompute(isCurrent) }, INITIAL_DELAY_MS)
 
     let recomputeTimer: ReturnType<typeof setTimeout> | null = null
     const scheduleRecompute = () => {
       if (recomputeTimer) clearTimeout(recomputeTimer)
       recomputeTimer = setTimeout(() => {
         recomputeTimer = null
-        void recompute()
+        void recompute(isCurrent)
       }, 450)
     }
 
@@ -82,7 +83,7 @@ export function ChatUnreadProvider({ children }: { children: React.ReactNode }) 
     })
 
     return () => {
-      mountedRef.current = false
+      cancelled = true
       clearTimeout(initialTimer)
       silencesSub.remove()
       if (recomputeTimer) clearTimeout(recomputeTimer)

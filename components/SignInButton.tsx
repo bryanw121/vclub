@@ -1,13 +1,13 @@
 import { Text, TouchableOpacity } from 'react-native'
-import { useRouter } from 'expo-router'
 import { shared } from '../constants'
+import { useGoToSignIn } from '../hooks/useRequireSignIn'
 
 /** Top-right header action for guests; takes the place of the notifications bell. */
 export function SignInButton() {
-  const router = useRouter()
+  const goToSignIn = useGoToSignIn()
   return (
     <TouchableOpacity
-      onPress={() => router.push('/(auth)/login' as any)}
+      onPress={() => goToSignIn('login')}
       style={shared.signInButton}
       accessibilityRole="button"
       accessibilityLabel="Sign in or sign up"

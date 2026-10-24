@@ -172,11 +172,15 @@ export default function ClubsScreen() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
-  const { isGuest } = useSession()
+  const { isGuest, userId: sessionUserId } = useSession()
   const requireSignIn = useRequireSignIn()
   const [fetchError, setFetchError] = useState<string | null>(null)
-  // Guests have no joined clubs, so start them on Popular.
-  const [filter, setFilter] = useState<ClubFilter>(isGuest ? 'popular' : 'joined')
+  const [filter, setFilter] = useState<ClubFilter>('joined')
+  // Guests have no joined clubs, so show them Popular. An effect, not the initial
+  // state: on a direct load the screen can mount before the session has loaded.
+  useEffect(() => {
+    if (isGuest) setFilter(f => (f === 'joined' ? 'popular' : f))
+  }, [isGuest])
   const [searchQuery, setSearchQuery] = useState('')
   const hasFetched = useRef(false)
 
@@ -214,6 +218,14 @@ export default function ClubsScreen() {
     if (!isActive) return
     void fetchClubs()
   }, [isActive, fetchClubs])
+
+  // Membership flags depend on who is signed in; refetch when that changes.
+  const clubsUserRef = useRef(sessionUserId)
+  useEffect(() => {
+    if (clubsUserRef.current === sessionUserId) return
+    clubsUserRef.current = sessionUserId
+    if (hasFetched.current) void fetchClubs()
+  }, [sessionUserId, fetchClubs])
 
   // Refetch when returning to the main shell while already on Clubs.
   useFocusEffect(useCallback(() => {

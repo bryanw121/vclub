@@ -31,6 +31,8 @@ export function useMonthEvents() {
   const cacheRef = useRef<Record<string, MonthEntry>>({})
   /** One promise per month so callers (e.g. pull-to-refresh) can await in-flight loads */
   const pendingByMonth = useRef<Record<string, Promise<void>>>({})
+  /** Last known avatar previews per event. Outlives cache invalidation so a refresh keeps avatars on screen until the new ones land. */
+  const previewsRef = useRef<Map<string, EventWithDetails['attendee_previews']>>(new Map())
   const [loadingMonths, setLoadingMonths] = useState<Set<string>>(new Set())
   const [tick, setTick] = useState(0)
   const [reachedEnd, setReachedEnd] = useState(false)
@@ -133,15 +135,11 @@ export function useMonthEvents() {
         if (eventsError) return
 
         // Paint the feed as soon as the events arrive; avatar previews follow in a
-        // second round trip. Until they land, keep any previews already cached for
-        // the same event so a refresh doesn't make avatars flicker out and back.
-        const previousPreviews = new Map<string, EventWithDetails['attendee_previews']>()
-        for (const month of span) {
-          for (const e of cacheRef.current[month]?.events ?? []) previousPreviews.set(e.id, e.attendee_previews)
-        }
+        // second round trip. Until they land, show the last previews we had for
+        // each event so a refresh doesn't make avatars flicker out and back.
         const regularEvents = withEventCardPreviews(
           (eventsData ?? []) as unknown as EventWithDetails[],
-          previousPreviews,
+          previewsRef.current,
         )
         const combined = [
           ...regularEvents,
@@ -160,6 +158,7 @@ export function useMonthEvents() {
         clearLoading()
 
         const previews = await fetchEventCardPreviews(regularEvents.map(e => e.id))
+        for (const e of regularEvents) previewsRef.current.set(e.id, previews.get(e.id) ?? [])
         let changed = false
         for (const month of span) {
           const entry = cacheRef.current[month]

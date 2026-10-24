@@ -8,6 +8,7 @@ import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
 import { GoogleLogo } from '../../components/GoogleLogo'
 import { shared, theme } from '../../constants'
+import { takeGuestReturnPath } from '../../utils/authGate'
 
 export default function Register() {
   const router = useRouter()
@@ -219,7 +220,7 @@ export default function Register() {
         <TouchableOpacity style={shared.authLink} onPress={() => router.push('/(auth)/login')}>
           <Text style={shared.authLinkText}>already have an account? sign in</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={shared.authLink} onPress={() => router.replace('/(app)' as any)} testID="continue-as-guest">
+        <TouchableOpacity style={shared.authLink} onPress={() => router.replace(takeGuestReturnPath() as any)} testID="continue-as-guest">
           <Text style={shared.authLinkSubtle}>Keep browsing without an account</Text>
         </TouchableOpacity>
       </View>

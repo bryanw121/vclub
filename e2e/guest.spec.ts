@@ -27,4 +27,12 @@ test.describe('guest browsing', () => {
     await expect(page).toHaveURL(`${BASE_URL}/`, { timeout: 20_000 })
     await expect(page.getByTestId('filter-all').first()).toBeVisible({ timeout: 20_000 })
   })
+
+  test('signing in from a page and backing out returns to that page', async ({ page }) => {
+    await page.goto(`${BASE_URL}/clubs`)
+    await page.getByTestId('header-sign-in').first().click()
+    await expect(page).toHaveURL(/\/login/, { timeout: 20_000 })
+    await page.getByTestId('continue-as-guest').click()
+    await expect(page).toHaveURL(`${BASE_URL}/clubs`, { timeout: 20_000 })
+  })
 })

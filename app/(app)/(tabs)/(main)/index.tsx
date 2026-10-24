@@ -130,6 +130,16 @@ export default function EventsScreen() {
     }
   }, [eventsRefreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // RSVP state in the cached months belongs to whoever was signed in when they
+  // were fetched; reload when that changes (sign out, or another account).
+  const feedUserRef = useRef(currentUserId)
+  useEffect(() => {
+    if (feedUserRef.current === currentUserId) return
+    feedUserRef.current = currentUserId
+    invalidateAll()
+    visibleMonths.forEach(m => { void loadMonth(m, true) })
+  }, [currentUserId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Re-check staleness when the tab regains focus
   const webFocusCount = useRef(0)
   const visibleMonthsRef = useRef(visibleMonths)

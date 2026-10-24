@@ -123,13 +123,22 @@ function RootNavigator() {
   // Guests may browse; only account-only routes bounce to login. Signed-in users
   // leave the auth screens (except reset-password, where the recovery link
   // creates a session but the user still has to set a new password).
+  const prevUserIdRef = useRef<string | null | undefined>(undefined)
   useEffect(() => {
     if (loading) return
+    const justSignedOut = !!prevUserIdRef.current && !userId
+    prevUserIdRef.current = userId
     const inAuthGroup = segments[0] === '(auth)'
     const onResetPassword = (segments as string[])[1] === 'reset-password'
     if (!userId && !inAuthGroup && isProtectedPath(pathname)) {
-      setPostSignInRedirect(pathname)
-      router.replace('/(auth)/login')
+      if (justSignedOut) {
+        // Signing out happens on an account page; carry on browsing as a guest
+        // rather than parking the next sign-in on that page.
+        router.replace('/(app)')
+      } else {
+        setPostSignInRedirect(pathname)
+        router.replace('/(auth)/login')
+      }
     } else if (userId && inAuthGroup && !onResetPassword) {
       router.replace((takePostSignInRedirect() ?? '/(app)') as any)
     }

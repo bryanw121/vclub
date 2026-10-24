@@ -1,3 +1,5 @@
+import { Platform } from 'react-native'
+
 /**
  * Guest browsing rules.
  *
@@ -21,20 +23,45 @@ export function isProtectedPath(pathname: string): boolean {
 }
 
 /**
- * Where to return after signing in. Module-level on purpose: the login screen
- * and the root layout's redirect live in different trees, and this only ever
- * holds one path for the current app session.
+ * Where to return after signing in (or after "keep browsing"). Kept in memory,
+ * and mirrored to sessionStorage on web because Google/Apple sign-in there is a
+ * full-page redirect that would otherwise wipe it.
  */
+const STORAGE_KEY = 'vclub.postSignInRedirect'
+const AUTH_SCREENS = ['/(auth)', '/login', '/register', '/reset-password']
 let pendingRedirect: string | null = null
 
-const AUTH_SCREENS = ['/(auth)', '/login', '/register', '/reset-password']
+function webStorage(): Storage | null {
+  if (Platform.OS !== 'web') return null
+  try {
+    return typeof window !== 'undefined' ? window.sessionStorage : null
+  } catch {
+    return null
+  }
+}
 
 export function setPostSignInRedirect(path: string | null) {
   pendingRedirect = path && !AUTH_SCREENS.some(screen => path.startsWith(screen)) ? path : null
+  try {
+    const storage = webStorage()
+    if (pendingRedirect) storage?.setItem(STORAGE_KEY, pendingRedirect)
+    else storage?.removeItem(STORAGE_KEY)
+  } catch { /* storage blocked: memory copy still works */ }
 }
 
 export function takePostSignInRedirect(): string | null {
-  const path = pendingRedirect
+  let path = pendingRedirect
+  try {
+    const storage = webStorage()
+    path = path ?? storage?.getItem(STORAGE_KEY) ?? null
+    storage?.removeItem(STORAGE_KEY)
+  } catch { /* ignore */ }
   pendingRedirect = null
   return path
+}
+
+/** Where "Keep browsing without an account" goes: back where the guest was, unless that page needs an account. */
+export function takeGuestReturnPath(): string {
+  const path = takePostSignInRedirect()
+  return path && !isProtectedPath(path) ? path : '/'
 }

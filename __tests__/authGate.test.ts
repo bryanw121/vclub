@@ -1,4 +1,4 @@
-import { isProtectedPath, setPostSignInRedirect, takePostSignInRedirect } from '../utils/authGate'
+import { isProtectedPath, setPostSignInRedirect, takeGuestReturnPath, takePostSignInRedirect } from '../utils/authGate'
 
 describe('isProtectedPath', () => {
   it('lets guests browse events, clubs, event pages and profiles', () => {
@@ -33,5 +33,19 @@ describe('post sign-in redirect', () => {
     expect(takePostSignInRedirect()).toBeNull()
     setPostSignInRedirect('/register')
     expect(takePostSignInRedirect()).toBeNull()
+  })
+})
+
+describe('takeGuestReturnPath', () => {
+  it('returns to the page the guest came from', () => {
+    setPostSignInRedirect('/event/abc')
+    expect(takeGuestReturnPath()).toBe('/event/abc')
+  })
+  it('never sends a guest back to an account-only page', () => {
+    setPostSignInRedirect('/host')
+    expect(takeGuestReturnPath()).toBe('/')
+  })
+  it('defaults to Events', () => {
+    expect(takeGuestReturnPath()).toBe('/')
   })
 })
