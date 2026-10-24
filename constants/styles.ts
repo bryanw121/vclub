@@ -216,4 +216,32 @@ export const shared = StyleSheet.create({
     fontWeight: font.weight.medium,
     color: colors.text,
   },
+
+  // ─── Update required screen ───────────────────────────────────────────────
+  updateRequiredContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.xl,
+    backgroundColor: theme.colors.background,
+    gap: theme.spacing.sm,
+  },
+  updateRequiredTitle: {
+    fontFamily: theme.fonts.display,
+    fontSize: theme.font.size.xl,
+    color: theme.colors.text,
+    textAlign: 'center',
+  },
+  updateRequiredBody: {
+    fontFamily: theme.fonts.body,
+    fontSize: theme.font.size.md,
+    color: theme.colors.text,
+    textAlign: 'center',
+    maxWidth: 360,
+  },
+  updateRequiredVersion: {
+    fontFamily: theme.fonts.body,
+    fontSize: theme.font.size.sm,
+    color: theme.colors.subtext,
+  },
 })
