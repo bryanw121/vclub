@@ -26,6 +26,16 @@ begin
     raise notice 'pg_cron/pg_net not installed; schedule check-push-receipts manually';
     return;
   end if;
+  -- Without both secrets the job would just fail every 30 minutes; schedule it once they exist
+  -- by re-running this block.
+  if not exists (select 1 from pg_extension where extname = 'supabase_vault') then
+    raise notice 'Vault not installed; check-push-receipts not scheduled';
+    return;
+  end if;
+  if (select count(*) from vault.secrets where name in ('project_url', 'service_role_key')) < 2 then
+    raise notice 'Vault secrets project_url / service_role_key missing; check-push-receipts not scheduled yet';
+    return;
+  end if;
 
   perform cron.unschedule(jobid) from cron.job where jobname = 'vclub-check-push-receipts';
   perform cron.schedule(
