@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { getSessionUser } from '../lib/sessionUser'
 import type { ConversationRow } from '../types'
 
 const REFETCH_DEBOUNCE_MS = 450
@@ -13,7 +14,7 @@ export function useConversations(enabled = true) {
 
   const fetch = useCallback(async () => {
     if (!enabled) return
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user || !mountedRef.current) return
     const { data } = await supabase.rpc('get_my_conversations')
     if (mountedRef.current) {

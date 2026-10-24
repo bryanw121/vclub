@@ -14,10 +14,11 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter'
 import { LinearGradient } from 'expo-linear-gradient'
-import { Stack, useRouter, useSegments } from 'expo-router'
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
-import { useAuth } from '../hooks/useAuth'
+import { SessionProvider, useSession } from '../contexts/session'
+import { isProtectedPath, setPostSignInRedirect, takePostSignInRedirect } from '../utils/authGate'
 import { supabase } from '../lib/supabase'
 import { theme } from '../constants'
 import { initSentry, Sentry } from '../lib/sentry'
@@ -48,7 +49,8 @@ async function prefetchUserAvatar() {
   } catch {}
 }
 
-const SPLASH_DURATION_MS = 1800
+/** Fade-out only — the splash stays up exactly as long as fonts + auth take to load. */
+const SPLASH_FADE_MS = 200
 
 function AppSplash({ opacity }: { opacity: Animated.Value }) {
   return (
@@ -69,6 +71,14 @@ function AppSplash({ opacity }: { opacity: Animated.Value }) {
 }
 
 function RootLayout() {
+  return (
+    <SessionProvider>
+      <RootNavigator />
+    </SessionProvider>
+  )
+}
+
+function RootNavigator() {
   const [fontsLoaded] = useFonts({
     SpaceGrotesk_400Regular,
     SpaceGrotesk_500Medium,
@@ -80,72 +90,50 @@ function RootLayout() {
     Inter_700Bold,
   })
 
-  const { session, loading } = useAuth()
+  const { userId, loading } = useSession()
   const updateRequirement = useMinVersion()
   const router = useRouter()
   const segments = useSegments()
+  const pathname = usePathname()
 
-  // splashVisible: true while the splash should be rendered (including fade-out)
+  const ready = fontsLoaded && !loading
   const [splashVisible, setSplashVisible] = useState(true)
   const splashOpacity = useRef(new Animated.Value(1)).current
-  const splashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Tracks the previous session state to detect null→non-null (login) transitions
-  const prevSessionRef = useRef<string | null | undefined>(undefined)
 
-  function dismissSplash() {
-    if (splashTimerRef.current) clearTimeout(splashTimerRef.current)
-    Animated.timing(splashOpacity, { toValue: 0, duration: 350, useNativeDriver: true }).start(() => {
-      setSplashVisible(false)
-      splashOpacity.setValue(1) // reset for potential re-use after login
-    })
-  }
-
+  // Data fetching starts as soon as the tree mounts (below the splash), so the
+  // splash only covers font + session restore. No fixed minimum duration.
   useEffect(() => {
-    if (loading || !fontsLoaded) return
+    if (!ready || !splashVisible) return
+    Animated.timing(splashOpacity, { toValue: 0, duration: SPLASH_FADE_MS, useNativeDriver: true })
+      .start(() => setSplashVisible(false))
+  }, [ready, splashVisible, splashOpacity])
 
-    const wasUnknown = prevSessionRef.current === undefined
-    const wasLoggedOut = prevSessionRef.current === null
-    const isLoggedIn = !!session
-    prevSessionRef.current = session?.user?.id ?? null
-
-    if (isLoggedIn && (wasUnknown || wasLoggedOut)) {
-      // Cold start with session, or just logged in — show splash for SPLASH_DURATION_MS
-      setSplashVisible(true)
-      splashOpacity.setValue(1)
-      if (splashTimerRef.current) clearTimeout(splashTimerRef.current)
-      void prefetchUserAvatar()
-      void registerPushToken()
-      splashTimerRef.current = setTimeout(dismissSplash, SPLASH_DURATION_MS)
-    } else if (!isLoggedIn && wasUnknown) {
-      // Cold start, not logged in — no splash needed
-      setSplashVisible(false)
-    }
-    // Token refreshes (wasLoggedIn → isLoggedIn): do nothing
-  }, [loading, session, fontsLoaded])
+  // Per-user setup whenever someone signs in (cold start with a session included).
+  useEffect(() => {
+    if (!userId) return
+    void prefetchUserAvatar()
+    void registerPushToken()
+  }, [userId])
 
   // Keep Sentry user context in sync with auth state
   useEffect(() => {
-    if (session?.user?.id) {
-      Sentry.setUser({ id: session.user.id })
-    } else {
-      Sentry.setUser(null)
-    }
-  }, [session])
+    Sentry.setUser(userId ? { id: userId } : null)
+  }, [userId])
 
-  // Navigate only after splash is gone
+  // Guests may browse; only account-only routes bounce to login. Signed-in users
+  // leave the auth screens (except reset-password, where the recovery link
+  // creates a session but the user still has to set a new password).
   useEffect(() => {
-    if (loading || splashVisible) return
+    if (loading) return
     const inAuthGroup = segments[0] === '(auth)'
-    // Don't redirect away from reset-password — the recovery token creates a session
-    // but the user still needs to set a new password before entering the app.
     const onResetPassword = (segments as string[])[1] === 'reset-password'
-    if (!session && !inAuthGroup) router.replace('/(auth)/login')
-    else if (session && inAuthGroup && !onResetPassword) router.replace('/(app)')
-  }, [session, loading, splashVisible])
-
-  // Mount the tree immediately so data fetching starts during font download +
-  // splash. Keep the splash covering the UI until fonts are ready to avoid FOUT.
-  const coverWithSplash = splashVisible || !fontsLoaded
+    if (!userId && !inAuthGroup && isProtectedPath(pathname)) {
+      setPostSignInRedirect(pathname)
+      router.replace('/(auth)/login')
+    } else if (userId && inAuthGroup && !onResetPassword) {
+      router.replace((takePostSignInRedirect() ?? '/(app)') as any)
+    }
+  }, [userId, loading, segments, pathname])
 
   return (
     <SentryErrorBoundary>
@@ -163,13 +151,13 @@ function RootLayout() {
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
       </Stack>
 
-      {updateRequirement && !coverWithSplash && (
+      {updateRequirement && !splashVisible && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
           <UpdateRequiredScreen requirement={updateRequirement} />
         </View>
       )}
 
-      {coverWithSplash && (
+      {splashVisible && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
           <AppSplash opacity={splashOpacity} />
         </View>

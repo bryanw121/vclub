@@ -10,25 +10,25 @@ type PreviewRow = {
   avatar_url: string | null
 }
 
+export type EventCardPreviews = Map<string, EventWithDetails['attendee_previews']>
+
 /**
- * Attach up to 3 attendee avatar previews per event via RPC (avoids unbounded
+ * Up to 3 attendee avatar previews per event via RPC (avoids unbounded
  * `event_attendees_attending → profiles` embeds on list queries).
+ * Returns an empty map on error — previews are decoration, never block a list.
  */
-export async function attachEventCardPreviews(
-  events: EventWithDetails[],
-): Promise<EventWithDetails[]> {
-  const ids = events.filter(e => !e._isTournament).map(e => e.id)
-  if (ids.length === 0) return events
+export async function fetchEventCardPreviews(eventIds: string[]): Promise<EventCardPreviews> {
+  const byEvent: EventCardPreviews = new Map()
+  if (eventIds.length === 0) return byEvent
 
   const { data, error } = await supabase.rpc('get_event_card_attendee_previews', {
-    p_event_ids: ids,
+    p_event_ids: eventIds,
   })
   if (error) {
-    console.error('[attachEventCardPreviews]', error.message)
-    return events.map(e => ({ ...e, attendee_previews: e.attendee_previews ?? [] }))
+    console.error('[fetchEventCardPreviews]', error.message)
+    return byEvent
   }
 
-  const byEvent = new Map<string, EventWithDetails['attendee_previews']>()
   for (const row of (data ?? []) as PreviewRow[]) {
     const list = byEvent.get(row.event_id) ?? []
     list.push({
@@ -43,9 +43,24 @@ export async function attachEventCardPreviews(
     })
     byEvent.set(row.event_id, list)
   }
+  return byEvent
+}
 
+/** Copy of `events` with `attendee_previews` filled from `previews` (tournaments get none). */
+export function withEventCardPreviews(
+  events: EventWithDetails[],
+  previews: EventCardPreviews,
+): EventWithDetails[] {
   return events.map(e => ({
     ...e,
-    attendee_previews: e._isTournament ? [] : (byEvent.get(e.id) ?? []),
+    attendee_previews: e._isTournament ? [] : (previews.get(e.id) ?? e.attendee_previews ?? []),
   }))
+}
+
+/** Fetch + attach in one step, for screens that render after both are ready. */
+export async function attachEventCardPreviews(
+  events: EventWithDetails[],
+): Promise<EventWithDetails[]> {
+  const previews = await fetchEventCardPreviews(events.filter(e => !e._isTournament).map(e => e.id))
+  return withEventCardPreviews(events, previews)
 }

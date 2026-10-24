@@ -822,3 +822,14 @@ export type UpdateRequirement = {
   storeUrl: string | null
   message: string | null
 }
+
+// ─── Session ───────────────────────────────────────────────────────────────────
+
+/** Read via `useSession()` from contexts/session. */
+export type SessionState = {
+  session: import('@supabase/supabase-js').Session | null
+  userId: string | null
+  /** True once auth has loaded and nobody is signed in. */
+  isGuest: boolean
+  loading: boolean
+}

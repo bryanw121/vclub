@@ -13,7 +13,9 @@ import { EventWithDetails, type Notification } from '../../../../types'
 import { useTabsShell } from '../../../../contexts/tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../../lib/supabase'
-import { getSessionUser } from '../../../../lib/sessionUser'
+import { useSession } from '../../../../contexts/session'
+import { useRequireSignIn } from '../../../../hooks/useRequireSignIn'
+import { SignInButton } from '../../../../components/SignInButton'
 import { addMonths as addMonthKey } from '../../../../utils/monthKeys'
 import { eventLocalDateKey, localDateKey } from '../../../../utils'
 
@@ -78,21 +80,21 @@ export default function EventsScreen() {
   const [curWeekPage, setCurWeekPage] = useState(WEEK_CENTER)
   const [curMonthPage, setCurMonthPage] = useState(MONTH_CENTER)
   const [eventsPullRefreshing, setEventsPullRefreshing] = useState(false)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-
-  useEffect(() => {
-    getSessionUser().then(user => setCurrentUserId(user?.id ?? null))
-  }, [])
+  const { userId: currentUserId, isGuest } = useSession()
+  const requireSignIn = useRequireSignIn()
 
   const handleRsvp: EventCardRsvpHandler = useCallback(async (eventId, action) => {
-    if (!currentUserId) return
+    if (!currentUserId) {
+      requireSignIn(`/event/${eventId}`)
+      return
+    }
     if (action === 'join') {
       await supabase.from('event_attendees').insert({ event_id: eventId, user_id: currentUserId })
     } else {
       await supabase.from('event_attendees').delete().eq('event_id', eventId).eq('user_id', currentUserId)
     }
     void invalidateAll()
-  }, [currentUserId, invalidateAll])
+  }, [currentUserId, invalidateAll, requireSignIn])
 
   // Derive which month(s) the calendar is currently showing
   const visibleMonths = useMemo((): string[] => {
@@ -295,6 +297,12 @@ export default function EventsScreen() {
     })
   }, [refetchNotifs])
 
+  // "Mine" means nothing without an account.
+  const visibleChips = useMemo(
+    () => (currentUserId ? FILTER_CHIPS : FILTER_CHIPS.filter(c => c.id !== 'mine')),
+    [currentUserId],
+  )
+
   // Flatten all events from sections for desktop grid layout
   const allEvents = useMemo(() => sections.flatMap(s => s.data), [sections])
 
@@ -327,6 +335,7 @@ export default function EventsScreen() {
                 {"Events"}<Text style={{ color: theme.colors.primary }}>.</Text>
               </Text>
             </View>
+            {isGuest ? <SignInButton /> : (
             <TouchableOpacity
               onPress={toggleNotifPanel}
               hitSlop={8}
@@ -339,11 +348,12 @@ export default function EventsScreen() {
                 )}
               </View>
             </TouchableOpacity>
+            )}
           </View>
 
           {/* Filter chips */}
           <View style={{ flexDirection: 'row', gap: 6, marginBottom: 18, flexWrap: 'wrap' }}>
-            {FILTER_CHIPS.map(chip => {
+            {visibleChips.map(chip => {
               const active = activeFilter === chip.id
               const badge = chip.id === 'mine' && myUpcoming.length > 0 ? myUpcoming.length : null
               return (
@@ -372,7 +382,7 @@ export default function EventsScreen() {
             <View style={{ alignItems: 'center', paddingTop: theme.spacing.xxl, gap: theme.spacing.sm }}>
               <Ionicons name="calendar-outline" size={36} color={theme.colors.border} />
               <Text style={shared.caption}>
-                {activeFilter === 'all' ? 'No upcoming events — create one!' : 'No events match this filter'}
+                {activeFilter !== 'all' ? 'No events match this filter' : isGuest ? 'No upcoming events yet' : 'No upcoming events — create one!'}
               </Text>
               {activeFilter !== 'all' && (
                 <TouchableOpacity onPress={() => setActiveFilter('all')}>
@@ -519,6 +529,7 @@ export default function EventsScreen() {
             </Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 8, paddingBottom: 4 }}>
+            {isGuest ? <SignInButton /> : (
             <TouchableOpacity
               onPress={toggleNotifPanel}
               hitSlop={8}
@@ -542,6 +553,7 @@ export default function EventsScreen() {
                 )}
               </View>
             </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -564,7 +576,7 @@ export default function EventsScreen() {
           contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.xs, paddingBottom: theme.spacing.sm, gap: theme.spacing.xs }}
           style={{ flexGrow: 0 }}
         >
-          {FILTER_CHIPS.map(chip => {
+          {visibleChips.map(chip => {
             const active = activeFilter === chip.id
             const badge = chip.id === 'mine' && myUpcoming.length > 0 ? myUpcoming.length : null
             return (
@@ -590,7 +602,7 @@ export default function EventsScreen() {
           <View style={{ alignItems: 'center', paddingTop: theme.spacing.xxl, gap: theme.spacing.sm }}>
             <Ionicons name="calendar-outline" size={36} color={theme.colors.border} />
             <Text style={shared.caption}>
-              {activeFilter === 'all' ? 'No upcoming events — create one!' : 'No events match this filter'}
+              {activeFilter !== 'all' ? 'No events match this filter' : isGuest ? 'No upcoming events yet' : 'No upcoming events — create one!'}
             </Text>
             {activeFilter !== 'all' && (
               <TouchableOpacity onPress={() => setActiveFilter('all')}>

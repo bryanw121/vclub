@@ -12,6 +12,7 @@ import { useChatUnread } from "../../../hooks/useChatUnread";
 import { useDocScrollMode } from "../../../hooks/useDocScrollMode";
 import { useIsNarrowWeb } from "../../../hooks/useIsNarrowWeb";
 import { shouldRefreshEventsOnFocus } from "../../../utils/monthKeys";
+import { useRequireSignIn } from "../../../hooks/useRequireSignIn";
 
 // Pager indices: 0=Events, 1=Clubs, 2=Chat, 3=Profile
 const MOBILE_NAV_TABS = [
@@ -104,11 +105,14 @@ export default function TabsLayout() {
     Animated.timing(fabAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => setFabOpen(false));
   }, [fabAnim]);
 
+  const requireSignIn = useRequireSignIn();
   const openFab = useCallback(() => {
+    // Hosting needs an account; guests go to sign-in and come back here.
+    if (!requireSignIn()) return;
     fabOpenRef.current = true;
     setFabOpen(true);
     Animated.spring(fabAnim, { toValue: 1, useNativeDriver: true, tension: 120, friction: 8 }).start();
-  }, [fabAnim]);
+  }, [fabAnim, requireSignIn]);
 
   const goToTab = useCallback((index: number) => {
     setActiveTabIndex(index);

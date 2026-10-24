@@ -7,6 +7,7 @@ import { useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
+import { getSessionUser } from '../../../lib/sessionUser'
 import { theme, shared } from '../../../constants'
 import { DatePickerField } from '../../../components/DatePickerField'
 import type { TournamentDraft, TournamentFormat, TournamentBracketType, Club } from '../../../types'
@@ -666,7 +667,7 @@ function validateStep(step: number, draft: TournamentDraft): string | null {
 // ─── Save helpers ─────────────────────────────────────────────────────────────
 
 async function saveTournament(draft: TournamentDraft, status: 'draft' | 'published'): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) throw new Error('Not authenticated')
 
   const { data: t, error: tErr } = await supabase
@@ -730,7 +731,7 @@ export default function TournamentCreateScreen() {
 
   useEffect(() => {
     async function loadClubs() {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getSessionUser()
       if (!user) return
       const { data } = await supabase
         .from('club_members')

@@ -35,8 +35,13 @@ export default defineConfig({
       retries: 0,
     },
     {
+      // No stored session: browsing as a guest.
+      name: 'guest',
+      testMatch: '**/guest.spec.ts',
+    },
+    {
       name: 'chromium',
-      testIgnore: ['**/*.setup.ts', '**/auth.verify.ts'],
+      testIgnore: ['**/*.setup.ts', '**/auth.verify.ts', '**/guest.spec.ts'],
       use: { storageState: AUTH_FILE },
       dependencies: ['auth-check'],
     },

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
+import { getSessionUser } from '../../../../lib/sessionUser'
 import { EventCard } from '../../../../components/EventCard'
 import { shared, theme, EVENT_CARD_LIST_SELECT_MINIMAL } from '../../../../constants'
 import type { EventWithDetails } from '../../../../types'
@@ -13,7 +14,7 @@ export default function ProfileHostedEventsScreen() {
   const [refreshing, setRefreshing] = useState(false)
 
   const loadHosted = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user) return
     const now = new Date().toISOString()
     const { data, error } = await supabase
@@ -30,7 +31,7 @@ export default function ProfileHostedEventsScreen() {
     void (async () => {
       setLoading(true)
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await getSessionUser()
         if (!user) return
         await loadHosted()
       } finally {

@@ -7,6 +7,7 @@ import { WebNavContext } from '../../contexts/webNav'
 import { SentryErrorBoundary } from '../../components/SentryErrorBoundary'
 import { ChatUnreadProvider, useChatUnread } from '../../hooks/useChatUnread'
 import { useIsNarrowWeb } from '../../hooks/useIsNarrowWeb'
+import { useRequireSignIn } from '../../hooks/useRequireSignIn'
 
 // Collect every badge image URL defined in code and prefetch them so the
 // badges screen renders instantly without a network loading flash.
@@ -75,12 +76,14 @@ function AppLayoutInner() {
   const [fabOpen, setFabOpen] = useState(false)
   const fabAnim = useRef(new Animated.Value(0)).current
   const isNarrowWeb = useIsNarrowWeb(SIDEBAR_BREAKPOINT)
+  const requireSignIn = useRequireSignIn()
 
   function goToTab(index: number) {
     router.replace(TABS[index].path as any)
   }
 
   function openFab() {
+    if (!requireSignIn()) return
     setFabOpen(true)
     Animated.spring(fabAnim, { toValue: 1, useNativeDriver: true, tension: 120, friction: 8 }).start()
   }

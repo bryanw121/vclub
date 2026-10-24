@@ -11,8 +11,9 @@ import ChatScreen from '../chat'
 
 const SIDEBAR_BREAKPOINT = 768
 const TAB_COUNT = 4
+const NEIGHBOR_PREFETCH_DELAY_MS = 2000
 
-/** Prefetch the next tab one tick after settling so the first swipe isn't empty. */
+/** Prefetch the next tab once the active one has settled so the first swipe isn't empty. */
 function prefetchNeighbor(active: number): number | null {
   if (active < TAB_COUNT - 1) return active + 1
   if (active > 0) return active - 1
@@ -46,9 +47,11 @@ export default function MainLayout() {
     // After the active tab settles, prefetch one neighbor for the next swipe.
     const neighbor = prefetchNeighbor(activeTabIndex)
     if (neighbor == null) return
+    // Long enough that the neighbor's queries don't compete with the active
+    // tab's first load (cold start is the Events feed).
     const t = setTimeout(() => {
       setMountedTabs(prev => nextMountedTabs(prev, neighbor))
-    }, 400)
+    }, NEIGHBOR_PREFETCH_DELAY_MS)
     return () => clearTimeout(t)
   }, [activeTabIndex])
 

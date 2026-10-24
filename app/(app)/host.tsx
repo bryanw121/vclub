@@ -3,6 +3,7 @@ import { ActivityIndicator, ScrollView, Text, TextInput, View, TouchableOpacity,
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '../../lib/supabase'
+import { getSessionUser } from '../../lib/sessionUser'
 import { Sentry } from '../../lib/sentry'
 import { bumpVersion, eventKey } from '../../lib/dataVersion'
 import { Button } from '../../components/Button'
@@ -159,7 +160,7 @@ export default function HostEventScreen() {
   useEffect(() => { void loadInitialData() }, [])
 
   async function loadInitialData() {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (user) setUserId(user.id)
 
     const [tagsRes, clubsRes] = await Promise.all([
@@ -231,7 +232,7 @@ export default function HostEventScreen() {
 
   async function fetchUserTemplates(opts?: { quiet?: boolean }) {
     if (!opts?.quiet) setTemplatesLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user) { if (!opts?.quiet) setTemplatesLoading(false); return }
     const { data } = await supabase
       .from('user_event_templates')
@@ -245,7 +246,7 @@ export default function HostEventScreen() {
   const refreshHostContext = useCallback(async () => {
     setHostPullRefreshing(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getSessionUser()
       if (user) setUserId(user.id)
       const [tagsRes, clubsRes] = await Promise.all([
         supabase.from('tags').select('id, name, category, display_order').order('display_order', { ascending: true }),
@@ -294,7 +295,7 @@ export default function HostEventScreen() {
     try {
       setLoading(true)
       setSaveOutcome('saved')
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getSessionUser()
       if (!user) throw new Error('Not logged in')
 
       // Text → number happens once, here at the write boundary. Keeping the

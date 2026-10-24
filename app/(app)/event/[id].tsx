@@ -8,6 +8,8 @@ import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-rou
 import * as Linking from 'expo-linking'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
+import { getSessionUser } from '../../../lib/sessionUser'
+import { useRequireSignIn } from '../../../hooks/useRequireSignIn'
 import { Sentry } from '../../../lib/sentry'
 import { Button } from '../../../components/Button'
 import { ProfileAvatar } from '../../../components/ProfileAvatar'
@@ -246,9 +248,10 @@ export default function EventDetail() {
   const teamZoneLayouts = useRef<Record<string, { top: number; bottom: number }>>({})
   const idRef = useRef(id)
   idRef.current = id
+  const requireSignIn = useRequireSignIn()
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    getSessionUser().then(async (user) => {
       if (!user) return
       setUserId(user.id)
       const { data } = await supabase
@@ -767,7 +770,8 @@ export default function EventDetail() {
   }
 
   async function handlePostComment(body: string, isAnnouncement: boolean, mentionIds: string[]) {
-    if (!userId) return
+    // Guests can browse the event; acting on it needs an account.
+    if (!userId) { requireSignIn(); return }
     if (body.length > EVENT_COMMENT_MAX_LEN) {
       Alert.alert('Comment too long', `Please keep comments under ${EVENT_COMMENT_MAX_LEN} characters.`)
       throw new Error('comment_too_long')
@@ -888,7 +892,8 @@ export default function EventDetail() {
   }
 
   async function handleToggleAttendance(action: 'join' | 'leave') {
-    if (!userId) return
+    // Guests can browse the event; acting on it needs an account.
+    if (!userId) { requireSignIn(); return }
     try {
       setJoining(true)
       // The database enforces capacity: if the last spot went to someone else first,
@@ -941,7 +946,8 @@ export default function EventDetail() {
   }
 
   async function handleJoinWaitlist() {
-    if (!userId) return
+    // Guests can browse the event; acting on it needs an account.
+    if (!userId) { requireSignIn(); return }
     try {
       setJoining(true)
       const { error } = await supabase.from('event_attendees').insert({ event_id: id, user_id: userId, status: 'waitlisted' })
@@ -985,7 +991,8 @@ export default function EventDetail() {
   // ─── Paid event request flow ─────────────────────────────────────────────────
 
   async function handleRequestToJoin() {
-    if (!userId) return
+    // Guests can browse the event; acting on it needs an account.
+    if (!userId) { requireSignIn(); return }
     try {
       setJoining(true)
       const { error } = await supabase.from('event_attendees').insert({ event_id: id, user_id: userId, status: 'requested' })

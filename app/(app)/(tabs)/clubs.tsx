@@ -20,6 +20,9 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { Stack, useRouter, useFocusEffect } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
+import { useSession } from '../../../contexts/session'
+import { useRequireSignIn } from '../../../hooks/useRequireSignIn'
+import { SignInButton } from '../../../components/SignInButton'
 import { shared, theme } from '../../../constants'
 import { DocScrollView } from '../../../components/DocScrollView'
 import { useTabsActive, useTabsShell } from '../../../contexts/tabs'
@@ -169,8 +172,11 @@ export default function ClubsScreen() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const { isGuest } = useSession()
+  const requireSignIn = useRequireSignIn()
   const [fetchError, setFetchError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<ClubFilter>('joined')
+  // Guests have no joined clubs, so start them on Popular.
+  const [filter, setFilter] = useState<ClubFilter>(isGuest ? 'popular' : 'joined')
   const [searchQuery, setSearchQuery] = useState('')
   const hasFetched = useRef(false)
 
@@ -255,7 +261,7 @@ export default function ClubsScreen() {
   }
 
   async function handleJoin(club: ClubListItem) {
-    if (!userId) return
+    if (!userId) { requireSignIn(); return }
     setClubs(prev => prev.map(c =>
       c.id !== club.id ? c : {
         ...c,
@@ -295,6 +301,7 @@ export default function ClubsScreen() {
         <Text style={{ fontFamily: theme.fonts.display, fontSize: 34, letterSpacing: -1.2, color: theme.colors.text, lineHeight: 38, flex: 1 }}>
           Clubs
         </Text>
+        {isGuest ? <SignInButton /> : (
         <TouchableOpacity
           onPress={() => router.push('/club/create' as any)}
           accessibilityRole="button"
@@ -313,6 +320,7 @@ export default function ClubsScreen() {
           <Ionicons name="add" size={20} color="#fff" />
           <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: '#fff' }}>Create</Text>
         </TouchableOpacity>
+        )}
       </View>
 
       <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm }}>

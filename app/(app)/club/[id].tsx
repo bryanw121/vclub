@@ -20,6 +20,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../../lib/supabase'
+import { useRequireSignIn } from '../../../hooks/useRequireSignIn'
 import { shared, theme, CLUB_AVATARS_BUCKET, EVENT_CARD_LIST_SELECT, EVENT_CARD_MY_ATTENDANCE_SELECT } from '../../../constants'
 import { resolveClubAvatarUri, profileDisplayName } from '../../../utils'
 import { attachEventCardPreviews } from '../../../utils/eventCardPreviews'
@@ -77,6 +78,7 @@ export default function ClubDetailScreen() {
   const [upcomingEvents, setUpcomingEvents] = useState<EventWithDetails[]>([])
   const [pastCount, setPastCount] = useState(0)
   const [userId, setUserId] = useState<string | null>(null)
+  const requireSignIn = useRequireSignIn()
   const [joining, setJoining] = useState(false)
 
   const [editMode, setEditMode] = useState(false)
@@ -216,7 +218,8 @@ export default function ClubDetailScreen() {
   }, [club, userId])
 
   async function handleJoin() {
-    if (!userId || !club) return
+    if (!club) return
+    if (!userId) { requireSignIn(); return }
     setJoining(true)
     const { error } = await supabase.from('club_members').insert({ club_id: club.id, user_id: userId, role: 'member' })
     if (error) Alert.alert('Error', error.message)

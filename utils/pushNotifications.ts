@@ -1,5 +1,6 @@
 import { Platform } from 'react-native'
 import { supabase } from '../lib/supabase'
+import { getSessionUser } from '../lib/sessionUser'
 
 /**
  * Registers for Expo push notifications and saves the token to the push_tokens table.
@@ -39,7 +40,7 @@ export async function registerPushToken(): Promise<void> {
     const tokenData = await Notifications.getExpoPushTokenAsync()
     const token = tokenData.data
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user) return
 
     await supabase

@@ -13,7 +13,7 @@ import {
   monthEndIso,
   monthStartIso,
 } from '../utils/monthKeys'
-import { attachEventCardPreviews } from '../utils/eventCardPreviews'
+import { fetchEventCardPreviews, withEventCardPreviews } from '../utils/eventCardPreviews'
 import { EventWithDetails } from '../types'
 
 const STALE_MS = 60_000
@@ -93,6 +93,12 @@ export function useMonthEvents() {
 
     const span = enumerateMonths(needed[0], needed[needed.length - 1])
 
+    const clearLoading = () => setLoadingMonths(prev => {
+      const next = new Set(prev)
+      for (const month of span) next.delete(month)
+      return next
+    })
+
     const p = (async () => {
       setLoadingMonths(prev => new Set([...prev, ...span]))
       try {
@@ -137,25 +143,41 @@ export function useMonthEvents() {
 
         if (eventsError) return
 
-        const withPreviews = await attachEventCardPreviews(
+        // Paint the feed as soon as the events arrive; avatar previews follow in a
+        // second round trip. Until they land, keep any previews already cached for
+        // the same event so a refresh doesn't make avatars flicker out and back.
+        const previousPreviews = new Map<string, EventWithDetails['attendee_previews']>()
+        for (const month of span) {
+          for (const e of cacheRef.current[month]?.events ?? []) previousPreviews.set(e.id, e.attendee_previews)
+        }
+        const regularEvents = withEventCardPreviews(
           (eventsData ?? []) as unknown as EventWithDetails[],
+          previousPreviews,
         )
-        const combined = [...withPreviews, ...normalizeTournaments(tournamentsData as unknown[] | null)]
+        const combined = [...regularEvents, ...normalizeTournaments(tournamentsData as unknown[] | null)]
         combined.sort((a, b) => a.event_date.localeCompare(b.event_date))
 
         const buckets = bucketByMonthKey(combined, span)
-        const now = Date.now()
+        const fetchedAt = Date.now()
         for (const month of span) {
-          cacheRef.current[month] = { events: buckets[month] ?? [], fetchedAt: now }
+          cacheRef.current[month] = { events: buckets[month] ?? [], fetchedAt }
         }
         if ((buckets[span[span.length - 1]] ?? []).length === 0) setReachedEnd(true)
         setTick(t => t + 1)
+        clearLoading()
+
+        const previews = await fetchEventCardPreviews(regularEvents.map(e => e.id))
+        let changed = false
+        for (const month of span) {
+          const entry = cacheRef.current[month]
+          // A newer fetch (or an invalidate) replaced this month meanwhile: leave it.
+          if (!entry || entry.fetchedAt !== fetchedAt) continue
+          cacheRef.current[month] = { ...entry, events: withEventCardPreviews(entry.events, previews) }
+          changed = true
+        }
+        if (changed) setTick(t => t + 1)
       } finally {
-        setLoadingMonths(prev => {
-          const next = new Set(prev)
-          for (const month of span) next.delete(month)
-          return next
-        })
+        clearLoading()
       }
     })()
 

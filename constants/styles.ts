@@ -82,6 +82,7 @@ export const shared = StyleSheet.create({
   authSubtitle: { fontSize: font.size.md, color: colors.subtext, marginBottom: spacing.xl, textAlign: 'center' },
   authLink:     { marginTop: spacing.md, alignItems: 'center' },
   authLinkText: { color: colors.primary, fontSize: font.size.md },
+  authLinkSubtle: { color: colors.subtext, fontSize: font.size.md },
 
   // ─── Divider ──────────────────────────────────────────────
   divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.md },
@@ -218,6 +219,57 @@ export const shared = StyleSheet.create({
   },
 
   // ─── Update required screen ───────────────────────────────────────────────
+  // ── Guest mode (SignInPrompt, SignInButton) ──────────────────────────────
+  signInPromptContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.xl,
+    gap: theme.spacing.md,
+    backgroundColor: theme.colors.background,
+  },
+  signInPromptIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: theme.radius.xl,
+    backgroundColor: theme.colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  signInPromptTitle: {
+    fontFamily: theme.fonts.display,
+    fontSize: theme.font.size.xl,
+    color: theme.colors.text,
+    textAlign: 'center',
+  },
+  signInPromptBody: {
+    fontFamily: theme.fonts.body,
+    fontSize: theme.font.size.md,
+    lineHeight: theme.font.lineHeight.tight,
+    color: theme.colors.subtext,
+    textAlign: 'center',
+    maxWidth: 320,
+  },
+  signInPromptActions: {
+    width: '100%',
+    maxWidth: 320,
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
+  },
+  signInButton: {
+    minHeight: 38,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  signInButtonLabel: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: theme.font.size.md,
+    color: theme.colors.white,
+  },
   updateRequiredContainer: {
     flex: 1,
     alignItems: 'center',

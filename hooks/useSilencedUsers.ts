@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DeviceEventEmitter } from 'react-native'
 import { supabase } from '../lib/supabase'
+import { getSessionUser } from '../lib/sessionUser'
 import { CHAT_SILENCES_CHANGED_EVENT } from './useChatUnread'
 import type { ChatSilenceWithProfile } from '../types'
 
@@ -22,7 +23,7 @@ export function useSilencedUsers() {
   )
 
   const refresh = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user) {
       setEntries([])
       setLoading(false)
@@ -55,7 +56,7 @@ export function useSilencedUsers() {
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null
 
-    void supabase.auth.getUser().then(({ data: { user } }) => {
+    void getSessionUser().then((user) => {
       if (!user) return
       channel = supabase
         .channel(`chat-silences-${user.id}`)
@@ -73,7 +74,7 @@ export function useSilencedUsers() {
   }, [refresh])
 
   const silenceUser = useCallback(async (silencedUserId: string) => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user || user.id === silencedUserId) return
     const { error } = await supabase
       .from('chat_silences')
@@ -86,7 +87,7 @@ export function useSilencedUsers() {
   }, [refresh])
 
   const unsilenceUser = useCallback(async (silencedUserId: string) => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user) return
     const { error } = await supabase
       .from('chat_silences')
