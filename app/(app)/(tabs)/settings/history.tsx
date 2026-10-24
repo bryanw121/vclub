@@ -3,6 +3,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, 
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
+import { getSessionUser } from '../../../../lib/sessionUser'
 import { EventCard } from '../../../../components/EventCard'
 import { shared, EVENT_CARD_LIST_SELECT_MINIMAL } from '../../../../constants'
 import { theme } from '../../../../constants/theme'
@@ -42,7 +43,7 @@ export default function ProfileHistoryScreen() {
   async function fetchAttended(opts?: { silent?: boolean }) {
     if (!opts?.silent) setLoading(true)
     setError(null)
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user) { setLoading(false); return }
 
     const now = new Date().toISOString()
@@ -64,7 +65,7 @@ export default function ProfileHistoryScreen() {
   async function fetchHosted(opts?: { silent?: boolean }) {
     if (!opts?.silent) setLoading(true)
     setError(null)
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user) { setLoading(false); return }
 
     const now = new Date().toISOString()

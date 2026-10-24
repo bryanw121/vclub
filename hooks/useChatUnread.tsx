@@ -1,7 +1,7 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { DeviceEventEmitter } from 'react-native'
 import { supabase } from '../lib/supabase'
-import { getSessionUser } from '../lib/sessionUser'
+import { useSession } from '../contexts/session'
 import type { ConversationRow } from '../types'
 
 /** Emitted from `useSilencedUsers` after silence/unsilence so the tab badge updates even without Realtime on `chat_silences`. */
@@ -18,17 +18,20 @@ const ChatUnreadContext = createContext(0)
  * tab bar both read the same value. (Previously this hook was instantiated in two
  * layouts at once, opening duplicate channels and double-polling on every insert.)
  */
-export function ChatUnreadProvider({ children }: { children: React.ReactNode }) {
-  const [count, setCount] = useState(0)
-  const mountedRef = useRef(true)
+/** Startup delay so the badge query doesn't compete with the Events feed's first load. */
+const INITIAL_DELAY_MS = 1500
 
-  const recompute = useCallback(async () => {
-    const user = await getSessionUser()
-    if (!user || !mountedRef.current) return
+export function ChatUnreadProvider({ children }: { children: React.ReactNode }) {
+  const { userId } = useSession()
+  const [count, setCount] = useState(0)
+
+  /** `isCurrent` lets a result that lands after sign-out / user switch be dropped. */
+  const recompute = useCallback(async (isCurrent: () => boolean) => {
+    if (!userId || !isCurrent()) return
 
     const [{ data: convData, error: convErr }, { data: silenceData, error: silenceErr }] = await Promise.all([
       supabase.rpc('get_my_conversations'),
-      supabase.from('chat_silences').select('silenced_user_id').eq('user_id', user.id),
+      supabase.from('chat_silences').select('silenced_user_id').eq('user_id', userId),
     ])
 
     if (convErr) console.error('[useChatUnread] get_my_conversations', JSON.stringify(convErr))
@@ -41,50 +44,52 @@ export function ChatUnreadProvider({ children }: { children: React.ReactNode }) 
       if (r.type === 'dm' && r.other_user_id && silenced.has(r.other_user_id)) continue
       total += Number(r.unread_count ?? 0)
     }
-    if (mountedRef.current) setCount(total)
-  }, [])
+    if (isCurrent()) setCount(total)
+  }, [userId])
 
   useEffect(() => {
-    mountedRef.current = true
-    void recompute()
+    // Guests have no conversations; signing out clears the badge.
+    if (!userId) {
+      setCount(0)
+      return
+    }
+    let cancelled = false
+    const isCurrent = () => !cancelled
+    const initialTimer = setTimeout(() => { void recompute(isCurrent) }, INITIAL_DELAY_MS)
 
-    let channel: ReturnType<typeof supabase.channel> | null = null
     let recomputeTimer: ReturnType<typeof setTimeout> | null = null
     const scheduleRecompute = () => {
       if (recomputeTimer) clearTimeout(recomputeTimer)
       recomputeTimer = setTimeout(() => {
         recomputeTimer = null
-        void recompute()
+        void recompute(isCurrent)
       }, 450)
     }
 
-    void getSessionUser().then(user => {
-      if (!user || !mountedRef.current) return
-
-      // One channel multiplexes all three change streams (was two channels).
-      channel = supabase
-        .channel(`chat-unread-${user.id}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
-          () => { scheduleRecompute() })
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_members' },
-          () => { scheduleRecompute() })
-        .on('postgres_changes',
-          { event: '*', schema: 'public', table: 'chat_silences', filter: `user_id=eq.${user.id}` },
-          () => { scheduleRecompute() })
-        .subscribe()
-    })
+    // One channel multiplexes all three change streams (was two channels).
+    const channel = supabase
+      .channel(`chat-unread-${userId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
+        () => { scheduleRecompute() })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_members' },
+        () => { scheduleRecompute() })
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'chat_silences', filter: `user_id=eq.${userId}` },
+        () => { scheduleRecompute() })
+      .subscribe()
 
     const silencesSub = DeviceEventEmitter.addListener(CHAT_SILENCES_CHANGED_EVENT, () => {
       scheduleRecompute()
     })
 
     return () => {
-      mountedRef.current = false
+      cancelled = true
+      clearTimeout(initialTimer)
       silencesSub.remove()
       if (recomputeTimer) clearTimeout(recomputeTimer)
-      if (channel) void supabase.removeChannel(channel)
+      void supabase.removeChannel(channel)
     }
-  }, [recompute])
+  }, [userId, recompute])
 
   return <ChatUnreadContext.Provider value={count}>{children}</ChatUnreadContext.Provider>
 }

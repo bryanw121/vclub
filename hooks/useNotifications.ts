@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { getSessionUser } from '../lib/sessionUser'
+import { useSession } from '../contexts/session'
 import type { Notification } from '../types'
 
 const STALE_MS = 45_000
@@ -20,6 +21,8 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
   const [loading, setLoading] = useState(fetchListOnMount)
   const [error, setError] = useState<string | null>(null)
   const lastFetchedAt = useRef(0)
+  // Refetch when the signed-in user changes (guest → signed in, or sign out).
+  const { userId } = useSession()
 
   const fetchUnreadCount = useCallback(async () => {
     const user = await getSessionUser()
@@ -64,13 +67,19 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
   }, [fetchUnreadCount])
 
   useEffect(() => {
+    if (!userId) {
+      setNotifications([])
+      setUnreadCount(0)
+      setLoading(false)
+      return
+    }
     if (fetchListOnMount) {
       void fetchList(true)
     } else {
       void fetchUnreadCount()
       setLoading(false)
     }
-  }, [fetchListOnMount, fetchList, fetchUnreadCount])
+  }, [userId, fetchListOnMount, fetchList, fetchUnreadCount])
 
   const markRead = useCallback(
     async (id: string) => {

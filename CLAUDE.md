@@ -99,7 +99,8 @@ app/
     event/[id].tsx         # Event detail, join/leave/delete
 components/                # Reusable UI (Button, Input, EventCard, Pager, DatePickerField)
 contexts/tabs.ts           # TabsContext — exposes goToTab()
-hooks/                     # useAuth, useEvents
+hooks/                     # useMonthEvents, useNotifications, useRequireSignIn, ...
+contexts/session.tsx       # SessionProvider / useSession() — the one auth listener
 lib/supabase.ts            # Supabase client
 types/index.ts             # All TypeScript types (single source of truth)
 constants/                 # theme.ts (design tokens), styles.ts (shared StyleSheet)
@@ -135,7 +136,7 @@ Three tables currently in Supabase:
 ## Key Architectural Decisions
 
 ### No third-party state management
-Only React hooks (`useState`, `useRef`, `useContext`). Global state lives in hooks (`useAuth`, `useEvents`) and context (`TabsContext`).
+Only React hooks (`useState`, `useRef`, `useContext`). Global state lives in context (`SessionProvider` for auth, `TabsContext`) and hooks (`useMonthEvents`).
 
 ### Custom tab navigation
 `(tabs)/_layout.tsx` does NOT use Expo Router's built-in `<Tabs>`. Instead: custom `<Pager>` component + custom bottom bar. This enables swipe animations that work on web too. `TabsContext` lets child screens call `goToTab(index)` without circular imports.
@@ -148,6 +149,16 @@ Metro/webpack picks the right file automatically.
 ### Gesture layering
 The `Pager` uses `onMoveShouldSetPanResponder` (bubble phase) to claim tab swipes. Inner components (WeekStrip, Calendar wrapper) also use bubble phase — since they're more inner, their handlers fire first and absorb the gesture before it reaches Pager. Do not use capture phase (`onMoveShouldSetPanResponderCapture`) for inner gesture handlers; that breaks the layering.
 
+### Guest browsing
+Nobody has to sign in to look around. Guests see Events, Clubs, event pages, club pages and other players' profiles; the Chat and Profile tabs render `SignInPrompt`, and the Events/Clubs headers show `SignInButton` (top right) instead of the bell / Create.
+- Read the user with `useSession()` (`userId`, `isGuest`), never `supabase.auth.getUser()` — that is a network call to the Auth server every time. Outside React, use `getSessionUser()` from `lib/sessionUser`.
+- Actions that need an account call `const requireSignIn = useRequireSignIn()` and `if (!requireSignIn()) return` — guests go to login and come back to the same page.
+- Account-only routes are listed in `utils/authGate.ts` (`isProtectedPath`); the root layout bounces guests on those to login. Add new account-only routes there.
+- RLS: anything a guest screen reads must have a SELECT policy for `anon` (events, attendees, profiles, clubs, tags already do).
+
+### Sessions from other Austin venues (Volley ATX)
+`external_sessions` holds sessions other venues and groups run (Volleyworld, ACES, ATX Beach, Reclub meets...). The Volley ATX repo (`bryanw121/volleyball-atx`, `scripts/sync-vclub.mjs`) upserts it after each nightly scrape with the service role; vclub only reads it (anon SELECT policy). `useMonthEvents` fetches it with events/tournaments and `utils/feedItems.ts` normalizes rows into `EventWithDetails` with `_external` set; the feed renders those with `ExternalSessionCard`, which links out to the venue's sign-up (no RSVP). They show under All and the "Around Austin" chip, never under Mine or Not Full.
+
 ### Login accepts email or username
 If the login field doesn't look like an email, `login.tsx` queries `profiles` for that username, calls the `get_email_by_user_id` RPC, then signs in with the resolved email.
 
@@ -158,7 +169,7 @@ If the login field doesn't look like an email, `login.tsx` queries `profiles` fo
 - **Shared styles in `constants/styles.ts`** via a single `StyleSheet.create` — reference as `shared.xyz`. Add new shared styles there rather than inline
 - **Design tokens in `constants/theme.ts`** (`theme.colors`, `theme.spacing`, `theme.font`, `theme.radius`) — never hardcode colors or font sizes
 - **File names**: components PascalCase, hooks/utils camelCase, routes lowercase
-- **One hook per concern**: `useAuth` for session, `useEvents` for event list. If a screen needs more fetching, do it locally in the component
+- **One hook per concern**: `useSession` for the signed-in user, `useMonthEvents` for the event feed. If a screen needs more fetching, do it locally in the component
 - **Dates**: always use `cleanDate(date: Date)` from `utils/` to convert to ISO string before inserting into Supabase
 - **Keep it simple**: don't abstract until there are at least 3 real use cases. Prefer a few extra lines of clear code over a premature helper
 
@@ -211,7 +222,7 @@ Test each surface mentally when building. If a component behaves differently acr
 ## Database / Data Fetching
 - **Batch queries**: prefer one query with joins over multiple sequential round-trips. Use Supabase's embedded select syntax (`relation(columns)`) to fetch related data in a single request.
 - **Select only what you need**: always specify columns explicitly. Never use `select('*')` on large tables — it wastes bandwidth and can expose columns unintentionally.
-- **Cache with staleness**: use a `lastFetchedAt` ref and skip re-fetching within a 60-second window (see `useEvents` and `fetchProfile` for the pattern). Only bypass the cache on explicit user actions (pull-to-refresh, post/delete that invalidates the data).
+- **Cache with staleness**: use a `lastFetchedAt` ref and skip re-fetching within a 60-second window (see `useMonthEvents` and `fetchProfile` for the pattern). Only bypass the cache on explicit user actions (pull-to-refresh, post/delete that invalidates the data).
 - **Fetch on demand**: don't pre-fetch data for tabs or screens the user hasn't opened yet. Fetch when the tab becomes active (`useFocusEffect` or an `activeTab` effect).
 - **Avoid N+1 patterns**: if you're iterating over a list and fetching per-item, restructure to a single `IN (...)` query or an embedded join instead.
 - **Count with PostgREST**: use `select('id', { count: 'exact', head: true })` for counts — don't fetch full rows just to call `.length`.

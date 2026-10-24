@@ -59,6 +59,8 @@ import {
 import type { Profile, VolleyballPosition, VolleyballSkillLevel } from '../../../../../types'
 import { useTabsShell } from '../../../../../contexts/tabs'
 import { useBadges } from '../../../../../hooks/useBadges'
+import { useSession } from '../../../../../contexts/session'
+import { SignInPrompt } from '../../../../../components/SignInPrompt'
 
 type Section = 'menu' | 'edit'
 
@@ -296,7 +298,7 @@ function ProfileAvatar(props: AvatarProps) {
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
-export default function MyProfile() {
+function MyProfileSignedIn() {
   const router = useRouter()
   const { setTabBarHidden, tabBarHeight, docScrollActive } = useTabsShell()
   const lastScrollY = useRef(0)
@@ -1441,3 +1443,19 @@ const profileStyles = StyleSheet.create({
     color: theme.colors.text,
   },
 })
+
+/** Guests see a sign-in prompt; the signed-in screen (and its data hooks) only mounts with a session. */
+export default function MyProfile() {
+  const { userId, loading } = useSession()
+  if (loading) return null
+  if (!userId) {
+    return (
+      <SignInPrompt
+        icon="person-circle-outline"
+        title="Your volleyball profile"
+        body="Sign in or sign up to track the events you play, your cheers and your badges."
+      />
+    )
+  }
+  return <MyProfileSignedIn />
+}

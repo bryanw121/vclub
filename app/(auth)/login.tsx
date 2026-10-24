@@ -10,6 +10,7 @@ import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
 import { GoogleLogo } from '../../components/GoogleLogo'
 import { shared, theme } from '../../constants'
+import { takeGuestReturnPath } from '../../utils/authGate'
 
 function obfuscateEmail(email: string): string {
   const [local, domain] = email.split('@')
@@ -385,6 +386,9 @@ export default function Login() {
             </TouchableOpacity>
             <TouchableOpacity style={shared.authLink} onPress={() => router.push('/(auth)/register')}>
               <Text style={shared.authLinkText}>Don't have an account? Sign up</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={shared.authLink} onPress={() => router.replace(takeGuestReturnPath() as any)} testID="continue-as-guest">
+              <Text style={shared.authLinkSubtle}>Keep browsing without an account</Text>
             </TouchableOpacity>
           </>
         )}

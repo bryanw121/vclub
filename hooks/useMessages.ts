@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { getSessionUser } from '../lib/sessionUser'
 import { CHAT_IMAGES_BUCKET } from '../constants'
 import type { MessageWithDetails } from '../types'
 
@@ -140,7 +141,7 @@ export function useMessages(conversationId: string) {
     replyTo: MessageWithDetails | null = null,
     mentions: string[] = [],
   ) => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user) return
 
     const tempId = `temp-${Date.now()}`
@@ -226,7 +227,7 @@ export function useMessages(conversationId: string) {
   }, [])
 
   const toggleReaction = useCallback(async (messageId: string, emoji: string) => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user) return
     const existing = messages
       .find(m => m.id === messageId)
@@ -256,7 +257,7 @@ export function useMessages(conversationId: string) {
   }, [messages])
 
   const uploadImage = useCallback(async (uri: string): Promise<string | null> => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (!user) return null
 
     const response = await fetch(uri)

@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient'
 import { supabase } from '../../../lib/supabase'
+import { getSessionUser } from '../../../lib/sessionUser'
 import { theme, shared } from '../../../constants'
 import { profileDisplayName, resolveProfileAvatarUriSmall, formatCommentTime, buildMemberSearchFilter } from '../../../utils'
 import { DiscussionComposer } from '../../../components/DiscussionComposer'
@@ -166,7 +167,7 @@ export default function TournamentDetailScreen() {
   useEffect(() => { void initialLoad() }, [id])
 
   async function initialLoad() {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     const uid = user?.id ?? null
     setMyId(uid)
 

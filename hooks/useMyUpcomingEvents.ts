@@ -58,7 +58,7 @@ export function selectMyUpcomingEvents(
   if (!userId) return []
   const out: MyUpcomingEvent[] = []
   for (const event of events) {
-    if (event._isTournament) continue
+    if (event._isTournament || event._external) continue
     const status = myStatusFor(event, userId)
     if (!status) continue
     const endMs = eventEndMs(event)

@@ -3,6 +3,7 @@ import {
   EVENT_CARD_LIST_SELECT,
   EVENT_CARD_MY_ATTENDANCE_SELECT,
   EVENT_CARD_MY_ATTENDANCE_SELECT_ATTENDING_ONLY,
+  EXTERNAL_SESSION_SELECT,
 } from '../constants'
 import { supabase } from '../lib/supabase'
 import { getSessionUser } from '../lib/sessionUser'
@@ -13,8 +14,9 @@ import {
   monthEndIso,
   monthStartIso,
 } from '../utils/monthKeys'
-import { attachEventCardPreviews } from '../utils/eventCardPreviews'
-import { EventWithDetails } from '../types'
+import { fetchEventCardPreviews, withEventCardPreviews } from '../utils/eventCardPreviews'
+import { normalizeExternalSessions, normalizeTournaments } from '../utils/feedItems'
+import type { EventWithDetails, ExternalSession } from '../types'
 
 const STALE_MS = 60_000
 
@@ -23,40 +25,14 @@ type MonthEntry = {
   fetchedAt: number
 }
 
-const TOURNAMENT_TAG = { id: '_tournament', name: 'Tournament', category: 'event_type', display_order: 2, created_at: '' }
-
-function normalizeTournaments(tournamentsData: unknown[] | null): EventWithDetails[] {
-  return (tournamentsData ?? []).map((t: any) => ({
-    id:                         t.id,
-    created_by:                 t.created_by,
-    club_id:                    t.club_id,
-    title:                      t.title,
-    description:                null,
-    location:                   t.location,
-    event_date:                 t.start_date,
-    duration_minutes:           0,
-    max_attendees:              t.max_teams ?? null,
-    created_at:                 t.created_at,
-    price:                      t.price ?? 0,
-    cancelled_at:               null,
-    profiles:                   t.profiles,
-    clubs:                      t.clubs,
-    event_tags:                 [{ tag_id: '_tournament', tags: TOURNAMENT_TAG }],
-    attendee_previews:          [],
-    my_attendance:              [],
-    event_attendees_attending:  [{ count: 0 }],
-    event_guests_attending:     [{ count: 0 }],
-    event_attendees_waitlisted: [{ count: 0 }],
-    _isTournament:              true,
-  }))
-}
-
 export function useMonthEvents() {
   // Cache lives in a ref so loadMonth never needs it as a dependency.
   // A separate tick state triggers re-renders when cache contents change.
   const cacheRef = useRef<Record<string, MonthEntry>>({})
   /** One promise per month so callers (e.g. pull-to-refresh) can await in-flight loads */
   const pendingByMonth = useRef<Record<string, Promise<void>>>({})
+  /** Last known avatar previews per event. Outlives cache invalidation so a refresh keeps avatars on screen until the new ones land. */
+  const previewsRef = useRef<Map<string, EventWithDetails['attendee_previews']>>(new Map())
   const [loadingMonths, setLoadingMonths] = useState<Set<string>>(new Set())
   const [tick, setTick] = useState(0)
   const [reachedEnd, setReachedEnd] = useState(false)
@@ -93,17 +69,25 @@ export function useMonthEvents() {
 
     const span = enumerateMonths(needed[0], needed[needed.length - 1])
 
+    const clearLoading = () => setLoadingMonths(prev => {
+      const next = new Set(prev)
+      for (const month of span) next.delete(month)
+      return next
+    })
+
     const p = (async () => {
       setLoadingMonths(prev => new Set([...prev, ...span]))
       try {
         const user = await getSessionUser()
+        const rangeStart = monthStartIso(span[0])
+        const rangeEnd = monthEndIso(span[span.length - 1])
 
         const buildEventsQuery = (mySelect: string | null) => {
           let q = supabase
             .from('events')
             .select(mySelect ? `${EVENT_CARD_LIST_SELECT}, ${mySelect}` : EVENT_CARD_LIST_SELECT)
-            .gte('event_date', monthStartIso(span[0]))
-            .lt('event_date', monthEndIso(span[span.length - 1]))
+            .gte('event_date', rangeStart)
+            .lt('event_date', rangeEnd)
             .is('cancelled_at', null)
             .order('event_date', { ascending: true })
           if (user) q = q.eq('my_attendance.user_id', user.id)
@@ -124,38 +108,68 @@ export function useMonthEvents() {
           return buildEventsQuery(EVENT_CARD_MY_ATTENDANCE_SELECT_ATTENDING_ONLY)
         }
 
-        const [{ data: eventsData, error: eventsError }, { data: tournamentsData }] = await Promise.all([
+        const [
+          { data: eventsData, error: eventsError },
+          { data: tournamentsData },
+          { data: externalData },
+        ] = await Promise.all([
           runEventsQuery(),
           supabase
             .from('tournaments')
             .select('id, created_by, club_id, title, location, start_date, max_teams, price, skill_levels, status, created_at, profiles!tournaments_created_by_fkey(id, username, first_name, last_name, avatar_url), clubs(id, name, avatar_url)')
-            .gte('start_date', monthStartIso(span[0]))
-            .lt('start_date', monthEndIso(span[span.length - 1]))
+            .gte('start_date', rangeStart)
+            .lt('start_date', rangeEnd)
             .neq('status', 'draft')
             .neq('status', 'cancelled'),
+          // Sessions at other Austin venues (Volley ATX). A failure here only
+          // drops those cards; the club's own events still render.
+          supabase
+            .from('external_sessions')
+            .select(EXTERNAL_SESSION_SELECT)
+            .gte('starts_at', rangeStart)
+            .lt('starts_at', rangeEnd)
+            .eq('canceled', false)
+            .order('starts_at', { ascending: true }),
         ])
 
         if (eventsError) return
 
-        const withPreviews = await attachEventCardPreviews(
+        // Paint the feed as soon as the events arrive; avatar previews follow in a
+        // second round trip. Until they land, show the last previews we had for
+        // each event so a refresh doesn't make avatars flicker out and back.
+        const regularEvents = withEventCardPreviews(
           (eventsData ?? []) as unknown as EventWithDetails[],
+          previewsRef.current,
         )
-        const combined = [...withPreviews, ...normalizeTournaments(tournamentsData as unknown[] | null)]
+        const combined = [
+          ...regularEvents,
+          ...normalizeTournaments(tournamentsData as unknown[] | null),
+          ...normalizeExternalSessions(externalData as ExternalSession[] | null),
+        ]
         combined.sort((a, b) => a.event_date.localeCompare(b.event_date))
 
         const buckets = bucketByMonthKey(combined, span)
-        const now = Date.now()
+        const fetchedAt = Date.now()
         for (const month of span) {
-          cacheRef.current[month] = { events: buckets[month] ?? [], fetchedAt: now }
+          cacheRef.current[month] = { events: buckets[month] ?? [], fetchedAt }
         }
         if ((buckets[span[span.length - 1]] ?? []).length === 0) setReachedEnd(true)
         setTick(t => t + 1)
+        clearLoading()
+
+        const previews = await fetchEventCardPreviews(regularEvents.map(e => e.id))
+        for (const e of regularEvents) previewsRef.current.set(e.id, previews.get(e.id) ?? [])
+        let changed = false
+        for (const month of span) {
+          const entry = cacheRef.current[month]
+          // A newer fetch (or an invalidate) replaced this month meanwhile: leave it.
+          if (!entry || entry.fetchedAt !== fetchedAt) continue
+          cacheRef.current[month] = { ...entry, events: withEventCardPreviews(entry.events, previews) }
+          changed = true
+        }
+        if (changed) setTick(t => t + 1)
       } finally {
-        setLoadingMonths(prev => {
-          const next = new Set(prev)
-          for (const month of span) next.delete(month)
-          return next
-        })
+        clearLoading()
       }
     })()
 

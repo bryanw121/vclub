@@ -127,6 +127,10 @@ export const EVENT_CARD_MY_ATTENDANCE_SELECT =
 export const EVENT_CARD_MY_ATTENDANCE_SELECT_ATTENDING_ONLY =
   'my_attendance:event_attendees_attending(user_id)'
 
+/** Columns the Events feed reads from `external_sessions` (Volley ATX data). */
+export const EXTERNAL_SESSION_SELECT =
+  'id, source_id, title, venue, city, surface, session_type, level, price, starts_at, ends_at, signup_url, signup_label, note, verified_at'
+
 /** Hosted / history settings lists: host + RSVP count only (no tag/club embeds). */
 export const EVENT_CARD_LIST_SELECT_MINIMAL = `${EVENT_LIST_EVENT_COLUMNS}, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url), event_attendees_attending(count), event_guests_attending(count), event_attendees_waitlisted(count)`
 

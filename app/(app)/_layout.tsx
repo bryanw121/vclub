@@ -7,6 +7,8 @@ import { WebNavContext } from '../../contexts/webNav'
 import { SentryErrorBoundary } from '../../components/SentryErrorBoundary'
 import { ChatUnreadProvider, useChatUnread } from '../../hooks/useChatUnread'
 import { useIsNarrowWeb } from '../../hooks/useIsNarrowWeb'
+import { useRequireSignIn } from '../../hooks/useRequireSignIn'
+import { tabIndexFromPath } from '../../utils/tabs'
 
 // Collect every badge image URL defined in code and prefetch them so the
 // badges screen renders instantly without a network loading flash.
@@ -45,12 +47,6 @@ const TABS = [
 
 const SIDEBAR_BREAKPOINT = 768
 
-function tabIndexFromPath(path: string): number {
-  if (path.startsWith('/profile') || path.startsWith('/settings')) return 3
-  if (path.startsWith('/chat')) return 2
-  if (path.startsWith('/clubs') || path.startsWith('/club')) return 1
-  return 0
-}
 
 export default function AppLayout() {
   // The unread subscription lives in one provider so it runs exactly once across
@@ -75,12 +71,14 @@ function AppLayoutInner() {
   const [fabOpen, setFabOpen] = useState(false)
   const fabAnim = useRef(new Animated.Value(0)).current
   const isNarrowWeb = useIsNarrowWeb(SIDEBAR_BREAKPOINT)
+  const requireSignIn = useRequireSignIn()
 
   function goToTab(index: number) {
     router.replace(TABS[index].path as any)
   }
 
   function openFab() {
+    if (!requireSignIn()) return
     setFabOpen(true)
     Animated.spring(fabAnim, { toValue: 1, useNativeDriver: true, tension: 120, friction: 8 }).start()
   }

@@ -1,23 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Session } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
+import { useSession } from '../contexts/session'
 
+/** Session + loading flag. Thin alias of `useSession()` kept for existing callers. */
 export function useAuth() {
-  const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setLoading(false)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
-
+  const { session, loading } = useSession()
   return { session, loading }
 }

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, RefreshControl, ScrollView, Switch, Text, View } from 'react-native'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
+import { getSessionUser } from '../../../../lib/sessionUser'
 import { Sentry } from '../../../../lib/sentry'
 import { shared, theme } from '../../../../constants'
 import { NOTIFICATION_TYPE_LABELS } from '../../../../constants/notifications'
@@ -24,7 +25,7 @@ export default function NotificationSettingsScreen() {
     setLoading(true)
     setError(null)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getSessionUser()
       if (!user) {
         setLoading(false)
         return
@@ -55,7 +56,7 @@ export default function NotificationSettingsScreen() {
 
   const persist = useCallback(
     async (next: NotificationPrefs) => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getSessionUser()
       if (!user) return
       setSaving(true)
       setError(null)

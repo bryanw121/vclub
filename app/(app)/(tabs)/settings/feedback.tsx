@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react'
 import { Alert, Modal, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
+import { getSessionUser } from '../../../../lib/sessionUser'
 import { Button } from '../../../../components/Button'
 import { Input } from '../../../../components/Input'
 import { shared, theme } from '../../../../constants'
@@ -33,7 +34,7 @@ export default function FeedbackScreen() {
 
       setLoading(true)
       setFeedbackError(null)
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getSessionUser()
       if (!user) throw new Error('Not logged in')
 
       const bugMeta = kind === 'bug'

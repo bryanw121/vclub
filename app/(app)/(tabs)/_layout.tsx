@@ -12,6 +12,8 @@ import { useChatUnread } from "../../../hooks/useChatUnread";
 import { useDocScrollMode } from "../../../hooks/useDocScrollMode";
 import { useIsNarrowWeb } from "../../../hooks/useIsNarrowWeb";
 import { shouldRefreshEventsOnFocus } from "../../../utils/monthKeys";
+import { useRequireSignIn } from "../../../hooks/useRequireSignIn";
+import { tabIndexFromPath } from "../../../utils/tabs";
 
 // Pager indices: 0=Events, 1=Clubs, 2=Chat, 3=Profile
 const MOBILE_NAV_TABS = [
@@ -31,7 +33,10 @@ const SIDEBAR_BREAKPOINT = 768;
 const noopSetTabBarHidden = (_hidden: boolean) => {};
 
 export default function TabsLayout() {
-  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const pathname = usePathname();
+  // Start on the tab the URL names, so a direct link to /clubs or /profile on
+  // narrow web (where the pager, not the router, picks the visible tab) opens it.
+  const [activeTabIndex, setActiveTabIndex] = useState(() => tabIndexFromPath(pathname));
   const [eventsRefreshTick, setEventsRefreshTick] = useState(0);
   const pagerBlocked = useRef(false);
 
@@ -70,7 +75,6 @@ export default function TabsLayout() {
   }, [tabBarTranslateY]);
   const webNav = useWebNav();
   const router = useRouter();
-  const pathname = usePathname();
   const isNarrowWeb = useIsNarrowWeb(SIDEBAR_BREAKPOINT);
   const chatUnread = useChatUnread();
 
@@ -104,11 +108,14 @@ export default function TabsLayout() {
     Animated.timing(fabAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => setFabOpen(false));
   }, [fabAnim]);
 
+  const requireSignIn = useRequireSignIn();
   const openFab = useCallback(() => {
+    // Hosting needs an account; guests go to sign-in and come back here.
+    if (!requireSignIn()) return;
     fabOpenRef.current = true;
     setFabOpen(true);
     Animated.spring(fabAnim, { toValue: 1, useNativeDriver: true, tension: 120, friction: 8 }).start();
-  }, [fabAnim]);
+  }, [fabAnim, requireSignIn]);
 
   const goToTab = useCallback((index: number) => {
     setActiveTabIndex(index);

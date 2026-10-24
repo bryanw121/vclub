@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect, Stack } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
+import { getSessionUser } from '../../../lib/sessionUser'
 import { theme, shared } from '../../../constants'
 import { useConversations } from '../../../hooks/useConversations'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
@@ -15,6 +16,8 @@ import { useTabsActive, useTabsShell } from '../../../contexts/tabs'
 import { timeAgo, lastMessagePreview } from '../../../utils/chatUtils'
 import { profileAvatarSmallUri, buildMemberSearchFilter, profileDisplayName, confirmDestructive } from '../../../utils'
 import type { ConversationRow, Profile } from '../../../types'
+import { useSession } from '../../../contexts/session'
+import { SignInPrompt } from '../../../components/SignInPrompt'
 
 function conversationTitle(row: ConversationRow): string {
   if (row.type === 'club') return row.club_name ?? 'Club Chat'
@@ -42,7 +45,7 @@ function NewDMModal({ visible, onDismiss, onSelect, silencedUserIds }: {
     if (!searchFilter) { setResults([]); return }
     const t = setTimeout(async () => {
       setSearching(true)
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getSessionUser()
       const { data } = await supabase
         .from('profiles')
         .select('id, username, first_name, last_name, avatar_url')
@@ -145,7 +148,7 @@ function NewDMModal({ visible, onDismiss, onSelect, silencedUserIds }: {
 }
 
 // ── Chat list screen ───────────────────────────────────────────────────────────
-export default function ChatScreen() {
+function ChatScreenSignedIn() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { tabBarHeight } = useTabsShell()
@@ -182,7 +185,7 @@ export default function ChatScreen() {
   }, [conversations, silencedUserIds])
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setMyId(user?.id ?? null))
+    getSessionUser().then((user) => setMyId(user?.id ?? null))
   }, [])
 
   useFocusEffect(useCallback(() => {
@@ -379,4 +382,20 @@ export default function ChatScreen() {
       />
     </View>
   )
+}
+
+/** Guests see a sign-in prompt; the signed-in screen (and its data hooks) only mounts with a session. */
+export default function ChatScreen() {
+  const { userId, loading } = useSession()
+  if (loading) return null
+  if (!userId) {
+    return (
+      <SignInPrompt
+        icon="chatbubbles-outline"
+        title="Chat with your club"
+        body="Sign in or sign up to message players and see your club chats."
+      />
+    )
+  }
+  return <ChatScreenSignedIn />
 }
