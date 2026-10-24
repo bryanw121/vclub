@@ -164,12 +164,16 @@ export default function TabsLayout() {
     docScrollActive: false,
   }), [webNav.goToTab, eventsRefreshTick, pagerBlocked]);
 
-  const wideWebActiveValue = useMemo(() => ({ activeTabIndex: 0 }), []);
+  // Wide web routes each tab as its own page, so the "active" tab is whichever the
+  // URL names. Clubs and Chat only fetch while active — a hardcoded 0 here meant
+  // they never fetched on desktop and spun forever.
+  const wideWebTabIndex = tabIndexFromPath(pathname);
+  const wideWebActiveValue = useMemo(() => ({ activeTabIndex: wideWebTabIndex }), [wideWebTabIndex]);
 
   const wideWebTabsValue = useMemo(() => ({
     ...wideWebShellValue,
-    activeTabIndex: 0,
-  }), [wideWebShellValue]);
+    activeTabIndex: wideWebTabIndex,
+  }), [wideWebShellValue, wideWebTabIndex]);
 
   // ── Web (wide): sidebar in (app)/_layout — let Expo Router render the route ─
   // Placed after all hooks so hook order is stable across the breakpoint.

@@ -400,21 +400,31 @@ function avatarPublicUrl(path: string): string {
   return `${SUPABASE_URL}/storage/v1/object/public/${AVATARS_BUCKET}/${path}`
 }
 
-/** 80×80 compressed render URL — use for small avatars in lists and cards. */
-function avatarSmallUrl(path: string): string {
-  return `${SUPABASE_URL}/storage/v1/render/image/public/${AVATARS_BUCKET}/${path}?width=80&height=80&quality=70&resize=cover`
+/**
+ * Supabase image transformations (`/render/image`) need a paid plan; on this
+ * project they answer 403, which left every small avatar blank. Until they are
+ * enabled, small avatars use the original public object. Flip this to true after
+ * upgrading to get resized thumbnails back.
+ */
+const IMAGE_TRANSFORMS_ENABLED = false
+
+/** Small (default 80×80) avatar URL for lists and cards. */
+function avatarSmallUrl(path: string, size = 80): string {
+  if (!IMAGE_TRANSFORMS_ENABLED) return avatarPublicUrl(path)
+  return `${SUPABASE_URL}/storage/v1/render/image/public/${AVATARS_BUCKET}/${path}?width=${size}&height=${size}&quality=70&resize=cover`
 }
 
 /**
  * Synchronous small-avatar URI for `<Image>` — public bucket, no network call.
- * Legacy full HTTP URLs pass through; storage paths become a `size`×`size` render URL.
+ * Legacy full HTTP URLs pass through; storage paths become a `size`×`size` render URL
+ * (or the original image while IMAGE_TRANSFORMS_ENABLED is false).
  * Returns null for empty refs. Use this in list/message rows that resolve inline.
  */
 export function profileAvatarSmallUri(ref: string | null | undefined, size = 80): string | null {
   if (ref == null || ref === '') return null
   const trimmed = ref.trim()
   if (profileAvatarFieldIsHttpUrl(trimmed)) return trimmed
-  return `${SUPABASE_URL}/storage/v1/render/image/public/${AVATARS_BUCKET}/${trimmed}?width=${size}&height=${size}&quality=70&resize=cover`
+  return avatarSmallUrl(trimmed, size)
 }
 
 /** Resolves `avatar_url` to an `Image` URI. Public bucket — returns immediately. */
