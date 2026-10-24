@@ -434,7 +434,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Contract source fingerprint: `2251f2a76c9c`
+> Contract source fingerprint: `576cdc992f7c`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -442,19 +442,20 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 ### Direct table and view calls
 
 <details>
-<summary>36 tables/views referenced by code</summary>
+<summary>38 tables/views referenced by code</summary>
 
 | Table or view | Frontend/server call sites |
 |---|---|
-| `chat_silences` | [`hooks/useChatUnread.tsx:31`](../hooks/useChatUnread.tsx#L31)<br>[`hooks/useSilencedUsers.ts:32`](../hooks/useSilencedUsers.ts#L32) |
+| `app_config` | [`hooks/useMinVersion.ts:19`](../hooks/useMinVersion.ts#L19) |
+| `chat_silences` | [`hooks/useChatUnread.tsx:31`](../hooks/useChatUnread.tsx#L31)<br>[`hooks/useSilencedUsers.ts:32`](../hooks/useSilencedUsers.ts#L32)<br>[`supabase/functions/send-chat-push/index.ts:73`](../supabase/functions/send-chat-push/index.ts#L73) |
 | `cheers` | [`app/(app)/(tabs)/(main)/profile/index.tsx:407`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L407)<br>[`app/(app)/(tabs)/settings/cheers.tsx:26`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L26)<br>[`app/(app)/event/[id].tsx:681`](../app/%28app%29/event/%5Bid%5D.tsx#L681)<br>[`app/(app)/profile/[id].tsx:53`](../app/%28app%29/profile/%5Bid%5D.tsx#L53)<br>[`utils/badges.ts:48`](../utils/badges.ts#L48) |
 | `club_members` | [`app/(app)/(tabs)/clubs.tsx:267`](../app/%28app%29/%28tabs%29/clubs.tsx#L267)<br>[`app/(app)/chat/[id].tsx:91`](../app/%28app%29/chat/%5Bid%5D.tsx#L91)<br>[`app/(app)/club/[id].tsx:221`](../app/%28app%29/club/%5Bid%5D.tsx#L221)<br>[`app/(app)/host.tsx:168`](../app/%28app%29/host.tsx#L168)<br>[`app/(app)/tournament/create.tsx:736`](../app/%28app%29/tournament/create.tsx#L736) |
 | `club_post_comments` | [`components/ClubPostCard.tsx:107`](../components/ClubPostCard.tsx#L107) |
 | `club_post_likes` | [`app/(app)/club/[id].tsx:112`](../app/%28app%29/club/%5Bid%5D.tsx#L112)<br>[`components/ClubPostCard.tsx:78`](../components/ClubPostCard.tsx#L78) |
 | `club_posts` | [`app/(app)/club/[id].tsx:98`](../app/%28app%29/club/%5Bid%5D.tsx#L98)<br>[`components/ClubPostCard.tsx:281`](../components/ClubPostCard.tsx#L281) |
 | `clubs` | [`app/(app)/(tabs)/clubs.tsx:187`](../app/%28app%29/%28tabs%29/clubs.tsx#L187)<br>[`app/(app)/club/[id].tsx:134`](../app/%28app%29/club/%5Bid%5D.tsx#L134)<br>[`app/(app)/club/create.tsx:39`](../app/%28app%29/club/create.tsx#L39) |
-| `conversation_members` | [`supabase/functions/send-chat-push/index.ts:61`](../supabase/functions/send-chat-push/index.ts#L61) |
-| `conversations` | [`supabase/functions/send-chat-push/index.ts:54`](../supabase/functions/send-chat-push/index.ts#L54) |
+| `conversation_members` | [`supabase/functions/send-chat-push/index.ts:64`](../supabase/functions/send-chat-push/index.ts#L64) |
+| `conversations` | [`supabase/functions/send-chat-push/index.ts:63`](../supabase/functions/send-chat-push/index.ts#L63) |
 | `event_attendees` | [`app/(app)/(tabs)/(main)/index.tsx:90`](../app/%28app%29/%28tabs%29/%28main%29/index.tsx#L90)<br>[`app/(app)/event/[id].tsx:822`](../app/%28app%29/event/%5Bid%5D.tsx#L822)<br>[`app/(app)/host.tsx:365`](../app/%28app%29/host.tsx#L365)<br>[`hooks/useMyUpcomingEvents.ts:100`](../hooks/useMyUpcomingEvents.ts#L100)<br>[`utils/badges.ts:33`](../utils/badges.ts#L33) |
 | `event_cohosts` | [`app/(app)/event/[id].tsx:541`](../app/%28app%29/event/%5Bid%5D.tsx#L541) |
 | `event_comments` | [`app/(app)/event/[id].tsx:514`](../app/%28app%29/event/%5Bid%5D.tsx#L514) |
@@ -466,8 +467,9 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `message_reactions` | [`hooks/useMessages.ts:246`](../hooks/useMessages.ts#L246) |
 | `messages` | [`hooks/useMessages.ts:21`](../hooks/useMessages.ts#L21) |
 | `notifications` | [`app/(app)/event/[id].tsx:644`](../app/%28app%29/event/%5Bid%5D.tsx#L644)<br>[`hooks/useNotifications.ts:31`](../hooks/useNotifications.ts#L31)<br>[`utils/badges.ts:237`](../utils/badges.ts#L237) |
-| `profiles` | [`app/_layout.tsx:38`](../app/_layout.tsx#L38)<br>[`app/(app)/(tabs)/(main)/profile/index.tsx:403`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L403)<br>[`app/(app)/(tabs)/chat.tsx:47`](../app/%28app%29/%28tabs%29/chat.tsx#L47)<br>[`app/(app)/(tabs)/settings/badges.tsx:93`](../app/%28app%29/%28tabs%29/settings/badges.tsx#L93)<br>[`app/(app)/(tabs)/settings/notifications.tsx:33`](../app/%28app%29/%28tabs%29/settings/notifications.tsx#L33)<br>[`app/(app)/event/[id].tsx:255`](../app/%28app%29/event/%5Bid%5D.tsx#L255)<br>+4 more files |
-| `push_tokens` | [`supabase/functions/send-chat-push/index.ts:71`](../supabase/functions/send-chat-push/index.ts#L71)<br>[`utils/pushNotifications.ts:46`](../utils/pushNotifications.ts#L46) |
+| `profiles` | [`app/_layout.tsx:40`](../app/_layout.tsx#L40)<br>[`app/(app)/(tabs)/(main)/profile/index.tsx:403`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L403)<br>[`app/(app)/(tabs)/chat.tsx:47`](../app/%28app%29/%28tabs%29/chat.tsx#L47)<br>[`app/(app)/(tabs)/settings/badges.tsx:93`](../app/%28app%29/%28tabs%29/settings/badges.tsx#L93)<br>[`app/(app)/(tabs)/settings/notifications.tsx:33`](../app/%28app%29/%28tabs%29/settings/notifications.tsx#L33)<br>[`app/(app)/event/[id].tsx:255`](../app/%28app%29/event/%5Bid%5D.tsx#L255)<br>+4 more files |
+| `push_receipts` | [`supabase/functions/check-push-receipts/index.ts:26`](../supabase/functions/check-push-receipts/index.ts#L26)<br>[`supabase/functions/send-chat-push/index.ts:135`](../supabase/functions/send-chat-push/index.ts#L135) |
+| `push_tokens` | [`supabase/functions/check-push-receipts/index.ts:55`](../supabase/functions/check-push-receipts/index.ts#L55)<br>[`supabase/functions/send-chat-push/index.ts:82`](../supabase/functions/send-chat-push/index.ts#L82)<br>[`utils/pushNotifications.ts:46`](../utils/pushNotifications.ts#L46) |
 | `tags` | [`app/(app)/host.tsx:166`](../app/%28app%29/host.tsx#L166) |
 | `tournament_comments` | [`app/(app)/tournament/[id].tsx:282`](../app/%28app%29/tournament/%5Bid%5D.tsx#L282) |
 | `tournament_matches` | [`app/(app)/tournament/[id].tsx:292`](../app/%28app%29/tournament/%5Bid%5D.tsx#L292) |
@@ -489,7 +491,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 
 | RPC | Call sites | SQL definition |
 |---|---|---|
-| `find_or_create_dm` | [`app/(app)/(tabs)/chat.tsx:193`](../app/%28app%29/%28tabs%29/chat.tsx#L193)<br>[`app/(app)/event/[id].tsx:1793`](../app/%28app%29/event/%5Bid%5D.tsx#L1793)<br>[`app/(app)/profile/[id].tsx:106`](../app/%28app%29/profile/%5Bid%5D.tsx#L106) | Not checked in |
+| `find_or_create_dm` | [`app/(app)/(tabs)/chat.tsx:193`](../app/%28app%29/%28tabs%29/chat.tsx#L193)<br>[`app/(app)/event/[id].tsx:1813`](../app/%28app%29/event/%5Bid%5D.tsx#L1813)<br>[`app/(app)/profile/[id].tsx:106`](../app/%28app%29/profile/%5Bid%5D.tsx#L106) | Not checked in |
 | `get_email_by_username` | [`app/(auth)/login.tsx:109`](../app/%28auth%29/login.tsx#L109) | Not checked in |
 | `get_event_card_attendee_previews` | [`utils/eventCardPreviews.ts:23`](../utils/eventCardPreviews.ts#L23) | [`supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql:2`](../supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql#L2) |
 | `get_my_conversations` | [`app/(app)/chat/[id].tsx:108`](../app/%28app%29/chat/%5Bid%5D.tsx#L108)<br>[`hooks/useChatUnread.tsx:30`](../hooks/useChatUnread.tsx#L30)<br>[`hooks/useConversations.ts:18`](../hooks/useConversations.ts#L18) | Not checked in |
@@ -505,7 +507,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Surface | Name | Call sites |
 |---|---|---|
 | Auth | `exchangeCodeForSession` | [`lib/socialAuth.ts:24`](../lib/socialAuth.ts#L24) |
-| Auth | `getSession` | [`app/_layout.tsx:34`](../app/_layout.tsx#L34)<br>[`app/(app)/(tabs)/(main)/profile/index.tsx:397`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L397)<br>[`app/(app)/(tabs)/clubs.tsx:182`](../app/%28app%29/%28tabs%29/clubs.tsx#L182)<br>[`app/(app)/(tabs)/settings/account.tsx:17`](../app/%28app%29/%28tabs%29/settings/account.tsx#L17)<br>[`app/(app)/(tabs)/settings/badges.tsx:90`](../app/%28app%29/%28tabs%29/settings/badges.tsx#L90)<br>[`app/(app)/(tabs)/settings/cheers.tsx:21`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L21)<br>+7 more files |
+| Auth | `getSession` | [`app/_layout.tsx:36`](../app/_layout.tsx#L36)<br>[`app/(app)/(tabs)/(main)/profile/index.tsx:397`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L397)<br>[`app/(app)/(tabs)/clubs.tsx:182`](../app/%28app%29/%28tabs%29/clubs.tsx#L182)<br>[`app/(app)/(tabs)/settings/account.tsx:17`](../app/%28app%29/%28tabs%29/settings/account.tsx#L17)<br>[`app/(app)/(tabs)/settings/badges.tsx:90`](../app/%28app%29/%28tabs%29/settings/badges.tsx#L90)<br>[`app/(app)/(tabs)/settings/cheers.tsx:21`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L21)<br>+7 more files |
 | Auth | `getUser` | [`app/(app)/(tabs)/chat.tsx:45`](../app/%28app%29/%28tabs%29/chat.tsx#L45)<br>[`app/(app)/(tabs)/settings/feedback.tsx:36`](../app/%28app%29/%28tabs%29/settings/feedback.tsx#L36)<br>[`app/(app)/(tabs)/settings/history.tsx:45`](../app/%28app%29/%28tabs%29/settings/history.tsx#L45)<br>[`app/(app)/(tabs)/settings/hosted.tsx:16`](../app/%28app%29/%28tabs%29/settings/hosted.tsx#L16)<br>[`app/(app)/(tabs)/settings/notifications.tsx:27`](../app/%28app%29/%28tabs%29/settings/notifications.tsx#L27)<br>[`app/(app)/event/[id].tsx:251`](../app/%28app%29/event/%5Bid%5D.tsx#L251)<br>+8 more files |
 | Auth | `onAuthStateChange` | [`app/(auth)/reset-password.tsx:26`](../app/%28auth%29/reset-password.tsx#L26)<br>[`hooks/useAuth.ts:15`](../hooks/useAuth.ts#L15) |
 | Auth | `resetPasswordForEmail` | [`app/(auth)/login.tsx:87`](../app/%28auth%29/login.tsx#L87) |
@@ -545,7 +547,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Tournament Team Management | [`TournamentTeamInvitationStatus`](../types/index.ts#L750), [`TournamentTeamInvitation`](../types/index.ts#L751), [`TournamentJoinRequestStatus`](../types/index.ts#L761), [`TournamentTeamJoinRequest`](../types/index.ts#L762) |
 | Tournament Prizes | [`TournamentPrize`](../types/index.ts#L773) |
 | Tournament Team with roster | [`TournamentTeamWithRoster`](../types/index.ts#L785) |
-| Google Places prediction | [`GooglePlacePrediction`](../types/index.ts#L799) |
+| Google Places prediction | [`GooglePlacePrediction`](../types/index.ts#L799), [`AppConfigRow`](../types/index.ts#L811), [`UpdateRequirement`](../types/index.ts#L819) |
 
 ### Constrained string values
 
@@ -554,6 +556,7 @@ TypeScript `enum` keyword.
 
 | Type or field | Values | Source |
 |---|---|---|
+| `AppConfigRow.platform` | `ios`, `android`, `web` | [`types/index.ts:812`](../types/index.ts#L812) |
 | `BadgeStat` | `events_attended_past`, `events_hosted_past`, `cheers_received_total`, `cheers_given_events`, `spike_cheers`, `serve_cheers`, `block_cheers`, `set_cheers`, `dig_pass_cheers`, `communication_cheers`, `beta_active`, `tournament_hosted`, `profile_complete`, `vex_member` | [`constants/badges.ts:43`](../constants/badges.ts#L43) |
 | `BadgeType` | `event_attendee`, `event_host`, `cheers_received`, `cheers_given`, `spike_cheer`, `serve_cheer`, `block_cheer`, `set_cheer`, `dig_pass_cheer`, `communication_cheer`, `beta_tester`, `tournament_director`, `profile_complete`, `vex_spirit` | [`types/index.ts:560`](../types/index.ts#L560) |
 | `CardBgType` | `ember`, `frost`, `aurora` | [`types/index.ts:558`](../types/index.ts#L558) |

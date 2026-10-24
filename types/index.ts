@@ -806,3 +806,19 @@ export type GooglePlacePrediction = {
     secondary_text: string
   }
 }
+
+/** Row of `app_config`: minimum supported app version per platform. */
+export type AppConfigRow = {
+  platform: 'ios' | 'android' | 'web'
+  min_version: string
+  store_url: string | null
+  message: string | null
+}
+
+/** Returned by useMinVersion when this install must update before continuing. */
+export type UpdateRequirement = {
+  current: string
+  minimum: string
+  storeUrl: string | null
+  message: string | null
+}

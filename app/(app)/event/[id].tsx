@@ -891,14 +891,33 @@ export default function EventDetail() {
     if (!userId) return
     try {
       setJoining(true)
-      const query = action === 'join'
-        ? supabase.from('event_attendees').insert({ event_id: id, user_id: userId })
-        : supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', userId)
-      const { error } = await query
-      if (error) throw error
-      sentryInfo(`event:${action}`, { eventTitle: event?.title })
+      // The database enforces capacity: if the last spot went to someone else first,
+      // the insert is saved as 'waitlisted', so read back which status we actually got.
+      let savedStatus: 'attending' | 'waitlisted' = 'attending'
+      if (action === 'join') {
+        const { data, error } = await supabase
+          .from('event_attendees')
+          .insert({ event_id: id, user_id: userId })
+          .select('status')
+          .single()
+        if (error) throw error
+        if (data?.status === 'waitlisted') savedStatus = 'waitlisted'
+      } else {
+        const { error } = await supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', userId)
+        if (error) throw error
+      }
+      sentryInfo(`event:${action}`, { eventTitle: event?.title, savedStatus })
 
-      if (action === 'join' && currentUserProfile) {
+      if (action === 'join' && savedStatus === 'waitlisted') {
+        if (currentUserProfile) {
+          setWaitlistProfiles(prev => [...prev, currentUserProfile])
+          setEvent(prev => prev ? {
+            ...prev,
+            event_attendees: [...(prev.event_attendees ?? []), { event_id: id, user_id: userId, joined_at: new Date().toISOString(), team_number: null, team_pinned: false, status: 'waitlisted', profiles: currentUserProfile }],
+          } as EventWithDetails : prev)
+        }
+        Alert.alert('Event just filled up', "The last spot was taken a moment before you. You're on the waitlist and will be notified if you get in.")
+      } else if (action === 'join' && currentUserProfile) {
         setAttendees(prev => [...prev, currentUserProfile])
         setAssignments(prev => ({ ...prev, [userId]: { team: null, pinned: false } }))
         setEvent(prev => prev ? {
@@ -1130,8 +1149,9 @@ export default function EventDetail() {
         status,
       }).select().single()
       if (error) throw error
+      // The database may have waitlisted the guest if the event filled up meanwhile.
       const newGuest = data as EventGuest
-      if (status === 'attending') {
+      if (newGuest.status === 'attending') {
         setGuests(prev => [...prev, newGuest])
         setAssignments(prev => ({ ...prev, [newGuest.id]: { team: null, pinned: false } }))
       } else {

@@ -23,6 +23,8 @@ import { theme } from '../constants'
 import { initSentry, Sentry } from '../lib/sentry'
 import { SentryErrorBoundary } from '../components/SentryErrorBoundary'
 import { registerPushToken } from '../utils/pushNotifications'
+import { useMinVersion } from '../hooks/useMinVersion'
+import { UpdateRequiredScreen } from '../components/UpdateRequiredScreen'
 
 initSentry()
 
@@ -79,6 +81,7 @@ function RootLayout() {
   })
 
   const { session, loading } = useAuth()
+  const updateRequirement = useMinVersion()
   const router = useRouter()
   const segments = useSegments()
 
@@ -159,6 +162,12 @@ function RootLayout() {
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
       </Stack>
+
+      {updateRequirement && !coverWithSplash && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <UpdateRequiredScreen requirement={updateRequirement} />
+        </View>
+      )}
 
       {coverWithSplash && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
