@@ -2,7 +2,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { createClient } from '@supabase/supabase-js'
 import { Platform } from 'react-native'
 import 'react-native-url-polyfill/auto'
-import { currentAppVersion } from '../utils/appVersion'
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
@@ -16,8 +15,6 @@ const storage = isSSR
   : AsyncStorage
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  // Sent with every request so Edge Functions and logs can tell which app build is calling.
-  global: { headers: { 'x-app-version': currentAppVersion(), 'x-app-platform': Platform.OS } },
   auth: {
     storage,
     autoRefreshToken: !isSSR,
