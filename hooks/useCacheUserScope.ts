@@ -7,7 +7,7 @@ import { useSession } from '../contexts/session'
  * counts, the viewer's own profile...). 'feed' is not here: `useMonthEvents`
  * resets it on a user change itself. 'tags' is the same for everyone.
  */
-export const USER_SCOPED_PREFIXES = ['event', 'tournament', 'club', 'conversations', 'conversation', 'profile'] as const
+export const USER_SCOPED_PREFIXES = ['event', 'tournament', 'club', 'conversations', 'conversation', 'profile', 'settings'] as const
 
 /**
  * Drop user-scoped cache entries whenever the signed-in user changes (sign in,

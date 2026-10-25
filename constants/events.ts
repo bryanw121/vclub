@@ -143,7 +143,7 @@ export const EVENT_CARD_MY_ATTENDANCE_SELECT_ATTENDING_ONLY =
 
 /** Columns the Events feed reads from `external_sessions` (Schelagg data). */
 export const EXTERNAL_SESSION_SELECT =
-  'id, source_id, title, venue, city, surface, session_type, level, price, starts_at, ends_at, signup_url, signup_label, note, verified_at'
+  'id, source_id, region, title, venue, city, surface, session_type, level, price, starts_at, ends_at, signup_url, signup_label, note, verified_at'
 
 /**
  * Hide external sessions the hourly Schelagg feed ingest hasn't refreshed for this long.

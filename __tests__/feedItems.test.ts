@@ -16,6 +16,7 @@ const session: ExternalSession = {
   signup_url: 'https://reclub.co/m/ABC',
   signup_label: 'Sign up on Reclub',
   note: null,
+  region: 'austin',
   verified_at: '2026-10-24',
 }
 

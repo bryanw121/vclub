@@ -17,7 +17,9 @@ import { NextUpCard } from '../../../../components/events/NextUpCard'
 import { IconButton } from '../../../../components/ui'
 import { myStatusFor, useMyUpcomingEvents } from '../../../../hooks/useMyUpcomingEvents'
 import { NotificationPopup } from '../../../../components/NotificationPopup'
-import { BREAKPOINTS, FEED_STALE_NOTICE, shared, theme } from '../../../../constants'
+import { BANNERS, BREAKPOINTS, FEED_STALE_NOTICE, shared, theme } from '../../../../constants'
+import { OneTimeBanner } from '../../../../components/ui'
+import { useFeedRegion } from '../../../../hooks/useUserSettings'
 import type { EventWithDetails, FeedFilter, FeedFilterChip, Notification, SurfaceFilter as SurfaceFilterValue } from '../../../../types'
 import { useTabsShell } from '../../../../contexts/tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -61,8 +63,6 @@ const FILTER_CHIPS: FeedFilterChip[] = [
   { id: 'open_play',  label: 'Open Play'  },
   { id: 'tournament', label: 'Tournament' },
   { id: 'not_full',   label: 'Not Full'   },
-  // Sessions other Austin venues run (Schelagg data) — also included in All.
-  { id: 'austin',     label: 'Around Austin' },
 ]
 
 type DateSection = { date: string; data: EventWithDetails[] }
@@ -87,6 +87,7 @@ export default function EventsScreen() {
   const [selectedDate, setSelectedDate] = useState<string>(TODAY)
   const [activeFilter, setActiveFilter] = useState<FeedFilter>('all')
   const [surfaceFilter, setSurfaceFilter] = useState<SurfaceFilterValue>('any')
+  const feedRegion = useFeedRegion()
   const [notifOpen, setNotifOpen] = useState(false)
   const [curWeekPage, setCurWeekPage] = useState(WEEK_CENTER)
   const [curMonthPage, setCurMonthPage] = useState(MONTH_CENTER)
@@ -179,9 +180,10 @@ export default function EventsScreen() {
 
   const sections: DateSection[] = useMemo(() => {
     const filtered = events.filter(event => {
+      // Outside sessions (Schelagg) only for the viewer's region: home city, else the pilot default.
+      if (event._external && event._external.region !== feedRegion) return false
       if (surfaceFilter !== 'any' && surfaceOf(event) !== surfaceFilter) return false
       if (activeFilter === 'all') return true
-      if (activeFilter === 'austin') return !!event._external
       if (activeFilter === 'mine') return !!currentUserId && myStatusFor(event, currentUserId) !== null
       const tags = event.event_tags?.map(et => et.tags.name.toLowerCase()) ?? []
       if (activeFilter === 'open_play')  return tags.some(t => t.includes('open play') || t.includes('open-play'))
@@ -209,7 +211,7 @@ export default function EventsScreen() {
       grouped[date].sort((a, b) => a.event_date.localeCompare(b.event_date))
     }
     return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([date, data]) => ({ date, data }))
-  }, [events, activeFilter, surfaceFilter, currentUserId])
+  }, [events, activeFilter, surfaceFilter, currentUserId, feedRegion])
 
   // "You're going" rail. Derived from events already in memory — no extra query
   // on the happy path, and it re-derives whenever the feed does, so an RSVP made
@@ -327,6 +329,7 @@ export default function EventsScreen() {
 
   const filterChips = (
     <>
+      <OneTimeBanner banner={BANNERS.austinPilot} style={isMobile ? shared.feedStaleNoticeMobile : undefined} />
       <FilterChips
         chips={visibleChips}
         active={activeFilter}

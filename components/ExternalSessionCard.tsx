@@ -50,7 +50,7 @@ function ExternalSessionCardInner({ session }: Props) {
 
       <View style={shared.externalBody}>
         <Text style={shared.externalKicker} numberOfLines={1}>
-          {['Around Austin', surface?.label, session.session_type].filter(Boolean).join(' · ')}
+          {[surface?.label, session.session_type].filter(Boolean).join(' · ')}
         </Text>
         <Text style={shared.externalTitle} numberOfLines={2}>{session.title}</Text>
         <Text style={shared.externalMeta} numberOfLines={1}>
