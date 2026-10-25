@@ -9,6 +9,7 @@ import { DocScrollView } from '../DocScrollView'
 import { shared, theme, TEAM_COLORS, TEAM_COLOR_NAMES } from '../../constants'
 import type { EventWithDetails, Profile, AttendanceStatus, EventGuest, TeamAssignment } from '../../types'
 import { profileDisplayName, resolveProfileAvatarUriSmall, hostRosterSkillAndPositionsLine } from '../../utils'
+import type { EventAttendanceApi, EventData, EventTeamsApi, TeamDragApi } from '../../hooks/event'
 
 // ─── Draggable cards (People tab only) ───────────────────────────────────────
 
@@ -232,78 +233,46 @@ function DraggableGuestCard({ guest, adderUsername, teamColor, isPinned, isOwner
 // ─── People tab body ─────────────────────────────────────────────────────────
 
 type Props = {
-  docScrollActive: boolean
-  refreshing: boolean
-  onRefresh: () => void
   event: EventWithDetails
   eventStatus: AttendanceStatus
-  attendees: Profile[]
-  guests: EventGuest[]
-  adderUsernames: Record<string, string>
-  assignments: Record<string, TeamAssignment>
-  numTeams: number
-  setNumTeams: React.Dispatch<React.SetStateAction<number>>
-  hasTeams: boolean
-  hoveredTeamKey: string | null
-  teamZoneRefs: React.MutableRefObject<Record<string, View | null>>
-  isMobileWeb: boolean
+  /** Roster lists + pull-to-refresh. */
+  data: EventData
+  teams: EventTeamsApi
+  drag: TeamDragApi
+  /** Request approval / waitlist promotion. */
+  attendance: EventAttendanceApi
   isHostOrCohost: boolean
-  savingTeams: boolean
-  requestedProfiles: Profile[]
-  processingRequest: string | null
-  waitlistProfiles: Profile[]
-  waitlistGuests: EventGuest[]
-  onDragStart: (id: string, x: number, y: number) => void
-  onDragMove: (x: number, y: number) => void
-  onDragEnd: (x: number, y: number) => void
-  onTogglePin: (id: string) => void
+  isMobileWeb: boolean
+  docScrollActive: boolean
+  onOpenProfile: (userId: string) => void
   onRemoveAttendee: (profile: Profile) => void
   onRemoveGuest: (g: EventGuest) => void
-  onOpenProfile: (userId: string) => void
-  onResetTeams: () => void
-  onRandomizeTeams: () => void
-  onSaveTeams: () => void
-  onApproveRequest: (userId: string) => void
   onDeny: (userId: string, displayName: string) => void
-  onApproveFromWaitlist: (userId: string) => void
 }
 
 export function PeopleTab({
-  docScrollActive,
-  refreshing,
-  onRefresh,
   event,
   eventStatus,
-  attendees,
-  guests,
-  adderUsernames,
-  assignments,
-  numTeams,
-  setNumTeams,
-  hasTeams,
-  hoveredTeamKey,
-  teamZoneRefs,
-  isMobileWeb,
+  data,
+  teams,
+  drag,
+  attendance,
   isHostOrCohost,
-  savingTeams,
-  requestedProfiles,
-  processingRequest,
-  waitlistProfiles,
-  waitlistGuests,
-  onDragStart,
-  onDragMove,
-  onDragEnd,
-  onTogglePin,
+  isMobileWeb,
+  docScrollActive,
+  onOpenProfile,
   onRemoveAttendee,
   onRemoveGuest,
-  onOpenProfile,
-  onResetTeams,
-  onRandomizeTeams,
-  onSaveTeams,
-  onApproveRequest,
   onDeny,
-  onApproveFromWaitlist,
 }: Props) {
+  const { refreshing, refresh: onRefresh } = data
+  const { attendees, attendingGuests: guests, adderUsernames, requestedProfiles, waitlistProfiles, waitlistGuests } = data.roster
+  const {
+    assignments, numTeams, setNumTeams, hasTeams, savingTeams,
+    togglePin: onTogglePin, resetTeams: onResetTeams, randomizeTeams: onRandomizeTeams, saveTeams: onSaveTeams,
+  } = teams
+  const { hoveredTeamKey, teamZoneRefs, onDragStart, onDragMove, onDragEnd } = drag
+  const { processingRequest, approveRequest: onApproveRequest, approveFromWaitlist: onApproveFromWaitlist } = attendance
   function renderCard(profile: Profile) {
     const a = assignments[profile.id]
     const teamNum = a?.team ?? null

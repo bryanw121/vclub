@@ -7,7 +7,8 @@ import { ProfileAvatar } from '../ProfileAvatar'
 import { DocScrollView } from '../DocScrollView'
 import { LinkedText } from '../LinkedText'
 import { shared, theme, LOCATIONS } from '../../constants'
-import type { EventWithDetails, Profile, AttendanceStatus, EventCohostWithProfile } from '../../types'
+import type { EventWithDetails, Profile, AttendanceStatus } from '../../types'
+import type { EventData } from '../../hooks/event'
 import { profileDisplayName, profileInitial, formatDuration, formatPrice, formatPriceAmount, resolveProfileAvatarUriSmall } from '../../utils'
 
 function formatEndTime(startIso: string, durationMinutes: number): string {
@@ -108,17 +109,13 @@ function HostRow({
 
 type Props = {
   event: EventWithDetails
-  docScrollActive: boolean
-  refreshing: boolean
-  onRefresh: () => void
-  descFooterHeight: number
-  bottomInset: number
-  totalAttending: number
-  cohosts: EventCohostWithProfile[]
-  userId: string | null
+  /** Co-hosts, viewer (id + profile for the Venmo note) and pull-to-refresh. */
+  data: EventData
   eventStatus: AttendanceStatus
   isOwner: boolean
-  currentUserProfile: Profile | null
+  docScrollActive: boolean
+  descFooterHeight: number
+  bottomInset: number
   onOpenProfile: (userId: string) => void
   onMessageHost: (hostId: string) => void
   onManageCohosts: () => void
@@ -126,21 +123,18 @@ type Props = {
 
 export function DetailsTab({
   event,
-  docScrollActive,
-  refreshing,
-  onRefresh,
-  descFooterHeight,
-  bottomInset,
-  totalAttending,
-  cohosts,
-  userId,
+  data,
   eventStatus,
   isOwner,
-  currentUserProfile,
+  docScrollActive,
+  descFooterHeight,
+  bottomInset,
   onOpenProfile,
   onMessageHost,
   onManageCohosts,
 }: Props) {
+  const { refreshing, refresh: onRefresh, cohosts, userId, viewerProfile: currentUserProfile } = data
+  const totalAttending = eventStatus.count
   return (
     <DocScrollView
       docScroll={docScrollActive}

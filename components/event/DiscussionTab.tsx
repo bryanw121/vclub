@@ -1,60 +1,47 @@
 import React from 'react'
 import { View, Text, ScrollView, ActivityIndicator, RefreshControl } from 'react-native'
 import { shared, theme } from '../../constants'
-import type { EventCommentWithAuthor, MentionUser } from '../../types'
+import type { MentionUser } from '../../types'
+import type { EventCommentsApi, EventData } from '../../hooks/event'
 import { profileDisplayName } from '../../utils'
 import { EventCommentRow } from '../EventCommentRow'
 import { DiscussionComposer } from '../DiscussionComposer'
 
 type Props = {
+  discussion: EventCommentsApi
+  /** Viewer id and pull-to-refresh. */
+  data: EventData
+  isHostOrCohost: boolean
+  usernameToId: Map<string, string>
+  mentionableUsers: MentionUser[]
   scrollRef: React.RefObject<ScrollView | null>
   isActive: boolean
-  refreshing: boolean
-  onRefresh: () => void
   scrollToBottom: (animated: boolean) => void
-  commentsLoading: boolean
-  comments: EventCommentWithAuthor[]
-  usernameToId: Map<string, string>
-  userId: string | null
-  isHostOrCohost: boolean
-  onReply: (comment: EventCommentWithAuthor) => void
-  onEdit: (comment: EventCommentWithAuthor) => void
-  onDelete: (commentId: string) => void
   keyboardInset: number
   bottomInset: number
   onComposerLayout: (height: number) => void
-  mentionableUsers: MentionUser[]
-  onPost: (body: string, isAnnouncement: boolean, mentionIds: string[]) => Promise<void>
-  replyToComment: EventCommentWithAuthor | null
-  editingComment: EventCommentWithAuthor | null
-  onClearReply: () => void
-  onCancelEdit: () => void
 }
 
 export function DiscussionTab({
+  discussion,
+  data,
+  isHostOrCohost,
+  usernameToId,
+  mentionableUsers,
   scrollRef,
   isActive,
-  refreshing,
-  onRefresh,
   scrollToBottom,
-  commentsLoading,
-  comments,
-  usernameToId,
-  userId,
-  isHostOrCohost,
-  onReply,
-  onEdit,
-  onDelete,
   keyboardInset,
   bottomInset,
   onComposerLayout,
-  mentionableUsers,
-  onPost,
-  replyToComment,
-  editingComment,
-  onClearReply,
-  onCancelEdit,
 }: Props) {
+  const { refreshing, refresh: onRefresh, userId } = data
+  const {
+    comments, loading: commentsLoading, post: onPost, remove: onDelete,
+    replyTo: replyToComment, editing: editingComment, setReplyTo: onReply, setEditing: onEdit,
+  } = discussion
+  const onClearReply = () => onReply(null)
+  const onCancelEdit = () => onEdit(null)
   return (
     <View style={[shared.screen, { flex: 1, minHeight: 0 }]}>
       <ScrollView
