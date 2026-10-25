@@ -47,7 +47,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test -- --passWithNoTests
-      - run: node --test scripts/
+      - run: node --test scripts/*.test.mjs
 
   # The web build runs in parallel with docs/unit, outside the shared e2e lock,
   # so the serialized e2e job only installs and runs tests.
@@ -57,6 +57,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # migration safety diffs against the PR base
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -66,6 +68,11 @@ jobs:
       # runs on live. Fails when a migration reached only one of them.
       - name: Schema drift (live vs beta)
         run: npm run db:drift
+      # Migrations reach live before the PR's code is deployed: flag drops,
+      # renames, type changes and new required columns (expand, then contract).
+      - name: Migration safety
+        if: github.event_name == 'pull_request'
+        run: node scripts/migration-safety.mjs origin/${{ github.event.pull_request.base.ref }}
       - run: npm run build:web
       - uses: actions/upload-artifact@v4
         with:
