@@ -519,6 +519,20 @@ export const shared = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  // ── Events feed: refresh failed, showing older events ─────
+  feedStaleNotice: {
+    minHeight: 44,
+    justifyContent: 'center',
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.warning,
+    backgroundColor: theme.colors.card,
+  },
+  feedStaleNoticeText: { color: theme.colors.warning, fontSize: theme.font.size.sm, fontFamily: theme.fonts.bodyMedium },
+
   // ── ScreenContainer ───────────────────────────────────────
   screenContainerWide:  { flex: 1, alignItems: 'center' },
   screenContainerInner: { flex: 1, width: '100%' },

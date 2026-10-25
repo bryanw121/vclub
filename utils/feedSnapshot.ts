@@ -14,8 +14,8 @@ const STORAGE_KEY = 'vteam.feedSnapshot'
 const VERSION = 1
 /** Months kept: the current month and the next one cover the first screen. */
 export const SNAPSHOT_MONTHS = 2
-/** Older snapshots are dropped rather than shown. */
-export const SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+/** Older snapshots are dropped rather than shown. Matches EXTERNAL_SESSION_MAX_AGE_MS, so outside sessions are never shown older than the feed would allow. */
+export const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000
 /** Never let a large feed fill the origin's storage quota. */
 const MAX_BYTES = 400_000
 
