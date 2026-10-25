@@ -1,2520 +1,365 @@
-import React, { useEffect, useLayoutEffect, useState, useReducer, useRef, useCallback, useMemo } from 'react'
-import { Platform, View, Text, ScrollView, Alert, Share, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions, Modal, Keyboard, KeyboardEvent, RefreshControl } from 'react-native'
-import { GestureDetector, Gesture } from 'react-native-gesture-handler'
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, interpolate, Extrapolation } from 'react-native-reanimated'
-import { Ionicons } from '@expo/vector-icons'
-import { LinearGradient } from 'expo-linear-gradient'
-import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router'
-import * as Linking from 'expo-linking'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Alert, Platform, ScrollView, View } from 'react-native'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
-import { getSessionUser } from '../../../lib/sessionUser'
-import { useRequireSignIn } from '../../../hooks/useRequireSignIn'
-import { Sentry } from '../../../lib/sentry'
-import { Button } from '../../../components/Button'
-import { ProfileAvatar } from '../../../components/ProfileAvatar'
-import { Input } from '../../../components/Input'
-import { EventCommentRow } from '../../../components/EventCommentRow'
-import { Pager } from '../../../components/Pager'
+import { useMutation } from '../../../lib/query'
 import { setDocScrollClaim } from '../../../lib/docScroll'
-import { eventKey, useDataVersion, shouldRefetch } from '../../../lib/dataVersion'
-import { shared, theme, CHEERS_MAX_PER_EVENT, LOCATIONS, TEAM_COLORS } from '../../../constants'
-import { EventWithDetails, Profile, AttendanceStatus, EventGuest, EventCommentWithAuthor, EventAttendee, EventAttendeeWithProfile, CheerType, Cheer, EventCohostWithProfile, MentionUser, TeamAssignment } from '../../../types'
+import { useRequireSignIn } from '../../../hooks/useRequireSignIn'
+import { useIsNarrowWeb } from '../../../hooks/useIsNarrowWeb'
+import {
+  attendeeRemoveTarget,
+  computeEventStatus,
+  guestRemoveTarget,
+  isEventOver,
+  reportEventError,
+  useCohosts,
+  useEventAttendance,
+  useEventCheers,
+  useEventComments,
+  useEventData,
+  useEventTeams,
+  useKeyboardInset,
+  useRemoveDialog,
+  useTeamDrag,
+} from '../../../hooks/event'
+import { Pager } from '../../../components/Pager'
+import { ScreenState } from '../../../components/ui'
 import { CheersTab } from '../../../components/event/CheersTab'
 import { DetailsTab } from '../../../components/event/DetailsTab'
 import { DiscussionTab } from '../../../components/event/DiscussionTab'
 import { PeopleTab } from '../../../components/event/PeopleTab'
-import {
-  profileDisplayName,
-  profileInitial,
-  formatDuration,
-  resolveProfileAvatarUriWithError,
-  eventAttendeeRows,
-  normalizeVolleyballPositions,
-  normalizeVolleyballSkillLevel,
-  buildMemberSearchFilter,
-} from '../../../utils'
-import { DiscussionComposer } from '../../../components/DiscussionComposer'
+import { EventHeaderActions } from '../../../components/event/EventHeaderActions'
+import { EventHero } from '../../../components/event/EventHero'
+import { EventTabBar, EVENT_TABS } from '../../../components/event/EventTabBar'
+import { JoinFooter } from '../../../components/event/JoinFooter'
+import { DragGhost } from '../../../components/event/DragGhost'
+import { AddGuestDialog } from '../../../components/event/AddGuestDialog'
+import { CohostsDialog } from '../../../components/event/CohostsDialog'
+import { DenyRequestDialog } from '../../../components/event/DenyRequestDialog'
+import { DeleteEventDialog } from '../../../components/event/DeleteEventDialog'
+import { RemoveParticipantDialog } from '../../../components/event/RemoveParticipantDialog'
+import { theme } from '../../../constants'
+import type { MentionUser, Profile } from '../../../types'
+import { profileDisplayName } from '../../../utils'
+import { routes, type RouteString } from '../../../utils/routes'
 
-const EVENT_COMMENT_MAX_LEN = 2000
+const DETAILS_TAB = 0
+const PEOPLE_TAB = 1
+const DISCUSSION_TAB = 2
+const CHEERS_TAB = 3
 
-type RemoveModalState =
-  | null
-  | {
-      kind: 'attendee'
-      userId: string
-      firstName: string | null
-      lastName: string | null
-      username: string
-    }
-  | {
-      kind: 'guest'
-      guestId: string
-      firstName: string
-      lastName: string
-    }
-
-// ─── Remove-confirm dialog state machine ─────────────────────────────────────
-// target / removing / buttonsReady always change together (open, arm, confirm,
-// close), so they live in one reducer instead of three coupled useStates.
-type RemoveDialogState = { target: RemoveModalState; removing: boolean; buttonsReady: boolean }
-const removeDialogInitial: RemoveDialogState = { target: null, removing: false, buttonsReady: false }
-type RemoveDialogAction =
-  | { type: 'open'; target: NonNullable<RemoveModalState> }
-  | { type: 'close' }
-  /** Buttons arm after a short delay so the ghost click that opened the dialog can't confirm it. */
-  | { type: 'armButtons' }
-  | { type: 'removeStart' }
-  | { type: 'removeEnd' }
-function removeDialogReducer(s: RemoveDialogState, a: RemoveDialogAction): RemoveDialogState {
-  switch (a.type) {
-    case 'open': return { target: a.target, removing: false, buttonsReady: false }
-    case 'close': return removeDialogInitial
-    case 'armButtons': return { ...s, buttonsReady: true }
-    case 'removeStart': return { ...s, removing: true }
-    case 'removeEnd': return { ...s, removing: false }
-  }
+function initialTab(tab: string | undefined): number {
+  const t = parseInt(tab ?? '0', 10)
+  return isNaN(t) ? DETAILS_TAB : Math.max(0, Math.min(EVENT_TABS.length - 1, t))
 }
 
-// ─── Add-guest (+1) modal state machine ──────────────────────────────────────
-type GuestModalState = { visible: boolean; firstName: string; lastName: string; adding: boolean }
-const guestModalInitial: GuestModalState = { visible: false, firstName: '', lastName: '', adding: false }
-type GuestModalAction =
-  | { type: 'open' }
-  /** Backdrop / hardware-back dismiss — hides but keeps the draft (matches prior behavior). */
-  | { type: 'dismiss' }
-  /** Cancel button — hides and clears the draft. */
-  | { type: 'cancel' }
-  | { type: 'setFirstName'; value: string }
-  | { type: 'setLastName'; value: string }
-  | { type: 'addStart' }
-  /** Guest saved — close, clear, stop the spinner. */
-  | { type: 'addSuccess' }
-  | { type: 'addEnd' }
-function guestModalReducer(s: GuestModalState, a: GuestModalAction): GuestModalState {
-  switch (a.type) {
-    case 'open': return { ...s, visible: true }
-    case 'dismiss': return { ...s, visible: false }
-    case 'cancel': return guestModalInitial
-    case 'setFirstName': return { ...s, firstName: a.value }
-    case 'setLastName': return { ...s, lastName: a.value }
-    case 'addStart': return { ...s, adding: true }
-    case 'addSuccess': return guestModalInitial
-    case 'addEnd': return { ...s, adding: false }
-  }
-}
-
-function ShareMenuItem({ icon, label, onPress, active }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; onPress: () => void; active?: boolean }) {
-  const [hovered, setHovered] = useState(false)
-  return (
-    <Pressable
-      onPress={onPress}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
-      style={[
-        styles.shareMenuItem,
-        hovered && { backgroundColor: theme.colors.background },
-      ]}
-    >
-      <Ionicons
-        name={icon}
-        size={16}
-        color={active ? theme.colors.success : theme.colors.text}
-      />
-      <Text style={[styles.shareMenuText, active && { color: theme.colors.success }]}>
-        {label}
-      </Text>
-    </Pressable>
-  )
-}
-
+/**
+ * Event detail: banner + Details / People / Discussion / Cheers tabs, the RSVP
+ * footer and the host's dialogs. Data and writes live in `hooks/event/*`; this
+ * screen wires them to the tab components and owns only layout state.
+ */
 export default function EventDetail() {
   const { id, from, tab } = useLocalSearchParams<{ id: string; from?: string; tab?: string }>()
   const router = useRouter()
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions()
   const insets = useSafeAreaInsets()
-  const isMobileWeb = Platform.OS === 'web' && windowWidth < 768
+  const isMobileWeb = useIsNarrowWeb()
+  const requireSignIn = useRequireSignIn()
 
-  const [event, setEvent] = useState<EventWithDetails | null>(null)
-  const [attendees, setAttendees] = useState<Profile[]>([])
-  const [waitlistProfiles, setWaitlistProfiles] = useState<Profile[]>([])
-  const [requestedProfiles, setRequestedProfiles] = useState<Profile[]>([])
-  const [denyModal, setDenyModal] = useState<{ userId: string; displayName: string } | null>(null)
-  const [denyReason, setDenyReason] = useState('')
-  const [processingRequest, setProcessingRequest] = useState<string | null>(null)
-  const [userId, setUserId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const lastFetchedAt = useRef<number>(0)
-  const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null)
-  const [joining, setJoining] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [shareMenuVisible, setShareMenuVisible] = useState(false)
-  const [linkCopied, setLinkCopied] = useState(false)
+  // ── Data + writes ──────────────────────────────────────────────────────────
+  const data = useEventData(id)
+  const { event, userId, cohosts, roster } = data
+  const isOwner = !!event && event.created_by === userId
+  const isHostOrCohost = isOwner || cohosts.some(c => c.user_id === userId)
+  const eventOver = isEventOver(event)
+
+  const attendance = useEventAttendance(data)
+  const teams = useEventTeams(data, isHostOrCohost)
+  const drag = useTeamDrag(teams.moveToTeam)
+  const cohostsApi = useCohosts(data)
+  const removeDialog = useRemoveDialog()
+  const [denyTarget, setDenyTarget] = useState<{ userId: string; displayName: string } | null>(null)
+  const [guestDialogOpen, setGuestDialogOpen] = useState(false)
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false)
-  const [comments, setComments] = useState<EventCommentWithAuthor[]>([])
-  const [commentsLoading, setCommentsLoading] = useState(false)
-  const [replyToComment, setReplyToComment] = useState<EventCommentWithAuthor | null>(null)
-  const [editingComment, setEditingComment] = useState<EventCommentWithAuthor | null>(null)
-  const [discussionDrawerOpen, setDiscussionDrawerOpen] = useState(false)
-  const [discussionKeyboardInset, setDiscussionKeyboardInset] = useState(0)
-  const [discussionTabKeyboardInset, setDiscussionTabKeyboardInset] = useState(0)
-  const [discussionTabComposerHeight, setDiscussionTabComposerHeight] = useState(0)
-  const discussionScrollRef = useRef<ScrollView>(null)
-  const discussionTabScrollRef = useRef<ScrollView>(null)
-  const discussionSheetTranslateY = useSharedValue(0)
-  const discussionBackdropOpacity = useSharedValue(0)
 
-  const [removeDialog, dispatchRemoveDialog] = useReducer(removeDialogReducer, removeDialogInitial)
-
-
-
-  const [guests, setGuests] = useState<EventGuest[]>([])
-  const [waitlistGuests, setWaitlistGuests] = useState<EventGuest[]>([])
-  const [adderUsernames, setAdderUsernames] = useState<Record<string, string>>({})
-  const [guestModal, dispatchGuestModal] = useReducer(guestModalReducer, guestModalInitial)
-
-  const [numTeams, setNumTeams] = useState(2)
-  const [assignments, setAssignments] = useState<Record<string, TeamAssignment>>({})
-  const [savingTeams, setSavingTeams] = useState(false)
-
-  const [activeTab, setActiveTab] = useState(() => {
-    const t = parseInt(tab ?? '0', 10)
-    return isNaN(t) ? 0 : Math.max(0, Math.min(3, t))
-  })
-  // Lazy-mount Discussion/Cheers (and People if not the initial tab) after first visit.
-  const [mountedEventTabs, setMountedEventTabs] = useState(() => {
-    const initial = new Set<number>([0])
-    const t = parseInt(tab ?? '0', 10)
-    const start = isNaN(t) ? 0 : Math.max(0, Math.min(3, t))
-    initial.add(start)
-    if (start === 0) initial.add(1) // prefetch People next to Details
+  // ── Tabs ───────────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState(() => initialTab(tab))
+  // Lazy-mount each tab on first visit (People is prefetched next to Details).
+  const [mountedTabs, setMountedTabs] = useState(() => {
+    const start = initialTab(tab)
+    const initial = new Set<number>([DETAILS_TAB, start])
+    if (start === DETAILS_TAB) initial.add(PEOPLE_TAB)
     return initial
   })
   useEffect(() => {
-    setMountedEventTabs(prev => {
-      if (prev.has(activeTab)) return prev
-      const next = new Set(prev)
-      next.add(activeTab)
-      return next
-    })
+    setMountedTabs(prev => (prev.has(activeTab) ? prev : new Set(prev).add(activeTab)))
   }, [activeTab])
-  const [descFooterHeight, setDescFooterHeight] = useState(80)
+
+  const cheers = useEventCheers(id, userId, activeTab === CHEERS_TAB && eventOver)
+  const selectTab = (next: number) => {
+    if (next !== CHEERS_TAB) cheers.clearDraft()
+    setActiveTab(next)
+  }
 
   // ── Document-scroll mode (mobile web) — Details & People tabs only.
   // Discussion/Cheers keep the app-shell layout (bottom-anchored composer).
   // This page manages body.doc-scroll itself since the tabs shell can't see
   // the inner tab state (CSS lives in app/+html.tsx).
-  const docScrollActive = isMobileWeb && (activeTab === 0 || activeTab === 1)
+  const docScrollActive = isMobileWeb && (activeTab === DETAILS_TAB || activeTab === PEOPLE_TAB)
   useEffect(() => {
     if (Platform.OS !== 'web') return
     setDocScrollClaim('event-detail', docScrollActive)
     return () => setDocScrollClaim('event-detail', false)
   }, [docScrollActive])
-  // Reset document scroll when switching inner tabs
   useEffect(() => {
     if (docScrollActive) window.scrollTo(0, 0)
   }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
-  const innerPagerBlocked = useRef(false)
 
-  const [myCheersGiven, setMyCheersGiven] = useState<Cheer[]>([])
-  const [pendingCheers, setPendingCheers] = useState<{ receiverId: string; cheerType: CheerType }[]>([])
-  const [cheersLoading, setCheersLoading] = useState(false)
-  const [submittingCheers, setSubmittingCheers] = useState(false)
-  const [cheersSent, setCheersSent] = useState(false)
-  const [cheerSubmitError, setCheerSubmitError] = useState<string | null>(null)
-  const [selectedCheerType, setSelectedCheerType] = useState<CheerType | null>(null)
-
-  // Cohosts
-  const [cohosts, setCohosts] = useState<EventCohostWithProfile[]>([])
-  const [cohostModalVisible, setCohostModalVisible] = useState(false)
-  const [cohostSearchQuery, setCohostSearchQuery] = useState('')
-  const [cohostSearchResults, setCohostSearchResults] = useState<Profile[]>([])
-  const [cohostSearching, setCohostSearching] = useState(false)
-  const [cohostAdding, setCohostAdding] = useState(false)
-  const [cohostRemoving, setCohostRemoving] = useState<string | null>(null)
-
-  // Drag-and-drop
-  const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null)
-  const [hoveredTeamKey, setHoveredTeamKey] = useState<string | null>(null)
-  const ghostX = useSharedValue(-500)
-  const ghostY = useSharedValue(-500)
-  const containerOffsetX = useSharedValue(0)
-  const containerOffsetY = useSharedValue(0)
-  const draggingPlayerIdRef = useRef<string | null>(null)
-  const containerRef = useRef<View>(null)
-  const teamZoneRefs = useRef<Record<string, View | null>>({})
-  const teamZoneLayouts = useRef<Record<string, { top: number; bottom: number }>>({})
-  const idRef = useRef(id)
-  idRef.current = id
-  const requireSignIn = useRequireSignIn()
-
-  useEffect(() => {
-    getSessionUser().then(async (user) => {
-      if (!user) return
-      setUserId(user.id)
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, username, first_name, last_name, avatar_url, position, selected_border, skill_level')
-        .eq('id', user.id)
-        .single()
-      if (data) {
-        const row = data as Profile
-        setCurrentUserProfile({
-          ...row,
-          skill_level: normalizeVolleyballSkillLevel(row.skill_level),
-        })
-      }
-    })
-  }, [])
-
-  // Refetch on focus when this event was mutated elsewhere (the edit screen), or
-  // when the cached copy has simply gone stale. The version check is what makes a
-  // fast edit round-trip visible — it completes well inside the 30s window, so
-  // staleness alone would never fire. `silent` keeps the old data on screen and
-  // swaps it in place instead of flashing a spinner.
-  const eventVersion = useDataVersion(eventKey(id))
-  const seenEventVersion = useRef(eventVersion)
-  useFocusEffect(
-    useCallback(() => {
-      const refetch = shouldRefetch({
-        version: eventVersion,
-        seenVersion: seenEventVersion.current,
-        lastFetchedAt: lastFetchedAt.current,
-        now: Date.now(),
-        staleAfterMs: 30_000,
-      })
-      if (refetch) {
-        seenEventVersion.current = eventVersion
-        void fetchEvent({ silent: true })
-      }
-    }, [id, eventVersion]), // eslint-disable-line react-hooks/exhaustive-deps
-  )
-
-  // After the remove modal renders, allow interaction after a short delay so the
-  // ghost mouseup/pointerup from the X button click can't immediately dismiss it.
-  useEffect(() => {
-    if (removeDialog.target === null) return
-    const t = setTimeout(() => dispatchRemoveDialog({ type: 'armButtons' }), 250)
-    return () => clearTimeout(t)
-  }, [removeDialog.target])
-
-  const closeDiscussionDrawer = useCallback(() => {
-    setDiscussionDrawerOpen(false)
-  }, [])
-
-  const runDiscussionDismissAnimations = useCallback(() => {
-    discussionBackdropOpacity.value = withTiming(0, { duration: 220 })
-    discussionSheetTranslateY.value = withTiming(windowHeight, { duration: 260 }, (finished) => {
-      if (finished) runOnJS(closeDiscussionDrawer)()
-    })
-  }, [windowHeight, closeDiscussionDrawer])
-
-  useLayoutEffect(() => {
-    if (!discussionDrawerOpen) return
-    discussionBackdropOpacity.value = 0
-    discussionSheetTranslateY.value = windowHeight
-    discussionBackdropOpacity.value = withTiming(1, { duration: 260 })
-    discussionSheetTranslateY.value = withTiming(0, { duration: 320 })
-  }, [discussionDrawerOpen, windowHeight])
-
-  useEffect(() => {
-    if (!discussionDrawerOpen) {
-      setDiscussionKeyboardInset(0)
-      return
-    }
-    if (Platform.OS === 'web') return
-
-    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
-    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
-    const onShow = (e: KeyboardEvent) => {
-      setDiscussionKeyboardInset(e.endCoordinates.height)
-    }
-    const onHide = () => {
-      setDiscussionKeyboardInset(0)
-    }
-    const subShow = Keyboard.addListener(showEvt, onShow)
-    const subHide = Keyboard.addListener(hideEvt, onHide)
-    return () => {
-      subShow.remove()
-      subHide.remove()
-      setDiscussionKeyboardInset(0)
-    }
-  }, [discussionDrawerOpen])
-
-  useEffect(() => {
-    if (activeTab !== 2) {
-      setDiscussionTabKeyboardInset(0)
-      return
-    }
-    if (Platform.OS === 'web') return
-
-    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
-    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
-    const onShow = (e: KeyboardEvent) => {
-      setDiscussionTabKeyboardInset(e.endCoordinates.height)
-    }
-    const onHide = () => {
-      setDiscussionTabKeyboardInset(0)
-    }
-    const subShow = Keyboard.addListener(showEvt, onShow)
-    const subHide = Keyboard.addListener(hideEvt, onHide)
-    return () => {
-      subShow.remove()
-      subHide.remove()
-      setDiscussionTabKeyboardInset(0)
-    }
-  }, [activeTab])
-
-  useEffect(() => {
-    if (discussionTabKeyboardInset <= 0) return
-    const t = setTimeout(() => {
-      discussionTabScrollRef.current?.scrollToEnd({ animated: true })
-    }, 64)
-    return () => clearTimeout(t)
-  }, [discussionTabKeyboardInset])
-
-  useEffect(() => {
-    if (discussionKeyboardInset <= 0) return
-    const t = setTimeout(() => {
-      discussionScrollRef.current?.scrollToEnd({ animated: true })
-    }, 64)
-    return () => clearTimeout(t)
-  }, [discussionKeyboardInset])
-
+  // ── Discussion: chat-style pinned-to-bottom scroll ─────────────────────────
+  const discussionScrollRef = useRef<ScrollView>(null)
+  const [composerHeight, setComposerHeight] = useState(0)
+  const keyboardInset = useKeyboardInset(activeTab === DISCUSSION_TAB)
   const scrollDiscussionToBottom = useCallback((animated: boolean) => {
     // scrollToEnd can fail before layout; delay a frame.
-    requestAnimationFrame(() => {
-      discussionScrollRef.current?.scrollToEnd({ animated })
-      discussionTabScrollRef.current?.scrollToEnd({ animated })
-    })
+    requestAnimationFrame(() => discussionScrollRef.current?.scrollToEnd({ animated }))
   }, [])
-
+  const discussion = useEventComments(data, { isHostOrCohost, onPosted: () => scrollDiscussionToBottom(true) })
   useEffect(() => {
-    if (!discussionDrawerOpen) return
-    const t = setTimeout(() => scrollDiscussionToBottom(false), 0)
+    if (keyboardInset <= 0) return
+    const t = setTimeout(() => discussionScrollRef.current?.scrollToEnd({ animated: true }), 64)
     return () => clearTimeout(t)
-  }, [discussionDrawerOpen, scrollDiscussionToBottom])
-
+  }, [keyboardInset])
   useEffect(() => {
-    // When entering discussion or when comments update, keep the view pinned to the bottom (chat UX).
-    if (activeTab !== 2 && !discussionDrawerOpen) return
-    scrollDiscussionToBottom(false)
-  }, [activeTab, discussionDrawerOpen, comments.length, discussionTabComposerHeight, scrollDiscussionToBottom])
-
-  useEffect(() => {
-    if (activeTab !== 3 || !isEventOver || !userId) return
-    fetchMyCheers()
-  }, [activeTab, userId])
-
-  const discussionSheetAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: discussionSheetTranslateY.value }],
-  }))
-
-  const discussionBackdropAnimStyle = useAnimatedStyle(() => ({
-    backgroundColor: `rgba(0,0,0,${discussionBackdropOpacity.value * 0.45})`,
-  }))
-
-  const discussionSheetPanGesture = useMemo(() => {
-    const sheetH = Math.round(windowHeight * 0.88)
-    const dismissThreshold = Math.min(110, sheetH * 0.22)
-    const flingVy = 650
-
-    const pan = Gesture.Pan()
-      .activeOffsetY(10)
-      .failOffsetX([-36, 36])
-      .onUpdate((e) => {
-        'worklet'
-        const t = e.translationY
-        const y = t > 0 ? t : t * 0.22
-        discussionSheetTranslateY.value = y
-        discussionBackdropOpacity.value = interpolate(y, [0, sheetH * 0.9], [1, 0], Extrapolation.CLAMP)
-      })
-      .onEnd((e) => {
-        'worklet'
-        const y = discussionSheetTranslateY.value
-        const vy = e.velocityY
-        if (y > dismissThreshold || vy > flingVy) {
-          runOnJS(runDiscussionDismissAnimations)()
-        } else {
-          discussionBackdropOpacity.value = withTiming(1, { duration: 180 })
-          discussionSheetTranslateY.value = withSpring(0, { damping: 26, stiffness: 320 })
-        }
-      })
-      .onFinalize((_e, success) => {
-        'worklet'
-        if (!success) {
-          discussionBackdropOpacity.value = withTiming(1, { duration: 160 })
-          discussionSheetTranslateY.value = withSpring(0, { damping: 26, stiffness: 320 })
-        }
-      })
-
-    return Platform.OS === 'web' ? pan.minDistance(4) : pan
-  }, [windowHeight, runDiscussionDismissAnimations])
-
-  useEffect(() => {
-    innerPagerBlocked.current = draggingPlayerId !== null
-  }, [draggingPlayerId])
-
-  function attendeeRowsWithProfiles(eventAttendees: EventWithDetails['event_attendees']): EventAttendeeWithProfile[] {
-    const ea = eventAttendees
-    if (!ea || ea.length === 0) return []
-    const first = ea[0] as EventAttendeeWithProfile | { count: number }
-    if ('count' in first && !('user_id' in first)) return []
-    return ea as EventAttendeeWithProfile[]
-  }
-
-  function profileFromAttendeeEmbed(a: EventAttendeeWithProfile): Profile | null {
-    const p = a.profiles
-    if (!p) return null
-    return {
-      id: p.id,
-      username: p.username,
-      first_name: p.first_name,
-      last_name: p.last_name,
-      avatar_url: p.avatar_url,
-      selected_border: p.selected_border ?? null,
-      position: normalizeVolleyballPositions(p.position),
-      skill_level: normalizeVolleyballSkillLevel(p.skill_level),
-      created_at: '',
-    }
-  }
-
-  async function fetchEvent(opts?: { silent?: boolean }) {
-    const fetchId = id
-    try {
-      if (!opts?.silent) setLoading(true)
-      setLoadError(null)
-      setCommentsLoading(true)
-
-      const { data, error } = await supabase
-        .from('events')
-        .select(
-          `*, profiles!events_created_by_fkey (id, username, first_name, last_name, avatar_url, selected_border), event_attendees (event_id, user_id, joined_at, team_number, team_pinned, status, profiles!event_attendees_user_id_fkey (id, username, first_name, last_name, avatar_url, position, selected_border, skill_level)), event_tags (tag_id, tags (id, name, category, display_order))`,
-        )
-        .eq('id', fetchId)
-        .single()
-
-      if (error) throw error
-      setEvent(data as EventWithDetails)
-
-      const attendeeRows = attendeeRowsWithProfiles(data.event_attendees)
-      const attendingEntries = attendeeRows.filter(a => a.status === 'attending')
-      const waitlistEntries = [...attendeeRows.filter(a => a.status === 'waitlisted')].sort(
-        (a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime(),
-      )
-      const requestedEntries = [...attendeeRows.filter(a => a.status === 'requested')].sort(
-        (a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime(),
-      )
-
-      setAttendees(attendingEntries.map(profileFromAttendeeEmbed).filter(Boolean) as Profile[])
-      setWaitlistProfiles(waitlistEntries.map(profileFromAttendeeEmbed).filter(Boolean) as Profile[])
-      setRequestedProfiles(requestedEntries.map(profileFromAttendeeEmbed).filter(Boolean) as Profile[])
-
-      // Comments load in parallel with guests; do not block the main shell.
-      void supabase
-        .from('event_comments')
-        .select(
-          'id, event_id, body, is_announcement, created_at, user_id, mentions, parent_id, edited_at, deleted_at, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url, selected_border)',
-        )
-        .eq('event_id', fetchId)
-        .order('created_at', { ascending: true })
-        .then(({ data: commentRows, error: commentsError }) => {
-          if (fetchId !== idRef.current) return
-          if (commentsError) {
-            setComments([])
-          } else {
-            setComments((commentRows ?? []) as unknown as EventCommentWithAuthor[])
-          }
-          setCommentsLoading(false)
-        })
-
-      // Fetch guests and cohosts in parallel — neither depends on the other
-      const [
-        { data: guestRows, error: guestsError },
-        { data: cohostRows },
-      ] = await Promise.all([
-        supabase
-          .from('event_guests')
-          .select('id, event_id, status, added_by, joined_at, team_number, team_pinned, first_name, last_name, adder:profiles!event_guests_added_by_fkey (id, username)')
-          .eq('event_id', fetchId)
-          .order('joined_at', { ascending: true }),
-        supabase
-          .from('event_cohosts')
-          .select('event_id, user_id, added_by, added_at, profiles!event_cohosts_user_id_fkey (id, username, first_name, last_name, avatar_url, selected_border)')
-          .eq('event_id', fetchId)
-          .order('added_at', { ascending: true }),
-      ])
-      if (guestsError) throw guestsError
-      setCohosts((cohostRows ?? []) as unknown as EventCohostWithProfile[])
-
-      const allGuests = (guestRows ?? []) as unknown as EventGuest[]
-      const attendingGuests = allGuests.filter(g => g.status === 'attending')
-      setGuests(attendingGuests)
-      setWaitlistGuests(allGuests.filter(g => g.status === 'waitlisted'))
-
-      // Adder usernames come embedded on each guest row (no extra round-trip).
-      const nameMap: Record<string, string> = {}
-      for (const g of allGuests) {
-        const username = g.adder?.username
-        if (username) nameMap[g.added_by] = username
-      }
-      setAdderUsernames(nameMap)
-
-      const map: Record<string, TeamAssignment> = {}
-      let maxTeam = 1
-      for (const a of attendingEntries) {
-        const t = a.team_number ?? null
-        map[a.user_id] = { team: t, pinned: a.team_pinned ?? false }
-        if (t && t > maxTeam) maxTeam = t
-      }
-      for (const g of attendingGuests) {
-        const t = g.team_number ?? null
-        map[g.id] = { team: t, pinned: g.team_pinned ?? false }
-        if (t && t > maxTeam) maxTeam = t
-      }
-      setAssignments(map)
-      if (Object.values(map).some(a => a.team !== null)) {
-        setNumTeams(Math.max(2, maxTeam))
-      }
-    } catch (e: any) {
-      setLoadError(e.message ?? 'Failed to load event')
-      setCommentsLoading(false)
-    } finally {
-      setLoading(false)
-      lastFetchedAt.current = Date.now()
-    }
-  }
-
-  async function handleRefresh() {
-    setRefreshing(true)
-    // Don't clear comments first — fetchEvent updates them in place, so keeping
-    // the current list visible during refresh avoids an empty-flash.
-    try {
-      await fetchEvent({ silent: true })
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
-  async function searchCohostCandidates(query: string) {
-    const q = query.trim()
-    if (q.length < 2) { setCohostSearchResults([]); return }
-    const searchFilter = buildMemberSearchFilter(q)
-    if (!searchFilter) { setCohostSearchResults([]); return }
-    setCohostSearching(true)
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, username, first_name, last_name, avatar_url, selected_border, position, created_at')
-      .or(searchFilter)
-      .neq('id', userId ?? '')
-      .neq('id', event?.created_by ?? '')
-      .limit(10)
-    const existing = new Set(cohosts.map(c => c.user_id))
-    setCohostSearchResults(((data ?? []) as Profile[]).filter(p => !existing.has(p.id)))
-    setCohostSearching(false)
-  }
-
-  async function addCohost(candidate: Profile) {
-    if (!event || cohosts.length >= 3) return
-    setCohostAdding(true)
-    try {
-      const { error } = await supabase.from('event_cohosts').insert({
-        event_id: event.id,
-        user_id: candidate.id,
-        added_by: userId,
-      })
-      if (error) throw error
-      const newCohost: EventCohostWithProfile = {
-        event_id: event.id,
-        user_id: candidate.id,
-        added_by: userId!,
-        added_at: new Date().toISOString(),
-        profiles: {
-          id: candidate.id,
-          username: candidate.username,
-          first_name: candidate.first_name,
-          last_name: candidate.last_name,
-          avatar_url: candidate.avatar_url,
-          selected_border: candidate.selected_border ?? null,
-        },
-      }
-      setCohosts(prev => [...prev, newCohost])
-      setCohostSearchResults([])
-      setCohostSearchQuery('')
-      // Notify the new cohost
-      await supabase.from('notifications').insert({
-        user_id: candidate.id,
-        notification_type: 'cohost_added',
-        title: 'You\'ve been added as a co-host',
-        body: `You are now a co-host for "${event.title}".`,
-        data: { event_id: event.id },
-      })
-    } catch (e: any) {
-      sentryError('addCohost', e)
-      Alert.alert('Error', 'Something went wrong. Please try again.')
-    } finally {
-      setCohostAdding(false)
-    }
-  }
-
-  async function removeCohost(cohostUserId: string) {
-    if (!event) return
-    setCohostRemoving(cohostUserId)
-    try {
-      const { error } = await supabase.from('event_cohosts')
-        .delete()
-        .eq('event_id', event.id)
-        .eq('user_id', cohostUserId)
-      if (error) throw error
-      setCohosts(prev => prev.filter(c => c.user_id !== cohostUserId))
-    } catch (e: any) {
-      sentryError('removeCohost', e)
-      Alert.alert('Error', 'Something went wrong. Please try again.')
-    } finally {
-      setCohostRemoving(null)
-    }
-  }
-
-  async function fetchMyCheers() {
-    if (!userId) return
-    setCheersLoading(true)
-    const { data } = await supabase
-      .from('cheers')
-      .select('*')
-      .eq('event_id', id)
-      .eq('giver_id', userId)
-    setMyCheersGiven((data ?? []) as Cheer[])
-    setCheersLoading(false)
-  }
-
-  /** Toggle a cheer: if already pending → unstage; if already submitted → remove from DB; else → stage. */
-  function toggleCheer(receiverId: string, cheerType: CheerType) {
-    const totalGiven = myCheersGiven.length + pendingCheers.length
-    const isPending = pendingCheers.some(p => p.receiverId === receiverId && p.cheerType === cheerType)
-    const isSubmitted = myCheersGiven.some(k => k.receiver_id === receiverId && k.cheer_type === cheerType)
-
-    if (isPending) {
-      setPendingCheers(prev => prev.filter(p => !(p.receiverId === receiverId && p.cheerType === cheerType)))
-    } else if (isSubmitted) {
-      void revokeSubmittedCheer(receiverId, cheerType)
-    } else if (totalGiven < CHEERS_MAX_PER_EVENT) {
-      setPendingCheers(prev => [...prev, { receiverId, cheerType }])
-    }
-  }
-
-  async function revokeSubmittedCheer(receiverId: string, cheerType: CheerType) {
-    if (!userId) return
-    const removed = myCheersGiven.find(k => k.receiver_id === receiverId && k.cheer_type === cheerType)
-    setMyCheersGiven(prev => prev.filter(k => !(k.receiver_id === receiverId && k.cheer_type === cheerType)))
-    const { error } = await supabase.from('cheers').delete()
-      .eq('event_id', id).eq('giver_id', userId).eq('receiver_id', receiverId).eq('cheer_type', cheerType)
-    if (error) {
-      if (removed) setMyCheersGiven(prev => [...prev, removed])
-      Alert.alert('Error', error.message)
-    }
-  }
-
-  async function submitCheers() {
-    if (!userId || pendingCheers.length === 0) return
-    setSubmittingCheers(true)
-    setCheerSubmitError(null)
-    const rows = pendingCheers.map(p => ({
-      event_id: id,
-      giver_id: userId,
-      receiver_id: p.receiverId,
-      cheer_type: p.cheerType,
-    }))
-    const { data, error } = await supabase.from('cheers').insert(rows).select()
-    setSubmittingCheers(false)
-    if (error) {
-      Sentry.captureException(error, { extra: { context: 'submitCheers', eventId: id } })
-      setCheerSubmitError(error.message)
-      return
-    }
-    setMyCheersGiven(prev => [...prev, ...(data ?? [])])
-    setPendingCheers([])
-    setCheersSent(true)
-    setTimeout(() => setCheersSent(false), 3000)
-  }
-
-  async function resetCheers() {
-    if (!userId || (myCheersGiven.length === 0 && pendingCheers.length === 0)) return
-    const snapshotKudos = [...myCheersGiven]
-    setMyCheersGiven([])
-    setPendingCheers([])
-    if (snapshotKudos.length > 0) {
-      const { error } = await supabase.from('cheers').delete()
-        .eq('event_id', id).eq('giver_id', userId)
-      if (error) {
-        setMyCheersGiven(snapshotKudos)
-        Alert.alert('Error', error.message)
-      }
-    }
-  }
-
-  async function refreshComments() {
-    const { data, error } = await supabase
-      .from('event_comments')
-      .select(
-        'id, event_id, body, is_announcement, created_at, user_id, mentions, parent_id, edited_at, deleted_at, profiles!event_comments_user_id_fkey (id, username, first_name, last_name, avatar_url, selected_border)',
-      )
-      .eq('event_id', id)
-      .order('created_at', { ascending: true })
-    if (error) {
-      Alert.alert('Error', error.message)
-      return
-    }
-    setComments((data ?? []) as unknown as EventCommentWithAuthor[])
-  }
-
-  async function handlePostComment(body: string, isAnnouncement: boolean, mentionIds: string[]) {
-    // Guests can browse the event; acting on it needs an account.
-    if (!userId) { requireSignIn(); return }
-    if (body.length > EVENT_COMMENT_MAX_LEN) {
-      Alert.alert('Comment too long', `Please keep comments under ${EVENT_COMMENT_MAX_LEN} characters.`)
-      throw new Error('comment_too_long')
-    }
-
-    // Edit mode
-    if (editingComment) {
-      try {
-        const { error } = await supabase.from('event_comments')
-          .update({ body, edited_at: new Date().toISOString() })
-          .eq('id', editingComment.id)
-        if (error) throw error
-        setEditingComment(null)
-        await refreshComments()
-      } catch (e: any) {
-        sentryError('editComment', e)
-        Alert.alert('Error', 'Could not edit comment.')
-        throw e
-      }
-      return
-    }
-
-    try {
-      const { error } = await supabase.from('event_comments').insert({
-        event_id: id,
-        user_id: userId,
-        body,
-        is_announcement: Boolean(isHostOrCohost && isAnnouncement),
-        mentions: mentionIds,
-        parent_id: replyToComment?.id ?? null,
-      })
-      if (error) throw error
-      setReplyToComment(null)
-      await refreshComments()
-      scrollDiscussionToBottom(true)
-    } catch (e: any) {
-      sentryError('postComment', e)
-      Alert.alert('Error', 'Could not post comment. Please try again.')
-      throw e
-    }
-  }
-
-  async function handleDeleteComment(commentId: string) {
-    await supabase.from('event_comments')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', commentId)
-    await refreshComments()
-  }
-
-  async function refreshAttendees() {
-    const { data, error } = await supabase
-      .from('event_attendees')
-      .select('event_id, user_id, joined_at, team_number, team_pinned, status')
-      .eq('event_id', id)
-    if (error) { Alert.alert('Error', error.message); return }
-    const rows = (data ?? []) as EventAttendee[]
-
-    setEvent(prev => prev ? { ...prev, event_attendees: rows } : prev)
-
-    const attendingRows = rows.filter(a => a.status === 'attending')
-    const waitlistRows = [...rows.filter(a => a.status === 'waitlisted')]
-      .sort((a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
-    const requestedRows = [...rows.filter(a => a.status === 'requested')]
-      .sort((a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
-
-    const attendeeIds = attendingRows.map(a => a.user_id)
-    const waitlistIds = waitlistRows.map(a => a.user_id)
-    const requestedIds = requestedRows.map(a => a.user_id)
-    const allProfileIds = [...new Set([...attendeeIds, ...waitlistIds, ...requestedIds])]
-    const profilesMap = new Map<string, Profile>()
-    if (allProfileIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, username, first_name, last_name, avatar_url, position')
-        .in('id', allProfileIds)
-      for (const p of (profiles ?? []) as Profile[]) profilesMap.set(p.id, p)
-    }
-    setAttendees(attendeeIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
-    setWaitlistProfiles(waitlistIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
-    setRequestedProfiles(requestedIds.map(uid => profilesMap.get(uid)).filter(Boolean) as Profile[])
-
-    const map: Record<string, TeamAssignment> = {}
-    let maxTeam = 1
-    for (const a of attendingRows) {
-      const t = a.team_number ?? null
-      map[a.user_id] = { team: t, pinned: a.team_pinned ?? false }
-      if (t && t > maxTeam) maxTeam = t
-    }
-    setAssignments(map)
-    if (Object.values(map).some(a => a.team !== null)) {
-      setNumTeams(prev => Math.max(prev, maxTeam))
-    }
-
-    // Adder usernames come embedded on each guest row (same shape as fetchEvent).
-    const { data: guestRows } = await supabase
-      .from('event_guests')
-      .select('id, event_id, status, added_by, joined_at, team_number, team_pinned, first_name, last_name, adder:profiles!event_guests_added_by_fkey (id, username)')
-      .eq('event_id', id)
-      .order('joined_at', { ascending: true })
-    const allGuests = (guestRows ?? []) as unknown as EventGuest[]
-    const attendingGuests = allGuests.filter(g => g.status === 'attending')
-    setGuests(attendingGuests)
-    setWaitlistGuests(allGuests.filter(g => g.status === 'waitlisted'))
-
-    const nameMap: Record<string, string> = {}
-    for (const g of allGuests) {
-      if (g.adder?.username) nameMap[g.added_by] = g.adder.username
-    }
-    setAdderUsernames(nameMap)
-
-    setAssignments(prev => {
-      const next = { ...prev }
-      for (const g of attendingGuests) {
-        if (!next[g.id]) next[g.id] = { team: g.team_number ?? null, pinned: g.team_pinned ?? false }
-      }
-      return next
-    })
-  }
-
-  async function handleToggleAttendance(action: 'join' | 'leave') {
-    // Guests can browse the event; acting on it needs an account.
-    if (!userId) { requireSignIn(); return }
-    try {
-      setJoining(true)
-      // The database enforces capacity: if the last spot went to someone else first,
-      // the insert is saved as 'waitlisted', so read back which status we actually got.
-      let savedStatus: 'attending' | 'waitlisted' = 'attending'
-      if (action === 'join') {
-        const { data, error } = await supabase
-          .from('event_attendees')
-          .insert({ event_id: id, user_id: userId })
-          .select('status')
-          .single()
-        if (error) throw error
-        if (data?.status === 'waitlisted') savedStatus = 'waitlisted'
-      } else {
-        const { error } = await supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', userId)
-        if (error) throw error
-      }
-      sentryInfo(`event:${action}`, { eventTitle: event?.title, savedStatus })
-
-      if (action === 'join' && savedStatus === 'waitlisted') {
-        if (currentUserProfile) {
-          setWaitlistProfiles(prev => [...prev, currentUserProfile])
-          setEvent(prev => prev ? {
-            ...prev,
-            event_attendees: [...(prev.event_attendees ?? []), { event_id: id, user_id: userId, joined_at: new Date().toISOString(), team_number: null, team_pinned: false, status: 'waitlisted', profiles: currentUserProfile }],
-          } as EventWithDetails : prev)
-        }
-        Alert.alert('Event just filled up', "The last spot was taken a moment before you. You're on the waitlist and will be notified if you get in.")
-      } else if (action === 'join' && currentUserProfile) {
-        setAttendees(prev => [...prev, currentUserProfile])
-        setAssignments(prev => ({ ...prev, [userId]: { team: null, pinned: false } }))
-        setEvent(prev => prev ? {
-          ...prev,
-          event_attendees: [...(prev.event_attendees ?? []), { event_id: id, user_id: userId, joined_at: new Date().toISOString(), team_number: null, team_pinned: false, status: 'attending', profiles: currentUserProfile }],
-        } as EventWithDetails : prev)
-      } else if (action === 'leave') {
-        setAttendees(prev => prev.filter(p => p.id !== userId))
-        setAssignments(prev => { const next = { ...prev }; delete next[userId]; return next })
-        setEvent(prev => prev ? {
-          ...prev,
-          event_attendees: (prev.event_attendees ?? []).filter((a: any) => a.user_id !== userId),
-        } as EventWithDetails : prev)
-      }
-    } catch (e: any) {
-      sentryError('handleToggleAttendance', e, { action })
-      Alert.alert('Error', 'Something went wrong. Please try again.')
-    } finally {
-      setJoining(false)
-    }
-  }
-
-  async function handleJoinWaitlist() {
-    // Guests can browse the event; acting on it needs an account.
-    if (!userId) { requireSignIn(); return }
-    try {
-      setJoining(true)
-      const { error } = await supabase.from('event_attendees').insert({ event_id: id, user_id: userId, status: 'waitlisted' })
-      if (error) throw error
-      sentryInfo('event:join_waitlist', { eventTitle: event?.title })
-      if (currentUserProfile) {
-        setWaitlistProfiles(prev => [...prev, currentUserProfile])
-        setEvent(prev => prev ? {
-          ...prev,
-          event_attendees: [...(prev.event_attendees ?? []), { event_id: id, user_id: userId, joined_at: new Date().toISOString(), team_number: null, team_pinned: false, status: 'waitlisted', profiles: currentUserProfile }],
-        } as EventWithDetails : prev)
-      }
-    } catch (e: any) {
-      sentryError('handleJoinWaitlist', e)
-      Alert.alert('Error', 'Something went wrong. Please try again.')
-    } finally {
-      setJoining(false)
-    }
-  }
-
-  async function handleLeaveWaitlist() {
-    if (!userId) return
-    try {
-      setJoining(true)
-      const { error } = await supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', userId)
-      if (error) throw error
-      sentryInfo('event:leave_waitlist', { eventTitle: event?.title })
-      setWaitlistProfiles(prev => prev.filter(p => p.id !== userId))
-      setEvent(prev => prev ? {
-        ...prev,
-        event_attendees: (prev.event_attendees ?? []).filter((a: any) => a.user_id !== userId),
-      } as EventWithDetails : prev)
-    } catch (e: any) {
-      sentryError('handleLeaveWaitlist', e)
-      Alert.alert('Error', 'Something went wrong. Please try again.')
-    } finally {
-      setJoining(false)
-    }
-  }
-
-  // ─── Paid event request flow ─────────────────────────────────────────────────
-
-  async function handleRequestToJoin() {
-    // Guests can browse the event; acting on it needs an account.
-    if (!userId) { requireSignIn(); return }
-    try {
-      setJoining(true)
-      const { error } = await supabase.from('event_attendees').insert({ event_id: id, user_id: userId, status: 'requested' })
-      if (error) throw error
-      sentryInfo('event:request_join', { eventTitle: event?.title })
-      if (event?.created_by && event.created_by !== userId) {
-        await supabase.from('notifications').insert({
-          user_id: event.created_by,
-          notification_type: 'join_request',
-          title: 'New join request',
-          body: `Someone requested to join "${event.title}"`,
-          data: { event_id: id, requester_id: userId },
-        })
-      }
-      setEvent(prev => prev ? {
-        ...prev,
-        event_attendees: [...(prev.event_attendees ?? []), { event_id: id, user_id: userId, joined_at: new Date().toISOString(), team_number: null, team_pinned: false, status: 'requested' }],
-      } as EventWithDetails : prev)
-    } catch (e: any) {
-      sentryError('handleRequestToJoin', e)
-      Alert.alert('Error', 'Something went wrong. Please try again.')
-    } finally {
-      setJoining(false)
-    }
-  }
-
-  async function handleCancelRequest() {
-    if (!userId) return
-    try {
-      setJoining(true)
-      const { error } = await supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', userId)
-      if (error) throw error
-      sentryInfo('event:cancel_request', { eventTitle: event?.title })
-      setEvent(prev => prev ? {
-        ...prev,
-        event_attendees: (prev.event_attendees ?? []).filter((a: any) => a.user_id !== userId),
-      } as EventWithDetails : prev)
-    } catch (e: any) {
-      sentryError('handleCancelRequest', e)
-      Alert.alert('Error', 'Something went wrong. Please try again.')
-    } finally {
-      setJoining(false)
-    }
-  }
-
-  async function handleApproveRequest(requestedUserId: string) {
-    try {
-      setProcessingRequest(requestedUserId)
-      const { error } = await supabase.from('event_attendees')
-        .update({ status: 'attending', denial_reason: null })
-        .eq('event_id', id).eq('user_id', requestedUserId)
-      if (error) throw error
-      sentryInfo('event:approve_request', { approvedUserId: requestedUserId, eventTitle: event?.title })
-      await supabase.from('notifications').insert({
-        user_id: requestedUserId,
-        notification_type: 'request_approved',
-        title: 'Request approved',
-        body: `Your request to join "${event?.title}" was approved`,
-        data: { event_id: id },
-      })
-      const profile = requestedProfiles.find(p => p.id === requestedUserId)
-      setRequestedProfiles(prev => prev.filter(p => p.id !== requestedUserId))
-      if (profile) {
-        setAttendees(prev => [...prev, profile])
-        setAssignments(prev => ({ ...prev, [requestedUserId]: { team: null, pinned: false } }))
-      }
-      setEvent(prev => prev ? {
-        ...prev,
-        event_attendees: (prev.event_attendees ?? []).map((a: any) =>
-          a.user_id === requestedUserId ? { ...a, status: 'attending', denial_reason: null } : a
-        ),
-      } as EventWithDetails : prev)
-    } catch (e: any) {
-      sentryError('handleApproveRequest', e, { requestedUserId })
-      Alert.alert('Error', 'Something went wrong. Please try again.')
-    } finally {
-      setProcessingRequest(null)
-    }
-  }
-
-  async function handleDenyRequest(requestedUserId: string, reason: string) {
-    try {
-      setProcessingRequest(requestedUserId)
-      const trimmedReason = reason.trim() || null
-      const { error } = await supabase.from('event_attendees')
-        .update({ status: 'denied', denial_reason: trimmedReason })
-        .eq('event_id', id).eq('user_id', requestedUserId)
-      if (error) throw error
-      sentryInfo('event:deny_request', { deniedUserId: requestedUserId, eventTitle: event?.title })
-      await supabase.from('notifications').insert({
-        user_id: requestedUserId,
-        notification_type: 'request_denied',
-        title: 'Request denied',
-        body: trimmedReason
-          ? `Your request to join "${event?.title}" was denied: ${trimmedReason}`
-          : `Your request to join "${event?.title}" was denied`,
-        data: { event_id: id, denial_reason: trimmedReason },
-      })
-      setRequestedProfiles(prev => prev.filter(p => p.id !== requestedUserId))
-      setEvent(prev => prev ? {
-        ...prev,
-        event_attendees: (prev.event_attendees ?? []).map((a: any) =>
-          a.user_id === requestedUserId ? { ...a, status: 'denied', denial_reason: trimmedReason } : a
-        ),
-      } as EventWithDetails : prev)
-      setDenyModal(null)
-      setDenyReason('')
-    } catch (e: any) {
-      sentryError('handleDenyRequest', e, { requestedUserId })
-      Alert.alert('Error', e.message)
-    } finally {
-      setProcessingRequest(null)
-    }
-  }
-
-  async function handleRerequest() {
-    if (!userId) return
-    try {
-      setJoining(true)
-      const { error: delErr } = await supabase.from('event_attendees').delete().eq('event_id', id).eq('user_id', userId)
-      if (delErr) throw delErr
-      const { error: insErr } = await supabase.from('event_attendees').insert({ event_id: id, user_id: userId, status: 'requested' })
-      if (insErr) throw insErr
-      sentryInfo('event:rerequest_join', { eventTitle: event?.title })
-      if (event?.created_by && event.created_by !== userId) {
-        await supabase.from('notifications').insert({
-          user_id: event.created_by,
-          notification_type: 'join_request',
-          title: 'New join request',
-          body: `Someone re-requested to join "${event.title}"`,
-          data: { event_id: id, requester_id: userId },
-        })
-      }
-      setEvent(prev => prev ? {
-        ...prev,
-        event_attendees: [
-          ...(prev.event_attendees ?? []).filter((a: any) => a.user_id !== userId),
-          { event_id: id, user_id: userId, joined_at: new Date().toISOString(), team_number: null, team_pinned: false, status: 'requested' },
-        ],
-      } as EventWithDetails : prev)
-    } catch (e: any) {
-      sentryError('handleRerequest', e)
-      Alert.alert('Error', e.message)
-    } finally {
-      setJoining(false)
-    }
-  }
-
-  async function handleAddGuest() {
-    if (!userId || !guestModal.firstName.trim() || !guestModal.lastName.trim()) return
-    try {
-      dispatchGuestModal({ type: 'addStart' })
-      const attendingCount = eventAttendeeRows(event ?? { event_attendees: [] }).filter(a => a.status === 'attending').length + guests.length
-      const isFull = event?.max_attendees ? attendingCount >= event.max_attendees : false
-      const status = isFull ? 'waitlisted' : 'attending'
-      const { data, error } = await supabase.from('event_guests').insert({
-        event_id: id,
-        added_by: userId,
-        first_name: guestModal.firstName.trim(),
-        last_name: guestModal.lastName.trim(),
-        status,
-      }).select().single()
-      if (error) throw error
-      // The database may have waitlisted the guest if the event filled up meanwhile.
-      const newGuest = data as EventGuest
-      if (newGuest.status === 'attending') {
-        setGuests(prev => [...prev, newGuest])
-        setAssignments(prev => ({ ...prev, [newGuest.id]: { team: null, pinned: false } }))
-      } else {
-        setWaitlistGuests(prev => [...prev, newGuest])
-      }
-      if (currentUserProfile && !adderUsernames[userId]) {
-        setAdderUsernames(prev => ({ ...prev, [userId]: currentUserProfile.username }))
-      }
-      dispatchGuestModal({ type: 'addSuccess' })
-    } catch (e: any) {
-      sentryError('handleAddGuest', e)
-      Alert.alert('Error', 'Something went wrong. Please try again.')
-    } finally {
-      dispatchGuestModal({ type: 'addEnd' })
-    }
-  }
-
-  function openRemoveGuestModal(g: EventGuest) {
-    if (removeDialog.target !== null) return
-    dispatchRemoveDialog({ type: 'open', target: { kind: 'guest', guestId: g.id, firstName: g.first_name, lastName: g.last_name } })
-  }
-
-  function openRemoveAttendeeModal(profile: Profile) {
-    if (removeDialog.target !== null) return
-    dispatchRemoveDialog({ type: 'open', target: {
-      kind: 'attendee',
-      userId: profile.id,
-      firstName: profile.first_name,
-      lastName: profile.last_name,
-      username: profile.username,
-    } })
-  }
-
-  async function confirmRemoveFromModal() {
-    // confirmRemoveFromModal start
-    const target = removeDialog.target
-    if (!target) return
-    try {
-      dispatchRemoveDialog({ type: 'removeStart' })
-      if (target.kind === 'guest') {
-        const { data, error } = await supabase.from('event_guests').delete().eq('id', target.guestId).select()
-        if (error) {
-          sentryError('confirmRemoveFromModal:guest', error, { guestId: target.guestId })
-          Alert.alert('Error', error.message)
-          return
-        }
-        if (!data?.length) {
-          Alert.alert(
-            'Could not remove',
-            'Nothing was deleted. As host, ensure the Supabase delete policy for event_guests is installed (see supabase/event_host_remove_attendees.sql).'
-          )
-          return
-        }
-      } else {
-        const { data, error } = await supabase
-          .from('event_attendees')
-          .delete()
-          .eq('event_id', id)
-          .eq('user_id', target.userId)
-          .select()
-        if (error) {
-          sentryError('confirmRemoveFromModal:attendee', error, { removedUserId: target.userId })
-          Alert.alert('Error', error.message)
-          return
-        }
-        if (!data?.length) {
-          sentryError('confirmRemoveFromModal:attendee', new Error('Delete returned empty — missing RLS policy'), { removedUserId: target.userId })
-          Alert.alert(
-            'Could not remove',
-            'Nothing was deleted. As host, add the Supabase policy so hosts can remove other attendees — run supabase/event_host_remove_attendees.sql in the SQL editor.'
-          )
-          return
-        }
-      }
-      if (target.kind === 'guest') {
-        setGuests(prev => prev.filter(g => g.id !== target.guestId))
-        setWaitlistGuests(prev => prev.filter(g => g.id !== target.guestId))
-        setAssignments(prev => { const next = { ...prev }; delete next[target.guestId]; return next })
-      } else {
-        setAttendees(prev => prev.filter(p => p.id !== target.userId))
-        setWaitlistProfiles(prev => prev.filter(p => p.id !== target.userId))
-        setAssignments(prev => { const next = { ...prev }; delete next[target.userId]; return next })
-        setEvent(prev => prev ? {
-          ...prev,
-          event_attendees: (prev.event_attendees ?? []).filter((a: any) => a.user_id !== target.userId),
-        } as EventWithDetails : prev)
-      }
-      dispatchRemoveDialog({ type: 'close' })
-    } finally {
-      dispatchRemoveDialog({ type: 'removeEnd' })
-    }
-  }
-
-  async function handleApproveFromWaitlist(waitlistUserId: string) {
-    const attendingCount = eventAttendeeRows(event ?? { event_attendees: [] }).filter(a => a.status === 'attending').length
-    if (event?.max_attendees && attendingCount >= event.max_attendees) {
-      Alert.alert('Event full', 'The event is still full. Remove an attendee first or increase the capacity.')
-      return
-    }
-    try {
-      const { error } = await supabase
-        .from('event_attendees')
-        .update({ status: 'attending' })
-        .eq('event_id', id)
-        .eq('user_id', waitlistUserId)
-      if (error) throw error
-      const promoted = waitlistProfiles.find(p => p.id === waitlistUserId)
-      if (promoted) {
-        setWaitlistProfiles(prev => prev.filter(p => p.id !== waitlistUserId))
-        setAttendees(prev => [...prev, promoted])
-        setAssignments(prev => ({ ...prev, [waitlistUserId]: { team: null, pinned: false } }))
-        setEvent(prev => prev ? {
-          ...prev,
-          event_attendees: (prev.event_attendees ?? []).map((a: any) =>
-            a.user_id === waitlistUserId ? { ...a, status: 'attending' } : a
-          ),
-        } : prev)
-      }
-    } catch (e: any) {
-      sentryError('handleApproveFromWaitlist', e, { promotedUserId: waitlistUserId })
-      Alert.alert('Error', 'Something went wrong. Please try again.')
-    }
-  }
-
-  async function handleShare() {
-    if (Platform.OS === 'web') {
-      setShareMenuVisible(v => !v)
-      return
-    }
-    const url = Linking.createURL(`/event/${id}`)
-    await Share.share({ message: `Check out "${event?.title ?? 'Event'}" on vclub:\n${url}`, url })
-  }
-
-  async function handleCopyLink() {
-    await navigator.clipboard.writeText(window.location.href)
-    setLinkCopied(true)
-    setTimeout(() => setLinkCopied(false), 2000)
-  }
-
-  async function handleWebShare() {
-    await navigator.share({ title: event?.title ?? 'Event', url: window.location.href })
-    setShareMenuVisible(false)
-  }
-
-  function handleDelete() {
-    setDeleteConfirmVisible(true)
-  }
-
-  async function confirmDelete() {
-    setDeleteConfirmVisible(false)
-    try {
-      setDeleting(true)
-      const { error } = await supabase.from('events').delete().eq('id', id)
-      if (error) throw error
-      router.replace('/(app)/(tabs)')
-    } catch (e: any) {
-      sentryError('confirmDelete', e)
-      Alert.alert('Error', 'Could not delete event. Please try again.')
-    } finally {
-      setDeleting(false)
-    }
-  }
-
-  function cycleTeam(userId: string) {
-    setAssignments(prev => {
-      const current = prev[userId]?.team ?? null
-      // null → 1 → 2 → ... → numTeams → null
-      const next = current === null ? 1 : current >= numTeams ? null : current + 1
-      return {
-        ...prev,
-        [userId]: { team: next, pinned: prev[userId]?.pinned ?? false },
-      }
-    })
-  }
-
-  function togglePin(userId: string) {
-    setAssignments(prev => ({
-      ...prev,
-      [userId]: { ...prev[userId], pinned: !prev[userId]?.pinned },
-    }))
-  }
-
-  function resetTeams() {
-    setAssignments(prev => {
-      const next = { ...prev }
-      Object.keys(next).forEach(uid => { next[uid] = { team: null, pinned: false } })
-      return next
-    })
-  }
-
-  function randomizeTeams() {
-    const totalPlayers = attendees.length + guests.length
-    if (totalPlayers % numTeams !== 0) {
-      Alert.alert('Unequal teams', `${totalPlayers} players can't be split into ${numTeams} equal teams. Adjust the team count so it divides evenly.`)
-      return
-    }
-    const target = totalPlayers / numTeams
-
-    const pinnedCount: Record<number, number> = {}
-    for (let t = 1; t <= numTeams; t++) pinnedCount[t] = 0
-    for (const p of attendees) { const a = assignments[p.id]; if (a?.pinned && a.team !== null) pinnedCount[a.team]++ }
-    for (const g of guests)    { const a = assignments[g.id];  if (a?.pinned && a.team !== null) pinnedCount[a.team]++ }
-
-    for (let t = 1; t <= numTeams; t++) {
-      if (pinnedCount[t] > target) {
-        Alert.alert('Too many pinned', `Team ${t} already has ${pinnedCount[t]} pinned players but can only hold ${target}.`)
-        return
-      }
-    }
-
-    const slots: number[] = []
-    for (let t = 1; t <= numTeams; t++) {
-      for (let i = 0; i < target - pinnedCount[t]; i++) slots.push(t)
-    }
-
-    const unpinned = [
-      ...attendees.filter(p => !assignments[p.id]?.pinned).map(p => p.id),
-      ...guests.filter(g => !assignments[g.id]?.pinned).map(g => g.id),
-    ]
-    for (let i = unpinned.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[unpinned[i], unpinned[j]] = [unpinned[j], unpinned[i]]
-    }
-    for (let i = slots.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[slots[i], slots[j]] = [slots[j], slots[i]]
-    }
-
-    setAssignments(prev => {
-      const next = { ...prev }
-      unpinned.forEach((uid, i) => { next[uid] = { team: slots[i], pinned: false } })
-      return next
-    })
-  }
-
-  async function saveTeams() {
-    setSavingTeams(true)
-    try {
-      const guestIds = new Set(guests.map(g => g.id))
-      const attendeeEntries = Object.entries(assignments).filter(([id]) => !guestIds.has(id))
-      const guestEntries    = Object.entries(assignments).filter(([id]) => guestIds.has(id))
-
-      const attendeeResults = await Promise.all(
-        attendeeEntries.map(([uid, { team, pinned }]) =>
-          supabase.from('event_attendees').update({ team_number: team, team_pinned: pinned }).eq('event_id', id).eq('user_id', uid).select()
-        )
-      )
-      const failed = attendeeResults.find(r => r.error)
-      if (failed?.error) throw failed.error
-      const blocked = attendeeResults.find(r => !r.data || r.data.length === 0)
-      if (blocked) throw new Error('Update blocked — add an RLS UPDATE policy for event_attendees')
-
-      await Promise.all(
-        guestEntries.map(([gid, { team, pinned }]) =>
-          supabase.from('event_guests').update({ team_number: team, team_pinned: pinned }).eq('id', gid)
-        )
-      )
-
-      setEvent(prev => prev ? {
-        ...prev,
-        event_attendees: (prev.event_attendees ?? []).map((a: any) => {
-          const asgn = assignments[a.user_id]
-          return asgn ? { ...a, team_number: asgn.team, team_pinned: asgn.pinned } : a
-        }),
-      } : prev)
-      setGuests(prev => prev.map(g => {
-        const asgn = assignments[g.id]
-        return asgn ? { ...g, team_number: asgn.team ?? undefined, team_pinned: asgn.pinned } : g
-      }) as EventGuest[])
-    } catch (e: any) {
-      sentryError('saveTeams', e)
-      Alert.alert('Error', 'Could not save teams. Please try again.')
-    } finally {
-      setSavingTeams(false)
-    }
-  }
-
-  function measureContainerOffset() {
-    if (Platform.OS === 'web') {
-      const el = containerRef.current as any
-      const rect = el?.getBoundingClientRect?.()
-      if (rect) {
-        containerOffsetX.value = rect.left
-        containerOffsetY.value = rect.top
-      }
-    } else {
-      containerRef.current?.measure(
-        (_x: number, _y: number, _w: number, _h: number, px: number, py: number) => {
-          containerOffsetX.value = px
-          containerOffsetY.value = py
-        }
-      )
-    }
-  }
-
-  function handleDragStart(playerId: string, x: number, y: number) {
-    measureContainerOffset()
-    draggingPlayerIdRef.current = playerId
-    ghostX.value = x
-    ghostY.value = y
-    setDraggingPlayerId(playerId)
-    // Snapshot layout of every team drop zone
-    Object.entries(teamZoneRefs.current).forEach(([key, ref]) => {
-      ref?.measure((_x: number, _y: number, _w: number, h: number, _px: number, py: number) => {
-        teamZoneLayouts.current[key] = { top: py - 24, bottom: py + h + 24 }
-      })
-    })
-  }
-
-  function handleDragMove(x: number, y: number) {
-    ghostX.value = x
-    ghostY.value = y
-    let hovered: string | null = null
-    for (const [key, zone] of Object.entries(teamZoneLayouts.current)) {
-      if (y >= zone.top && y <= zone.bottom) { hovered = key; break }
-    }
-    setHoveredTeamKey(hovered)
-  }
-
-  function handleDragEnd(_x: number, y: number) {
-    const playerId = draggingPlayerIdRef.current
-    if (playerId) {
-      let targetKey: string | null = null
-      for (const [key, zone] of Object.entries(teamZoneLayouts.current)) {
-        if (y >= zone.top && y <= zone.bottom) { targetKey = key; break }
-      }
-      if (targetKey !== null) {
-        const teamNum = targetKey === 'unassigned' ? null : parseInt(targetKey, 10)
-        setAssignments(prev => ({ ...prev, [playerId]: { team: teamNum, pinned: prev[playerId]?.pinned ?? false } }))
-      }
-    }
-    draggingPlayerIdRef.current = null
-    setDraggingPlayerId(null)
-    setHoveredTeamKey(null)
-    ghostX.value = -500
-    ghostY.value = -500
-  }
-
-  // Web: ghost is position:fixed (viewport coords) so no container offset needed
-  // Mobile: ghost is position:absolute inside container so subtract container offset
-  const ghostOverlayStyle = useAnimatedStyle(() => ({
-    left: Platform.OS === 'web'
-      ? ghostX.value - 80
-      : ghostX.value - containerOffsetX.value - 80,
-    top: Platform.OS === 'web'
-      ? ghostY.value - 28
-      : ghostY.value - containerOffsetY.value - 28,
-  }))
-
-  function goBack() {
-    // Use back() first — it cleanly pops the event screen off the stack, preventing stale
-    // screens from causing subsequent pushes to load the wrong event.
-    // Fall back to replace(from) only for direct URL access where canGoBack() is false.
-    if (router.canGoBack()) {
-      router.back()
-    } else if (from) {
-      router.replace(decodeURIComponent(from) as any)
-    } else {
-      router.replace('/(app)/(tabs)')
-    }
-  }
-
-  // ─── Sentry helpers ──────────────────────────────────────────────────────────
-  function sentryInfo(message: string, extra?: Record<string, unknown>) {
-    Sentry.addBreadcrumb({ category: 'event', message, level: 'info', data: { userId, eventId: id, ...extra } })
-  }
-  function sentryError(context: string, e: any, extra?: Record<string, unknown>) {
-    Sentry.captureException(e instanceof Error ? e : new Error(e?.message ?? String(e)), {
-      extra: { context, userId, eventId: id, ...extra },
-    })
-  }
-
-  const isOwner = event?.created_by === userId
-  const isCohost = cohosts.some(c => c.user_id === userId)
-  const isHostOrCohost = isOwner || isCohost
-
-  // All profiles that can be @mentioned: attendees + cohosts + host, excluding self.
+    if (activeTab === DISCUSSION_TAB) scrollDiscussionToBottom(false)
+  }, [activeTab, data.comments.length, composerHeight, scrollDiscussionToBottom])
+
+  // ── @mentions: attendees + co-hosts + host, excluding self ─────────────────
+  const mentionProfiles = useMemo(() => {
+    const list: Profile[] = [...roster.attendees]
+    cohosts.forEach(c => list.push(c.profiles as Profile))
+    if (event?.profiles) list.push(event.profiles as Profile)
+    return list
+  }, [roster.attendees, cohosts, event])
   const mentionableUsers = useMemo<MentionUser[]>(() => {
     const seen = new Set<string>()
     const result: MentionUser[] = []
-    const add = (p: Profile | null | undefined) => {
-      if (!p || seen.has(p.id) || p.id === userId) return
+    for (const p of mentionProfiles) {
+      if (!p || seen.has(p.id) || p.id === userId) continue
       seen.add(p.id)
       result.push({ id: p.id, username: p.username, displayName: profileDisplayName(p) })
     }
-    attendees.forEach(add)
-    cohosts.forEach(c => add(c.profiles as Profile))
-    if (event?.profiles) add(event.profiles as Profile)
     return result
-  }, [attendees, cohosts, event, userId])
-
-  // username → profile ID map used by EventCommentRow to render tappable mentions.
+  }, [mentionProfiles, userId])
+  // username → profile id, for tappable mentions in EventCommentRow.
   const usernameToId = useMemo(() => {
     const m = new Map<string, string>()
-    const add = (p: Profile | null | undefined) => { if (p?.username) m.set(p.username, p.id) }
-    attendees.forEach(add)
-    cohosts.forEach(c => add(c.profiles as Profile))
-    if (event?.profiles) add(event.profiles as Profile)
+    mentionProfiles.forEach(p => { if (p?.username) m.set(p.username, p.id) })
     return m
-  }, [attendees, cohosts, event])
-  const isEventOver = event
-    ? Date.now() > new Date(/[Z+]/.test(event.event_date) ? event.event_date : event.event_date + 'Z').getTime() + (event.duration_minutes ?? 120) * 60_000
-    : false
-  const totalPlayers = attendees.length + guests.length
-  const hasTeams = isHostOrCohost
-    ? totalPlayers > 0
-    : Object.values(assignments).some(a => a.team !== null)
+  }, [mentionProfiles])
 
-  const attendeeRows = event ? eventAttendeeRows(event) : []
-  const attendingEntries = attendeeRows.filter((a: any) => a.status === 'attending')
-  const waitlistEntries = [...attendeeRows.filter((a: any) => a.status === 'waitlisted')]
-    .sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
-  const waitlistIdx = waitlistEntries.findIndex((a: any) => a.user_id === userId)
-  const totalAttending = attendingEntries.length + guests.length
-  const myRequestEntry = attendeeRows.find((a: any) => a.user_id === userId && (a.status === 'requested' || a.status === 'denied'))
+  const eventStatus = computeEventStatus({
+    event,
+    rows: roster.rows,
+    attendingGuestCount: roster.attendingGuests.length,
+    userId,
+    isHostOrCohost,
+  })
   const isPaidEvent = (event?.price ?? 0) > 0
-  const eventStatus: AttendanceStatus = {
-    count: totalAttending,
-    spotsLeft: event?.max_attendees ? event.max_attendees - totalAttending : null,
-    isFull: event?.max_attendees ? totalAttending >= event.max_attendees : false,
-    isAttending: attendingEntries.some((a: any) => a.user_id === userId),
-    isOwner: isHostOrCohost,
-    isWaitlisted: waitlistIdx !== -1,
-    waitlistPosition: waitlistIdx !== -1 ? waitlistIdx + 1 : null,
-    waitlistCount: waitlistEntries.length,
-    isRequested: myRequestEntry?.status === 'requested',
-    isDenied: myRequestEntry?.status === 'denied',
-    denialReason: myRequestEntry?.status === 'denied' ? (myRequestEntry.denial_reason ?? null) : null,
+  const [footerHeight, setFooterHeight] = useState(80)
+
+  // ── Navigation + host actions ──────────────────────────────────────────────
+  function goBack() {
+    // back() first — it cleanly pops the event screen, so a stale screen can't make a
+    // later push load the wrong event. replace() only for direct URL loads (no history).
+    if (router.canGoBack()) router.back()
+    else if (from) router.replace(decodeURIComponent(from) as RouteString)
+    else router.replace(routes.events())
   }
+
+  const deleteEvent = useMutation(
+    async () => {
+      const { error } = await supabase.from('events').delete().eq('id', id)
+      if (error) throw error
+    },
+    {
+      onSuccess: () => router.replace(routes.events()),
+      onError: e => {
+        reportEventError(id, userId, 'confirmDelete', e)
+        Alert.alert('Error', 'Could not delete event. Please try again.')
+      },
+    },
+  )
+
+  async function messageUser(otherUserId: string) {
+    if (!requireSignIn()) return
+    const { data: convId } = await supabase.rpc('find_or_create_dm', { other_user_id: otherUserId })
+    if (convId) router.push(routes.conversation(convId as string))
+  }
+
+  async function confirmRemove() {
+    const target = removeDialog.target
+    if (target && (await attendance.removeParticipant(target))) removeDialog.close()
+  }
+
+  async function confirmDeny(reason: string) {
+    if (denyTarget && (await attendance.denyRequest(denyTarget.userId, reason))) setDenyTarget(null)
+  }
+
+  const headerActions = (
+    <EventHeaderActions
+      eventId={id}
+      title={event?.title}
+      canManage={isHostOrCohost}
+      deleting={deleteEvent.isPending}
+      onBack={goBack}
+      onEdit={() => router.push(routes.host({ edit: id }))}
+      onDelete={() => setDeleteConfirmVisible(true)}
+    />
+  )
+  const loadError = data.loadError?.message ?? (data.notFound ? 'Event not found' : null)
+  const openProfile = (profileId: string) => router.push(routes.profileOf(profileId))
+  const placeholder = <View style={{ flex: 1 }} />
 
   return (
     <View
-      ref={containerRef}
+      ref={drag.containerRef}
       style={[
         { backgroundColor: theme.colors.background },
         // Doc-scroll mode: auto height so content extends the document (body scrolls)
-        docScrollActive ? ({ minHeight: '100dvh' } as any) : { flex: 1 },
+        docScrollActive ? ({ minHeight: '100dvh' } as object) : { flex: 1 },
       ]}
-      pointerEvents={(removeDialog.target !== null || denyModal !== null) ? 'none' : 'auto'}
-      onLayout={() => { measureContainerOffset() }}
+      pointerEvents={removeDialog.target !== null || denyTarget !== null ? 'none' : 'auto'}
+      onLayout={drag.measureContainerOffset}
     >
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
 
-      {/* Web-only page header: back + actions (no title — banner shows it) */}
-      {Platform.OS === 'web' && (
-        <View style={{
-          flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-          paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs,
-          zIndex: 10, backgroundColor: theme.colors.background,
-        }}>
-          <Pressable
-            onPress={goBack}
-            style={({ pressed }) => ({
-              width: 36, height: 36, borderRadius: 18,
-              alignItems: 'center', justifyContent: 'center',
-              backgroundColor: pressed ? theme.colors.primary + '14' : 'transparent',
-            })}
-          >
-            <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
-          </Pressable>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-            <View>
-              <Pressable
-                onPress={handleShare}
-                style={({ pressed }) => ({
-                  width: 36, height: 36, borderRadius: 18,
-                  alignItems: 'center', justifyContent: 'center',
-                  backgroundColor: pressed ? theme.colors.primary + '14' : 'transparent',
-                })}
-              >
-                <Ionicons name="share-outline" size={20} color={theme.colors.primary} />
-              </Pressable>
-              {shareMenuVisible && (
-                <>
-                  <TouchableOpacity
-                    style={{ position: 'fixed' as any, top: 0, left: 0, right: 0, bottom: 0 }}
-                    onPress={() => setShareMenuVisible(false)}
-                  />
-                  <View style={styles.shareMenu}>
-                    {!!navigator.share && (
-                      <ShareMenuItem icon="share-social-outline" label="Share…" onPress={handleWebShare} />
-                    )}
-                    <ShareMenuItem
-                      icon={linkCopied ? 'checkmark' : 'link-outline'}
-                      label={linkCopied ? 'Copied!' : 'Copy link'}
-                      onPress={handleCopyLink}
-                      active={linkCopied}
-                    />
-                  </View>
-                </>
-              )}
+      {/* Web: in-flow header row (back + actions; the banner shows the title) */}
+      {Platform.OS === 'web' && headerActions}
+
+      <ScreenState loading={data.isLoading} ready={!!event && !data.isLoading && !loadError} error={loadError} onRetry={() => { void data.retry() }}>
+        {event && (
+          <>
+            {/* Fixed header: banner + tabs */}
+            <View style={{ backgroundColor: theme.colors.background, paddingTop: Platform.OS !== 'web' ? insets.top + 52 : 0 }}>
+              <EventHero event={event} />
+              <EventTabBar activeTab={activeTab} peopleCount={eventStatus.count} onSelect={selectTab} />
             </View>
-            {isHostOrCohost && (<>
-              <Pressable
-                testID="event-edit-button"
-                onPress={() => router.push(`/host?edit=${id}` as any)}
-                style={({ pressed }) => ({
-                  width: 36, height: 36, borderRadius: 18,
-                  alignItems: 'center', justifyContent: 'center',
-                  backgroundColor: pressed ? theme.colors.primary + '14' : 'transparent',
-                })}
-              >
-                <Ionicons name="create-outline" size={20} color={theme.colors.primary} />
-              </Pressable>
-              <Pressable
-                onPress={handleDelete}
-                style={({ pressed }) => ({
-                  width: 36, height: 36, borderRadius: 18,
-                  alignItems: 'center', justifyContent: 'center',
-                  backgroundColor: pressed ? theme.colors.error + '14' : 'transparent',
-                })}
-              >
-                {deleting
-                  ? <ActivityIndicator size="small" color={theme.colors.error} />
-                  : <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
-                }
-              </Pressable>
-            </>)}
-          </View>
-        </View>
-      )}
 
-      {loading ? (
-        <View style={shared.centered}>
-          <ActivityIndicator color={theme.colors.primary} />
-        </View>
-      ) : loadError || !event ? (
-        <View style={shared.centered}>
-          <Text style={shared.errorText}>{loadError ?? 'Event not found'}</Text>
-        </View>
-      ) : (
-        <>
-          {/* Fixed header: banner + tabs */}
-          <View style={{ backgroundColor: theme.colors.background, paddingTop: Platform.OS !== 'web' ? insets.top + 52 : 0 }}>
-            {/* Event banner card */}
-            {(() => {
-              const normalized = /[Z+]/.test(event.event_date) ? event.event_date : event.event_date + 'Z'
-              const d = new Date(normalized)
-              const dayStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-              const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-              const dur = formatDuration(event.duration_minutes ?? 120)
-              const typeTags = (event.event_tags ?? []).filter(et => et.tags.category === 'event_type')
-              const locationLabel = LOCATIONS.find(l => l.id === event.location)?.label ?? event.location ?? ''
-              return (
-                <View style={{ marginHorizontal: theme.spacing.md, marginTop: theme.spacing.xs, marginBottom: theme.spacing.sm, borderRadius: 22, overflow: 'hidden' }}>
-                  <View style={{ backgroundColor: theme.colors.primary, padding: 18, position: 'relative', overflow: 'hidden' }}>
-                    {/* Diagonal stripe overlay */}
-                    <View pointerEvents="none" style={{
-                      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                      opacity: 0.16,
-                      ...(Platform.OS === 'web' ? {
-                        backgroundImage: 'repeating-linear-gradient(-28deg, transparent 0, transparent 28px, rgba(255,255,255,0.55) 28px, rgba(255,255,255,0.55) 32px)',
-                      } : {}),
-                    } as any} />
-                    {/* Decorative gradient overlay */}
-                    <LinearGradient
-                      colors={['rgba(255,255,255,0.22)', 'transparent']}
-                      start={{ x: 1, y: 0 }}
-                      end={{ x: 0.2, y: 1 }}
-                      style={{ position: 'absolute', top: 0, right: 0, width: 220, height: 160 }}
-                      pointerEvents="none"
-                    />
-                    {/* Date + type chips */}
-                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-                      <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, backgroundColor: theme.colors.accent }}>
-                        <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.accentInk }}>
-                          {dayStr} · {timeStr}
-                        </Text>
-                      </View>
-                      {typeTags.map(et => (
-                        <View key={et.tag_id} style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' }}>
-                          <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: 'rgba(255,255,255,0.9)' }}>
-                            {et.tags.name}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                    {/* Title */}
-                    <Text testID="event-hero-title" style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 28, letterSpacing: -0.8, color: '#fff', lineHeight: 32 }}>
-                      {event.title}
-                    </Text>
-                    {/* Location + duration */}
-                    {(locationLabel || dur) && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
-                        <Ionicons name="location-outline" size={13} color="rgba(255,255,255,0.75)" />
-                        <Text style={{ fontFamily: theme.fonts.body, fontSize: 12.5, color: 'rgba(255,255,255,0.85)' }}>
-                          {[locationLabel, dur].filter(Boolean).join(' · ')}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              )
-            })()}
-
-            {/* Tab labels */}
-            <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: theme.colors.border }}>
-              {(['Details', 'People', 'Discussion', 'Cheers'] as const).map((label, i) => {
-                const active = activeTab === i
-                const badge = i === 1 && totalAttending > 0 ? totalAttending : 0
-                return (
-                  <TouchableOpacity
-                    key={label}
-                    testID={`event-tab-${label.toLowerCase()}`}
-                    onPress={() => { if (i !== 3) { setSelectedCheerType(null); setPendingCheers([]) } setActiveTab(i) }}
-                    style={[
-                      { flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5, paddingVertical: 13 },
-                      Platform.OS === 'web' && { outlineStyle: 'none' } as any,
-                    ]}
-                  >
-                    <Text style={{
-                      fontFamily: active ? theme.fonts.bodySemiBold : theme.fonts.body,
-                      fontSize: theme.font.size.sm,
-                      color: active ? theme.colors.text : theme.colors.subtext,
-                    }}>
-                      {label}
-                    </Text>
-                    {badge > 0 && (
-                      <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: active ? theme.colors.primary : theme.colors.border }}>
-                        <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: 9, color: active ? '#fff' : theme.colors.subtext }}>{badge}</Text>
-                      </View>
-                    )}
-                    {active && (
-                      <View style={{ position: 'absolute', bottom: 0, left: 10, right: 10, height: 2.5, backgroundColor: theme.colors.primary, borderRadius: 2 }} />
-                    )}
-                  </TouchableOpacity>
-                )
-              })}
-            </View>
-          </View>
-
-          <Pager
-            page={activeTab}
-            onPageChange={next => {
-              if (next !== 3) { setSelectedCheerType(null); setPendingCheers([]) }
-              setActiveTab(next)
-            }}
-            pagerBlockedRef={innerPagerBlocked}
-            staticRender={isMobileWeb}
-            autoHeight={docScrollActive}
-          >
-            {/* Tab 0: Details */}
-            {mountedEventTabs.has(0) ? (
-            <DetailsTab
-              event={event}
-              docScrollActive={docScrollActive}
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              descFooterHeight={descFooterHeight}
-              bottomInset={insets.bottom}
-              totalAttending={totalAttending}
-              cohosts={cohosts}
-              userId={userId}
-              eventStatus={eventStatus}
-              isOwner={isOwner}
-              currentUserProfile={currentUserProfile}
-              onOpenProfile={hostId => router.push(`/profile/${hostId}` as any)}
-              onMessageHost={async hostId => {
-                const { data: convId } = await supabase.rpc('find_or_create_dm', { other_user_id: hostId })
-                if (convId) router.push(`/chat/${convId}` as any)
-              }}
-              onManageCohosts={() => setCohostModalVisible(true)}
-            />
-            ) : <View style={{ flex: 1 }} />}
-
-            {/* Tab 1: People */}
-            {mountedEventTabs.has(1) ? (
-            <PeopleTab
-              docScrollActive={docScrollActive}
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              event={event}
-              eventStatus={eventStatus}
-              attendees={attendees}
-              guests={guests}
-              adderUsernames={adderUsernames}
-              assignments={assignments}
-              numTeams={numTeams}
-              setNumTeams={setNumTeams}
-              hasTeams={hasTeams}
-              hoveredTeamKey={hoveredTeamKey}
-              teamZoneRefs={teamZoneRefs}
-              isMobileWeb={isMobileWeb}
-              isHostOrCohost={isHostOrCohost}
-              savingTeams={savingTeams}
-              requestedProfiles={requestedProfiles}
-              processingRequest={processingRequest}
-              waitlistProfiles={waitlistProfiles}
-              waitlistGuests={waitlistGuests}
-              onDragStart={handleDragStart}
-              onDragMove={handleDragMove}
-              onDragEnd={handleDragEnd}
-              onTogglePin={togglePin}
-              onRemoveAttendee={openRemoveAttendeeModal}
-              onRemoveGuest={openRemoveGuestModal}
-              onOpenProfile={pid => router.push(`/profile/${pid}` as any)}
-              onResetTeams={resetTeams}
-              onRandomizeTeams={randomizeTeams}
-              onSaveTeams={saveTeams}
-              onApproveRequest={handleApproveRequest}
-              onDeny={(uid, displayName) => { setDenyModal({ userId: uid, displayName }); setDenyReason('') }}
-              onApproveFromWaitlist={handleApproveFromWaitlist}
-            />
-            ) : <View style={{ flex: 1 }} />}
-
-            {/* Tab 2: Discussion */}
-            {mountedEventTabs.has(2) ? (
-            <DiscussionTab
-              scrollRef={discussionTabScrollRef}
-              isActive={activeTab === 2}
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              scrollToBottom={scrollDiscussionToBottom}
-              commentsLoading={commentsLoading}
-              comments={comments}
-              usernameToId={usernameToId}
-              userId={userId}
-              isHostOrCohost={isHostOrCohost}
-              onReply={setReplyToComment}
-              onEdit={setEditingComment}
-              onDelete={handleDeleteComment}
-              keyboardInset={discussionTabKeyboardInset}
-              bottomInset={insets.bottom}
-              onComposerLayout={setDiscussionTabComposerHeight}
-              mentionableUsers={mentionableUsers}
-              onPost={handlePostComment}
-              replyToComment={replyToComment}
-              editingComment={editingComment}
-              onClearReply={() => setReplyToComment(null)}
-              onCancelEdit={() => setEditingComment(null)}
-            />
-            ) : <View style={{ flex: 1 }} />}
-
-            {/* Tab 3: Cheers */}
-            {mountedEventTabs.has(3) ? (
-            <CheersTab
-              isEventOver={isEventOver}
-              isAttending={eventStatus.isAttending}
-              isOwner={eventStatus.isOwner}
-              cheersLoading={cheersLoading}
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              selectedCheerType={selectedCheerType}
-              setSelectedCheerType={setSelectedCheerType}
-              myCheersGiven={myCheersGiven}
-              pendingCheers={pendingCheers}
-              cheersSent={cheersSent}
-              cheerSubmitError={cheerSubmitError}
-              submittingCheers={submittingCheers}
-              submitCheers={submitCheers}
-              resetCheers={resetCheers}
-              toggleCheer={toggleCheer}
-              attendees={attendees}
-              userId={userId}
-              hasTeams={hasTeams}
-              assignments={assignments}
-              numTeams={numTeams}
-              isMobileWeb={isMobileWeb}
-              bottomInset={insets.bottom}
-            />
-            ) : <View style={{ flex: 1 }} />}
-          </Pager>
-
-          {/* Sticky footer — join/leave/waitlist/+1, only shown on Description tab */}
-          {activeTab === 0 && (
-            <View
-              onLayout={e => setDescFooterHeight(e.nativeEvent.layout.height)}
-              style={{
-                // 'fixed' in doc-scroll mode: stays pinned to the viewport while the document scrolls
-                position: (docScrollActive ? 'fixed' : 'absolute') as any,
-                bottom: 0, left: 0, right: 0,
-                paddingHorizontal: theme.spacing.lg,
-                paddingTop: theme.spacing.sm,
-                paddingBottom: Math.max(insets.bottom, theme.spacing.md),
-                backgroundColor: theme.colors.background,
-                borderTopWidth: 1,
-                borderTopColor: theme.colors.border,
-              }}
+            <Pager
+              page={activeTab}
+              onPageChange={selectTab}
+              pagerBlockedRef={drag.pagerBlockedRef}
+              staticRender={isMobileWeb}
+              autoHeight={docScrollActive}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm }}>
-                <View style={{ flex: 1 }}>
-                  {eventStatus.isAttending ? (
-                    <Button label="Leave event" onPress={() => handleToggleAttendance('leave')} loading={joining} variant="secondary" />
-                  ) : eventStatus.isWaitlisted ? (
-                    <View style={{ gap: theme.spacing.xs }}>
-                      <Button label="Leave Waitlist" onPress={handleLeaveWaitlist} loading={joining} variant="secondary" />
-                      <Text style={[shared.caption, { textAlign: 'center' }]}>
-                        You are #{eventStatus.waitlistPosition} on the waitlist
-                      </Text>
-                    </View>
-                  ) : eventStatus.isRequested ? (
-                    <View style={{ gap: theme.spacing.xs }}>
-                      <Button label="Cancel Request" onPress={handleCancelRequest} loading={joining} variant="secondary" />
-                      <Text style={[shared.caption, { textAlign: 'center' }]}>Pending host approval</Text>
-                    </View>
-                  ) : eventStatus.isDenied ? (
-                    <View style={{ gap: theme.spacing.xs }}>
-                      <Button label="Request Again" onPress={handleRerequest} loading={joining} />
-                      <Text style={[shared.caption, { textAlign: 'center', color: theme.colors.error }]}>
-                        Request denied{eventStatus.denialReason ? `: "${eventStatus.denialReason}"` : ''}
-                      </Text>
-                    </View>
-                  ) : isPaidEvent ? (
-                    <Button label="Request to Join" onPress={handleRequestToJoin} loading={joining} />
-                  ) : eventStatus.isFull ? (
-                    <Button label="Join Waitlist" onPress={handleJoinWaitlist} loading={joining} />
-                  ) : (
-                    <Button label="Join event" onPress={() => handleToggleAttendance('join')} loading={joining} />
-                  )}
-                </View>
-                {(eventStatus.isAttending || eventStatus.isOwner) && (
-                  <TouchableOpacity
-                    onPress={() => dispatchGuestModal({ type: 'open' })}
-                    hitSlop={8}
-                    accessibilityLabel="Add a +1 guest"
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: theme.radius.md,
-                      borderWidth: 1,
-                      borderColor: theme.colors.border,
-                      backgroundColor: theme.colors.card,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Ionicons name="person-add-outline" size={20} color={theme.colors.primary} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          )}
-        </>
-      )}
-
-      <Modal
-        visible={discussionDrawerOpen}
-        transparent
-        animationType="none"
-        onRequestClose={runDiscussionDismissAnimations}
-      >
-        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-          <Animated.View style={[StyleSheet.absoluteFillObject, discussionBackdropAnimStyle]} pointerEvents="box-none">
-            <Pressable style={StyleSheet.absoluteFillObject} onPress={runDiscussionDismissAnimations} />
-          </Animated.View>
-          <Animated.View
-            style={[
-              {
-                width: '100%',
-                height: Math.round(windowHeight * 0.88),
-                backgroundColor: theme.colors.card,
-                borderTopLeftRadius: theme.radius.lg,
-                borderTopRightRadius: theme.radius.lg,
-                borderWidth: 1,
-                borderBottomWidth: 0,
-                borderColor: theme.colors.border,
-                paddingHorizontal: theme.spacing.lg,
-                paddingTop: theme.spacing.sm,
-                paddingBottom:
-                  discussionKeyboardInset > 0
-                    ? theme.spacing.sm
-                    : Math.max(insets.bottom, theme.spacing.md),
-              },
-              discussionSheetAnimStyle,
-            ]}
-          >
-            <GestureDetector gesture={discussionSheetPanGesture}>
-              <View>
-                <View style={{ alignItems: 'center', marginBottom: theme.spacing.sm }}>
-                  <View
-                    style={{
-                      width: 36,
-                      height: 4,
-                      borderRadius: 2,
-                      backgroundColor: theme.colors.border,
-                    }}
-                  />
-                </View>
-                <View style={[shared.rowBetween, { marginBottom: theme.spacing.md }]}>
-                  <Text style={shared.subheading}>Discussion</Text>
-                  <TouchableOpacity
-                    onPress={runDiscussionDismissAnimations}
-                    hitSlop={12}
-                    accessibilityRole="button"
-                    accessibilityLabel="Close discussion"
-                  >
-                    <Ionicons name="chevron-down" size={26} color={theme.colors.text} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </GestureDetector>
-            {commentsLoading && comments.length === 0 ? (
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: theme.spacing.xl }}>
-                <ActivityIndicator color={theme.colors.primary} />
-              </View>
-            ) : (
-              <View style={{ flex: 1, minHeight: 0, paddingBottom: discussionKeyboardInset }}>
-                <ScrollView
-                  ref={discussionScrollRef}
-                  style={{ flex: 1 }}
-                  contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end', paddingBottom: theme.spacing.md }}
-                  keyboardShouldPersistTaps="handled"
-                  keyboardDismissMode="interactive"
-                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.primary} />}
-                  onContentSizeChange={() => {
-                    if (discussionDrawerOpen) scrollDiscussionToBottom(false)
-                  }}
-                >
-                  {comments.length === 0 ? (
-                    <Text style={[shared.caption, { marginBottom: theme.spacing.sm }]}>No messages yet. Be the first to comment.</Text>
-                  ) : (
-                    <View style={{ gap: theme.spacing.xs }}>
-                      {comments.map(c => (
-                        <EventCommentRow key={c.id} comment={c} usernameToId={usernameToId} />
-                      ))}
-                    </View>
-                  )}
-                </ScrollView>
-                {userId ? (
-                  <View style={{ paddingTop: theme.spacing.sm }}>
-                    <DiscussionComposer
-                      showAnnouncementToggle={isOwner}
-                      announcementLabel="Also post as announcement"
-                      mentionableUsers={mentionableUsers}
-                      onPost={handlePostComment}
-                      onFocusScroll={() => discussionScrollRef.current?.scrollToEnd({ animated: true })}
-                    />
-                  </View>
-                ) : (
-                  <Text style={[shared.caption, { paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.xs }]}>
-                    Sign in to join the discussion.
-                  </Text>
-                )}
-              </View>
-            )}
-          </Animated.View>
-        </View>
-      </Modal>
-
-      {/* Add guest modal */}
-      <Modal visible={guestModal.visible} transparent animationType="fade" onRequestClose={() => dispatchGuestModal({ type: 'dismiss' })}>
-        <TouchableOpacity
-          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' }}
-          activeOpacity={1}
-          onPress={() => dispatchGuestModal({ type: 'dismiss' })}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-            <View style={{ backgroundColor: theme.colors.card, borderRadius: theme.radius.lg, padding: theme.spacing.xl, width: 300, gap: theme.spacing.md }}>
-              <Text style={{ fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>Add a +1</Text>
-              <Input
-                placeholder="First name"
-                value={guestModal.firstName}
-                onChangeText={value => dispatchGuestModal({ type: 'setFirstName', value })}
-                autoCapitalize="words"
-              />
-              <Input
-                placeholder="Last name"
-                value={guestModal.lastName}
-                onChangeText={value => dispatchGuestModal({ type: 'setLastName', value })}
-                autoCapitalize="words"
-              />
-              <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
-                <View style={{ flex: 1 }}>
-                  <Button label="Cancel" onPress={() => dispatchGuestModal({ type: 'cancel' })} variant="secondary" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Button
-                    label="Add"
-                    onPress={handleAddGuest}
-                    loading={guestModal.adding}
-                    disabled={!guestModal.firstName.trim() || !guestModal.lastName.trim()}
-                  />
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Manage co-hosts modal */}
-      <Modal visible={cohostModalVisible} transparent animationType="fade" onRequestClose={() => { setCohostModalVisible(false); setCohostSearchQuery(''); setCohostSearchResults([]) }}>
-        <TouchableOpacity
-          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' }}
-          activeOpacity={1}
-          onPress={() => { setCohostModalVisible(false); setCohostSearchQuery(''); setCohostSearchResults([]) }}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-            <View style={{ backgroundColor: theme.colors.card, borderRadius: theme.radius.lg, padding: theme.spacing.xl, width: 320, maxWidth: '92%', gap: theme.spacing.md }}>
-              <Text style={{ fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
-                Manage Co-hosts
-              </Text>
-              <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>
-                Up to 3 co-hosts. They can post announcements, edit the event, manage teams, and remove attendees.
-              </Text>
-
-              {/* Current cohosts */}
-              {cohosts.length > 0 && (
-                <View style={{ gap: theme.spacing.sm }}>
-                  {cohosts.map(c => {
-                    const p = c.profiles as unknown as Profile
-                    const name = profileDisplayName(p)
-                    return (
-                      <View key={c.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, backgroundColor: theme.colors.background, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
-                        <Text style={{ flex: 1, fontSize: theme.font.size.md, color: theme.colors.text }} numberOfLines={1}>{name}</Text>
-                        <TouchableOpacity
-                          onPress={() => removeCohost(c.user_id)}
-                          hitSlop={8}
-                          disabled={cohostRemoving === c.user_id}
-                        >
-                          {cohostRemoving === c.user_id
-                            ? <ActivityIndicator size="small" color={theme.colors.subtext} />
-                            : <Ionicons name="close" size={18} color={theme.colors.subtext} />
-                          }
-                        </TouchableOpacity>
-                      </View>
-                    )
-                  })}
-                </View>
-              )}
-
-              {/* Search to add */}
-              {cohosts.length < 3 && (
-                <>
-                  <Input
-                    placeholder="Search by name or username"
-                    value={cohostSearchQuery}
-                    onChangeText={(q) => {
-                      setCohostSearchQuery(q)
-                      void searchCohostCandidates(q)
-                    }}
-                  />
-                  {cohostSearching && <ActivityIndicator size="small" color={theme.colors.primary} />}
-                  {cohostSearchResults.length > 0 && (
-                    <View style={{ gap: theme.spacing.xs, maxHeight: 200 }}>
-                      <ScrollView nestedScrollEnabled>
-                        {cohostSearchResults.map(p => (
-                          <TouchableOpacity
-                            key={p.id}
-                            onPress={() => void addCohost(p)}
-                            disabled={cohostAdding}
-                            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: theme.spacing.sm, gap: theme.spacing.sm, borderBottomWidth: 1, borderBottomColor: theme.colors.border }}
-                          >
-                            <Text style={{ flex: 1, fontSize: theme.font.size.md, color: theme.colors.text }} numberOfLines={1}>
-                              {profileDisplayName(p)}
-                            </Text>
-                            <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>@{p.username}</Text>
-                            {cohostAdding
-                              ? <ActivityIndicator size="small" color={theme.colors.primary} />
-                              : <Ionicons name="add-circle-outline" size={20} color={theme.colors.primary} />
-                            }
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  )}
-                  {cohostSearchQuery.length >= 2 && !cohostSearching && cohostSearchResults.length === 0 && (
-                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, textAlign: 'center' }}>No users found</Text>
-                  )}
-                </>
-              )}
-
-              <Button label="Done" onPress={() => { setCohostModalVisible(false); setCohostSearchQuery(''); setCohostSearchResults([]) }} />
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Deny request modal */}
-      <Modal visible={denyModal !== null} transparent animationType="fade" onRequestClose={() => { setDenyModal(null); setDenyReason('') }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Pressable style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }]} onPress={() => { setDenyModal(null); setDenyReason('') }} />
-          <View style={[shared.card, { width: '85%', maxWidth: 360, gap: theme.spacing.md, zIndex: 1 }]}>
-            <Text style={shared.subheading}>Deny request</Text>
-            {denyModal && (
-              <Text style={shared.caption}>Denying {denyModal.displayName}'s request to join. They can re-request after seeing this.</Text>
-            )}
-            <Input
-              placeholder="Reason (optional)"
-              value={denyReason}
-              onChangeText={setDenyReason}
-              multiline
-              inputStyle={{ minHeight: 72 }}
-            />
-            <View style={[shared.row, { gap: theme.spacing.sm }]}>
-              <View style={{ flex: 1 }}>
-                <Button label="Cancel" onPress={() => { setDenyModal(null); setDenyReason('') }} variant="secondary" disabled={processingRequest !== null} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Button
-                  label="Deny"
-                  onPress={() => { if (denyModal) void handleDenyRequest(denyModal.userId, denyReason) }}
-                  loading={processingRequest !== null}
-                  variant="danger"
+              {mountedTabs.has(DETAILS_TAB) ? (
+                <DetailsTab
+                  event={event}
+                  data={data}
+                  eventStatus={eventStatus}
+                  isOwner={isOwner}
+                  docScrollActive={docScrollActive}
+                  descFooterHeight={footerHeight}
+                  bottomInset={insets.bottom}
+                  onOpenProfile={openProfile}
+                  onMessageHost={hostId => { void messageUser(hostId) }}
+                  onManageCohosts={cohostsApi.open}
                 />
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
+              ) : placeholder}
 
-      {/* Remove attendee / guest — host confirmation
-          Use backdrop Pressable + card as siblings (not nested TouchableOpacity). Nested touchables
-          let Cancel bubble to the backdrop and cause a double-close / flash. */}
-      <Modal visible={removeDialog.target !== null} transparent animationType="fade" onRequestClose={() => { if (!removeDialog.removing && removeDialog.buttonsReady) dispatchRemoveDialog({ type: 'close' }) }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Pressable
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }]}
-            onPress={() => { if (!removeDialog.removing && removeDialog.buttonsReady) dispatchRemoveDialog({ type: 'close' }) }}
-          />
-          <TouchableOpacity activeOpacity={1} onPress={() => {}}
-            style={{
-              backgroundColor: theme.colors.card,
-              borderRadius: theme.radius.lg,
-              padding: theme.spacing.xl,
-              width: 320,
-              maxWidth: '92%',
-              gap: theme.spacing.md,
-              zIndex: 1,
-            }}
-          >
-            <Text style={{ fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
-              {removeDialog.target?.kind === 'guest' ? 'Remove guest?' : 'Remove attendee?'}
-            </Text>
-            <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>
-              This person will be removed from the event. They can rejoin if there is space.
-            </Text>
-                <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginTop: theme.spacing.xs }}>
-                <View style={{ flex: 1 }}>
-                <Button label="Cancel" onPress={() => dispatchRemoveDialog({ type: 'close' })} variant="secondary" disabled={removeDialog.removing || !removeDialog.buttonsReady} />
-                </View>
-              <View style={{ flex: 1 }}>
-                <Button
-                  label="Remove"
-                  onPress={() => { void confirmRemoveFromModal() }}
-                  loading={removeDialog.removing}
-                  disabled={removeDialog.removing || !removeDialog.buttonsReady}
-                  variant="danger"
+              {mountedTabs.has(PEOPLE_TAB) ? (
+                <PeopleTab
+                  event={event}
+                  eventStatus={eventStatus}
+                  data={data}
+                  teams={teams}
+                  drag={drag}
+                  attendance={attendance}
+                  isHostOrCohost={isHostOrCohost}
+                  isMobileWeb={isMobileWeb}
+                  docScrollActive={docScrollActive}
+                  onOpenProfile={openProfile}
+                  onRemoveAttendee={p => removeDialog.open(attendeeRemoveTarget(p))}
+                  onRemoveGuest={g => removeDialog.open(guestRemoveTarget(g))}
+                  onDeny={(uid, displayName) => setDenyTarget({ userId: uid, displayName })}
                 />
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+              ) : placeholder}
 
-      {/* Delete confirmation modal */}
-      <Modal visible={deleteConfirmVisible} transparent animationType="fade" onRequestClose={() => setDeleteConfirmVisible(false)}>
-        <TouchableOpacity
-          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' }}
-          activeOpacity={1}
-          onPress={() => setDeleteConfirmVisible(false)}
-        >
-          <View style={{ backgroundColor: theme.colors.card, borderRadius: theme.radius.lg, padding: theme.spacing.xl, width: 300, gap: theme.spacing.md }}>
-            <Text style={{ fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>Delete event</Text>
-            <Text style={{ fontSize: theme.font.size.md, color: theme.colors.subtext }}>Are you sure? This cannot be undone.</Text>
-            <View style={{ flexDirection: 'row', gap: theme.spacing.sm, justifyContent: 'flex-end' }}>
-              <TouchableOpacity
-                onPress={() => setDeleteConfirmVisible(false)}
-                style={{ paddingVertical: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.colors.border }}
-              >
-                <Text style={{ color: theme.colors.text, fontSize: theme.font.size.md }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={confirmDelete}
-                style={{ paddingVertical: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderRadius: theme.radius.md, backgroundColor: theme.colors.error }}
-              >
-                <Text style={{ color: '#fff', fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold }}>Delete</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+              {mountedTabs.has(DISCUSSION_TAB) ? (
+                <DiscussionTab
+                  discussion={discussion}
+                  data={data}
+                  isHostOrCohost={isHostOrCohost}
+                  usernameToId={usernameToId}
+                  mentionableUsers={mentionableUsers}
+                  scrollRef={discussionScrollRef}
+                  isActive={activeTab === DISCUSSION_TAB}
+                  scrollToBottom={scrollDiscussionToBottom}
+                  keyboardInset={keyboardInset}
+                  bottomInset={insets.bottom}
+                  onComposerLayout={setComposerHeight}
+                />
+              ) : placeholder}
 
-      {/* Floating nav — native only, overlays the content */}
-      {Platform.OS !== 'web' && (
-        <View
-          pointerEvents="box-none"
-          style={{
-            position: 'absolute',
-            top: insets.top + 8,
-            left: theme.spacing.md,
-            right: theme.spacing.md,
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            zIndex: 50,
-          }}
-        >
-          {/* Back pill */}
-          <Pressable
-            onPress={goBack}
-            style={({ pressed }) => [styles.floatBtn, pressed && { opacity: 0.75 }]}
-            hitSlop={8}
-          >
-            <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
-          </Pressable>
+              {mountedTabs.has(CHEERS_TAB) ? (
+                <CheersTab
+                  cheers={cheers}
+                  isEventOver={eventOver}
+                  isAttending={eventStatus.isAttending}
+                  isOwner={eventStatus.isOwner}
+                  data={data}
+                  teams={teams}
+                  isMobileWeb={isMobileWeb}
+                  bottomInset={insets.bottom}
+                />
+              ) : placeholder}
+            </Pager>
 
-          {/* Action pills */}
-          <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
-            <View style={{ position: 'relative' }}>
-              <Pressable
-                onPress={handleShare}
-                style={({ pressed }) => [styles.floatBtn, pressed && { opacity: 0.75 }]}
-                hitSlop={8}
-              >
-                <Ionicons name="share-outline" size={19} color={theme.colors.text} />
-              </Pressable>
-              {shareMenuVisible && (
-                <>
-                  <TouchableOpacity
-                    style={{ position: 'absolute', top: 0, left: -9999, width: 99999, height: 99999 }}
-                    onPress={() => setShareMenuVisible(false)}
-                  />
-                  <View style={[styles.shareMenu, { top: 44, right: 0 }]}>
-                    {!!navigator.share && (
-                      <ShareMenuItem icon="share-social-outline" label="Share…" onPress={handleWebShare} />
-                    )}
-                    <ShareMenuItem
-                      icon={linkCopied ? 'checkmark' : 'link-outline'}
-                      label={linkCopied ? 'Copied!' : 'Copy link'}
-                      onPress={handleCopyLink}
-                      active={linkCopied}
-                    />
-                  </View>
-                </>
-              )}
-            </View>
-            {isHostOrCohost && (
-              <>
-                <Pressable
-                  testID="event-edit-button"
-                  onPress={() => router.push(`/host?edit=${id}` as any)}
-                  style={({ pressed }) => [styles.floatBtn, pressed && { opacity: 0.75 }]}
-                  hitSlop={8}
-                >
-                  <Ionicons name="create-outline" size={19} color={theme.colors.text} />
-                </Pressable>
-                <Pressable
-                  onPress={handleDelete}
-                  style={({ pressed }) => [styles.floatBtn, pressed && { opacity: 0.75 }]}
-                  hitSlop={8}
-                >
-                  {deleting
-                    ? <ActivityIndicator size="small" color={theme.colors.error} />
-                    : <Ionicons name="trash-outline" size={19} color={theme.colors.error} />
-                  }
-                </Pressable>
-              </>
+            {activeTab === DETAILS_TAB && (
+              <JoinFooter
+                eventStatus={eventStatus}
+                isPaidEvent={isPaidEvent}
+                attendance={attendance}
+                onAddGuest={() => setGuestDialogOpen(true)}
+                docScrollActive={docScrollActive}
+                bottomInset={insets.bottom}
+                onHeightChange={setFooterHeight}
+              />
             )}
-          </View>
-        </View>
-      )}
+          </>
+        )}
+      </ScreenState>
 
-      {/* Drag ghost — floats above everything */}
-      {draggingPlayerId && (() => {
-        const profile = attendees.find(p => p.id === draggingPlayerId)
-        if (!profile) return null
-        const a = assignments[draggingPlayerId]
-        const teamNum = a?.team ?? null
-        const teamColor = teamNum !== null ? TEAM_COLORS[(teamNum - 1) % TEAM_COLORS.length] : null
-        return (
-          <Animated.View
-            style={[styles.ghostCard, ghostOverlayStyle, Platform.OS === 'web' ? { position: 'fixed' as any } : null]}
-            pointerEvents="none"
-          >
-            <View style={[shared.playerCardAvatar, {
-              borderColor: teamColor ?? theme.colors.border,
-              backgroundColor: teamColor ? teamColor + '18' : theme.colors.card,
-              borderWidth: teamColor ? 2 : 1.5,
-            }]}>
-              <Text style={[shared.playerCardAvatarInitial, { color: teamColor ?? theme.colors.subtext }]}>{profileInitial(profile)}</Text>
-            </View>
-            <Text style={[shared.playerCardName, { flex: 1 }]} numberOfLines={1}>{profileDisplayName(profile)}</Text>
-          </Animated.View>
-        )
-      })()}
+      <AddGuestDialog
+        visible={guestDialogOpen}
+        adding={attendance.addingGuest}
+        onDismiss={() => setGuestDialogOpen(false)}
+        onSubmit={attendance.addGuest}
+      />
+      <CohostsDialog cohosts={cohostsApi} />
+      <DenyRequestDialog
+        target={denyTarget}
+        processing={attendance.processingRequest !== null}
+        onCancel={() => setDenyTarget(null)}
+        onConfirm={reason => { void confirmDeny(reason) }}
+      />
+      <RemoveParticipantDialog
+        target={removeDialog.target}
+        armed={removeDialog.armed}
+        removing={attendance.removing}
+        onCancel={removeDialog.close}
+        onConfirm={() => { void confirmRemove() }}
+      />
+      <DeleteEventDialog
+        visible={deleteConfirmVisible}
+        onCancel={() => setDeleteConfirmVisible(false)}
+        onConfirm={() => { setDeleteConfirmVisible(false); void deleteEvent.mutate(undefined) }}
+      />
+
+      {/* Native: floating pills over the banner (rendered last so they sit on top) */}
+      {Platform.OS !== 'web' && headerActions}
+
+      <DragGhost drag={drag} attendees={roster.attendees} assignments={teams.assignments} />
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  floatBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: theme.colors.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  discussionBubbleBtn: {
-    minWidth: 44,
-    height: 44,
-    paddingHorizontal: theme.spacing.xs,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  discussionBubbleCount: {
-    position: 'absolute',
-    fontSize: theme.font.size.xs,
-    fontWeight: theme.font.weight.semibold,
-    color: theme.colors.primary,
-    marginTop: 2,
-  },
-  ghostCard: {
-    position: 'absolute',
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: 160,
-    backgroundColor: theme.colors.card,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.sm,
-    gap: theme.spacing.xs,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 10,
-    zIndex: 1000,
-  },
-  shareMenu: {
-    position: 'absolute',
-    top: 32,
-    right: 0,
-    backgroundColor: theme.colors.card,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
-    zIndex: 100,
-    minWidth: 148,
-    overflow: 'hidden',
-  },
-  shareMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-  },
-  shareMenuText: {
-    fontSize: theme.font.size.md,
-    color: theme.colors.text,
-  },
-})
