@@ -331,7 +331,7 @@ Test each surface mentally when building. If a component behaves differently acr
 - One live Supabase project (`rmelsdqgrpfjzqisycdl`, "Vteam") serves the app; a second, **vteam beta** (`uifolvbwtrbcmfrvelnl`), exists only for CI
 - CI (`.github/workflows/ci.yml`) runs unit tests on every push/PR to `main` and Playwright e2e on pull requests only; secrets are repository-level Actions secrets
 - **CI never touches the live project.** The web build and e2e in CI use the **vteam beta** Supabase project (`uifolvbwtrbcmfrvelnl`; URL and public anon key are in `ci.yml`). Beta is a schema copy of live with no real user data: only reference tables (`tags`, `major_cities`, `app_config`), `external_sessions` (its own hourly Schelagg ingest), the e2e account `e2ebot` (same credentials as the `E2E_*` secrets), a fake second user `e2ebuddy`, and the seed DM between them (id in `e2e/chat.spec.ts`). Edge functions and auth email settings are not deployed there.
-- **Schema changes go to both projects**: apply every migration to live AND beta (same SQL), then regenerate types from live. A migration applied only to live makes CI fail against beta.
+- **Schema changes go to both projects** (see "Schema migrations"); CI's schema drift check fails while they differ.
 - Only one PR's suite runs at a time (each shard is in a repo-wide `e2e-beta-supabase-<shard>` concurrency group) because runs share the e2e account and seed conversation. Overlapping suites from several PRs on the live project once exhausted its disk IO budget and made real sign-ins time out. If a queued shard shows "cancelled", re-run its failed jobs; don't remove the group
 
 ### CI e2e specifics
@@ -339,6 +339,10 @@ Test each surface mentally when building. If a component behaves differently acr
 - E2e tests sign in with the `E2E_USERNAME` / `E2E_PASSWORD` repository secrets (locally: `.env`, see `.env.example`); never commit credentials. `e2e/env.ts` is the only place e2e code reads env. A seed conversation id lives in `e2e/chat.spec.ts`.
 
 ### Schema migrations
+**Every schema change is applied to BOTH projects, live (`rmelsdqgrpfjzqisycdl`) and beta (`uifolvbwtrbcmfrvelnl`), with the identical SQL, in the same session, and committed as a file in `supabase/migrations/`.** Apply to beta first (a mistake there costs nothing), then live. Reference-table rows (`tags`, `major_cities`, `app_config`) count as schema: change them in both.
+
+Drift is caught automatically: `public.schema_fingerprint()` (on both projects) returns an md5 per schema object, and `npm run db:drift` (`scripts/schema-drift.mjs`) compares live and beta. It runs in CI's Web build job on every PR and push (a PR cannot merge while they differ) and daily (`.github/workflows/schema-drift.yml`; GitHub emails on failure). Intentional differences are listed in `ALLOWED` in that script (today only the `kudos-reminders` cron job, which notifies real people and must not run on beta). Never "fix" drift by adding to `ALLOWED`; apply the missing SQL instead. Never edit either project's schema in the Supabase dashboard.
+
 Schema changes are usually applied directly via the Supabase MCP (`apply_migration`). Note: the migration files in `supabase/migrations/` are NOT in sync with the applied migration history — if a separate prod project is ever created, baseline it from `supabase db dump` of the live schema rather than replaying the migration files.
 
 `types/database.ts` is generated from the live schema: after any schema change, regenerate it with `npx supabase gen types typescript --project-id rmelsdqgrpfjzqisycdl > types/database.ts` (or the Supabase MCP `generate_typescript_types`) and commit it with the change. Never hand-edit it; row types in `types/index.ts` derive from it.

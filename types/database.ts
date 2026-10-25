@@ -2062,6 +2062,7 @@ export type Database = {
         Args: { p_matches: Json; p_pools?: Json; p_tournament_id: string }
         Returns: number
       }
+      schema_fingerprint: { Args: never; Returns: Json }
       send_kudos_reminders: { Args: never; Returns: undefined }
     }
     Enums: {

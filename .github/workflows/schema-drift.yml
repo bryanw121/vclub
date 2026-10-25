@@ -1,0 +1,23 @@
+name: Schema drift
+
+# Daily check that the live and beta Supabase projects still have the same
+# schema (CI also runs it on every PR/push, in the Web build job). A failure
+# here means something changed one project outside a PR (dashboard edit, a
+# migration applied to only one): GitHub emails the repo owner about failed
+# scheduled runs.
+on:
+  schedule:
+    - cron: '41 13 * * *' # 8:41 CT
+  workflow_dispatch:
+
+jobs:
+  drift:
+    name: Live vs beta schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm run db:drift
