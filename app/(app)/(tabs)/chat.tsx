@@ -7,13 +7,13 @@ import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, Stack } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { theme, shared, CHAT_TAB_INDEX } from '../../../constants'
+import { useConversations } from '../../../hooks/useConversations'
 import { supabase } from '../../../lib/supabase'
-import { invalidate } from '../../../lib/query'
-import { theme, shared, CHAT_TAB_INDEX, NETWORK_ERROR_MESSAGE } from '../../../constants'
-import { conversationsKey, useConversations } from '../../../hooks/useConversations'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
+import { useOpenDm } from '../../../hooks/useOpenDm'
 import { useTabsActive, useTabsShell } from '../../../contexts/tabs'
-import { timeAgo, lastMessagePreview, chatAlert } from '../../../utils/chatUtils'
+import { timeAgo, lastMessagePreview } from '../../../utils/chatUtils'
 import { profileAvatarSmallUri, buildMemberSearchFilter, profileDisplayName, confirmDestructive } from '../../../utils'
 import { routes } from '../../../utils/routes'
 import type { ConversationRow, Profile } from '../../../types'
@@ -188,16 +188,7 @@ function ChatScreenSignedIn({ myId }: { myId: string }) {
     })
   }, [conversations, silencedUserIds])
 
-  async function openDM(otherUserId: string) {
-    const { data: convId, error: dmError } = await supabase.rpc('find_or_create_dm', { other_user_id: otherUserId })
-    if (dmError || !convId) {
-      chatAlert("Couldn't open chat", NETWORK_ERROR_MESSAGE)
-      return
-    }
-    // A brand-new DM isn't in the list yet.
-    if (!conversations.some(c => c.conversation_id === convId)) invalidate(conversationsKey(myId))
-    router.push(routes.conversation(String(convId)))
-  }
+  const { openDm: openDM } = useOpenDm()
 
   function openConversation(row: ConversationRow) {
     clearUnread(row.conversation_id)

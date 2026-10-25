@@ -5,8 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
 import { useMutation } from '../../../lib/query'
 import { setDocScrollClaim } from '../../../lib/docScroll'
-import { useRequireSignIn } from '../../../hooks/useRequireSignIn'
 import { useIsNarrowWeb } from '../../../hooks/useIsNarrowWeb'
+import { useOpenDm } from '../../../hooks/useOpenDm'
+import { useSilencedUserIds } from '../../../hooks/useSilencedUsers'
 import {
   attendeeRemoveTarget,
   computeEventStatus,
@@ -65,7 +66,6 @@ export default function EventDetail() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const isMobileWeb = useIsNarrowWeb()
-  const requireSignIn = useRequireSignIn()
 
   // ── Data + writes ──────────────────────────────────────────────────────────
   const data = useEventData(id)
@@ -79,6 +79,10 @@ export default function EventDetail() {
   const drag = useTeamDrag(teams.moveToTeam)
   const cohostsApi = useCohosts(data)
   const removeDialog = useRemoveDialog()
+  const { openDm } = useOpenDm()
+  // Only hosts/co-hosts get roster Message actions, so only they need silences.
+  // One-directional by RLS: a host can't learn who has silenced *them*.
+  const { silencedUserIds } = useSilencedUserIds(isHostOrCohost)
   const [denyTarget, setDenyTarget] = useState<{ userId: string; displayName: string } | null>(null)
   const [guestDialogOpen, setGuestDialogOpen] = useState(false)
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false)
@@ -196,12 +200,6 @@ export default function EventDetail() {
     },
   )
 
-  async function messageUser(otherUserId: string) {
-    if (!requireSignIn()) return
-    const { data: convId } = await supabase.rpc('find_or_create_dm', { other_user_id: otherUserId })
-    if (convId) router.push(routes.conversation(convId as string))
-  }
-
   async function confirmRemove() {
     const target = removeDialog.target
     if (target && (await attendance.removeParticipant(target))) removeDialog.close()
@@ -268,7 +266,7 @@ export default function EventDetail() {
                   descFooterHeight={footerHeight}
                   bottomInset={insets.bottom}
                   onOpenProfile={openProfile}
-                  onMessageHost={hostId => { void messageUser(hostId) }}
+                  onMessageHost={hostId => { void openDm(hostId) }}
                   onManageCohosts={cohostsApi.open}
                 />
               ) : placeholder}
@@ -288,6 +286,8 @@ export default function EventDetail() {
                   onRemoveAttendee={p => removeDialog.open(attendeeRemoveTarget(p))}
                   onRemoveGuest={g => removeDialog.open(guestRemoveTarget(g))}
                   onDeny={(uid, displayName) => setDenyTarget({ userId: uid, displayName })}
+                  onMessage={uid => { void openDm(uid) }}
+                  silencedUserIds={silencedUserIds}
                 />
               ) : placeholder}
 
