@@ -25,6 +25,7 @@ import { initSentry, Sentry } from '../lib/sentry'
 import { SentryErrorBoundary } from '../components/SentryErrorBoundary'
 import { registerPushToken } from '../utils/pushNotifications'
 import { useMinVersion } from '../hooks/useMinVersion'
+import { useCacheUserScope } from '../hooks/useCacheUserScope'
 import { UpdateRequiredScreen } from '../components/UpdateRequiredScreen'
 
 initSentry()
@@ -91,6 +92,7 @@ function RootNavigator() {
   })
 
   const { userId, loading } = useSession()
+  useCacheUserScope()
   const updateRequirement = useMinVersion()
   const router = useRouter()
   const segments = useSegments()

@@ -154,10 +154,28 @@ function newestFirst(a: MessageWithDetails, b: MessageWithDetails): number {
 }
 
 /**
- * Add an incoming row to a newest-first list. Idempotent (a row already present
- * by id is replaced in place). An own message replaces the optimistic temp row
- * it confirms (same content/image/reply, still sending), so the realtime echo
- * of a send never shows twice.
+ * Id for a message we are about to send. Generated on the client and sent with
+ * the insert, so the optimistic row, the insert response and the realtime echo
+ * all share it, and a retry after a lost response fails as a duplicate.
+ * `crypto.randomUUID` is missing on some runtimes (Hermes); fall back to a
+ * Math.random v4 UUID.
+ */
+export function newMessageId(): string {
+  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto
+  if (typeof c?.randomUUID === 'function') return c.randomUUID()
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, ch => {
+    const r = (Math.random() * 16) | 0
+    return (ch === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
+
+/**
+ * Add an incoming row to a newest-first list. Idempotent: a row already present
+ * by id is replaced in place — including our own optimistic row (sending or
+ * failed), whose id is the client-generated one the insert used, so a "failed"
+ * send that actually landed turns into a sent message. As a fallback, an own
+ * message also replaces a still-sending temp row with the same
+ * content/image/reply, so the realtime echo of a send never shows twice.
  */
 export function upsertIncoming(prev: readonly MessageWithDetails[], row: MessageWithDetails): MessageWithDetails[] {
   const existing = prev.findIndex(m => m.id === row.id)
@@ -248,12 +266,13 @@ export function applyReactionChange(prev: readonly MessageWithDetails[], payload
 /**
  * Merge a freshly fetched newest page into the loaded list (reconnect, pull to
  * refresh). Older pages the user scrolled through stay; rows in the page win;
- * unsent / failed optimistic rows stay on top.
+ * unsent / failed optimistic rows stay on top unless the page has them.
  */
 export function mergeLatestPage(prev: readonly MessageWithDetails[], page: readonly MessageWithDetails[]): MessageWithDetails[] {
-  const pending = prev.filter(m => m._sending || m._failed)
-  if (page.length === 0) return [...pending, ...prev.filter(m => !m._sending && !m._failed)]
   const pageIds = new Set(page.map(m => m.id))
+  // A sending / failed row the server already has (same client-generated id) is sent: the page row wins.
+  const pending = prev.filter(m => (m._sending || m._failed) && !pageIds.has(m.id))
+  if (page.length === 0) return [...pending, ...prev.filter(m => !m._sending && !m._failed)]
   const oldestInPage = page[page.length - 1].created_at
   const older = prev.filter(m => !m._sending && !m._failed && !pageIds.has(m.id) && m.created_at < oldestInPage)
   return [...pending, ...page, ...older]

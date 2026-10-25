@@ -10,6 +10,7 @@ import { useIsNarrowWeb } from '../../../hooks/useIsNarrowWeb'
 import {
   attendeeRemoveTarget,
   computeEventStatus,
+  forgetDeletedEvent,
   guestRemoveTarget,
   isEventOver,
   reportEventError,
@@ -182,7 +183,10 @@ export default function EventDetail() {
       if (error) throw error
     },
     {
-      onSuccess: () => router.replace(routes.events()),
+      onSuccess: () => {
+        router.replace(routes.events())
+        forgetDeletedEvent(id)
+      },
       onError: e => {
         reportEventError(id, userId, 'confirmDelete', e)
         Alert.alert('Error', 'Could not delete event. Please try again.')

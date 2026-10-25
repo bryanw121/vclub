@@ -5,7 +5,7 @@ import { theme } from '../../../constants'
 import { TOURNAMENT_TABS, type TournamentTabName } from '../../../constants/tournamentCopy'
 import { useSession } from '../../../contexts/session'
 import { useRequireSignIn } from '../../../hooks/useRequireSignIn'
-import { notify } from '../../../hooks/tournament/notify'
+import { notifyInfo } from '../../../utils/notify'
 import { useTournamentActions } from '../../../hooks/tournament/useTournamentActions'
 import { useTournamentData } from '../../../hooks/tournament/useTournamentData'
 import { generateSchedule } from '../../../lib/tournamentSchedule'
@@ -119,7 +119,7 @@ export default function TournamentDetailScreen() {
   async function generate(): Promise<boolean> {
     if (!tournament) return false
     if (registeredTeams.length < 2) {
-      notify('Not enough teams', 'Need at least 2 registered teams to generate a schedule.')
+      notifyInfo('Not enough teams', 'Need at least 2 registered teams to generate a schedule.')
       return false
     }
     const schedule = generateSchedule({

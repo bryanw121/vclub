@@ -3,7 +3,7 @@ import { Alert } from 'react-native'
 import { supabase } from '../../lib/supabase'
 import { useMutation } from '../../lib/query'
 import { useRequireSignIn } from '../useRequireSignIn'
-import { ATTENDEE_SELECT, GENERIC_ERROR_MESSAGE, GUEST_SELECT } from '../../constants'
+import { ATTENDEE_SELECT, EVENT_JUST_FILLED_BODY, EVENT_JUST_FILLED_TITLE, GENERIC_ERROR_MESSAGE, GUEST_SELECT } from '../../constants'
 import type { EventAttendee, EventAttendeeWithProfile, EventGuest, EventWithDetails, Profile } from '../../types'
 import { eventKeys, patchQuery } from './keys'
 import { attendeeRowsWithProfiles } from './derive'
@@ -160,7 +160,9 @@ export function useEventAttendance(data: EventData) {
               team_number: null,
               team_pinned: false,
               status,
-              profiles: viewerProfile,
+              // The brief profile has no position/skill; the server row from
+              // onSuccess fills them in.
+              profiles: viewerProfile ? { ...viewerProfile, position: [], skill_level: null, created_at: '' } : null,
             }
           : null
         const previous = setAttendeeRow(id, uid, optimistic)
@@ -171,10 +173,7 @@ export function useEventAttendance(data: EventData) {
         const savedStatus = row?.status
         eventBreadcrumb(id, userId, BREADCRUMB[action], { eventTitle: event?.title, savedStatus })
         if (action === 'join' && savedStatus === 'waitlisted') {
-          Alert.alert(
-            'Event just filled up',
-            "The last spot was taken a moment before you. You're on the waitlist and will be notified if you get in.",
-          )
+          Alert.alert(EVENT_JUST_FILLED_TITLE, EVENT_JUST_FILLED_BODY)
         }
       },
       onError: (e, action) => {

@@ -8,16 +8,15 @@ import {
   COMMENT_SELECT,
   EVENT_DETAIL_SELECT,
   GUEST_SELECT,
-  PROFILE_ROSTER,
+  PROFILE_BRIEF,
 } from '../../constants'
 import type {
   EventCohostWithProfile,
   EventCommentWithAuthor,
   EventGuest,
   EventWithDetails,
-  Profile,
+  ProfileBrief,
 } from '../../types'
-import { normalizeVolleyballSkillLevel } from '../../utils'
 import { eventKeys } from './keys'
 import { deriveRoster } from './derive'
 
@@ -59,12 +58,11 @@ export async function fetchEventComments(id: string): Promise<EventCommentWithAu
   return (data ?? []) as unknown as EventCommentWithAuthor[]
 }
 
-export async function fetchViewerProfile(userId: string): Promise<Profile | null> {
-  const { data, error } = await supabase.from('profiles').select(PROFILE_ROSTER).eq('id', userId).maybeSingle()
+/** Same key and shape (`ProfileBrief`) chat caches sender profiles under. */
+export async function fetchViewerProfile(userId: string): Promise<ProfileBrief | null> {
+  const { data, error } = await supabase.from('profiles').select(PROFILE_BRIEF).eq('id', userId).maybeSingle()
   if (error) throw error
-  if (!data) return null
-  const row = data as unknown as Profile
-  return { ...row, skill_level: normalizeVolleyballSkillLevel(row.skill_level) }
+  return (data ?? null) as ProfileBrief | null
 }
 
 const EMPTY_GUESTS: EventGuest[] = []

@@ -1,4 +1,4 @@
-export { eventKeys } from './keys'
+export { eventKeys, forgetDeletedEvent } from './keys'
 export { useEventData } from './useEventData'
 export type { EventData } from './useEventData'
 export { useEventAttendance, attendeeRemoveTarget, guestRemoveTarget } from './useEventAttendance'

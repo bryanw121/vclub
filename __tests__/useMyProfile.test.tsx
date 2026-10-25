@@ -1,12 +1,13 @@
 import React from 'react'
 import { Text } from 'react-native'
 import { render, act } from '@testing-library/react-native'
-import { __resetQueryCache, getQueryData } from '../lib/query'
+import { __resetQueryCache, getQueryData, setQueryData } from '../lib/query'
 import {
   PROFILE_BRIEF_SELECT,
   myCheersCountKey,
   myProfileKey,
   normalizeProfileRow,
+  profileBriefKey,
   useMyCheersCount,
   useMyProfile,
 } from '../hooks/useMyProfile'
@@ -162,6 +163,43 @@ describe('useMyProfile', () => {
     expect(saved).toBe(false)
     expect(me.profile?.bio).toBeNull()
     expect(me.saveError?.message).toBe('denied')
+  })
+
+  it('queues a save made while one is in flight instead of dropping it (latest value wins, no false failure)', async () => {
+    mockQueued.profiles = [{ data: ROW, error: null }]
+    render(<Probe />)
+    await flush()
+    let release!: (r: { error: unknown }) => void
+    mockUpdateResult = new Promise(res => { release = res }) as unknown as { error: unknown }
+
+    const results: boolean[] = []
+    act(() => {
+      void me.updateProfile({ selected_border: 'gold' }).then(r => { results.push(r) })
+      void me.updateProfile({ selected_border: 'bronze' }).then(r => { results.push(r) })
+      void me.updateProfile({ bio: 'hi' }).then(r => { results.push(r) })
+    })
+    // All three show at once; only the first is on the wire.
+    expect(me.profile?.selected_border).toBe('bronze')
+    expect(me.profile?.bio).toBe('hi')
+    expect(mockUpdateCalls).toHaveLength(1)
+
+    mockUpdateResult = { error: null }
+    await act(async () => { release({ error: null }) })
+    await flush()
+    expect(mockUpdateCalls.map(c => c.patch)).toEqual([{ selected_border: 'gold' }, { selected_border: 'bronze', bio: 'hi' }])
+    expect(results).toEqual([true, true, true])
+    expect(me.profile?.selected_border).toBe('bronze')
+  })
+
+  it('keeps the shared brief profile (chat, event page) in step after a save', async () => {
+    mockQueued.profiles = [{ data: ROW, error: null }]
+    render(<Probe />)
+    await flush()
+    setQueryData(profileBriefKey('u1'), { id: 'u1', username: 'bryan', first_name: 'Old', last_name: null, avatar_url: null, selected_border: null })
+    await act(async () => { await me.updateProfile({ first_name: 'New', selected_border: 'gold' }) })
+    expect(getQueryData(profileBriefKey('u1'))).toEqual({
+      id: 'u1', username: 'bryan', first_name: 'New', last_name: null, avatar_url: null, selected_border: 'gold',
+    })
   })
 })
 

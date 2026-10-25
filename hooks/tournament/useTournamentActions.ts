@@ -4,7 +4,7 @@ import { invalidate, useMutation, type MutationOptions } from '../../lib/query'
 import type { GeneratedSchedule } from '../../types/tournamentScreen'
 import * as api from './api'
 import { tournamentKeys } from './api'
-import { notify, notifyError } from './notify'
+import { notifyError, notifyInfo } from '../../utils/notify'
 
 /**
  * `useMutation` that resolves to `true` on success, so callers can tell success from
@@ -51,7 +51,7 @@ export function useTournamentActions(id: string, userId: string | null) {
       if (!userId) throw new Error('Sign in to invite players.')
       return api.sendInvite({ tournamentId: id, teamId: v.teamId, inviterId: userId, inviteeId: v.inviteeId })
     },
-    { onSuccess: () => notify('Invited', 'They will be notified.'), onError: e => notifyError(T.invite, e) },
+    { onSuccess: () => notifyInfo('Invited', 'They will be notified.'), onError: e => notifyError(T.invite, e) },
   )
 
   const sendJoinRequest = useAction(
@@ -59,7 +59,7 @@ export function useTournamentActions(id: string, userId: string | null) {
       if (!userId) throw new Error('Sign in to request to join.')
       return api.sendJoinRequest({ tournamentId: id, teamId, userId })
     },
-    { onSuccess: () => notify('Request sent', 'The team captain will be notified.'), onError: e => notifyError(T.joinRequest, e) },
+    { onSuccess: () => notifyInfo('Request sent', 'The team captain will be notified.'), onError: e => notifyError(T.joinRequest, e) },
   )
 
   const approveJoinRequest = useAction(

@@ -10,7 +10,7 @@ import { LocationPickerField } from '../../components/LocationPickerField'
 import type { LocationValue } from '../../components/LocationPickerField'
 import { TemplatesView } from '../../components/host/TemplatesView'
 import { ScreenState } from '../../components/ui'
-import { shared, theme, STALE, DAY_LABELS_SHORT, DURATION_OPTIONS, DEFAULT_DURATION_MINUTES } from '../../constants'
+import { shared, theme, STALE, DAY_LABELS_SHORT, DURATION_OPTIONS, DEFAULT_DURATION_MINUTES, GENERIC_ERROR_MESSAGE } from '../../constants'
 import type { RecurrenceCadence } from '../../constants'
 import { useSession } from '../../contexts/session'
 import { useTags } from '../../hooks/useTags'
@@ -254,6 +254,9 @@ export default function HostEventScreen() {
   }
 
   async function handleSubmit() {
+    // Set once an events row is written: from then on readers must be told,
+    // even if a later step (tags) fails.
+    let eventRowsSaved = false
     try {
       setLoading(true)
       setSaveOutcome('saved')
@@ -282,6 +285,7 @@ export default function HostEventScreen() {
           })
           .eq('id', editId)
         if (error) throw error
+        eventRowsSaved = true
 
         // Diff rather than delete-all-then-reinsert: a failure never exposes
         // the old empty-set window. Editing a title with tags untouched writes
@@ -390,6 +394,7 @@ export default function HostEventScreen() {
 
         const { data: insertedEvents, error } = await supabase.from('events').insert(rows).select('id')
         if (error) throw error
+        eventRowsSaved = true
 
         if (selectedTagIds.length > 0 && insertedEvents) {
           const tagRows = insertedEvents.flatMap(e =>
@@ -425,12 +430,18 @@ export default function HostEventScreen() {
       }
     } catch (e: any) {
       Sentry.captureException(e)
+      // The events row saved, so cached copies are stale even though a later write failed.
+      if (eventRowsSaved) {
+        if (isEdit && editId) invalidate(queryKey('event', editId))
+        invalidate('feed')
+        invalidate('club')
+      }
       if (e instanceof TagWriteError) {
         setSaveOutcome(e.tagsMayHaveChanged ? 'tags-uncertain' : 'tags-failed')
         setSuccessMessage('Event saved — tags not updated')
       } else {
         setSaveOutcome('failed')
-        setSuccessMessage('Something went wrong. Please try again.')
+        setSuccessMessage(GENERIC_ERROR_MESSAGE)
       }
       // The modal is the only place `successMessage` renders, so without this
       // every failure was silent — the form just stopped with no explanation.

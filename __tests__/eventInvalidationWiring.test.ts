@@ -36,6 +36,21 @@ describe('host.tsx publishes the invalidation signal', () => {
     expect(invalidateAt).toBeGreaterThan(waitlistAt)
   })
 
+  it('still invalidates when the events row saved but a later write (tags) failed', () => {
+    // Flag set right after each events write succeeds...
+    const updateAt = host.indexOf(".eq('id', editId)\n        if (error) throw error")
+    const insertAt = host.indexOf("supabase.from('events').insert(rows)")
+    expect(host.indexOf('eventRowsSaved = true', updateAt)).toBeGreaterThan(updateAt)
+    expect(host.indexOf('eventRowsSaved = true', insertAt)).toBeGreaterThan(insertAt)
+    // ...and the catch invalidates before it shows the error.
+    const catchBlock = host.slice(host.indexOf('} catch (e: any) {'))
+    const guarded = catchBlock.slice(catchBlock.indexOf('if (eventRowsSaved)'), catchBlock.indexOf('if (e instanceof TagWriteError)'))
+    expect(guarded).toMatch(/invalidate\(queryKey\('event', editId\)\)/)
+    expect(guarded).toMatch(/invalidate\('feed'\)/)
+    expect(guarded).toMatch(/invalidate\('club'\)/)
+    expect(catchBlock.indexOf('if (eventRowsSaved)')).toBeLessThan(catchBlock.indexOf('setSuccessModal(true)'))
+  })
+
   it('also invalidates the feed when new events are created', () => {
     const createAt = host.indexOf("supabase.from('events').insert(rows)")
     expect(createAt).toBeGreaterThan(-1)

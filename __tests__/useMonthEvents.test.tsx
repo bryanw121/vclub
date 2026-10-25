@@ -1,7 +1,9 @@
 import React from 'react'
 import { Alert } from 'react-native'
 import { act, render } from '@testing-library/react-native'
-import { __resetQueryCache, getQueryData, invalidate, setQueryData } from '../lib/query'
+import { __resetQueryCache, getQueryData, invalidate, setQueryData, useQuery } from '../lib/query'
+import { eventKeys } from '../hooks/event/keys'
+import { EVENT_JUST_FILLED_BODY, EVENT_JUST_FILLED_TITLE, GENERIC_ERROR_MESSAGE } from '../constants/copy'
 import {
   __resetFeedState,
   feedMonthKey,
@@ -286,7 +288,7 @@ describe('useFeedRsvp', () => {
 
     let done!: Promise<void>
     act(() => { done = rsvp.rsvp({ eventId: 'a', action: 'join', userId: 'me' }) })
-    expect(rsvp.pendingEventId).toBe('a')
+    expect(rsvp.isPending('a')).toBe(true)
     expect(feed.events[0].my_attendance).toEqual([{ user_id: 'me', status: 'attending' }])
     expect(feed.events[0].event_attendees_attending).toEqual([{ count: 4 }])
 
@@ -303,7 +305,7 @@ describe('useFeedRsvp', () => {
     expect(insert.ops.map(([op]) => op)).toEqual(['insert', 'select', 'single'])
     expect(insert.ops[1]).toEqual(['select', ['status']])
     expect(Alert.alert).not.toHaveBeenCalled()
-    expect(rsvp.pendingEventId).toBeNull()
+    expect(rsvp.pendingEventIds.size).toBe(0)
     expect(eventQueries()).toHaveLength(2)
     expect(feed.events[0].event_attendees_attending).toEqual([{ count: 4 }])
   })
@@ -317,7 +319,8 @@ describe('useFeedRsvp', () => {
 
     await act(async () => { await rsvp.rsvp({ eventId: 'a', action: 'join', userId: 'me' }) })
 
-    expect(Alert.alert).toHaveBeenCalledWith('Event just filled up', expect.stringContaining("You're on the waitlist"))
+    expect(Alert.alert).toHaveBeenCalledWith(EVENT_JUST_FILLED_TITLE, EVENT_JUST_FILLED_BODY)
+    expect(EVENT_JUST_FILLED_TITLE).toBe('Event just filled up')
     expect(feed.events[0].my_attendance).toEqual([{ user_id: 'me', status: 'waitlisted' }])
     expect(feed.events[0].event_attendees_attending).toEqual([{ count: 3 }])
   })
@@ -335,7 +338,7 @@ describe('useFeedRsvp', () => {
     expect(feed.events[0].my_attendance).toEqual([])
     expect(feed.events[0].event_attendees_attending).toEqual([{ count: 3 }])
     expect(getQueryData<EventWithDetails[]>(feedMonthKey(NEXT_MONTH))?.[0]).toEqual(before?.[0])
-    expect(rsvp.pendingEventId).toBeNull()
+    expect(rsvp.pendingEventIds.size).toBe(0)
   })
 
   it('leaves optimistically with a delete', async () => {
@@ -350,6 +353,103 @@ describe('useFeedRsvp', () => {
     expect(mockCalls.find(c => c.table === 'event_attendees')!.ops[0][0]).toBe('delete')
     expect(feed.events[0].my_attendance).toEqual([])
     expect(feed.events[0].event_attendees_attending).toEqual([{ count: 2 }])
+  })
+
+  it('invalidates the event detail entry on success, so an open event page refetches', async () => {
+    await loadedFeed()
+    mockResponses.event_attendees = { data: { status: 'attending' }, error: null }
+    mockResponses.events = () => new Promise<Result>(() => {})
+    let detailFetches = 0
+    function EventPageProbe() {
+      useQuery(eventKeys.root('a'), async () => { detailFetches++; return { id: 'a' } })
+      return null
+    }
+    render(<EventPageProbe />)
+    await flush()
+    expect(detailFetches).toBe(1)
+
+    await act(async () => { await rsvp.rsvp({ eventId: 'a', action: 'join', userId: 'me' }) })
+    await flush()
+    expect(detailFetches).toBe(2)
+  })
+
+  it('lets two different cards RSVP at once; a failure on one leaves the other alone', async () => {
+    mockResponses.events = { data: [eventRow('a'), eventRow('b')], error: null }
+    render(<Probe />)
+    act(() => feed.loadMonth(NEXT_MONTH))
+    await flush()
+    const releases: Array<(r: Result) => void> = []
+    mockResponses.event_attendees = () => new Promise<Result>(res => { releases.push(res) })
+    mockResponses.events = () => new Promise<Result>(() => {})
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {})
+
+    let doneA!: Promise<void>
+    let doneB!: Promise<void>
+    act(() => { doneA = rsvp.rsvp({ eventId: 'a', action: 'join', userId: 'me' }) })
+    act(() => { doneB = rsvp.rsvp({ eventId: 'b', action: 'join', userId: 'me' }) })
+    // A second tap on a pending card is ignored.
+    act(() => { void rsvp.rsvp({ eventId: 'a', action: 'join', userId: 'me' }) })
+    await act(async () => { await new Promise(r => setTimeout(r, 0)) })
+
+    expect(rsvp.isPending('a')).toBe(true)
+    expect(rsvp.isPending('b')).toBe(true)
+    expect(releases).toHaveLength(2)
+    const eventsBefore = eventQueries().length
+
+    // A fails, B is still in flight: only A rolls back, and the feed isn't refetched yet.
+    await act(async () => { releases[0]({ data: null, error: { message: 'nope' } }); await doneA })
+    expect(feed.events.find(e => e.id === 'a')?.my_attendance).toEqual([])
+    expect(feed.events.find(e => e.id === 'b')?.my_attendance).toEqual([{ user_id: 'me', status: 'attending' }])
+    expect(eventQueries().length).toBe(eventsBefore)
+    expect(Alert.alert).toHaveBeenCalledWith('Error', GENERIC_ERROR_MESSAGE)
+
+    await act(async () => { releases[1]({ data: { status: 'attending' }, error: null }); await doneB })
+    await flush()
+    expect(rsvp.pendingEventIds.size).toBe(0)
+    expect(eventQueries().length).toBe(eventsBefore + 1)
+  })
+
+  it('alerts through window.alert on web (Alert.alert is a no-op there)', async () => {
+    await loadedFeed()
+    mockResponses.event_attendees = { data: null, error: { message: 'denied' } }
+    mockResponses.events = () => new Promise<Result>(() => {})
+    const { Platform } = require('react-native')
+    const realOS = Platform.OS
+    Platform.OS = 'web'
+    const webAlert = jest.fn()
+    ;(global as unknown as { window: { alert: unknown } }).window.alert = webAlert
+    try {
+      await act(async () => { await rsvp.rsvp({ eventId: 'a', action: 'join', userId: 'me' }) })
+    } finally {
+      Platform.OS = realOS
+    }
+    expect(webAlert).toHaveBeenCalledWith(`Error\n\n${GENERIC_ERROR_MESSAGE}`)
+  })
+})
+
+describe('feed loading flag', () => {
+  it('stays false during a background refetch of months that already have data', async () => {
+    mockResponses.events = { data: [eventRow('a')], error: null }
+    render(<Probe />)
+    act(() => feed.loadMonth(NEXT_MONTH))
+    await flush()
+    expect(feed.loading).toBe(false)
+
+    mockResponses.events = () => new Promise<Result>(() => {})
+    act(() => invalidate('feed'))
+    await flush()
+    expect(feed.loading).toBe(false)
+  })
+
+  it('is true while a newly requested month has no data yet', async () => {
+    mockResponses.events = { data: [eventRow('a')], error: null }
+    render(<Probe />)
+    act(() => feed.loadMonth(NEXT_MONTH))
+    await flush()
+    mockResponses.events = () => new Promise<Result>(() => {})
+    act(() => feed.loadMonth(addMonths(NEXT_MONTH, 1)))
+    await flush()
+    expect(feed.loading).toBe(true)
   })
 })
 

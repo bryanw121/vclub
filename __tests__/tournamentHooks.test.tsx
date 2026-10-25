@@ -7,8 +7,8 @@ jest.mock('expo-router', () => ({ useFocusEffect: () => {} }))
 
 // Alerts: record instead of showing.
 const mockNotify = jest.fn()
-jest.mock('../hooks/tournament/notify', () => ({
-  notify: (...a: unknown[]) => mockNotify(...a),
+jest.mock('../utils/notify', () => ({
+  notifyInfo: (...a: unknown[]) => mockNotify(...a),
   notifyError: (...a: unknown[]) => mockNotify(...a),
 }))
 

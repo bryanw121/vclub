@@ -381,3 +381,71 @@ describe('randomizeAssignments', () => {
     expect(r.assignments.a).toEqual({ team: 1, pinned: true })
   })
 })
+
+// ─── Review fixes ────────────────────────────────────────────────────────────
+
+describe('useEventCheers — revoke double tap', () => {
+  it('a second revoke while one is in flight is skipped silently (no error alert)', async () => {
+    const { useEventCheers } = require('../hooks/event/useEventCheers')
+    const cheer = (receiver: string) => ({ id: receiver, event_id: 'e1', giver_id: 'me', receiver_id: receiver, cheer_type: 'mvp', created_at: 'x' })
+    const held = deferred<Res>()
+    mockRespond = router({
+      'cheers:select': () => ({ data: [cheer('a'), cheer('b')], error: null }),
+      'cheers:delete': () => held.promise,
+    })
+    let cheers!: { toggleCheer: (r: string, t: string) => void; myCheersGiven: unknown[] }
+    function CheersHarness() {
+      cheers = useEventCheers('e1', 'me', true)
+      return null
+    }
+    render(<CheersHarness />)
+    await settle()
+    expect(cheers.myCheersGiven).toHaveLength(2)
+
+    act(() => { cheers.toggleCheer('a', 'mvp') })
+    act(() => { cheers.toggleCheer('b', 'mvp') })
+    await settle()
+    expect(callsTo('cheers', 'delete')).toHaveLength(1)
+    expect(alertSpy).not.toHaveBeenCalled()
+
+    await act(async () => { held.resolve({ data: null, error: null }) })
+    await settle()
+    expect(alertSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('forgetDeletedEvent', () => {
+  it('drops every event:<id> entry and invalidates the feed and club pages', async () => {
+    const q = require('../lib/query')
+    const { eventKeys, forgetDeletedEvent } = require('../hooks/event/keys')
+    q.setQueryData(eventKeys.root('e1'), { id: 'e1' })
+    q.setQueryData(eventKeys.comments('e1'), [])
+    q.setQueryData(eventKeys.root('e10'), { id: 'e10' })
+    let feedFetches = 0
+    let clubFetches = 0
+    function ListReaders() {
+      q.useQuery('feed:month:2030-01', async () => { feedFetches++; return [] })
+      q.useQuery('club:c1:detail:me', async () => { clubFetches++; return {} })
+      return null
+    }
+    render(<ListReaders />)
+    await settle()
+    expect([feedFetches, clubFetches]).toEqual([1, 1])
+
+    act(() => forgetDeletedEvent('e1'))
+    await settle()
+    expect(q.getQueryData(eventKeys.root('e1'))).toBeUndefined()
+    expect(q.getQueryData(eventKeys.comments('e1'))).toBeUndefined()
+    expect(q.getQueryData(eventKeys.root('e10'))).toEqual({ id: 'e10' })
+    expect([feedFetches, clubFetches]).toEqual([2, 2])
+  })
+
+  it('is what the event page runs after a successful delete', () => {
+    const { readFileSync } = require('fs')
+    const { join } = require('path')
+    const screen: string = readFileSync(join(__dirname, '..', 'app/(app)/event/[id].tsx'), 'utf8')
+    const del = screen.slice(screen.indexOf('const deleteEvent = useMutation('))
+    const onSuccess = del.slice(del.indexOf('onSuccess'), del.indexOf('onError'))
+    expect(onSuccess).toMatch(/forgetDeletedEvent\(id\)/)
+  })
+})

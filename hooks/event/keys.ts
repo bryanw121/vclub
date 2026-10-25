@@ -1,4 +1,5 @@
-import { getQueryData, queryKey, setQueryData } from '../../lib/query'
+import { getQueryData, invalidate, queryKey, removeQueries, setQueryData } from '../../lib/query'
+import { profileBriefKey } from '../useMyProfile'
 
 /**
  * Cache keys for one event's detail data. Everything lives under
@@ -14,8 +15,8 @@ export const eventKeys = {
   guests: (id: string) => queryKey('event', id, 'guests'),
   cohosts: (id: string) => queryKey('event', id, 'cohosts'),
   myCheers: (id: string, userId: string | null) => queryKey('event', id, 'cheers', userId),
-  /** The viewer's own roster-shaped profile (optimistic join rows, Venmo note). */
-  viewerProfile: (userId: string | null) => queryKey('profile', userId, 'brief'),
+  /** The viewer's own `ProfileBrief` (optimistic join rows, Venmo note). Shared with chat. */
+  viewerProfile: (userId: string) => profileBriefKey(userId),
 }
 
 /**
@@ -28,4 +29,15 @@ export function patchQuery<T>(key: string, fn: (prev: T) => T): T | undefined {
   if (prev === undefined) return undefined
   setQueryData<T>(key, fn(prev))
   return prev
+}
+
+/**
+ * After the event is deleted: drop every `event:<id>` entry (a cached copy
+ * would otherwise reopen as a live event for the next 60s) and refresh the
+ * lists that showed it.
+ */
+export function forgetDeletedEvent(id: string): void {
+  removeQueries(eventKeys.root(id))
+  invalidate('feed')
+  invalidate('club')
 }

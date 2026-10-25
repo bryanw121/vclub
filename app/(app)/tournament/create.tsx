@@ -11,7 +11,7 @@ import { useSession } from '../../../contexts/session'
 import { theme, shared } from '../../../constants'
 import { routes } from '../../../utils/routes'
 import { DatePickerField } from '../../../components/DatePickerField'
-import { notify, notifyError } from '../../../hooks/tournament/notify'
+import { notifyError, notifyInfo } from '../../../utils/notify'
 import type { TournamentDraft, TournamentFormat, TournamentBracketType, Club } from '../../../types'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -740,7 +740,7 @@ export default function TournamentCreateScreen() {
         .from('club_members')
         .select('clubs (id, name, description, membership_type, created_by, avatar_url, cover_url, major_city_id, created_at)')
         .eq('user_id', userId)
-      if (error) { notify('Could not load your clubs', error.message); return }
+      if (error) { notifyInfo('Could not load your clubs', error.message); return }
       const fetched = (data ?? []).map((r: any) => r.clubs).filter(Boolean) as Club[]
       setClubs(fetched)
       if (fetched.length === 1) update({ clubId: fetched[0].id })
@@ -750,7 +750,7 @@ export default function TournamentCreateScreen() {
 
   function goNext() {
     const err = validateStep(step, draft)
-    if (err) { notify('Missing info', err); return }
+    if (err) { notifyInfo('Missing info', err); return }
     setStep(s => Math.min(s + 1, TOTAL_STEPS - 1))
   }
 
@@ -761,8 +761,8 @@ export default function TournamentCreateScreen() {
 
   async function handleSave(status: 'draft' | 'published') {
     const err = validateStep(step, draft)
-    if (err) { notify('Missing info', err); return }
-    if (!userId) { notify('Sign in required', 'Sign in to create a tournament.'); return }
+    if (err) { notifyInfo('Missing info', err); return }
+    if (!userId) { notifyInfo('Sign in required', 'Sign in to create a tournament.'); return }
     setSaving(true)
     try {
       const id = await saveTournament(draft, status, userId)

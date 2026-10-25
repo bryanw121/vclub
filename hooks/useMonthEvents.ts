@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, AppState } from 'react-native'
+import { AppState } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import {
   EVENT_CARD_LIST_SELECT,
   EVENT_CARD_MY_ATTENDANCE_SELECT,
   EVENT_CARD_MY_ATTENDANCE_SELECT_ATTENDING_ONLY,
+  EVENT_JUST_FILLED_BODY,
+  EVENT_JUST_FILLED_TITLE,
   EXTERNAL_SESSION_SELECT,
+  GENERIC_ERROR_MESSAGE,
   STALE,
 } from '../constants'
 import { supabase } from '../lib/supabase'
@@ -17,7 +20,6 @@ import {
   removeQueries,
   setQueryData,
   subscribeQueryCache,
-  useMutation,
   useQuery,
   type QueryResult,
 } from '../lib/query'
@@ -26,6 +28,8 @@ import { startOfToday } from '../utils'
 import { bucketByMonthKey, enumerateMonths, monthEndIso, monthStartIso } from '../utils/monthKeys'
 import { fetchEventCardPreviews, withEventCardPreviews, type EventCardPreviews } from '../utils/eventCardPreviews'
 import { normalizeExternalSessions, normalizeTournaments } from '../utils/feedItems'
+import { notifyError, notifyInfo } from '../utils/notify'
+import { eventKeys } from './event/keys'
 import type { EventWithDetails, ExternalSession, FeedRsvpResult, FeedRsvpVars } from '../types'
 
 /**
@@ -344,9 +348,11 @@ export function useMonthEvents() {
   )
   const isMonthLoaded = useCallback((month: string) => getQueryData(feedMonthKey(month)) !== undefined, [])
 
-  // Also true before the screen's first loadMonth lands (no months yet, or a
-  // slot mounted but not fetching yet), so the first paint is a spinner, not "No events".
-  const loading = months.length === 0 || slots.some(s => s.isFetching || s.isLoading)
+  // True only while a requested month has nothing to show yet (including before
+  // the screen's first loadMonth, so the first paint is a spinner, not "No
+  // events"). Background refetches (`invalidate('feed')`, focus) don't count:
+  // they must not flash the footer spinner or pause infinite scroll.
+  const loading = months.length === 0 || slots.some(s => s.isLoading)
   const error = slots.find(s => s.error)?.error ?? null
   const lastData = months.length > 0 ? monthData[months.length - 1] : undefined
   const reachedEnd = months.length >= MAX_FEED_MONTHS || (lastData !== undefined && lastData.length === 0)
@@ -388,12 +394,24 @@ export function withMyAttendance(
   }
 }
 
+/**
+ * Patch `eventId` in every cached month. The rollback restores only that
+ * event's row, so undoing one card never reverts another card's RSVP that is
+ * still in flight in the same month.
+ */
 function patchEvent(eventId: string, userId: string, status: 'attending' | 'waitlisted' | null): () => void {
   const snapshots = monthsHolding(eventId)
+  const originals = new Map<string, EventWithDetails>()
   for (const [key, data] of snapshots) {
+    const original = data.find(e => e.id === eventId)
+    if (original) originals.set(key, original)
     setQueryData<EventWithDetails[]>(key, data.map(e => (e.id === eventId ? withMyAttendance(e, userId, status) : e)))
   }
-  return () => snapshots.forEach(([key, data]) => setQueryData(key, data))
+  return () => {
+    originals.forEach((original, key) => {
+      setQueryData<EventWithDetails[]>(key, prev => (prev ?? []).map(e => (e.id === eventId ? original : e)))
+    })
+  }
 }
 
 async function writeRsvp({ eventId, action, userId }: FeedRsvpVars): Promise<FeedRsvpResult> {
@@ -419,37 +437,40 @@ async function writeRsvp({ eventId, action, userId }: FeedRsvpVars): Promise<Fee
 
 /**
  * Join / leave from a feed card: optimistic `my_attendance` + attending count,
- * rolled back with an Alert on error, then `invalidate('feed')`.
- * `pendingEventId` is the card whose write is in flight (one at a time).
+ * rolled back with an alert on error. One write per event at a time (a second
+ * tap on the same card is ignored), but different cards can be in flight
+ * together. On success the event's detail entry is invalidated so a recently
+ * opened event page doesn't show a stale Join button; the feed is invalidated
+ * once no card write is pending, so a refetch can't clobber another card's
+ * optimistic state.
  */
 export function useFeedRsvp() {
-  const [pendingEventId, setPendingEventId] = useState<string | null>(null)
-  const { mutate } = useMutation<FeedRsvpVars, FeedRsvpResult>(writeRsvp, {
-    onMutate: ({ eventId, action, userId }) => patchEvent(eventId, userId, action === 'join' ? 'attending' : null),
-    onSuccess: (result, { action }) => {
-      if (action === 'join' && result.status === 'waitlisted') {
-        Alert.alert('Event just filled up', "The last spot was taken a moment before you. You're on the waitlist and will be notified if you get in.")
-      }
-    },
-    onError: e => {
-      console.error('[useFeedRsvp]', e.message)
-      Alert.alert('Error', 'Something went wrong. Please try again.')
-    },
-    invalidates: [FEED_PREFIX],
-  })
+  const pendingRef = useRef(new Set<string>())
+  const [pendingEventIds, setPendingEventIds] = useState<ReadonlySet<string>>(() => new Set())
 
-  const pendingRef = useRef(false)
   const rsvp = useCallback(async (vars: FeedRsvpVars) => {
-    if (pendingRef.current) return
-    pendingRef.current = true
-    setPendingEventId(vars.eventId)
-    try {
-      await mutate(vars)
-    } finally {
-      pendingRef.current = false
-      setPendingEventId(null)
-    }
-  }, [mutate])
+    const { eventId, action, userId } = vars
+    if (pendingRef.current.has(eventId)) return
+    pendingRef.current.add(eventId)
+    setPendingEventIds(new Set(pendingRef.current))
 
-  return { rsvp, pendingEventId }
+    const rollback = patchEvent(eventId, userId, action === 'join' ? 'attending' : null)
+    try {
+      const result = await writeRsvp(vars)
+      invalidate(eventKeys.root(eventId))
+      if (action === 'join' && result.status === 'waitlisted') notifyInfo(EVENT_JUST_FILLED_TITLE, EVENT_JUST_FILLED_BODY)
+    } catch (e) {
+      rollback()
+      console.error('[useFeedRsvp]', e instanceof Error ? e.message : (e as { message?: string })?.message ?? e)
+      notifyError('Error', GENERIC_ERROR_MESSAGE)
+    } finally {
+      pendingRef.current.delete(eventId)
+      setPendingEventIds(new Set(pendingRef.current))
+      if (pendingRef.current.size === 0) invalidate(FEED_PREFIX)
+    }
+  }, [])
+
+  const isPending = useCallback((eventId: string) => pendingEventIds.has(eventId), [pendingEventIds])
+
+  return { rsvp, pendingEventIds, isPending }
 }

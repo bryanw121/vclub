@@ -10,6 +10,7 @@ import {
   conversationsBindings,
   createDebouncedCall,
   mergeLatestPage,
+  newMessageId,
   messagesBindings,
   reactionsBindings,
   silencesBindings,
@@ -181,6 +182,33 @@ describe('mergeLatestPage', () => {
     const next = mergeLatestPage([pending, stale, older], page)
     expect(next.map(m => m.id)).toEqual(['temp-1', 'm2', 'm1', 'old'])
     expect(next[2].content).toBe('fresh')
+  })
+
+  it('treats a failed or sending row the page already has (same client id) as sent', () => {
+    const failed = row({ id: 'c-1', sender_id: ME, content: 'yo', _failed: true, created_at: '2026-10-24T22:00:00.000Z' })
+    const sending = row({ id: 'c-2', sender_id: ME, content: 'yo2', _sending: true, created_at: '2026-10-24T22:00:01.000Z' })
+    const page = [
+      row({ id: 'c-2', sender_id: ME, content: 'yo2', created_at: '2026-10-24T22:00:01.000Z' }),
+      row({ id: 'c-1', sender_id: ME, content: 'yo', created_at: '2026-10-24T22:00:00.000Z' }),
+    ]
+    const next = mergeLatestPage([sending, failed], page)
+    expect(next.map(m => m.id)).toEqual(['c-2', 'c-1'])
+    expect(next.every(m => !m._failed && !m._sending)).toBe(true)
+  })
+})
+
+describe('upsertIncoming with client-generated ids', () => {
+  it('turns a "failed" row into a sent one when its realtime echo arrives', () => {
+    const failed = row({ id: 'c-1', sender_id: ME, content: 'yo', _failed: true, _sending: false, created_at: '2026-10-24T22:00:00.000Z' })
+    const echo = buildIncomingMessage(record({ id: 'c-1', sender_id: ME, content: 'yo', created_at: '2026-10-24T22:00:00.000Z' }), null, [])
+    const next = upsertIncoming([failed, row()], echo)
+    expect(next.filter(m => m.id === 'c-1')).toHaveLength(1)
+    expect(next.find(m => m.id === 'c-1')?._failed).toBeFalsy()
+  })
+
+  it('newMessageId returns a v4 UUID', () => {
+    expect(newMessageId()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(newMessageId()).not.toBe(newMessageId())
   })
 })
 

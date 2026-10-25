@@ -79,6 +79,6 @@ describe('host.tsx surfaces tag-write failures distinctly', () => {
     // `successMessage` renders only inside the modal, so setting it without
     // opening the modal meant every failure was silent.
     const catchBlock = host.slice(host.indexOf('} catch (e: any) {'))
-    expect(catchBlock.slice(0, 700)).toMatch(/setSuccessModal\(true\)/)
+    expect(catchBlock.slice(0, 1000)).toMatch(/setSuccessModal\(true\)/)
   })
 })

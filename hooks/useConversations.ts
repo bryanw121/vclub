@@ -15,6 +15,7 @@ import {
   type SenderProfile,
 } from '../utils/chatUtils'
 import type { ConversationRow } from '../types'
+import { profileBriefKey } from './useMyProfile'
 
 /**
  * The shared conversations store: one `get_my_conversations` result per user
@@ -29,10 +30,8 @@ export function conversationsKey(userId: string): string {
   return queryKey('conversations', userId)
 }
 
-/** Sender profiles seen in chat, so realtime rows can be built without a round trip. */
-export function profileBriefKey(userId: string): string {
-  return queryKey('profile', 'brief', userId)
-}
+/** Sender profiles seen in chat (`profile:<id>:brief`), so realtime rows can be built without a round trip. */
+export { profileBriefKey }
 
 export async function fetchConversations(): Promise<ConversationRow[]> {
   const { data, error } = await supabase.rpc('get_my_conversations')

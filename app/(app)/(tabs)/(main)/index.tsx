@@ -67,7 +67,7 @@ type DateSection = { date: string; data: EventWithDetails[] }
 export default function EventsScreen() {
   const router = useRouter()
   const { events, loading, error, loadMonth, loadMonthSpan, refresh, loadedMonths, reachedEnd } = useMonthEvents()
-  const { rsvp, pendingEventId } = useFeedRsvp()
+  const { rsvp, isPending: isRsvpPending } = useFeedRsvp()
   const {
     notifications: notifItems,
     unreadCount,
@@ -409,7 +409,7 @@ export default function EventsScreen() {
                             event={item}
                             currentUserId={currentUserId}
                             onRsvp={item._isTournament ? undefined : handleRsvp}
-                            rsvpPending={pendingEventId === item.id}
+                            rsvpPending={isRsvpPending(item.id)}
                           />}
                         </View>
                       ))}
@@ -519,7 +519,7 @@ export default function EventsScreen() {
                 event={item}
                 currentUserId={currentUserId}
                 onRsvp={item._isTournament ? undefined : handleRsvp}
-                rsvpPending={pendingEventId === item.id}
+                rsvpPending={isRsvpPending(item.id)}
               />
             )}
           </View>

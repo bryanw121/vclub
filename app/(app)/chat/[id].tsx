@@ -250,9 +250,10 @@ export default function ChatRoomScreen() {
           return
         }
       }
-      const ok = await sendMessage(trimmed || null, uploadedUrl, replyingTo, mentionIds)
-      // The failed bubble stays in the list ("Tap to retry"); the draft comes back too.
-      if (!ok) setText(cur => cur || trimmed)
+      // On failure the bubble stays in the list as "Not sent · Tap to retry" —
+      // the one recovery path. Restoring the draft too invited a second send of
+      // the same message alongside the retry.
+      await sendMessage(trimmed || null, uploadedUrl, replyingTo, mentionIds)
     } finally {
       setUploadingImage(false)
       setSending(false)

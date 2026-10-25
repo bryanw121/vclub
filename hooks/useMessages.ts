@@ -14,6 +14,7 @@ import {
   createDebouncedCall,
   mergeLatestPage,
   messagesBindings,
+  newMessageId,
   reactionsBindings,
   replySnapshotOf,
   upsertIncoming,
@@ -29,6 +30,7 @@ import {
   profileBriefKey,
 } from './useConversations'
 import type { MessageWithDetails } from '../types'
+import { toProfileBrief } from './useMyProfile'
 
 const PROFILE_BRIEF = 'id, username, first_name, last_name, avatar_url, selected_border'
 
@@ -46,12 +48,16 @@ const PAGE_SIZE = 40
 export const MARK_READ_DEBOUNCE_MS = 1_000
 const RECONNECT_REFRESH_DEBOUNCE_MS = 300
 
-// ── Sender profile cache (lib/query `profile:brief:<id>`) ────────────────────
+// ── Sender profile cache (lib/query `profile:<id>:brief`) ────────────────────
 
+/** Fetched rows are the newest copy: always overwrite (a renamed sender or new avatar shows at once). */
 function rememberProfile(p: SenderProfile | null | undefined): void {
   if (!p?.id) return
-  if (getQueryData<SenderProfile>(profileBriefKey(p.id))) return
-  setQueryData(profileBriefKey(p.id), p)
+  const next = toProfileBrief(p)
+  const cached = getQueryData<SenderProfile>(profileBriefKey(p.id))
+  // Skip identical writes: every page of messages would otherwise re-notify readers.
+  if (cached && (Object.keys(next) as (keyof SenderProfile)[]).every(k => cached[k] === next[k])) return
+  setQueryData(profileBriefKey(p.id), next)
 }
 
 const profileRequests = new Map<string, Promise<SenderProfile | null>>()
@@ -121,8 +127,6 @@ type PendingSend = {
 type Updater = MessageWithDetails[] | ((prev: MessageWithDetails[]) => MessageWithDetails[])
 
 const GENERIC_RETRY = 'Check your connection and try again.'
-
-let tempSeq = 0
 
 /**
  * One room's messages: newest page + older pages on demand, kept current from
@@ -292,9 +296,11 @@ export function useMessages(conversationId: string) {
     const gen = generation.current
     setMessages(prev => prev.map(m => (m.id === tempId ? { ...m, _sending: true, _failed: false } : m)))
 
-    const { data, error: sendError } = await supabase
+    let { data, error: sendError } = await supabase
       .from('messages')
       .insert({
+        // Client-generated, so a retry after a lost response can't post twice.
+        id: tempId,
         conversation_id: conversationId,
         sender_id: userId,
         content: pending.content,
@@ -304,6 +310,21 @@ export function useMessages(conversationId: string) {
       })
       .select(MESSAGE_SELECT)
       .single()
+
+    // Duplicate primary key: an earlier attempt landed but its response was
+    // lost. The message is on the server, so this send succeeded.
+    if (sendError?.code === '23505') {
+      const existing = await supabase.from('messages').select(MESSAGE_SELECT).eq('id', tempId).maybeSingle()
+      if (existing.data) {
+        data = existing.data
+        sendError = null
+      } else {
+        if (gen !== generation.current) return true
+        pendingSends.current.delete(tempId)
+        setMessages(prev => prev.map(m => (m.id === tempId ? { ...m, _sending: false, _failed: false } : m)))
+        return true
+      }
+    }
 
     if (gen !== generation.current) return !sendError
     if (sendError || !data) {
@@ -327,7 +348,8 @@ export function useMessages(conversationId: string) {
     mentions: string[] = [],
   ): Promise<boolean> => {
     if (!userId) return false
-    const tempId = `temp-${Date.now()}-${++tempSeq}`
+    // The optimistic row's id is the real one (see newMessageId).
+    const tempId = newMessageId()
     const replySnapshot = replyTo ? replySnapshotOf(replyTo) : null
     pendingSends.current.set(tempId, { content: content || null, imageUrl, replyTo: replySnapshot, mentions })
     const tempMessage: MessageWithDetails = {

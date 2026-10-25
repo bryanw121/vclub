@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { Sentry } from '../lib/sentry'
 import { getQueryData, queryKey, setQueryData, useMutation, useQuery } from '../lib/query'
@@ -6,7 +6,7 @@ import type { QueryResult } from '../lib/query'
 import { STALE } from '../constants/cache'
 import { useSession } from '../contexts/session'
 import { normalizeVolleyballPositions, normalizeVolleyballSkillLevel } from '../utils'
-import type { Profile, ProfilePatch } from '../types'
+import type { Profile, ProfileBrief, ProfilePatch } from '../types'
 
 /**
  * The columns every screen needs from a profile (own or someone else's): the
@@ -22,6 +22,25 @@ const MY_PROFILE_SELECT = `${PROFILE_BRIEF_SELECT}, notification_prefs`
 /** Cache key of the signed-in user's own profile. */
 export function myProfileKey(userId: string): string {
   return queryKey('profile', 'me', userId)
+}
+
+/**
+ * Cache key of a user's `ProfileBrief` (the `PROFILE_BRIEF` columns): chat
+ * sender profiles and the event page's viewer share it.
+ */
+export function profileBriefKey(userId: string): string {
+  return queryKey('profile', userId, 'brief')
+}
+
+export function toProfileBrief(p: ProfileBrief): ProfileBrief {
+  return {
+    id: p.id,
+    username: p.username,
+    first_name: p.first_name ?? null,
+    last_name: p.last_name ?? null,
+    avatar_url: p.avatar_url ?? null,
+    selected_border: p.selected_border ?? null,
+  }
 }
 
 /** Cache key of how many cheers the signed-in user has received. */
@@ -58,7 +77,9 @@ export type MyProfile = {
   /**
    * Optimistically applies `patch` to the cached profile, then writes it.
    * Resolves to `true` when saved; on failure the cache is rolled back and it
-   * resolves to `false` (`saveError` holds the reason).
+   * resolves to `false` (`saveError` holds the reason). A call made while a
+   * save is in flight is applied at once and queued (merged with any other
+   * queued patch, latest value per field wins), then sent when that save settles.
    */
   updateProfile: (patch: ProfilePatch) => Promise<boolean>
   isSaving: boolean
@@ -106,15 +127,47 @@ export function useMyProfile(opts?: { enabled?: boolean }): MyProfile {
         setQueryData<Profile>(key, { ...previous, ...patch })
         return () => setQueryData<Profile>(key, previous)
       },
+      onSuccess: () => {
+        // Chat bubbles and the event page read the brief copy; keep it in step
+        // (the own-profile entry already holds the patch from onMutate).
+        const saved = key ? getQueryData<Profile>(key) : undefined
+        if (userId && saved) setQueryData<ProfileBrief>(profileBriefKey(userId), toProfileBrief(saved))
+      },
       onError: error => Sentry.captureException(error),
     },
   )
 
   const { mutate } = mutation
-  const updateProfile = useCallback(
-    async (patch: ProfilePatch): Promise<boolean> => (await mutate(patch)) !== undefined,
-    [mutate],
-  )
+  const keyRef = useRef(key)
+  keyRef.current = key
+  const busyRef = useRef(false)
+  const queuedRef = useRef<{ patch: ProfilePatch; waiters: Array<(saved: boolean) => void> } | null>(null)
+
+  const updateProfile = useCallback((patch: ProfilePatch): Promise<boolean> => {
+    if (busyRef.current) {
+      // `useMutation` would drop this call (double-submit guard) and the caller
+      // would report a failure that never happened. Queue it instead.
+      const k = keyRef.current
+      const previous = k ? getQueryData<Profile>(k) : undefined
+      if (k && previous) setQueryData<Profile>(k, { ...previous, ...patch })
+      const queued = queuedRef.current ?? (queuedRef.current = { patch: {}, waiters: [] })
+      queued.patch = { ...queued.patch, ...patch }
+      return new Promise<boolean>(resolve => { queued.waiters.push(resolve) })
+    }
+    busyRef.current = true
+    const first = mutate(patch).then(r => r !== undefined)
+    void (async () => {
+      await first
+      while (queuedRef.current) {
+        const queued = queuedRef.current
+        queuedRef.current = null
+        const saved = (await mutate(queued.patch)) !== undefined
+        queued.waiters.forEach(resolve => resolve(saved))
+      }
+      busyRef.current = false
+    })()
+    return first
+  }, [mutate])
 
   return {
     profile: query.data,

@@ -366,3 +366,72 @@ describe('useMessages', () => {
     alert.mockRestore()
   })
 })
+
+describe('useMessages — review fixes', () => {
+  beforeEach(() => {
+    tables.messages = () => ({ data: [msg()], error: null })
+  })
+
+  it('overwrites a cached sender profile with the fetched row (renamed sender shows at once)', async () => {
+    setQueryData(profileBriefKey('them'), { ...them, username: 'old-name' })
+    renderHook(() => useMessages('c1'))
+    await flush()
+    expect(getQueryData<{ username: string }>(profileBriefKey('them'))?.username).toBe('jexy')
+  })
+
+  it('uses the same profile:<uid>:brief key as the event page', () => {
+    const { eventKeys } = require('../hooks/event/keys')
+    expect(profileBriefKey('u1')).toBe('profile:u1:brief')
+    expect(eventKeys.viewerProfile('u1')).toBe(profileBriefKey('u1'))
+  })
+
+  it('sends a client-generated id, and the optimistic row carries it', async () => {
+    let inserted: Record<string, unknown> | undefined
+    tables.messages = call => {
+      const ins = call.ops.find(([op]) => op === 'insert')
+      if (ins) {
+        inserted = ins[1][0] as Record<string, unknown>
+        return { data: msg({ id: inserted.id as string, sender_id: 'me', content: 'yo', created_at: '2026-10-24T23:00:00.000Z' }), error: null }
+      }
+      return { data: [msg()], error: null }
+    }
+    const room = renderHook(() => useMessages('c1'))
+    await flush()
+    await act(async () => { await room.result.current.sendMessage('yo') })
+    expect(inserted?.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(room.result.current.messages.map(m => m.id)).toEqual([inserted?.id, 'm1'])
+  })
+
+  it('treats a retry that hits a duplicate id as sent (the first attempt landed, its response was lost)', async () => {
+    let attempt = 0
+    let sentId = ''
+    tables.messages = call => {
+      const ins = call.ops.find(([op]) => op === 'insert')
+      if (ins) {
+        attempt++
+        sentId = (ins[1][0] as { id: string }).id
+        return attempt === 1
+          ? { data: null, error: { message: 'network', code: 'FETCH' } }
+          : { data: null, error: { message: 'duplicate key', code: '23505' } }
+      }
+      if (call.ops.some(([op]) => op === 'maybeSingle')) {
+        return { data: msg({ id: sentId, sender_id: 'me', content: 'yo', created_at: '2026-10-24T23:00:00.000Z' }), error: null }
+      }
+      return { data: [msg()], error: null }
+    }
+    const room = renderHook(() => useMessages('c1'))
+    await flush()
+    let ok: boolean | undefined
+    await act(async () => { ok = await room.result.current.sendMessage('yo') })
+    expect(ok).toBe(false)
+    const failed = room.result.current.messages[0]
+    expect(failed._failed).toBe(true)
+
+    await act(async () => { ok = await room.result.current.retryMessage(failed.id) })
+    expect(ok).toBe(true)
+    expect(room.result.current.messages.filter(m => m.content === 'yo')).toHaveLength(1)
+    expect(room.result.current.messages[0].id).toBe(sentId)
+    expect(room.result.current.messages[0]._failed).toBeFalsy()
+    expect(room.result.current.messages[0]._sending).toBeFalsy()
+  })
+})

@@ -21,6 +21,19 @@ function isAttendingRow(row: { status?: string }): boolean {
   return (row.status ?? 'attending') === 'attending'
 }
 
+/**
+ * Label for a viewer who is waitlisted or has a pending join request. The card
+ * shows it as a status pill, not a button: an RSVP tap would try to insert a
+ * second row. Tapping the pill opens the event, where they can leave/cancel.
+ */
+function awaitingLabel(event: EventWithDetails, currentUserId: string | null | undefined): string | null {
+  if (!currentUserId) return null
+  const status = event.my_attendance?.find(a => a.user_id === currentUserId)?.status
+  if (status === 'waitlisted') return 'Waitlisted'
+  if (status === 'requested') return 'Requested'
+  return null
+}
+
 // ─── Tag helpers ──────────────────────────────────────────────────────────────
 
 function isTournament(tags: Tag[]): boolean {
@@ -77,6 +90,7 @@ function EventCardInner({
       ? event.my_attendance.some(a => a.user_id === currentUserId && isAttendingRow(a))
       : (event.attendee_previews ?? []).some(p => p.user_id === currentUserId)
   )
+  const awaiting = awaitingLabel(event, currentUserId)
 
   const attendeeCount = eventAttendeeDisplayCount(event)
   const spotsLeft = event.max_attendees != null ? Math.max(0, event.max_attendees - attendeeCount) : null
@@ -218,7 +232,12 @@ function EventCardInner({
               </Text>
             </View>
           </View>
-          {onRsvp && currentUserId && (
+          {onRsvp && currentUserId && awaiting && (
+            <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border }}>
+              <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 12, letterSpacing: 0.2, color: theme.colors.subtext }}>{awaiting}</Text>
+            </View>
+          )}
+          {onRsvp && currentUserId && !awaiting && (
             <TouchableOpacity
               onPress={async e => {
                 e.stopPropagation?.()
@@ -293,6 +312,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
       ? event.my_attendance.some(a => a.user_id === currentUserId && isAttendingRow(a))
       : (event.attendee_previews ?? []).some(p => p.user_id === currentUserId)
   )
+  const awaiting = awaitingLabel(event, currentUserId)
 
   const attendeeCount = eventAttendeeDisplayCount(event)
   const spotsLeft = event.max_attendees != null ? Math.max(0, event.max_attendees - attendeeCount) : null
@@ -434,7 +454,12 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
               <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '600', color: theme.colors.subtext }}>{spotsLeft != null ? `${spotsLeft} left` : '∞'}</Text>
             </View>
           </View>
-          {onRsvp && currentUserId && (
+          {onRsvp && currentUserId && awaiting && (
+            <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, flexShrink: 0, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border }}>
+              <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: theme.colors.subtext }}>{awaiting}</Text>
+            </View>
+          )}
+          {onRsvp && currentUserId && !awaiting && (
             <TouchableOpacity
               onPress={async e => {
                 e.stopPropagation?.()

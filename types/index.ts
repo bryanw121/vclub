@@ -610,8 +610,14 @@ export type ChatSilenceWithProfile = {
 }
 
 /** Message joined with sender profile, reactions, and optional reply-to. */
+/**
+ * The `PROFILE_BRIEF` columns. The shape cached at `profile:<id>:brief` (chat
+ * senders, the event page's viewer).
+ */
+export type ProfileBrief = Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'selected_border'>
+
 export type MessageWithDetails = Message & {
-  profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'selected_border'> | null
+  profiles: ProfileBrief | null
   message_reactions: MessageReaction[]
   reply_to: (Pick<Message, 'id' | 'content' | 'image_url' | 'deleted_at'> & {
     profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name'> | null

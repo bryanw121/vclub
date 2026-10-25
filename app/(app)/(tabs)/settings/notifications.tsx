@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import { RefreshControl, ScrollView, Switch, Text, View } from 'react-native'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { useMyProfile } from '../../../../hooks/useMyProfile'
@@ -21,10 +21,15 @@ export default function NotificationSettingsScreen() {
   const prefs = useMemo<NotificationPrefs>(() => ({ in_app: { ...raw?.in_app }, push: { ...raw?.push } }), [raw])
 
   // Optimistic: the cached profile updates at once and rolls back if the write fails.
+  // Each toggle sends the whole prefs object, and `updateProfile` queues a call
+  // made while a save is in flight, so the latest toggle's prefs win. Only the
+  // latest toggle's outcome is shown: an older failure is superseded by it.
+  const toggleSeq = useRef(0)
   async function toggle(channel: keyof NotificationPrefs, type: NotificationType, enabled: boolean) {
+    const seq = ++toggleSeq.current
     setSaveFailed(false)
     const saved = await me.updateProfile({ notification_prefs: patchNotificationPrefs(prefs, channel, type, enabled) })
-    if (!saved) setSaveFailed(true)
+    if (seq === toggleSeq.current) setSaveFailed(!saved)
   }
 
   const rows = listNotificationPrefsResolved(prefs)
@@ -64,7 +69,6 @@ export default function NotificationSettingsScreen() {
                   key={`in_app_${type}`}
                   label={NOTIFICATION_TYPE_LABELS[type]}
                   value={in_app}
-                  disabled={me.isSaving}
                   onValueChange={v => void toggle('in_app', type, v)}
                 />
               ))}
@@ -76,7 +80,6 @@ export default function NotificationSettingsScreen() {
                   key={`push_${type}`}
                   label={NOTIFICATION_TYPE_LABELS[type]}
                   value={push}
-                  disabled={me.isSaving}
                   subtitle="Saved for when push is enabled"
                   onValueChange={v => void toggle('push', type, v)}
                 />

@@ -1,10 +1,9 @@
-/**
- * Tournament screen copy and labels. Local to the tournament feature so it does not
- * collide with a shared copy file; merge into constants/copy.ts if one lands.
- */
+import { GENERIC_ERROR_MESSAGE } from './copy'
+
+/** Tournament screen copy and labels. Shared copy lives in constants/copy.ts. */
 
 /** Shown when a write fails and the server gave no usable message. */
-export const TOURNAMENT_GENERIC_ERROR = 'Something went wrong. Check your connection and try again.'
+export const TOURNAMENT_GENERIC_ERROR = GENERIC_ERROR_MESSAGE
 
 export const TOURNAMENT_ERROR_TITLE = {
   register: 'Registration failed',
