@@ -522,6 +522,25 @@ export const shared = StyleSheet.create({
   // ── Wrapping row of Chips (forms) ─────────────────────────
   chipRowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs, marginTop: theme.spacing.xs, marginBottom: theme.spacing.xs },
 
+  // ── One-time banner (components/ui/OneTimeBanner) ────────
+  oneTimeBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    paddingLeft: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    paddingRight: theme.spacing.xs,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.card,
+  },
+  oneTimeBannerText: { flex: 1, paddingVertical: theme.spacing.sm, gap: theme.spacing.xxs },
+  oneTimeBannerTitle: { color: theme.colors.text, fontSize: theme.font.size.smd, fontFamily: theme.fonts.bodySemiBold },
+  oneTimeBannerBody: { color: theme.colors.subtext, fontSize: theme.font.size.sm, fontFamily: theme.fonts.body, lineHeight: 18 },
+
   // ── Events feed: refresh failed, showing older events ─────
   feedStaleNotice: {
     minHeight: 44,

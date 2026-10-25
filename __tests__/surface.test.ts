@@ -15,3 +15,13 @@ describe('surface helpers', () => {
     expect(surfaceOf({ surface: 'clay' })).toBeNull()
   })
 })
+
+import { regionSlug } from '../hooks/useUserSettings'
+
+describe('regionSlug', () => {
+  it('turns a city name into a Schelagg region slug', () => {
+    expect(regionSlug('Austin')).toBe('austin')
+    expect(regionSlug('San Antonio')).toBe('san-antonio')
+    expect(regionSlug(' St. Louis ')).toBe('st-louis')
+  })
+})

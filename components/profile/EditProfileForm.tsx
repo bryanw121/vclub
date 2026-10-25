@@ -10,6 +10,8 @@ import { BadgeSlotSheet } from './BadgeSlotSheet'
 import { BorderSwatch } from './BorderSwatch'
 import { VOLLEYBALL_POSITION_OPTIONS, VOLLEYBALL_SKILL_LEVEL_OPTIONS } from './options'
 import type { Profile, ProfilePatch, UserBadge, VolleyballPosition, VolleyballSkillLevel } from '../../types'
+import { MajorCityAutocomplete } from '../MajorCityAutocomplete'
+import { useUserSettings } from '../../hooks/useUserSettings'
 
 type Props = {
   profile: Profile
@@ -74,6 +76,7 @@ export function EditProfileForm({ profile, badges, saving, onSave, onSetBorder, 
   const [skillLevel, setSkillLevel] = useState<VolleyballSkillLevel | null>(profile.skill_level ?? null)
   const [positions, setPositions] = useState<VolleyballPosition[]>([...profile.position])
   const [pickingSlot, setPickingSlot] = useState<number | null>(null)
+  const { settings, setHomeCity } = useUserSettings()
 
   const earned = badges.map(b => ({ badge_type: b.badge_type, tier: b.tier }))
 
@@ -94,6 +97,15 @@ export function EditProfileForm({ profile, badges, saving, onSave, onSetBorder, 
         <View style={shared.mt_sm} />
         <Input label="First Name" value={firstName} onChangeText={setFirstName} placeholder="Jane" autoCorrect={false} autoCapitalize="words" />
         <Input label="Last Name" value={lastName} onChangeText={setLastName} placeholder="Smith" autoCorrect={false} autoCapitalize="words" />
+      </View>
+
+      {/* Saved on pick (a private setting, not part of the profile Save). */}
+      <View style={[shared.card, { marginTop: theme.spacing.md }]}>
+        <Text style={shared.subheading}>Home city</Text>
+        <Text style={[shared.caption, shared.mt_sm]}>
+          The Events feed shows sessions from other venues near you. We're piloting in Austin.
+        </Text>
+        <MajorCityAutocomplete label="City" value={settings?.home_city ?? null} onChange={city => void setHomeCity(city)} />
       </View>
 
       <View style={[shared.card, { marginTop: theme.spacing.md }]}>

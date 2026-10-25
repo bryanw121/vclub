@@ -308,7 +308,7 @@ export type FeedSnapshot = {
 export type ExternalSession = Pick<
   Override<Tables<'external_sessions'>, { surface: 'indoor' | 'sand' | 'grass' | null }>,
   | 'id' | 'source_id' | 'title' | 'venue' | 'city' | 'surface' | 'session_type' | 'level' | 'price'
-  | 'starts_at' | 'ends_at' | 'signup_url' | 'signup_label' | 'note' | 'verified_at'
+  | 'starts_at' | 'ends_at' | 'signup_url' | 'signup_label' | 'note' | 'verified_at' | 'region'
 >
 
 // ─── Form Types ───────────────────────────────────────────────────────────────
@@ -361,6 +361,22 @@ export type MembershipType = 'open' | 'invite'
  * `major_cities` table — curated metros for club location (read-only in the app).
  */
 export type MajorCity = Tables<'major_cities'>
+
+/** The viewer's private settings (`user_settings`, owner-only RLS), with the home city embedded. */
+export type UserSettings = Pick<Tables<'user_settings'>, 'user_id' | 'home_city_id' | 'seen_banners'> & {
+  home_city: MajorCity | null
+}
+
+/**
+ * A one-time banner (constants/banners.ts): shown the first time someone opens
+ * the screen that renders it, then never again for that device or account.
+ * Change `id` to show an updated message to everyone again.
+ */
+export type BannerDef = {
+  id: string
+  title: string
+  body: string
+}
 
 /**
  * `clubs` table
@@ -457,7 +473,7 @@ export type MyUpcomingEvent = {
 // ─── Events Feed Types ────────────────────────────────────────────────────────
 
 /** Events-tab filter chip ids. */
-export type FeedFilter = 'mine' | 'all' | 'open_play' | 'tournament' | 'not_full' | 'austin'
+export type FeedFilter = 'mine' | 'all' | 'open_play' | 'tournament' | 'not_full'
 
 export type FeedFilterChip = { id: FeedFilter; label: string }
 

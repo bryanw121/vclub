@@ -155,6 +155,8 @@ signatures. Regenerate it after every schema change; never hand-edit it. Key dom
 - **tournaments** and its children (`tournament_teams`, `_team_members`, `_matches`, `_pools`, `_rules`, `_prizes`, invitations, join requests, comments)
 - **cheers**, **user_badges**, **notifications**, **push_tokens**, **feedback_submissions**
 
+Also **user_settings** (private per-user settings: home city, seen banners).
+
 Custom RPCs include `get_email_by_username` (username login), `get_my_conversations`,
 `get_event_card_attendee_previews`, `mark_conversation_read`, `mark_notification_read`.
 
@@ -186,7 +188,13 @@ Nobody has to sign in to look around. Guests see Events, Clubs, event pages, clu
 
 **Schelagg is independent of this database, and must stay that way.** It has no credentials here and never writes here; vteam imports none of its code. Schelagg publishes a public feed (`https://bryanw121.github.io/schelagg/data/occurrences.json`: dated occurrences for every sport and region, sport-specific fields under `attributes`), and vteam pulls it: the `ingest-schelagg-feed` pg_cron job runs `public.ingest_schelagg_feed()` hourly at :25. That function (migration `20261025193000_ingest_schelagg_feed.sql`, uses the `http` extension, fixed URL, no client EXECUTE) keeps only `sport = volleyball`, `region = austin`, upserts rows, and deletes upcoming rows no longer in the feed (cancellations). It skips a feed older than 12h and never deletes when the feed has no matching rows. Change the mapping there, not in Schelagg.
 
-vteam only reads the table (anon SELECT policy). `useMonthEvents` fetches it with events/tournaments, skipping rows not refreshed within `EXTERNAL_SESSION_MAX_AGE_MS` (a stopped ingest shows nothing rather than possibly-cancelled sessions), and `utils/feedItems.ts` normalizes rows into `EventWithDetails` with `_external` set; the feed renders those with `ExternalSessionCard`, which links out to the venue's sign-up (no RSVP). They show under All and the "Around Austin" chip, never under Mine or Not Full.
+vteam only reads the table (anon SELECT policy). `useMonthEvents` fetches it with events/tournaments, skipping rows not refreshed within `EXTERNAL_SESSION_MAX_AGE_MS` (a stopped ingest shows nothing rather than possibly-cancelled sessions), and `utils/feedItems.ts` normalizes rows into `EventWithDetails` with `_external` set; the feed renders those with `ExternalSessionCard`, which links out to the venue's sign-up (no RSVP). They show only for the viewer's region (`external_sessions.region`, matched against the home city in `user_settings` via `useFeedRegion()`; guests and people without a city get `DEFAULT_FEED_REGION`, Austin, while we pilot there), under All and the type/surface filters, never under Mine or Not Full.
+
+### Location and private settings
+`user_settings` (owner-only RLS) holds per-user settings that don't belong on the public `profiles` row: `home_city_id` (→ `major_cities`, set from the profile editor) and `seen_banners`. Read and write it with `useUserSettings()`; it is cache-scoped to the user (`settings` prefix in `useCacheUserScope`).
+
+### One-time banners
+For information someone needs once, the first time they open a screen (e.g. "we're piloting in Austin"): add an entry to `BANNERS` in `constants/banners.ts` and render `<OneTimeBanner banner={BANNERS.x} />` where it should appear. It shows on the first visit and is recorded as seen immediately (on the device, and in `user_settings.seen_banners` when signed in), so it never returns even if not dismissed. To show an updated message to everyone again, change the entry's `id`. Don't use it for anything a person must act on.
 
 ### Login accepts email or username
 If the login field doesn't look like an email, `login.tsx` calls the `get_email_by_username` RPC, then signs in with the resolved email.

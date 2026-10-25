@@ -700,6 +700,7 @@ export type Database = {
           level: string | null
           note: string | null
           price: string | null
+          region: string
           session_type: string | null
           signup_label: string | null
           signup_url: string | null
@@ -719,6 +720,7 @@ export type Database = {
           level?: string | null
           note?: string | null
           price?: string | null
+          region?: string
           session_type?: string | null
           signup_label?: string | null
           signup_url?: string | null
@@ -738,6 +740,7 @@ export type Database = {
           level?: string | null
           note?: string | null
           price?: string | null
+          region?: string
           session_type?: string | null
           signup_label?: string | null
           signup_url?: string | null
@@ -1785,6 +1788,35 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_settings: {
+        Row: {
+          home_city_id: string | null
+          seen_banners: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          home_city_id?: string | null
+          seen_banners?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          home_city_id?: string | null
+          seen_banners?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_settings_home_city_id_fkey"
+            columns: ["home_city_id"]
+            isOneToOne: false
+            referencedRelation: "major_cities"
             referencedColumns: ["id"]
           },
         ]
