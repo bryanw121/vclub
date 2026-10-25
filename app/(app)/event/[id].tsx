@@ -330,6 +330,7 @@ export default function EventDetail() {
 
             {activeTab === DETAILS_TAB && (
               <JoinFooter
+                eventDate={event.event_date}
                 eventStatus={eventStatus}
                 requiresApproval={requiresApproval}
                 attendance={attendance}

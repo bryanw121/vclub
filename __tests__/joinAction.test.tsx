@@ -99,6 +99,7 @@ describe('JoinFooter', () => {
     attendance,
     view: render(
       <JoinFooter
+        eventDate="2026-09-09T22:35:00"
         eventStatus={eventStatus}
         requiresApproval={requiresApproval}
         attendance={attendance as unknown as EventAttendanceApi}
@@ -123,6 +124,14 @@ describe('JoinFooter', () => {
     expect(view.queryByText(APPROVAL_REQUIRED_NOTE)).toBeNull()
     fireEvent.press(view.getByText('Join event'))
     expect(attendance.join).toHaveBeenCalled()
+  })
+
+  it('restates the start time above every sign-up button, and only there', () => {
+    const signup = /^You're signing up for \w{3}, \w{3} \d{1,2} · \d{1,2}:\d{2} (AM|PM)$/
+    expect(renderFooter(status(), false).view.getByText(signup)).toBeTruthy()
+    expect(renderFooter(status(), true).view.getByText(signup)).toBeTruthy()
+    expect(renderFooter(status({ isFull: true, spotsLeft: 0 }), false).view.getByText(signup)).toBeTruthy()
+    expect(renderFooter(status({ isAttending: true }), false).view.queryByText(signup)).toBeNull()
   })
 
   it('offers the waitlist on a full approval-gated event', () => {

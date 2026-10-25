@@ -15,6 +15,9 @@ import { useDocScrollMode } from "../../../hooks/useDocScrollMode";
 import { useIsNarrowWeb } from "../../../hooks/useIsNarrowWeb";
 import { shouldRefreshEventsOnFocus } from "../../../utils/monthKeys";
 import { useRequireSignIn } from "../../../hooks/useRequireSignIn";
+import { useTourShell } from "../../../contexts/tour";
+import { TourTarget } from "../../../components/tour/TourTarget";
+import { TOUR_TARGETS } from "../../../constants";
 
 // The bottom bar renders TABS (constants/navigation.ts) in pager order, with the
 // create button inserted before the Chat tab.
@@ -118,6 +121,20 @@ export default function TabsLayout() {
     }
     goToTab(tabIndex);
   }
+
+  // Let a guided tour move between tabs. Wide web routes each tab as a page;
+  // mobile / narrow web switches the pager (leaving a stack screen first).
+  const wideWeb = Platform.OS === "web" && !isNarrowWeb;
+  useTourShell({
+    showTab: index => {
+      if (wideWeb) {
+        if (pathname !== TABS[index].path) webNav.goToTab(index);
+      } else if (index !== activeTabIndex || pathname !== TABS[index].path) {
+        handleTabPress(index);
+      }
+    },
+    revealChrome: () => setTabBarHidden(false),
+  });
 
   function goCreate(option: CreateMenuOption) {
     closeFab();
@@ -280,8 +297,8 @@ export default function TabsLayout() {
 
                 // Insert Create button between Clubs and Chat
                 const createBtn = tab.key === 'chat' ? (
+                  <TourTarget key="create" id={TOUR_TARGETS.create}>
                   <TouchableOpacity
-                    key="create"
                     onPress={fabOpen ? closeFab : openFab}
                     accessibilityRole="button"
                     accessibilityLabel={fabOpen ? 'Close create menu' : 'Create'}
@@ -302,15 +319,17 @@ export default function TabsLayout() {
                       <Ionicons name="add" size={24} color={theme.colors.accentInk} />
                     </Animated.View>
                   </TouchableOpacity>
+                  </TourTarget>
                 ) : null;
 
                 return (
                   <React.Fragment key={tab.key}>
                     {createBtn}
+                    <TourTarget id={TOUR_TARGETS.tab(tab.key)} style={{ flex: 1 }}>
                     <TouchableOpacity
                       onPress={() => handleTabPress(tab.pageIndex)}
                       style={{
-                        flex: 1, alignItems: "center", gap: 3,
+                        alignItems: "center", gap: 3,
                         paddingVertical: 6, borderRadius: 14,
                         backgroundColor: active ? 'rgba(255,255,255,0.12)' : 'transparent',
                       }}
@@ -344,6 +363,7 @@ export default function TabsLayout() {
                         {tab.mobileLabel}
                       </Text>
                     </TouchableOpacity>
+                    </TourTarget>
                   </React.Fragment>
                 );
               })}
