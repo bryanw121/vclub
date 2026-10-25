@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Animated, Image, Text, View } from 'react-native'
+import { Animated, Image, Platform, Text, View } from 'react-native'
 import { useFonts } from 'expo-font'
 import {
   SpaceGrotesk_400Regular,
@@ -80,17 +80,22 @@ function RootLayout() {
   )
 }
 
+const NATIVE_FONTS = {
+  SpaceGrotesk_400Regular,
+  SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+}
+
 function RootNavigator() {
-  const [fontsLoaded] = useFonts({
-    SpaceGrotesk_400Regular,
-    SpaceGrotesk_500Medium,
-    SpaceGrotesk_600SemiBold,
-    SpaceGrotesk_700Bold,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  })
+  // Web registers the same families from small woff2 files in +html.tsx with
+  // font-display: swap, so it never waits on fonts; native loads the bundled TTFs.
+  const [nativeFontsLoaded] = useFonts(Platform.OS === 'web' ? {} : NATIVE_FONTS)
+  const fontsLoaded = Platform.OS === 'web' || nativeFontsLoaded
 
   const { userId, loading } = useSession()
   useCacheUserScope()

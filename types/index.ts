@@ -293,6 +293,14 @@ export type EventWithDetails = Event & {
   _external?: ExternalSession
 }
 
+/** Last visit's Events feed saved on the device (utils/feedSnapshot.ts). `owner` is the viewer's user id, or null for a guest. */
+export type FeedSnapshot = {
+  v: 1
+  savedAt: number
+  owner: string | null
+  months: Record<string, EventWithDetails[]>
+}
+
 /** Row of `external_sessions`: a session another Austin venue or group runs, pulled hourly from the Schelagg feed (ingest_schelagg_feed). */
 export type ExternalSession = Pick<
   Override<Tables<'external_sessions'>, { surface: 'indoor' | 'sand' | 'grass' | null }>,

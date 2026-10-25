@@ -26,7 +26,8 @@ import {
 } from '../lib/query'
 import { useSession } from '../contexts/session'
 import { startOfToday } from '../utils'
-import { bucketByMonthKey, enumerateMonths, monthEndIso, monthStartIso } from '../utils/monthKeys'
+import { addMonths, bucketByMonthKey, enumerateMonths, monthEndIso, monthKeyFromIso, monthStartIso } from '../utils/monthKeys'
+import { readFeedSnapshot, SNAPSHOT_MONTHS, writeFeedSnapshot } from '../utils/feedSnapshot'
 import { fetchEventCardPreviews, withEventCardPreviews } from '../utils/eventCardPreviews'
 import type { EventCardPreviews } from '../types'
 import { normalizeExternalSessions, normalizeTournaments } from '../utils/feedItems'
@@ -77,6 +78,45 @@ export function __resetFeedState(): void {
   lastPreviews = new Map()
   feedOwner = undefined
   queue = []
+}
+
+// ─── Device snapshot: paint last visit's events at once on a cold start ─────
+
+/**
+ * Seed the cache from the snapshot saved on the last visit (web; see
+ * utils/feedSnapshot). Seeded months are marked stale, so the first read shows
+ * them and refetches straight away. `feedOwner` is set to the snapshot's viewer:
+ * if someone else turns out to be signed in, the owner check in the hook resets
+ * the feed before their RSVP state could show.
+ */
+function seedFromSnapshot(): void {
+  const snap = readFeedSnapshot()
+  if (!snap) return
+  const months = Object.keys(snap.months).sort()
+  months.forEach(m => setQueryData(feedMonthKey(m), snap.months[m]))
+  invalidate(FEED_PREFIX, { refetchActive: false })
+  requestedMonths = withMonths(requestedMonths, months)
+  feedOwner = snap.owner
+}
+seedFromSnapshot()
+
+let snapshotTimer: ReturnType<typeof setTimeout> | null = null
+
+/** After fresh data lands, save the first screen's months (current + next) for the next cold start. */
+function scheduleSnapshot(): void {
+  if (snapshotTimer) clearTimeout(snapshotTimer)
+  snapshotTimer = setTimeout(() => {
+    snapshotTimer = null
+    if (feedOwner === undefined) return
+    const first = monthKeyFromIso(new Date().toISOString())
+    const months: Record<string, EventWithDetails[]> = {}
+    for (let i = 0; i < SNAPSHOT_MONTHS; i++) {
+      const m = addMonths(first, i)
+      const rows = getQueryData<EventWithDetails[]>(feedMonthKey(m))
+      if (rows) months[m] = rows
+    }
+    if (Object.keys(months).length > 0) writeFeedSnapshot(feedOwner, months)
+  }, 1000)
 }
 
 /** Drop every cached month and refetch the ones on screen — e.g. the signed-in user changed. */
@@ -190,6 +230,7 @@ function flushQueue(): void {
       // Subscribe before resolving, so the cache writes these trigger are seen.
       hydratePreviewsWhenLanded(new Map(months.map(m => [feedMonthKey(m), buckets[m] ?? []])))
       batch.forEach(w => w.resolve(buckets[w.month] ?? []))
+      scheduleSnapshot()
     },
     e => batch.forEach(w => w.reject(e)),
   )

@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Modal, Pressable, Platform, RefreshControl,
 } from 'react-native'
 import { Image } from 'expo-image'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { useRouter, Stack } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { theme, shared, CHAT_TAB_INDEX } from '../../../constants'

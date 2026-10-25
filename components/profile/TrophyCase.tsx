@@ -1,5 +1,5 @@
 import { Text, View } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { theme } from '../../constants/theme'
 
 /** Placeholder until received cheers can be listed on the profile. */

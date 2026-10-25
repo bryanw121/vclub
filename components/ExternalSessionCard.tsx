@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { Linking, Text, TouchableOpacity, View } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { shared, theme } from '../constants'
 import type { ExternalSession } from '../types'
 import { formatSessionTimeRange, signupHost } from '../utils/feedItems'

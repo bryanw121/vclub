@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react'
 import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '../../../../lib/supabase'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'

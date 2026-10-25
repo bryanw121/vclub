@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Animated, Image, Platform, Pressable, View, Text, TouchableOpacity } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { Stack, useRouter, usePathname } from 'expo-router'
 import { theme, BADGE_DEFINITIONS, BREAKPOINTS, TABS, CREATE_MENU, tabIndexFromPath } from '../../constants'
 import { WebNavContext } from '../../contexts/webNav'

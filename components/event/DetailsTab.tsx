@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Platform, View, Text, TouchableOpacity, Alert, RefreshControl } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import * as Linking from 'expo-linking'
 import * as Calendar from 'expo-calendar'
 import { ProfileAvatar } from '../ProfileAvatar'

@@ -1,5 +1,5 @@
 import { ActivityIndicator, Text, View } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { shared, theme } from '../../constants'
 import { Button } from '../Button'
 import { EmptyState } from './EmptyState'

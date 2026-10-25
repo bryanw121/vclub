@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react'
 import { View, Text, Image, Pressable, TouchableOpacity, Platform } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { theme } from '../constants/theme'
 import { AnchorOptionsMenu } from './AnchorOptionsMenu'
 import type { AnchorRect } from '../types'

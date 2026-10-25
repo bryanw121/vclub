@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { theme } from '../../constants/theme'
 import type { ProfileBorderDef } from '../../constants/badges'
 

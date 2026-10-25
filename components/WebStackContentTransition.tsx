@@ -1,7 +1,7 @@
 import React from 'react'
 import { Platform, TouchableOpacity, Text, View, useWindowDimensions, StyleSheet } from 'react-native'
 import { Slot, usePathname, useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated'
 import { BREAKPOINTS, theme } from '../constants'
 import { routes, type RouteString } from '../utils/routes'

@@ -1,5 +1,5 @@
 import { Text, View } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { Button } from './Button'
 import { shared, theme } from '../constants'
 import { useGoToSignIn } from '../hooks/useRequireSignIn'

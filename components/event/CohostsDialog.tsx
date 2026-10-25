@@ -1,6 +1,6 @@
 import React from 'react'
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { Button } from '../Button'
 import { Input } from '../Input'
 import { theme } from '../../constants'

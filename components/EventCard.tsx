@@ -1,7 +1,7 @@
 import React, { memo, useState } from 'react'
 import { TouchableOpacity, Text, View, ActivityIndicator } from 'react-native'
 import { Image } from 'expo-image'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { useRouter, usePathname } from 'expo-router'
 import { theme, eventAttendeeDisplayCount } from '../constants'
 import { routes } from '../utils/routes'

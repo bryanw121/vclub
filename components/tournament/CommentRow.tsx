@@ -1,7 +1,7 @@
 import React from 'react'
 import { Text, TouchableOpacity, View } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { theme } from '../../constants'
 import { formatCommentTime, profileDisplayName } from '../../utils'
 import { routes } from '../../utils/routes'

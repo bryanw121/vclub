@@ -1,6 +1,12 @@
 import { ScrollViewStyleReset } from 'expo-router/html'
 import { theme } from '../constants/theme'
 
+// Read at build time (static export inlines EXPO_PUBLIC_*). Empty in tests.
+const SUPABASE_ORIGIN = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').replace(/\/+$/, '')
+
+/** Family names match theme.font.* (the names expo-font registers on native). */
+const WEB_FONT_FACES = `@font-face { font-family: 'Inter_400Regular'; src: url('/fonts/inter-latin-400-normal.woff2') format('woff2'); font-display: swap; }\n@font-face { font-family: 'Inter_500Medium'; src: url('/fonts/inter-latin-500-normal.woff2') format('woff2'); font-display: swap; }\n@font-face { font-family: 'Inter_600SemiBold'; src: url('/fonts/inter-latin-600-normal.woff2') format('woff2'); font-display: swap; }\n@font-face { font-family: 'Inter_700Bold'; src: url('/fonts/inter-latin-700-normal.woff2') format('woff2'); font-display: swap; }\n@font-face { font-family: 'SpaceGrotesk_400Regular'; src: url('/fonts/space-grotesk-latin-400-normal.woff2') format('woff2'); font-display: swap; }\n@font-face { font-family: 'SpaceGrotesk_500Medium'; src: url('/fonts/space-grotesk-latin-500-normal.woff2') format('woff2'); font-display: swap; }\n@font-face { font-family: 'SpaceGrotesk_600SemiBold'; src: url('/fonts/space-grotesk-latin-600-normal.woff2') format('woff2'); font-display: swap; }\n@font-face { font-family: 'SpaceGrotesk_700Bold'; src: url('/fonts/space-grotesk-latin-700-normal.woff2') format('woff2'); font-display: swap; }`
+
 export default function Root({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -25,11 +31,22 @@ export default function Root({ children }: { children: React.ReactNode }) {
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="vteam" />
         <ScrollViewStyleReset />
-        {/* Space Grotesk + Inter — loaded via Google Fonts for web */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        {/*
+          Start the Supabase connection (DNS + TLS) while the app bundle downloads,
+          so the first feed queries don't pay for it after the app boots.
+        */}
+        {SUPABASE_ORIGIN ? <link rel="preconnect" href={SUPABASE_ORIGIN} crossOrigin="anonymous" /> : null}
+        {SUPABASE_ORIGIN ? <link rel="dns-prefetch" href={SUPABASE_ORIGIN} /> : null}
+        {/*
+          Web fonts: small self-hosted latin woff2 files (public/fonts, SIL OFL)
+          registered under the same family names the native app loads with
+          expo-font (theme.font.*). font-display: swap, so text paints at once in
+          a fallback face and the root layout doesn't wait on fonts on web.
+        */}
+        <link rel="preload" href="/fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/space-grotesk-latin-700-normal.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         {/* @ts-ignore */}
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <style dangerouslySetInnerHTML={{ __html: WEB_FONT_FACES }} />
         {/* @ts-ignore */}
         <style dangerouslySetInnerHTML={{ __html: `
           /*
