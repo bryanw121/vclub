@@ -219,7 +219,7 @@ export const shared = StyleSheet.create({
   },
 
   // ─── Update required screen ───────────────────────────────────────────────
-  // ── External session card (Volley ATX sessions in the Events feed) ─────────
+  // ── External session card (Schelagg sessions in the Events feed) ─────────
   externalCard: {
     backgroundColor: theme.colors.card,
     borderRadius: 20,

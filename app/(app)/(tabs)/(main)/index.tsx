@@ -60,7 +60,7 @@ const FILTER_CHIPS: FeedFilterChip[] = [
   { id: 'open_play',  label: 'Open Play'  },
   { id: 'tournament', label: 'Tournament' },
   { id: 'not_full',   label: 'Not Full'   },
-  // Sessions other Austin venues run (Volley ATX data) — also included in All.
+  // Sessions other Austin venues run (Schelagg data) — also included in All.
   { id: 'austin',     label: 'Around Austin' },
 ]
 

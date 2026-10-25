@@ -8,6 +8,7 @@ import {
   EVENT_JUST_FILLED_BODY,
   EVENT_JUST_FILLED_TITLE,
   EXTERNAL_SESSION_SELECT,
+  EXTERNAL_SESSION_MAX_AGE_MS,
   GENERIC_ERROR_MESSAGE,
   STALE,
 } from '../constants'
@@ -131,7 +132,7 @@ async function fetchFeedSpan(startMonth: string, endMonth: string): Promise<Reco
       .lt('start_date', rangeEnd)
       .neq('status', 'draft')
       .neq('status', 'cancelled'),
-    // Sessions at other Austin venues (Volley ATX). A failure here only
+    // Sessions at other Austin venues (Schelagg). A failure here only
     // drops those cards; the club's own events still render.
     supabase
       .from('external_sessions')
@@ -139,6 +140,7 @@ async function fetchFeedSpan(startMonth: string, endMonth: string): Promise<Reco
       .gte('starts_at', rangeStart)
       .lt('starts_at', rangeEnd)
       .eq('canceled', false)
+      .gte('updated_at', new Date(Date.now() - EXTERNAL_SESSION_MAX_AGE_MS).toISOString())
       .order('starts_at', { ascending: true }),
   ])
 

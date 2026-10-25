@@ -16,7 +16,7 @@ const SURFACE: Record<NonNullable<ExternalSession['surface']>, { label: string; 
 }
 
 /**
- * A session another Austin venue or group runs (synced from Volley ATX). Not a
+ * A session another Austin venue or group runs (synced by Schelagg). Not a
  * vteam event: nobody RSVPs here, so the whole card links out to the venue's
  * own sign-up page. Dashed border keeps it visibly distinct from club events.
  */
