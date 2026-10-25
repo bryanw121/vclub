@@ -1,22 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Platform, Pressable, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { Platform, Pressable, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Linking from 'expo-linking'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { theme } from '../../constants'
 import { routes } from '../../utils/routes'
-
-type IoniconName = React.ComponentProps<typeof Ionicons>['name']
+import { Button } from '../Button'
+import { IconButton } from '../ui'
+import { AnchorOptionsMenu } from '../AnchorOptionsMenu'
+import type { AnchorMenuOption, AnchorRect, IoniconName } from '../../types'
 
 type Props = {
   eventId: string
   title: string | undefined
-  /** Host or co-host: show edit + delete. */
+  /** Host or co-host: show Edit + the ⋯ overflow (Delete). */
   canManage: boolean
   deleting: boolean
   onBack: () => void
   onEdit: () => void
+  /** Opens the delete confirmation; never deletes directly. */
   onDelete: () => void
+  /** Owner only: adds "Manage co-hosts" to the overflow. */
+  onManageCohosts?: () => void
 }
 
 const IS_WEB = Platform.OS === 'web'
@@ -37,15 +42,22 @@ function ShareMenuItem({ icon, label, onPress, active }: { icon: IoniconName; la
 }
 
 /**
- * Back + share (+ edit / delete for hosts) for the event page. One component,
- * two looks: on web an in-flow header row with flat round buttons and a share
- * dropdown (copy link / Web Share); on native floating card-style pills over
- * the banner, and share opens the OS share sheet.
+ * Back + Share (+ Edit and a ⋯ overflow for hosts) for the event page. Every
+ * control is a ≥44pt target: back and ⋯ are 44pt `IconButton`s; Share and Edit
+ * are labelled `touch`-size `Button`s, so the two actions people reach for are
+ * words, not glyphs. Delete sits behind ⋯ (and still confirms), so it is no
+ * longer a mis-tap away from Edit.
+ *
+ * One component, two placements: on web an in-flow header row with a share
+ * dropdown (copy link / Web Share); on native floating over the banner, where
+ * share opens the OS share sheet.
  */
-export function EventHeaderActions({ eventId, title, canManage, deleting, onBack, onEdit, onDelete }: Props) {
+export function EventHeaderActions({ eventId, title, canManage, deleting, onBack, onEdit, onDelete, onManageCohosts }: Props) {
   const insets = useSafeAreaInsets()
   const [menuOpen, setMenuOpen] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [overflowAnchor, setOverflowAnchor] = useState<AnchorRect | null>(null)
+  const overflowRef = useRef<View>(null)
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }, [])
 
@@ -70,34 +82,38 @@ export function EventHeaderActions({ eventId, title, canManage, deleting, onBack
     setMenuOpen(false)
   }
 
-  /** Round icon button in this platform's look. */
-  const button = (icon: IoniconName, color: string, onPress: () => void, opts?: { testID?: string; danger?: boolean; busy?: boolean; size?: number }) => (
-    <Pressable
-      testID={opts?.testID}
-      onPress={onPress}
-      hitSlop={IS_WEB ? undefined : 8}
-      style={({ pressed }) => IS_WEB
-        ? [styles.webBtn, pressed && { backgroundColor: (opts?.danger ? theme.colors.error : theme.colors.primary) + '14' }]
-        : [styles.floatBtn, pressed && { opacity: 0.75 }]}
-    >
-      {opts?.busy
-        ? <ActivityIndicator size="small" color={theme.colors.error} />
-        : <Ionicons name={icon} size={opts?.size ?? (IS_WEB ? 20 : 19)} color={color} />}
-    </Pressable>
-  )
+  /** Measure ⋯ so the menu anchors under it, then open. */
+  function openOverflow() {
+    overflowRef.current?.measureInWindow((x, y, width, height) => setOverflowAnchor({ x, y, width, height }))
+  }
 
-  // Web uses brand-coloured icons on the flat header; native pills use text colour.
-  const actionColor = IS_WEB ? theme.colors.primary : theme.colors.text
+  const overflowOptions: AnchorMenuOption[] = [
+    ...(onManageCohosts ? [{ key: 'cohosts', label: 'Manage co-hosts', onPress: onManageCohosts }] : []),
+    { key: 'delete', label: 'Delete event', destructive: true, onPress: onDelete },
+  ]
+
+  // Over the banner photo a transparent outline pill would be unreadable.
+  const secondaryStyle = IS_WEB ? undefined : styles.floatSurface
 
   return (
     <View
       pointerEvents={IS_WEB ? 'auto' : 'box-none'}
       style={IS_WEB ? styles.webBar : [styles.floatBar, { top: insets.top + 8 }]}
     >
-      {button('chevron-back', theme.colors.text, onBack, { size: IS_WEB ? 22 : 20 })}
-      <View style={IS_WEB ? styles.webActions : styles.floatActions}>
+      <IconButton icon="chevron-back" label="Go back" size={44} onPress={onBack} testID="event-back-button" />
+      <View style={styles.actions}>
         <View>
-          {button('share-outline', actionColor, () => { void handleShare() })}
+          <Button
+            label="Share"
+            icon="share-outline"
+            variant="secondary"
+            size="touch"
+            fullWidth={false}
+            style={secondaryStyle}
+            accessibilityLabel="Share this event"
+            testID="event-share-button"
+            onPress={() => { void handleShare() }}
+          />
           {IS_WEB && menuOpen && (
             <>
               <TouchableOpacity style={styles.menuBackdrop} onPress={() => setMenuOpen(false)} />
@@ -117,11 +133,34 @@ export function EventHeaderActions({ eventId, title, canManage, deleting, onBack
         </View>
         {canManage && (
           <>
-            {button('create-outline', actionColor, onEdit, { testID: 'event-edit-button' })}
-            {button('trash-outline', theme.colors.error, onDelete, { danger: true, busy: deleting })}
+            <Button
+              label="Edit"
+              icon="create-outline"
+              size="touch"
+              fullWidth={false}
+              accessibilityLabel="Edit this event"
+              testID="event-edit-button"
+              onPress={onEdit}
+            />
+            <View ref={overflowRef} collapsable={false}>
+              <IconButton
+                icon="ellipsis-horizontal"
+                label="More event actions"
+                size={44}
+                busy={deleting}
+                onPress={openOverflow}
+                testID="event-more-button"
+              />
+            </View>
           </>
         )}
       </View>
+      <AnchorOptionsMenu
+        visible={overflowAnchor !== null}
+        anchor={overflowAnchor}
+        options={overflowOptions}
+        onDismiss={() => setOverflowAnchor(null)}
+      />
     </View>
   )
 }
@@ -136,15 +175,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
     backgroundColor: theme.colors.background,
   },
-  webActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  webBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-  },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   floatBar: {
     position: 'absolute',
     left: theme.spacing.md,
@@ -154,25 +185,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 50,
   },
-  floatActions: { flexDirection: 'row', gap: theme.spacing.xs },
-  floatBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: theme.colors.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: theme.colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
-  },
+  floatSurface: { backgroundColor: theme.colors.card },
   // Web only: `fixed` covers the viewport so any outside click closes the menu.
   menuBackdrop: { position: 'fixed' as 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   shareMenu: {
     position: 'absolute',
-    top: 32,
+    top: 48,
     right: 0,
     backgroundColor: theme.colors.card,
     borderRadius: theme.radius.md,

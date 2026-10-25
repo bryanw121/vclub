@@ -169,7 +169,8 @@ export default function EventDetail() {
     userId,
     isHostOrCohost,
   })
-  const isPaidEvent = (event?.price ?? 0) > 0
+  // An explicit host setting; never inferred from price.
+  const requiresApproval = event?.requires_approval === true
   const [footerHeight, setFooterHeight] = useState(80)
 
   // ── Navigation + host actions ──────────────────────────────────────────────
@@ -218,6 +219,7 @@ export default function EventDetail() {
       onBack={goBack}
       onEdit={() => router.push(routes.host({ edit: id }))}
       onDelete={() => setDeleteConfirmVisible(true)}
+      onManageCohosts={isOwner ? cohostsApi.open : undefined}
     />
   )
   const loadError = data.loadError?.message ?? (data.notFound ? 'Event not found' : null)
@@ -324,7 +326,7 @@ export default function EventDetail() {
             {activeTab === DETAILS_TAB && (
               <JoinFooter
                 eventStatus={eventStatus}
-                isPaidEvent={isPaidEvent}
+                requiresApproval={requiresApproval}
                 attendance={attendance}
                 onAddGuest={() => setGuestDialogOpen(true)}
                 docScrollActive={docScrollActive}

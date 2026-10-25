@@ -317,6 +317,8 @@ export type CreateEventForm = {
    *  storing a number here destroys in-progress input like a trailing "." */
   priceText: string
   venmoHandle: string          // optional; only used when the parsed price > 0
+  /** Host reviews each join request (`events.requires_approval`). Independent of price; defaults off. */
+  requiresApproval: boolean
 }
 
 /**
@@ -769,6 +771,8 @@ export type IconButtonProps = {
   active?: boolean
   /** Shows the small unread dot. */
   badge?: boolean
+  /** Swaps the icon for a spinner (the button keeps its size). */
+  busy?: boolean
   testID?: string
 }
 
@@ -979,6 +983,24 @@ export type CohostsApi = ReturnType<typeof import('../hooks/event/useCohosts').u
 export type EventTeamsApi = ReturnType<typeof import('../hooks/event/useEventTeams').useEventTeams>
 export type TeamDragApi = ReturnType<typeof import('../hooks/event/useTeamDrag').useTeamDrag>
 export type TournamentActions = ReturnType<typeof import('../hooks/tournament/useTournamentActions').useTournamentActions>
+
+/**
+ * The primary action the event page's join footer offers the viewer
+ * (`resolveJoinAction` in hooks/event/derive.ts decides it).
+ */
+export type JoinAction =
+  | 'leave'          // already attending
+  | 'leave-waitlist' // on the waitlist
+  | 'cancel-request' // request pending host approval
+  | 'rerequest'      // previously denied
+  | 'waitlist'       // event is full
+  | 'request'        // host approves each join
+  | 'join'           // open, has space
+
+/** Inputs to `resolveJoinAction`: the viewer's RSVP state plus the event's capacity and approval setting. */
+export type JoinActionState = Pick<AttendanceStatus, 'isAttending' | 'isWaitlisted' | 'isRequested' | 'isDenied' | 'isFull'> & {
+  requiresApproval: boolean
+}
 
 /** What the viewer can do to their own RSVP. They share one pending flag (`joining`). */
 export type SelfAttendanceAction =

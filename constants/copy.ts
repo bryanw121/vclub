@@ -15,3 +15,6 @@ export const NETWORK_ERROR_MESSAGE = 'Check your connection and try again.'
 export const SKILL_LEVEL_LABELS: Record<string, string> = {
   d: 'D', c: 'C', b: 'B', bb: 'BB', a: 'A', aa_plus: 'AA+', open: 'Open',
 }
+
+/** Approval-gated events: told to the player before they tap (event page, feed card) and echoed in the host form. */
+export const APPROVAL_REQUIRED_NOTE = 'The host reviews requests for this event'

@@ -2,13 +2,15 @@ import React from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Button } from '../Button'
-import { shared, theme } from '../../constants'
+import { APPROVAL_REQUIRED_NOTE, shared, theme } from '../../constants'
+import { resolveJoinAction } from '../../hooks/event/derive'
 import type { AttendanceStatus } from '../../types'
 import type { EventAttendanceApi } from '../../types'
 
 type Props = {
   eventStatus: AttendanceStatus
-  isPaidEvent: boolean
+  /** `events.requires_approval`: joins become requests the host approves. Independent of price. */
+  requiresApproval: boolean
   attendance: EventAttendanceApi
   onAddGuest: () => void
   /** Mobile-web document scroll: pin to the viewport (`fixed`) instead of the screen (`absolute`). */
@@ -19,11 +21,12 @@ type Props = {
 
 /**
  * Sticky RSVP footer on the Details tab: the one button that matches the
- * viewer's state (join / leave / waitlist / paid request / denied), plus the
- * +1 button for attendees and hosts.
+ * viewer's state (join / leave / waitlist / request / denied, decided by
+ * `resolveJoinAction`), plus the +1 button for attendees and hosts.
  */
-export function JoinFooter({ eventStatus, isPaidEvent, attendance, onAddGuest, docScrollActive, bottomInset, onHeightChange }: Props) {
+export function JoinFooter({ eventStatus, requiresApproval, attendance, onAddGuest, docScrollActive, bottomInset, onHeightChange }: Props) {
   const { joining } = attendance
+  const action = resolveJoinAction({ ...eventStatus, requiresApproval })
   return (
     <View
       onLayout={e => onHeightChange(e.nativeEvent.layout.height)}
@@ -34,31 +37,34 @@ export function JoinFooter({ eventStatus, isPaidEvent, attendance, onAddGuest, d
     >
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm }}>
         <View style={{ flex: 1 }}>
-          {eventStatus.isAttending ? (
+          {action === 'leave' ? (
             <Button label="Leave event" onPress={() => { void attendance.leave() }} loading={joining} variant="secondary" />
-          ) : eventStatus.isWaitlisted ? (
+          ) : action === 'leave-waitlist' ? (
             <View style={{ gap: theme.spacing.xs }}>
               <Button label="Leave Waitlist" onPress={() => { void attendance.leaveWaitlist() }} loading={joining} variant="secondary" />
               <Text style={[shared.caption, { textAlign: 'center' }]}>
                 You are #{eventStatus.waitlistPosition} on the waitlist
               </Text>
             </View>
-          ) : eventStatus.isRequested ? (
+          ) : action === 'cancel-request' ? (
             <View style={{ gap: theme.spacing.xs }}>
               <Button label="Cancel Request" onPress={() => { void attendance.cancelRequest() }} loading={joining} variant="secondary" />
               <Text style={[shared.caption, { textAlign: 'center' }]}>Pending host approval</Text>
             </View>
-          ) : eventStatus.isDenied ? (
+          ) : action === 'rerequest' ? (
             <View style={{ gap: theme.spacing.xs }}>
               <Button label="Request Again" onPress={() => { void attendance.rerequest() }} loading={joining} />
               <Text style={[shared.caption, { textAlign: 'center', color: theme.colors.error }]}>
                 Request denied{eventStatus.denialReason ? `: "${eventStatus.denialReason}"` : ''}
               </Text>
             </View>
-          ) : isPaidEvent ? (
-            <Button label="Request to Join" onPress={() => { void attendance.requestToJoin() }} loading={joining} />
-          ) : eventStatus.isFull ? (
+          ) : action === 'waitlist' ? (
             <Button label="Join Waitlist" onPress={() => { void attendance.joinWaitlist() }} loading={joining} />
+          ) : action === 'request' ? (
+            <View style={{ gap: theme.spacing.xs }}>
+              <Button label="Request to Join" onPress={() => { void attendance.requestToJoin() }} loading={joining} />
+              <Text style={[shared.caption, { textAlign: 'center' }]}>{APPROVAL_REQUIRED_NOTE}</Text>
+            </View>
           ) : (
             <Button label="Join event" onPress={() => { void attendance.join() }} loading={joining} />
           )}
