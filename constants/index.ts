@@ -72,3 +72,4 @@ export {
   SESSION_CHECK_TIMEOUT_MS, COURT_GRID_START_MIN, COURT_MIN_FREE_MIN,
 } from './schelagg'
 export { TOURS, TOUR_TARGETS, tourCompletionId } from './tours'
+export { ANALYTICS_EVENTS } from './analytics'

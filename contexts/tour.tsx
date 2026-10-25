@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Dimensions, Platform } from 'react-native'
 import { useRouter } from 'expo-router'
-import { TABS, TOURS, tabIndexOf, tourCompletionId } from '../constants'
+import { ANALYTICS_EVENTS, TABS, TOURS, tabIndexOf, tourCompletionId } from '../constants'
+import { track } from '../lib/analytics'
 import { TourOverlay } from '../components/tour/TourOverlay'
 import { useSession } from './session'
 import { markBannerSeenOnDevice } from '../utils/seenBanners'
@@ -146,6 +147,11 @@ export function TourProvider({ children }: { children: ReactNode }) {
 
   const finish = useCallback((completed: boolean) => {
     const current = tourRef.current
+    if (current) {
+      const step = indexRef.current
+      if (completed) track(ANALYTICS_EVENTS.tourCompleted, { tour: current.id, step })
+      else track(ANALYTICS_EVENTS.tourSkipped, { tour: current.id, step, target: current.steps[step]?.target ?? null })
+    }
     run.current++
     tourRef.current = null
     setTour(null)
@@ -182,10 +188,12 @@ export function TourProvider({ children }: { children: ReactNode }) {
     indexRef.current = found
     setIndex(found)
     setRect(foundRect)
+    track(ANALYTICS_EVENTS.tourStepViewed, { tour: def.id, step: found, target: def.steps[found].target })
   }, [finish, showTab, waitForTarget])
 
-  const start = useCallback((id: TourId, _source: TourSource = 'other') => {
+  const start = useCallback((id: TourId, source: TourSource = 'other') => {
     const def = TOURS[id]
+    track(ANALYTICS_EVENTS.tourStarted, { tour: id, source })
     tourRef.current = def
     indexRef.current = 0
     setTour(def)

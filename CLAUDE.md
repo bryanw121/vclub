@@ -154,6 +154,7 @@ signatures. Regenerate it after every schema change; never hand-edit it. Key dom
 - **conversations** / **conversation_members** / **messages** / **message_reactions** / **chat_silences**
 - **tournaments** and its children (`tournament_teams`, `_team_members`, `_matches`, `_pools`, `_rules`, `_prizes`, invitations, join requests, comments)
 - **cheers**, **user_badges**, **notifications**, **push_tokens**, **feedback_submissions**
+- **app_events**: insert-only usage metrics (see "Usage metrics")
 
 Also **user_settings** (private per-user settings: home city, seen banners).
 
@@ -207,6 +208,27 @@ For information someone needs once, the first time they open a screen (e.g. "we'
 
 ### Guided tours
 A tour is an ordered list of steps in `TOURS` (`constants/tours.ts`): target id, title, one plain sentence, optional `tab` (the tour switches there first) and `placement`. Mark what a step points at with `<TourTarget id={TOUR_TARGETS.x}>` (`components/tour/TourTarget`) or `useTourTarget(id)` on an existing view; register the same id on every surface that shows it (mobile tab bar and desktop sidebar), and a step whose target isn't on screen is skipped. `TourProvider` (in `app/(app)/_layout.tsx`) draws the overlay as an absolute layer (no Modal); the tabs layout hands it tab switching via `useTourShell`. Start one with `useTour().start('intro', source)`. A banner can start one through its `action` (`{ type: 'startTour', tourId }`). Finishing records `tour-<id>-done` next to seen banners; tours can always be restarted ("Take the tour" on Profile).
+
+### Usage metrics
+`track(name, props)` from `lib/analytics` records a small event (names in `ANALYTICS_EVENTS`, `constants/analytics.ts`; flat props only, at most about 1 KB). Events are buffered and sent to `app_events` in one insert every 10s, or when the app goes to the background or the page is hidden. It never throws, drops a batch the server rejects, and turns itself off if the table is missing. It is off under Jest and in automated browsers (`navigator.webdriver`) unless localStorage `vteam.analytics = 'on'`, which `e2e/metrics.spec.ts` sets before intercepting the insert. `app_events` is insert-only for clients: there is no SELECT policy, and `user_id` comes from the `auth.uid()` default. pg_cron (`prune-app-events`) deletes rows older than 180 days. Currently instrumented: one-time banners (shown / action / dismissed) and tours (started / step viewed / completed / skipped). Read counts in the SQL editor (or with the Supabase MCP `execute_sql`):
+```sql
+-- Daily counts per event, last 30 days
+select date_trunc('day', created_at)::date as day, name, count(*) as events,
+       count(distinct coalesce(user_id::text, anon_id)) as people
+from app_events where created_at > now() - interval '30 days'
+group by 1, 2 order by 1 desc, 2;
+
+-- Tour funnel: how many saw each step, and where people skipped
+select (props->>'step')::int as step, props->>'target' as target,
+       count(*) filter (where name = 'tour_step_viewed') as viewed,
+       count(*) filter (where name = 'tour_skipped') as skipped_here
+from app_events where props->>'tour' = 'intro' and name in ('tour_step_viewed', 'tour_skipped')
+group by 1, 2 order by 1;
+
+-- Started vs completed vs skipped, per source
+select props->>'source' as source, count(*) as started from app_events where name = 'tour_started' group by 1;
+select name, count(*) from app_events where name in ('tour_completed', 'tour_skipped') group by 1;
+```
 
 ### Login accepts email or username
 If the login field doesn't look like an email, `login.tsx` calls the `get_email_by_username` RPC, then signs in with the resolved email.

@@ -38,6 +38,36 @@ export type Database = {
         }
         Relationships: []
       }
+      app_events: {
+        Row: {
+          anon_id: string | null
+          created_at: string
+          id: number
+          name: string
+          platform: string | null
+          props: Json
+          user_id: string | null
+        }
+        Insert: {
+          anon_id?: string | null
+          created_at?: string
+          id?: never
+          name: string
+          platform?: string | null
+          props?: Json
+          user_id?: string | null
+        }
+        Update: {
+          anon_id?: string | null
+          created_at?: string
+          id?: never
+          name?: string
+          platform?: string | null
+          props?: Json
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       chat_silences: {
         Row: {
           created_at: string
@@ -2008,6 +2038,7 @@ export type Database = {
           unread_count: number
         }[]
       }
+      ingest_schelagg_feed: { Args: never; Returns: number }
       is_club_owner: { Args: { p_club_id: string }; Returns: boolean }
       is_conversation_member: { Args: { conv_id: string }; Returns: boolean }
       mark_all_notifications_read: { Args: never; Returns: undefined }

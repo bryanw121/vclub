@@ -436,7 +436,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Inventory fingerprint: `90a3247c726c`
+> Inventory fingerprint: `03408219d145`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -444,11 +444,12 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 ### Direct table and view calls
 
 <details>
-<summary>38 tables/views referenced by code</summary>
+<summary>39 tables/views referenced by code</summary>
 
 | Table or view | Frontend/server call sites |
 |---|---|
 | `app_config` | [`hooks/useMinVersion.ts:19`](../hooks/useMinVersion.ts#L19) |
+| `app_events` | [`lib/analytics.ts:132`](../lib/analytics.ts#L132) |
 | `chat_silences` | [`hooks/useSilencedUsers.ts:27`](../hooks/useSilencedUsers.ts#L27)<br>[`supabase/functions/send-chat-push/index.ts:135`](../supabase/functions/send-chat-push/index.ts#L135) |
 | `cheers` | [`app/(app)/(tabs)/settings/cheers.tsx:26`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L26)<br>[`app/(app)/profile/[id].tsx:55`](../app/%28app%29/profile/%5Bid%5D.tsx#L55)<br>[`hooks/event/useEventCheers.ts:16`](../hooks/event/useEventCheers.ts#L16)<br>[`hooks/useMyProfile.ts:175`](../hooks/useMyProfile.ts#L175)<br>[`utils/badges.ts:33`](../utils/badges.ts#L33) |
 | `club_members` | [`app/(app)/(tabs)/clubs.tsx:90`](../app/%28app%29/%28tabs%29/clubs.tsx#L90)<br>[`app/(app)/chat/[id].tsx:96`](../app/%28app%29/chat/%5Bid%5D.tsx#L96)<br>[`app/(app)/club/[id].tsx:135`](../app/%28app%29/club/%5Bid%5D.tsx#L135)<br>[`app/(app)/host.tsx:120`](../app/%28app%29/host.tsx#L120)<br>[`app/(app)/tournament/create.tsx:732`](../app/%28app%29/tournament/create.tsx#L732) |
@@ -568,6 +569,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Shared component contracts | [`EventCardRsvpHandler`](../types/index.ts#L1227), [`RowEventCardRsvpHandler`](../types/index.ts#L1228), [`TeamCardActions`](../types/index.ts#L1231), [`CheerCounts`](../types/index.ts#L1244), [`AnchorRect`](../types/index.ts#L1247), [`AnchorMenuOption`](../types/index.ts#L1249), [`LocationValue`](../types/index.ts#L1257) |
 | Badges, previews, tournament tabs | [`BadgeStats`](../types/index.ts#L1265), [`BadgeAwardPlan`](../types/index.ts#L1280), [`EventCardPreviews`](../types/index.ts#L1286), [`EventCardPreviewRow`](../types/index.ts#L1289), [`FeedSpanRows`](../types/index.ts#L1297), [`StoredFeedFilters`](../types/index.ts#L1305), [`TournamentTabName`](../types/index.ts#L1310) |
 | Schelagg court availability and session checks (lib/schelagg, utils/courts) | [`HHMM`](../types/index.ts#L1315), [`HHMMRange`](../types/index.ts#L1318), [`MinuteRange`](../types/index.ts#L1321), [`CourtsCourt`](../types/index.ts#L1323), [`CourtsFacility`](../types/index.ts#L1329), [`CourtsVenue`](../types/index.ts#L1338), [`CourtsError`](../types/index.ts#L1349), [`CourtsResponse`](../types/index.ts#L1352), [`CourtsData`](../types/index.ts#L1362), [`AustinNow`](../types/index.ts#L1365), [`CourtLane`](../types/index.ts#L1367), [`FacilityDay`](../types/index.ts#L1376), [`DayOption`](../types/index.ts#L1395), [`SessionCheckStatus`](../types/index.ts#L1397), [`SessionCheckResult`](../types/index.ts#L1400), [`SessionLinkDecision`](../types/index.ts#L1421), [`SessionLinkNotice`](../types/index.ts#L1436), [`CreateMenuSectionKey`](../types/index.ts#L1440) |
+| Usage metrics (lib/analytics.ts) | [`AnalyticsEventName`](../types/index.ts#L1444), [`AnalyticsProps`](../types/index.ts#L1447) |
 
 ### Constrained string values
 
