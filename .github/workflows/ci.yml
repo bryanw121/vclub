@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+# One run per branch/PR: a newer push cancels the older run of the same ref.
+# Runs of different PRs proceed in parallel (e2e data is namespaced per run).
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
   EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
@@ -36,27 +42,12 @@ jobs:
       - run: npm run typecheck
       - run: npm test -- --passWithNoTests
 
-  e2e:
-    name: Playwright E2E
+  # The web build runs in parallel with docs/unit, outside the shared e2e lock,
+  # so the serialized e2e job only installs and runs tests.
+  build-web:
+    name: Web build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [docs, unit]
-    # Credentials of the dedicated e2e account (repository secrets). Required:
-    # e2e/env.ts fails fast with a clear message when they are missing, which is
-    # also what happens on PRs from forks (secrets are not exposed to them).
-    env:
-      E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
-      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
-    # The e2e suites write to the single shared Supabase project (seed
-    # conversation sends/edits, event join/leave). Concurrent runs interfere
-    # through the DB and can exhaust connection limits — observed when three
-    # back-to-back merges spawned three parallel suites and one drowned in
-    # genuine fetch failures. Serialize e2e across ALL branches/PRs. A pending
-    # run superseded by a newer one shows as cancelled — rerun it manually if
-    # its PR still needs the check (rare at this team size).
-    concurrency:
-      group: e2e-shared-supabase
-      cancel-in-progress: false
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -64,9 +55,65 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - name: Build web
-        run: npm run build:web
+      - run: npm run build:web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: dist/
+          retention-days: 1
+
+  e2e-shard:
+    name: E2E (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build-web]
+    strategy:
+      fail-fast: false
+      matrix:
+        # Split by spec file. Each shard signs in itself (auth.setup + auth.verify).
+        include:
+          - shard: chat
+            specs: e2e/chat.spec.ts
+          - shard: events
+            specs: e2e/events.spec.ts
+          - shard: other
+            specs: e2e/guest.spec.ts e2e/profile.spec.ts
+    # Credentials of the dedicated e2e account (repository secrets). Required:
+    # e2e/env.ts fails fast with a clear message when they are missing, which is
+    # also what happens on PRs from forks (secrets are not exposed to them).
+    env:
+      E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      # Namespaces the rows this run creates ("[e2e r<run>-<attempt>] ..."), so
+      # parallel runs against the shared Supabase project never touch, match or
+      # sweep each other's fixtures. Read only via e2e/env.ts.
+      E2E_RUN_TAG: r${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium system deps
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: dist/
       - name: Serve + run Playwright
         run: |
           npx serve dist -p 8081 &
@@ -79,24 +126,39 @@ jobs:
             echo "::error::static server did not answer on :8081 within 30s"
             exit 1
           fi
-          npx playwright test e2e/
-      - name: Sweep leftover [e2e] events
+          npx playwright test e2e/auth.setup.ts e2e/auth.verify.ts ${{ matrix.specs }}
+      - name: Sweep this run's [e2e] events
         # A cancelled or crashed run skips the suite's afterAll cleanup. Never
         # let a failed sweep turn a green run red (or hide the real failure).
-        if: always()
+        if: always() && matrix.shard == 'events'
         continue-on-error: true
         run: npm run e2e:sweep
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: playwright-report/
           retention-days: 14
       - name: Upload failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-${{ matrix.shard }}
           path: test-results/
           retention-days: 7
+
+  # Branch protection requires a check named "Playwright E2E": this job reports
+  # the combined result of the shards under that name.
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    needs: [e2e-shard]
+    if: always()
+    steps:
+      - name: All shards passed
+        run: |
+          if [ "${{ needs.e2e-shard.result }}" != "success" ]; then
+            echo "::error::e2e shards: ${{ needs.e2e-shard.result }}"
+            exit 1
+          fi

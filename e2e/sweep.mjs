@@ -6,8 +6,12 @@
  * final `if: always()` step; run it locally with `npm run e2e:sweep`.
  *
  * Signs in as the e2e account (E2E_USERNAME / E2E_PASSWORD) and deletes events
- * THAT ACCOUNT hosts whose title starts with "[e2e]". RLS means it cannot touch
- * anyone else's events. Exits non-zero on failure.
+ * THAT ACCOUNT hosts that belong to this run (title starts with "[e2e <tag>]",
+ * tag from E2E_RUN_TAG) or are stale e2e fixtures (title starts with "[e2e" and
+ * older than STALE_HOURS). Other in-flight runs' fixtures are left alone, so
+ * parallel CI runs can't sweep each other. RLS means it cannot touch anyone
+ * else's events. Without E2E_RUN_TAG (local) it removes every "[e2e" event.
+ * Keep the tag shape in sync with e2e/env.ts. Exits non-zero on failure.
  *
  * Plain Node (no TypeScript) so it runs on Node 20 in CI without a loader.
  */
@@ -20,7 +24,8 @@ try {
   // No .env file: rely on the process environment.
 }
 
-const TITLE_PREFIX = '[e2e]'
+const RUN_TAG = process.env.E2E_RUN_TAG
+const STALE_HOURS = 3
 
 function required(name) {
   const value = process.env[name]
@@ -46,14 +51,20 @@ async function main() {
   if (signInError || !auth.user) throw new Error(`sign-in failed: ${signInError?.message ?? 'no user'}`)
 
   try {
-    const { data, error } = await supabase
-      .from('events')
-      .delete()
-      .eq('created_by', auth.user.id)
-      .like('title', `${TITLE_PREFIX}%`)
-      .select('id')
-    if (error) throw new Error(`delete failed: ${error.message}`)
-    console.log(`e2e:sweep: removed ${data?.length ?? 0} leftover ${TITLE_PREFIX} event(s)`)
+    let removed = 0
+    const sweep = async (label, build) => {
+      const { data, error } = await build(supabase.from('events').delete().eq('created_by', auth.user.id)).select('id')
+      if (error) throw new Error(`delete (${label}) failed: ${error.message}`)
+      removed += data?.length ?? 0
+    }
+    if (RUN_TAG) {
+      await sweep('this run', q => q.like('title', `[e2e ${RUN_TAG}]%`))
+      const staleBefore = new Date(Date.now() - STALE_HOURS * 3600_000).toISOString()
+      await sweep('stale', q => q.like('title', '[e2e%').lt('created_at', staleBefore))
+    } else {
+      await sweep('all', q => q.like('title', '[e2e%'))
+    }
+    console.log(`e2e:sweep: removed ${removed} leftover e2e event(s)`)
   } finally {
     await supabase.auth.signOut({ scope: 'local' })
   }
