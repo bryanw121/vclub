@@ -17,7 +17,7 @@ export function ConfirmDialog({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={dismiss}>
       <View style={shared.modalOverlayPlain} testID="confirm-dialog">
         <Pressable
-          style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.colors.overlay }]}
+          style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.colors.overlayLight }]}
           onPress={dismiss}
           accessibilityLabel="Dismiss"
           testID="confirm-dialog-backdrop"

@@ -129,10 +129,18 @@ function teardownChannel(entry: TopicEntry): void {
   if (old) void supabase.removeChannel(old)
 }
 
+/**
+ * Wire names must never repeat within a session: `supabase.channel(name)` hands
+ * back an existing channel with that name, and a removed channel stays in the
+ * client's list until the server acknowledges the leave. A per-topic counter
+ * restarts at 0 for a recreated entry, so the counter is module-wide.
+ */
+let wireSeq = 0
+
 function openChannel(entry: TopicEntry): void {
   teardownChannel(entry)
   const generation = entry.generation
-  const name = `${entry.topic}#${generation}`
+  const name = `${entry.topic}#${++wireSeq}`
   let channel = supabase.channel(name)
   entry.specs.forEach((spec, i) => {
     const sig = entry.bindingSigs[i]

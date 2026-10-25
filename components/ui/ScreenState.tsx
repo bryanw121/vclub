@@ -9,8 +9,9 @@ const GENERIC_ERROR = 'Something went wrong. Check your connection and try again
 
 /**
  * One place to decide what a data screen shows. Precedence:
- * loading (with nothing to show yet) > error > empty > children.
- * Pass `ready` when cached data exists so a background refetch never blanks the screen.
+ * loading (with nothing to show yet) > error (with nothing to show yet) > empty > children.
+ * Pass `ready` when cached data exists: then neither a refetch nor a failed refetch
+ * replaces what is on screen — surface a stale-data error with a toast/banner instead.
  */
 export function ScreenState({
   loading, ready, error, onRetry, empty, emptyIcon, emptyTitle, emptyBody,
@@ -24,7 +25,7 @@ export function ScreenState({
     )
   }
 
-  if (error) {
+  if (error && !ready) {
     return (
       <View style={shared.screenStateCenter} testID="screen-state-error">
         <Ionicons name="cloud-offline-outline" size={36} color={theme.colors.border} />

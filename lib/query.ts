@@ -241,6 +241,10 @@ export function invalidate(prefix: string, opts?: { refetchActive?: boolean }): 
       // Forced: an in-flight fetch may have started before the write and would return the old row.
       void runFetch(key, fetcher, true)
     } else {
+      // No reader to refetch for: still retire any fetch already in flight, so a
+      // pre-write response landing later can't clear the stale flag.
+      entry.fetchId++
+      entry.promise = null
       notify(key, entry)
     }
   })
@@ -394,6 +398,24 @@ export function useMutation<TVars, TResult>(
     pendingRef.current = true
     setState({ isPending: true, error: null })
 
+    const invalidateAll = (result?: TResult) => {
+      const inv = optsRef.current?.invalidates
+      let prefixes: string[] = []
+      try {
+        prefixes = typeof inv === 'function' ? (result === undefined ? [] : inv(vars, result)) : inv ?? []
+      } catch (e) {
+        console.error('[useMutation] invalidates threw', e)
+      }
+      prefixes.forEach(p => invalidate(p))
+    }
+    const safely = (label: string, cb?: () => void) => {
+      try {
+        cb?.()
+      } catch (e) {
+        console.error(`[useMutation] ${label} threw`, e)
+      }
+    }
+
     let rollback: (() => void) | undefined
     let result: TResult
     try {
@@ -402,22 +424,20 @@ export function useMutation<TVars, TResult>(
       result = await fnRef.current(vars)
     } catch (e) {
       const error = toError(e)
-      try {
-        rollback?.()
-      } finally {
-        pendingRef.current = false
-        setState({ isPending: false, error })
-      }
-      optsRef.current?.onError?.(error, vars)
+      safely('rollback', rollback)
+      // The rollback restores a snapshot via setQueryData, which marks it fresh
+      // and cancels in-flight fetches; refetch so newer server state wins.
+      if (typeof optsRef.current?.invalidates !== 'function') invalidateAll()
+      pendingRef.current = false
+      setState({ isPending: false, error })
+      safely('onError', () => optsRef.current?.onError?.(error, vars))
       return undefined
     }
 
     pendingRef.current = false
     setState({ isPending: false, error: null })
-    const inv = optsRef.current?.invalidates
-    const prefixes = typeof inv === 'function' ? inv(vars, result) : inv ?? []
-    prefixes.forEach(p => invalidate(p))
-    optsRef.current?.onSuccess?.(result, vars)
+    invalidateAll(result)
+    safely('onSuccess', () => optsRef.current?.onSuccess?.(result, vars))
     return result
   }, [])
 

@@ -414,3 +414,21 @@ describe('useMutation', () => {
     expect(screen.getByTestId('list').props.children).toBe('server')
   })
 })
+
+describe('invalidate with no active reader', () => {
+  it('retires an in-flight fetch so its late response cannot clear the stale flag', async () => {
+    const { invalidate, setQueryData, getQueryData, useQuery } = require('../lib/query')
+    const { renderHook } = require('@testing-library/react-native')
+    const key = 'event:late'
+    let resolve!: (v: string) => void
+    const fetcher = jest.fn(() => new Promise<string>(r => { resolve = r }))
+    const h = renderHook(() => useQuery(key, fetcher, { staleMs: 60_000 }))
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    h.unmount()
+    setQueryData(key, 'edited') // a write elsewhere
+    invalidate(key)             // no active reader: no refetch, but the old fetch must be retired
+    resolve('pre-edit')
+    await Promise.resolve(); await Promise.resolve()
+    expect(getQueryData(key)).toBe('edited')
+  })
+})

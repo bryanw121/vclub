@@ -33,7 +33,8 @@ export const theme = {
     /** Label/icon colour on `primary`, `error` and other saturated fills. */
     onPrimary:    '#FFFFFF',
     /** Scrim behind dialogs and bottom sheets. */
-    overlay:      'rgba(0,0,0,0.45)',
+    overlay:      'rgba(0,0,0,0.5)',    // shared.modalOverlay (host, feedback)
+    overlayLight: 'rgba(0,0,0,0.45)',   // event detail's confirm dialogs / ConfirmDialog
     // Podium / trophy medals
     medalGold:    '#FFD54F',
     medalSilver:  '#B0BEC5',

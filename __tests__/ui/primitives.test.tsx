@@ -16,7 +16,8 @@ const flat = (el: { props: { style?: unknown } }) => StyleSheet.flatten(el.props
 
 describe('theme tokens', () => {
   it('exposes the new colour, gradient and size tokens', () => {
-    expect(theme.colors.overlay).toBe('rgba(0,0,0,0.45)')
+    expect(theme.colors.overlay).toBe('rgba(0,0,0,0.5)')
+    expect(theme.colors.overlayLight).toBe('rgba(0,0,0,0.45)')
     expect(theme.colors.onPrimary).toBe('#FFFFFF')
     expect(theme.colors.medalGold).toBe('#FFD54F')
     expect(theme.gradients.brand).toHaveLength(3)
