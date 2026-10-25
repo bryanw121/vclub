@@ -1438,3 +1438,10 @@ export type SessionLinkNotice =
   | { action: 'confirm'; kind: 'blocked' }
 
 export type CreateMenuSectionKey = 'vteam' | 'venue'
+
+// ─── Usage metrics (lib/analytics.ts) ─────────────────────────────────────────
+
+export type AnalyticsEventName = (typeof import('../constants/analytics').ANALYTICS_EVENTS)[keyof typeof import('../constants/analytics').ANALYTICS_EVENTS]
+
+/** Small, flat props only: they're stored as a JSON object capped at 1 KB. */
+export type AnalyticsProps = Record<string, string | number | boolean | null>
