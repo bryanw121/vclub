@@ -497,6 +497,25 @@ export const shared = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.md,
   },
+  /** One tappable row in an action sheet (People-tab ⋯ menu). 44pt minimum. */
+  sheetOption: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.md,
+  },
+  sheetOptionActive:      { backgroundColor: colors.background },
+  sheetOptionText:        { fontSize: font.size.md, fontWeight: font.weight.medium, color: colors.text },
+  sheetOptionDestructive: { color: colors.error },
+  /** Glyph-only corner trigger on a roster card (⋯): the icon stays small, the hit area is 44pt. */
+  rowMenuTrigger: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   // ── ScreenContainer ───────────────────────────────────────
   screenContainerWide:  { flex: 1, alignItems: 'center' },

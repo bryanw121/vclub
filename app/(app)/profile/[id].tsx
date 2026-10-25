@@ -13,6 +13,7 @@ import { BADGE_DEFINITIONS } from '../../../constants/badges'
 import { normalizeProfileRow, PROFILE_BRIEF_SELECT } from '../../../hooks/useMyProfile'
 import { routes } from '../../../utils/routes'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
+import { useOpenDm } from '../../../hooks/useOpenDm'
 import {
   resolveProfileAvatarUriWithError,
   volleyballSkillLevelLabel,
@@ -102,10 +103,8 @@ export default function UserProfileDetail() {
     setToast({ message, variant })
   }
 
-  async function openDM() {
-    const { data: convId } = await supabase.rpc('find_or_create_dm', { other_user_id: id })
-    if (convId) router.push(routes.conversation(convId))
-  }
+  const { openDm } = useOpenDm()
+  const openDM = () => { void openDm(id) }
 
   const isSilenced = silencedUserIds.has(id)
 

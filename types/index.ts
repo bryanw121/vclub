@@ -804,6 +804,12 @@ export type BottomSheetProps = {
   onDismiss: () => void
   title?: string
   children?: import('react').ReactNode
+  /**
+   * Called once the sheet has finished closing. Use it to open another Modal
+   * (e.g. a confirm) from a sheet action: iOS cannot present a Modal while
+   * another is still animating out.
+   */
+  onClosed?: () => void
 }
 
 export type ScreenContainerProps = {
@@ -988,6 +994,28 @@ export type SelfAttendanceAction =
 export type RemoveTarget =
   | { kind: 'attendee'; userId: string; firstName: string | null; lastName: string | null; username: string }
   | { kind: 'guest'; guestId: string; firstName: string; lastName: string }
+
+/** One entry in a People-tab row's ⋯ menu (Message / View profile / Remove). */
+export type RosterAction = {
+  key: 'message' | 'message-adder' | 'profile' | 'remove'
+  label: string
+  destructive?: boolean
+  onPress: () => void
+}
+
+/** The open ⋯ menu on the People tab: whose row, and what it offers. */
+export type RosterMenu = { title: string; actions: RosterAction[] }
+
+/** What the roster needs to decide which row actions a viewer gets. */
+export type RosterActionContext = {
+  /** Host or co-host: messaging from the roster is host → attendee only. */
+  canMessage: boolean
+  viewerId: string | null
+  /** Users the viewer has silenced: no Message action for them. */
+  silencedUserIds: ReadonlySet<string>
+  onMessage?: (userId: string) => void
+  onOpenProfile: (userId: string) => void
+}
 
 // ─── Profile hooks ─────────────────────────────────────────────────────────────
 
