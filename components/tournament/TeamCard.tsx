@@ -2,7 +2,7 @@ import React from 'react'
 import { Text, TouchableOpacity, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { theme } from '../../constants'
-import { SKILL_LABELS } from '../../constants/tournamentCopy'
+import { SKILL_LEVEL_LABELS } from '../../constants/copy'
 import { profileDisplayName } from '../../utils'
 import type { TournamentTeam, TournamentTeamWithRoster } from '../../types'
 import type { TournamentJoinRequestWithRequester } from '../../types/tournamentScreen'
@@ -76,7 +76,7 @@ export function TeamCard({ team, isOrganizer, viewerId, myTeam, registrationOpen
       {/* Roster list */}
       {team.members.map(m => {
         const p = m.profiles
-        const skillLabel = p?.skill_level ? SKILL_LABELS[p.skill_level] ?? p.skill_level : null
+        const skillLabel = p?.skill_level ? SKILL_LEVEL_LABELS[p.skill_level] ?? p.skill_level : null
         return (
           <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5, borderTopWidth: 1, borderTopColor: theme.colors.borderSoft }}>
             <AutoAvatar avatarUrl={p?.avatar_url} size={30} />
@@ -138,7 +138,7 @@ export function TeamCard({ team, isOrganizer, viewerId, myTeam, registrationOpen
             <View key={req.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: theme.fonts.bodyMedium, fontSize: 13, color: theme.colors.text }}>{req.requester ? profileDisplayName(req.requester) : 'Unknown'}</Text>
-                {req.requester?.skill_level && <Text style={{ fontSize: 11, color: theme.colors.subtext }}>{SKILL_LABELS[req.requester.skill_level] ?? req.requester.skill_level}</Text>}
+                {req.requester?.skill_level && <Text style={{ fontSize: 11, color: theme.colors.subtext }}>{SKILL_LEVEL_LABELS[req.requester.skill_level] ?? req.requester.skill_level}</Text>}
               </View>
               <MiniButton label="Accept" tone="accept" onPress={() => actions.onApproveRequest(req)} />
               <MiniButton label="Decline" tone="neutral" onPress={() => actions.onDeclineRequest(req.id)} />

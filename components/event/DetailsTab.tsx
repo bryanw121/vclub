@@ -426,7 +426,7 @@ export function DetailsTab({
               }}
             >
               <Text style={{ fontSize: 18 }}>💸</Text>
-              <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: '#fff' }}>
+              <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.white }}>
                 Pay ${amount} via Venmo
               </Text>
             </TouchableOpacity>

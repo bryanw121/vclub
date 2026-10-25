@@ -1,3 +1,4 @@
+import { SKILL_LEVEL_LABELS } from '../../constants/copy'
 import type { VolleyballPosition, VolleyballSkillLevel } from '../../types'
 
 export const VOLLEYBALL_POSITION_OPTIONS: { value: VolleyballPosition; label: string }[] = [
@@ -11,11 +12,11 @@ export const VOLLEYBALL_POSITION_OPTIONS: { value: VolleyballPosition; label: st
 
 export const VOLLEYBALL_SKILL_LEVEL_OPTIONS: { value: VolleyballSkillLevel; label: string }[] = [
   { value: 'd',       label: 'D (Newbie)' },
-  { value: 'c',       label: 'C' },
-  { value: 'b',       label: 'B' },
-  { value: 'bb',      label: 'BB' },
-  { value: 'a',       label: 'A' },
-  { value: 'aa_plus', label: 'AA+' },
+  { value: 'c',       label: SKILL_LEVEL_LABELS.c },
+  { value: 'b',       label: SKILL_LEVEL_LABELS.b },
+  { value: 'bb',      label: SKILL_LEVEL_LABELS.bb },
+  { value: 'a',       label: SKILL_LEVEL_LABELS.a },
+  { value: 'aa_plus', label: SKILL_LEVEL_LABELS.aa_plus },
 ]
 
 /**

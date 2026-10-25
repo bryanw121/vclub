@@ -23,7 +23,7 @@ import { useSession } from '../../../../contexts/session'
 import { useRequireSignIn } from '../../../../hooks/useRequireSignIn'
 import { SignInButton } from '../../../../components/SignInButton'
 import { addMonths } from '../../../../utils/monthKeys'
-import { routes, type RouteString } from '../../../../utils/routes'
+import { routes, isAppPath, toRoute } from '../../../../utils/routes'
 import { eventLocalDateKey, localDateKey } from '../../../../utils'
 
 const _now = new Date()
@@ -269,9 +269,8 @@ export default function EventsScreen() {
         /* ignore */
       }
       const path = item.data?.deep_link
-      if (path) {
-        // A server-written deep link: trusted to be an app path.
-        router.push(path as RouteString)
+      if (isAppPath(path)) {
+        router.push(toRoute(path))
         return
       }
       if (item.data?.event_id) {

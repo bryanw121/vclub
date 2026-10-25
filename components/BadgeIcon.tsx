@@ -68,7 +68,7 @@ export function BadgeIcon({ def, tier, size = 'sm', showLabel = false, slotNumbe
                   backgroundColor: 'rgba(255,255,255,0.18)',
                   borderTopLeftRadius: r, borderTopRightRadius: r,
                 }} />
-                <Ionicons name={def.icon as any} size={iconSize} color="#fff" />
+                <Ionicons name={def.icon as any} size={iconSize} color={theme.colors.white} />
               </LinearGradient>
             ) : (
               <View style={{ flex: 1, backgroundColor: theme.colors.border, alignItems: 'center', justifyContent: 'center' }}>
@@ -87,7 +87,7 @@ export function BadgeIcon({ def, tier, size = 'sm', showLabel = false, slotNumbe
             alignItems: 'center', justifyContent: 'center',
             borderWidth: 2, borderColor: theme.colors.card,
           }}>
-            <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', lineHeight: 12 }}>
+            <Text style={{ fontSize: 9, fontWeight: '800', color: theme.colors.white, lineHeight: 12 }}>
               {slotNumber}
             </Text>
           </View>

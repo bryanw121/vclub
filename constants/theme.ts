@@ -30,6 +30,7 @@ export const theme = {
     warning:      '#FFA040',
     success:      '#00D26A',
     white:        '#FFFFFF',
+    black:        '#000000',
     /** Label/icon colour on `primary`, `error` and other saturated fills. */
     onPrimary:    '#FFFFFF',
     /** Scrim behind dialogs and bottom sheets. */

@@ -262,7 +262,7 @@ function BadgeDetailPanel({ def, badge, onClose, bottomInset, animStyle }: Badge
       paddingTop: theme.spacing.sm,
       paddingBottom: bottomInset + theme.spacing.md,
       paddingHorizontal: theme.spacing.md,
-      shadowColor: '#000',
+      shadowColor: theme.colors.black,
       shadowOffset: { width: 0, height: -3 },
       shadowOpacity: 0.12,
       shadowRadius: 12,

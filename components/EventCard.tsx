@@ -4,6 +4,7 @@ import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, usePathname } from 'expo-router'
 import { theme, eventAttendeeDisplayCount } from '../constants'
+import { routes } from '../utils/routes'
 import { profileAvatarSmallUri, profileDisplayName } from '../utils'
 import type { EventWithDetails, Tag } from '../types'
 
@@ -110,10 +111,11 @@ function EventCardInner({
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={() => {
-        const path = event._isTournament
-          ? `/tournament/${event.id}`
-          : `/event/${event.id}?from=${encodeURIComponent(fromOverride ?? pathname)}`
-        router.push(path as any)
+        router.push(
+          event._isTournament
+            ? routes.tournament(event.id)
+            : routes.eventFrom(event.id, fromOverride ?? pathname),
+        )
       }}
       style={{
         backgroundColor: theme.colors.card,
@@ -164,7 +166,7 @@ function EventCardInner({
 
         {/* Title */}
         <Text
-          style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 22, letterSpacing: -0.6, color: '#fff', lineHeight: 26, maxWidth: '78%' }}
+          style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 22, letterSpacing: -0.6, color: theme.colors.white, lineHeight: 26, maxWidth: '78%' }}
           numberOfLines={2}
         >
           {event.title}
@@ -221,7 +223,7 @@ function EventCardInner({
               </View>
             )}
             <View>
-              <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 15, letterSpacing: -0.2, color: '#fff' }}>
+              <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 15, letterSpacing: -0.2, color: theme.colors.white }}>
                 {attendeeCount}
                 {event.max_attendees
                   ? <Text style={{ opacity: 0.4, fontSize: 13 }}>/{event.max_attendees}</Text>
@@ -332,10 +334,11 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={() => {
-        const path = event._isTournament
-          ? `/tournament/${event.id}`
-          : `/event/${event.id}?from=${encodeURIComponent(fromOverride ?? pathname)}`
-        router.push(path as any)
+        router.push(
+          event._isTournament
+            ? routes.tournament(event.id)
+            : routes.eventFrom(event.id, fromOverride ?? pathname),
+        )
       }}
       style={{
         backgroundColor: theme.colors.card,
@@ -479,8 +482,8 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
               }}
             >
               {rsvpLoading
-                ? <ActivityIndicator size="small" color={isAttending ? theme.colors.subtext : '#fff'} />
-                : <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: isAttending ? theme.colors.subtext : '#fff' }}>
+                ? <ActivityIndicator size="small" color={isAttending ? theme.colors.subtext : theme.colors.white} />
+                : <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: isAttending ? theme.colors.subtext : theme.colors.white }}>
                     {isAttending ? 'Going ✓' : 'RSVP'}
                   </Text>
               }

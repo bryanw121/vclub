@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { getQueryData, setQueryData, useMutation } from '../lib/query'
 import { useRealtimeChannel } from '../lib/realtime'
-import { CHAT_IMAGES_BUCKET } from '../constants'
+import { CHAT_IMAGES_BUCKET, NETWORK_ERROR_MESSAGE } from '../constants'
 import { useSession } from '../contexts/session'
 import {
   applyMessageUpdate,
@@ -126,7 +126,6 @@ type PendingSend = {
 
 type Updater = MessageWithDetails[] | ((prev: MessageWithDetails[]) => MessageWithDetails[])
 
-const GENERIC_RETRY = 'Check your connection and try again.'
 
 /**
  * One room's messages: newest page + older pages on demand, kept current from
@@ -391,7 +390,7 @@ export function useMessages(conversationId: string) {
         if (!before) return
         return () => setMessages(prev => prev.map(m => (m.id === id ? { ...m, content: before.content, edited_at: before.edited_at } : m)))
       },
-      onError: () => chatAlert("Couldn't edit message", GENERIC_RETRY),
+      onError: () => chatAlert("Couldn't edit message", NETWORK_ERROR_MESSAGE),
     },
   )
   const editMutate = edit.mutate
@@ -418,7 +417,7 @@ export function useMessages(conversationId: string) {
         if (!before) return
         return () => setMessages(prev => prev.map(m => (m.id === id ? { ...m, deleted_at: before.deleted_at } : m)))
       },
-      onError: () => chatAlert("Couldn't delete message", GENERIC_RETRY),
+      onError: () => chatAlert("Couldn't delete message", NETWORK_ERROR_MESSAGE),
     },
   )
   const removeMutate = remove.mutate
@@ -447,7 +446,7 @@ export function useMessages(conversationId: string) {
         .eq('emoji', emoji)
       if (e) {
         add()
-        chatAlert("Couldn't remove reaction", GENERIC_RETRY)
+        chatAlert("Couldn't remove reaction", NETWORK_ERROR_MESSAGE)
       }
     } else {
       add()
@@ -457,7 +456,7 @@ export function useMessages(conversationId: string) {
       // 23505: already reacted (double tap / another device) — the optimistic state is right.
       if (e && e.code !== '23505') {
         drop()
-        chatAlert("Couldn't add reaction", GENERIC_RETRY)
+        chatAlert("Couldn't add reaction", NETWORK_ERROR_MESSAGE)
       }
     }
   }, [userId, setMessages])

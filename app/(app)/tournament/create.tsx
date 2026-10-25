@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
 import { useSession } from '../../../contexts/session'
-import { theme, shared } from '../../../constants'
+import { theme, shared, SKILL_LEVEL_LABELS } from '../../../constants'
 import { routes } from '../../../utils/routes'
 import { DatePickerField } from '../../../components/DatePickerField'
 import { notifyError, notifyInfo } from '../../../utils/notify'
@@ -235,15 +235,7 @@ function StepBasicInfo({ draft, update, clubs }: {
 
       <SectionLabel icon="stats-chart-outline" label="Skill Level" />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-        {([
-          { id: 'd',      label: 'D'    },
-          { id: 'c',      label: 'C'    },
-          { id: 'b',      label: 'B'    },
-          { id: 'bb',     label: 'BB'   },
-          { id: 'a',      label: 'A'    },
-          { id: 'aa_plus',label: 'AA+'  },
-          { id: 'open',   label: 'Open' },
-        ] as const).map(opt => {
+        {Object.entries(SKILL_LEVEL_LABELS).map(([id, label]) => ({ id: id as (typeof draft.skillLevels)[number], label })).map(opt => {
           const active = draft.skillLevels.includes(opt.id)
           return (
             <TouchableOpacity

@@ -6,7 +6,8 @@ import { supabase } from '../../lib/supabase'
 import { Sentry } from '../../lib/sentry'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
-import { shared } from '../../constants'
+import { shared, theme } from '../../constants'
+import { routes } from '../../utils/routes'
 
 export default function ResetPassword() {
   const router = useRouter()
@@ -45,7 +46,7 @@ export default function ResetPassword() {
       const { error: updateError } = await supabase.auth.updateUser({ password })
       if (updateError) throw updateError
       setDone(true)
-      setTimeout(() => router.replace('/(app)/(tabs)'), 2000)
+      setTimeout(() => router.replace(routes.app()), 2000)
     } catch (e: any) {
       Sentry.captureException(e)
       setError('Could not reset password. Please try again.')
@@ -56,7 +57,7 @@ export default function ResetPassword() {
 
   return (
     <LinearGradient
-      colors={['#4FC3F7', '#7C4DFF', '#E040FB']}
+      colors={theme.gradients.brand}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={shared.authBackground}
@@ -75,7 +76,7 @@ export default function ResetPassword() {
             <Text style={[shared.caption, { textAlign: 'center' }]}>
               If this takes too long, try requesting a new reset link.
             </Text>
-            <TouchableOpacity style={shared.authLink} onPress={() => router.replace('/(auth)/login')}>
+            <TouchableOpacity style={shared.authLink} onPress={() => router.replace(routes.login())}>
               <Text style={shared.authLinkText}>Back to sign in</Text>
             </TouchableOpacity>
           </>
@@ -115,7 +116,7 @@ export default function ResetPassword() {
               disabled={!password || !confirm}
             />
 
-            <TouchableOpacity style={shared.authLink} onPress={() => router.replace('/(auth)/login')}>
+            <TouchableOpacity style={shared.authLink} onPress={() => router.replace(routes.login())}>
               <Text style={shared.authLinkText}>Back to sign in</Text>
             </TouchableOpacity>
           </>
