@@ -23,7 +23,7 @@ const EMPTY_TAGS: Tag[] = []
 const EMPTY_CLUBS: OwnedClubOption[] = []
 const TEMPLATE_SELECT = 'id, user_id, name, title, description, location, max_attendees, created_at'
 const EDIT_EVENT_SELECT =
-  'id, title, description, location, latitude, longitude, event_date, duration_minutes, max_attendees, price, venmo_handle, club_id, event_tags (tag_id)'
+  'id, title, description, location, latitude, longitude, event_date, duration_minutes, max_attendees, price, venmo_handle, requires_approval, club_id, event_tags (tag_id)'
 
 function roundToNearest5(): Date {
   const d = new Date()
@@ -43,6 +43,7 @@ const EMPTY_FORM: CreateEventForm = {
   maxAttendees: null,
   priceText: '',
   venmoHandle: '',
+  requiresApproval: false,
 }
 
 const CADENCE_OPTIONS: { value: RecurrenceCadence; label: string }[] = [
@@ -189,6 +190,7 @@ export default function HostEventScreen() {
       maxAttendees: data.max_attendees,
       priceText: data.price != null ? Number(data.price).toFixed(2) : '',
       venmoHandle: data.venmo_handle ?? '',
+      requiresApproval: data.requires_approval ?? false,
     })
     const loadedTagIds = (data.event_tags ?? []).map((et: { tag_id: string }) => et.tag_id)
     setSelectedTagIds(loadedTagIds)
@@ -283,6 +285,7 @@ export default function HostEventScreen() {
             club_id: selectedClubId,
             price: parsedPrice,
             venmo_handle: parsedPrice && parsedPrice > 0 ? (form.venmoHandle.trim() || null) : null,
+            requires_approval: form.requiresApproval,
           })
           .eq('id', editId)
         if (error) throw error
@@ -391,6 +394,7 @@ export default function HostEventScreen() {
           club_id: selectedClubId,
           price: parsedPrice,
           venmo_handle: parsedPrice && parsedPrice > 0 ? (form.venmoHandle.trim() || null) : null,
+          requires_approval: form.requiresApproval,
         }))
 
         const { data: insertedEvents, error } = await supabase.from('events').insert(rows).select('id')
@@ -793,6 +797,31 @@ export default function HostEventScreen() {
           )}
         </View>
 
+        {/* ── Approval ──
+            Its own card right after Price: approval used to be implied by
+            `price > 0`, and the two are now independent (a free event can be
+            screened, a paid one can be open). */}
+        <View style={hostStyles.fieldCard}>
+          <View style={hostStyles.switchRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={hostStyles.fieldLabel}>Require approval to join</Text>
+              <Text style={shared.caption}>
+                {form.requiresApproval
+                  ? 'Players request a spot and you approve each one.'
+                  : 'Anyone can join instantly until the event is full.'}
+              </Text>
+            </View>
+            <Switch
+              testID="event-requires-approval-switch"
+              value={form.requiresApproval}
+              onValueChange={v => setField('requiresApproval', v)}
+              accessibilityLabel="Require approval to join this event"
+              trackColor={{ false: theme.colors.border, true: theme.colors.primary + '80' }}
+              thumbColor={form.requiresApproval ? theme.colors.primary : theme.colors.subtext}
+            />
+          </View>
+        </View>
+
         {/* ── Recurrence (create only) ── */}
         {!isEdit && (
           <View style={hostStyles.fieldCard}>
@@ -953,6 +982,12 @@ const hostStyles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginBottom: 2,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.md,
   },
   fieldInput: {
     fontFamily: theme.fonts.body,

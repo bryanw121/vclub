@@ -35,7 +35,7 @@ export const CHEER_SELECT = 'id, event_id, giver_id, receiver_id, cheer_type, cr
 
 /** `events` columns the event detail screen renders. */
 export const EVENT_DETAIL_COLUMNS =
-  'id, created_by, club_id, title, description, location, event_date, duration_minutes, max_attendees, created_at, price, venmo_handle'
+  'id, created_by, club_id, title, description, location, event_date, duration_minutes, max_attendees, created_at, price, venmo_handle, requires_approval'
 
 /** Event detail: the row, its host, every attendee with profile, and its tags. */
 export const EVENT_DETAIL_SELECT =

@@ -3,6 +3,8 @@ import type {
   EventAttendeeWithProfile,
   EventGuest,
   EventWithDetails,
+  JoinAction,
+  JoinActionState,
   Profile,
   TeamAssignment,
   RandomizeResult, TeamSource,
@@ -197,4 +199,23 @@ export function computeEventStatus(args: {
     isDenied: mine?.status === 'denied',
     denialReason: mine?.status === 'denied' ? (mine.denial_reason ?? null) : null,
   }
+}
+
+/**
+ * The join footer's primary action. Order is load-bearing, most specific first:
+ *  1. the viewer's existing row (attending / waitlisted / requested / denied);
+ *  2. capacity: a full event offers the waitlist, whatever the approval setting
+ *     (approval used to be checked first, so a full paid event kept offering
+ *     "Request to Join" and its waitlist was unreachable);
+ *  3. the host's approval setting (`events.requires_approval`, never price);
+ *  4. otherwise a plain join.
+ */
+export function resolveJoinAction(s: JoinActionState): JoinAction {
+  if (s.isAttending) return 'leave'
+  if (s.isWaitlisted) return 'leave-waitlist'
+  if (s.isRequested) return 'cancel-request'
+  if (s.isDenied) return 'rerequest'
+  if (s.isFull) return 'waitlist'
+  if (s.requiresApproval) return 'request'
+  return 'join'
 }

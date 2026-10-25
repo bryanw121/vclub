@@ -4,14 +4,18 @@ import { shared, theme } from '../constants'
 import type { IoniconName } from '../types'
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost'
-type Size = 'sm' | 'md'
+type Size = 'sm' | 'md' | 'touch'
 type Props = {
   label: string
   onPress: () => void
   loading?: boolean
   variant?: Variant
   disabled?: boolean
-  /** 'md' (default) is the existing look; 'sm' is a compact 36pt-tall button. */
+  /**
+   * 'md' (default) is the existing look; 'sm' is a compact 36pt-tall button;
+   * 'touch' has sm's padding but a 44pt minimum height, for toolbars (e.g. the
+   * event header) where the touch target matters.
+   */
   size?: Size
   /** Leading icon, coloured to match the label. */
   icon?: IoniconName
@@ -37,6 +41,7 @@ export function Button({
   const inactive = !!(disabled || loading)
   const contentColor = tinted ? theme.colors.primary : theme.colors.onPrimary
   const iconSize = size === 'sm' ? 14 : 16
+  const compact = size === 'sm' || size === 'touch'
 
   return (
     <TouchableOpacity
@@ -44,6 +49,7 @@ export function Button({
         shared.buttonBase,
         buttonStyle,
         size === 'sm' && shared.buttonSm,
+        size === 'touch' && shared.buttonTouch,
         !fullWidth && shared.buttonAuto,
         !!icon && !loading && shared.buttonWithIcon,
         inactive && shared.buttonDisabled,
@@ -60,7 +66,7 @@ export function Button({
         : (
           <>
             {icon && <Ionicons name={icon} size={iconSize} color={contentColor} />}
-            <Text style={[labelStyle, size === 'sm' && shared.buttonLabelSm]}>{label}</Text>
+            <Text style={[labelStyle, compact && shared.buttonLabelSm]}>{label}</Text>
           </>
         )
       }

@@ -23,15 +23,18 @@ function isAttendingRow(row: { status?: string }): boolean {
 }
 
 /**
- * Label for a viewer who is waitlisted or has a pending join request. The card
- * shows it as a status pill, not a button: an RSVP tap would try to insert a
- * second row. Tapping the pill opens the event, where they can leave/cancel.
+ * Label for a viewer the card must not RSVP with one tap: waitlisted or with a
+ * pending request (an RSVP tap would insert a second row), or not yet on an
+ * event whose host approves each join (`requires_approval`; a one-tap insert
+ * would skip the request). The card shows it as a status pill, not a button;
+ * tapping the pill opens the event, where they can leave / cancel / request.
  */
-function awaitingLabel(event: EventWithDetails, currentUserId: string | null | undefined): string | null {
+function awaitingLabel(event: EventWithDetails, currentUserId: string | null | undefined, isAttending: boolean): string | null {
   if (!currentUserId) return null
   const status = event.my_attendance?.find(a => a.user_id === currentUserId)?.status
   if (status === 'waitlisted') return 'Waitlisted'
   if (status === 'requested') return 'Requested'
+  if (event.requires_approval && !isAttending) return status === 'denied' ? 'Denied' : 'Needs approval'
   return null
 }
 
@@ -90,7 +93,7 @@ function EventCardInner({
       ? event.my_attendance.some(a => a.user_id === currentUserId && isAttendingRow(a))
       : (event.attendee_previews ?? []).some(p => p.user_id === currentUserId)
   )
-  const awaiting = awaitingLabel(event, currentUserId)
+  const awaiting = awaitingLabel(event, currentUserId, isAttending)
 
   const attendeeCount = eventAttendeeDisplayCount(event)
   const spotsLeft = event.max_attendees != null ? Math.max(0, event.max_attendees - attendeeCount) : null
@@ -313,7 +316,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
       ? event.my_attendance.some(a => a.user_id === currentUserId && isAttendingRow(a))
       : (event.attendee_previews ?? []).some(p => p.user_id === currentUserId)
   )
-  const awaiting = awaitingLabel(event, currentUserId)
+  const awaiting = awaitingLabel(event, currentUserId, isAttending)
 
   const attendeeCount = eventAttendeeDisplayCount(event)
   const spotsLeft = event.max_attendees != null ? Math.max(0, event.max_attendees - attendeeCount) : null

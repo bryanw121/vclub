@@ -373,6 +373,8 @@ export const shared = StyleSheet.create({
   // ── Button extensions ─────────────────────────────────────
   buttonGhost:        { backgroundColor: 'transparent' },
   buttonSm:           { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, minHeight: 36 },
+  /** Toolbar button: sm padding, ≥44pt touch target (CLAUDE.md UI rule). */
+  buttonTouch:        { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, minHeight: 44 },
   buttonAuto:         { alignSelf: 'flex-start' },
   buttonWithIcon:     { flexDirection: 'row', gap: spacing.xs + 2 },
   buttonLabelSm:      { fontSize: font.size.smd },

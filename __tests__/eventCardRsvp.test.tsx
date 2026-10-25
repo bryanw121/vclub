@@ -9,8 +9,9 @@ jest.mock('expo-router', () => ({
 }))
 jest.mock('expo-image', () => ({ Image: () => null }))
 
-function event(status: string | undefined): EventWithDetails {
+function event(status: string | undefined, requiresApproval = false): EventWithDetails {
   return {
+    requires_approval: requiresApproval,
     id: 'e1', created_by: 'host', club_id: null, title: 'Open Play', description: null, location: 'Roots',
     event_date: '2030-01-15T19:00:00', duration_minutes: 120, max_attendees: 12, created_at: 'x', price: 0,
     cancelled_at: null, profiles: { id: 'host', username: 'host' } as EventWithDetails['profiles'], event_tags: [],
@@ -41,6 +42,21 @@ describe.each([
     expect(onRsvp).toHaveBeenLastCalledWith('e1', 'join')
     const going = render(<Card event={event('attending')} currentUserId="me" onRsvp={onRsvp} />)
     fireEvent.press(going.getByText('Going ✓'), { stopPropagation: () => {} })
+    expect(onRsvp).toHaveBeenLastCalledWith('e1', 'leave')
+  })
+
+  it('never one-tap joins an approval-gated event; the pill opens the event instead', () => {
+    const onRsvp = jest.fn(async () => {})
+    const view = render(<Card event={event(undefined, true)} currentUserId="me" onRsvp={onRsvp} />)
+    expect(view.queryByText('RSVP')).toBeNull()
+    fireEvent.press(view.getByText('Needs approval'), { stopPropagation: () => {} })
+    expect(onRsvp).not.toHaveBeenCalled()
+  })
+
+  it('still lets an attendee of an approval-gated event leave', () => {
+    const onRsvp = jest.fn(async () => {})
+    const view = render(<Card event={event('attending', true)} currentUserId="me" onRsvp={onRsvp} />)
+    fireEvent.press(view.getByText('Going ✓'), { stopPropagation: () => {} })
     expect(onRsvp).toHaveBeenLastCalledWith('e1', 'leave')
   })
 })
