@@ -7,6 +7,10 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
   retries: 1,
+  // End the run (and emit the github annotations + HTML report) before the CI
+  // job's 20-minute timeout kills it silently. A broken build fails fast
+  // instead of retrying every test into the timeout.
+  ...(process.env.CI ? { globalTimeout: 13 * 60_000, maxFailures: 8 } : {}),
   reporter: [
     // On CI, also report failures as GitHub annotations (readable on the PR and via the API).
     ...(process.env.CI ? [['github'] as const] : []),
