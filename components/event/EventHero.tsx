@@ -3,6 +3,7 @@ import { Platform, Text, View } from 'react-native'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { theme, LOCATIONS } from '../../constants'
+import { TimePill } from '../ui'
 import type { EventWithDetails } from '../../types'
 import { formatDuration } from '../../utils'
 import { eventDateMs } from '../../hooks/event'
@@ -38,10 +39,11 @@ export function EventHero({ event }: Props) {
           pointerEvents="none"
         />
         {/* Date + type chips */}
-        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-          <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, backgroundColor: theme.colors.accent }}>
+        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <TimePill label={timeStr} size="lg" testID="event-hero-time" />
+          <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, backgroundColor: theme.colors.accent, justifyContent: 'center' }}>
             <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.accentInk }}>
-              {dayStr} · {timeStr}
+              {dayStr}
             </Text>
           </View>
           {typeTags.map(et => (

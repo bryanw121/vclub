@@ -2,6 +2,7 @@ import { memo } from 'react'
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { shared, theme, SURFACE_ACCENTS, SURFACE_LABELS } from '../constants'
+import { TimePill } from './ui'
 import type { ExternalSession, SessionLinkDecision, SessionLinkNotice } from '../types'
 import { formatSessionTimeRange, signupHost } from '../utils/feedItems'
 import { describeNewTime } from '../lib/schelagg'
@@ -69,7 +70,8 @@ function ExternalSessionCardInner({ session }: Props) {
   const start = new Date(session.starts_at)
   const surface = session.surface ? { label: SURFACE_LABELS[session.surface], color: SURFACE_ACCENTS[session.surface] } : null
   const accent = surface?.color ?? theme.colors.subtext
-  const meta = [formatSessionTimeRange(session.starts_at, session.ends_at), session.level, session.price]
+  const timeRange = formatSessionTimeRange(session.starts_at, session.ends_at)
+  const meta = [session.level, session.price]
     .filter(Boolean)
     .join(' · ')
   const signupLabel = session.signup_label ?? (session.signup_url ? `Sign up on ${signupHost(session.signup_url)}` : null)
@@ -100,6 +102,9 @@ function ExternalSessionCardInner({ session }: Props) {
         <Text style={shared.externalKicker} numberOfLines={1}>
           {[surface?.label, session.session_type].filter(Boolean).join(' · ')}
         </Text>
+        <View style={{ marginBottom: 4 }}>
+          <TimePill label={timeRange} accessibilityLabel={timeRange} testID="external-session-time" />
+        </View>
         <Text style={shared.externalTitle} numberOfLines={2}>{session.title}</Text>
         <Text style={shared.externalMeta} numberOfLines={1}>
           {session.city ? `${session.venue} · ${session.city}` : session.venue}
