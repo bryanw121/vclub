@@ -1,5 +1,5 @@
 import { Platform } from 'react-native'
-import { routes } from './routes'
+import { isAppPath, routes } from './routes'
 
 /**
  * Guest browsing rules.
@@ -58,7 +58,9 @@ export function takePostSignInRedirect(): string | null {
     storage?.removeItem(STORAGE_KEY)
   } catch { /* ignore */ }
   pendingRedirect = null
-  return path
+  // sessionStorage is same-origin but still outside our control: only hand the
+  // router an in-app path.
+  return isAppPath(path) ? path : null
 }
 
 /** Where "Keep browsing without an account" goes: back where the guest was, unless that page needs an account. */

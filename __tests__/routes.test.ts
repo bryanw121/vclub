@@ -63,3 +63,10 @@ describe('routes', () => {
     expect(routes.app()).toBe('/(app)')
   })
 })
+
+describe('isAppPath backslash', () => {
+  it('rejects paths browsers would treat as protocol-relative', () => {
+    expect(isAppPath('/\\evil.com')).toBe(false)
+    expect(isAppPath('/event/1\\x')).toBe(false)
+  })
+})
