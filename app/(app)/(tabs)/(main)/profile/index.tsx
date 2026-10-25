@@ -8,6 +8,7 @@ import { SignInPrompt } from '../../../../../components/SignInPrompt'
 import { ScreenState } from '../../../../../components/ui'
 import { ProfileHero } from '../../../../../components/profile/ProfileHero'
 import { ProfileMenu } from '../../../../../components/profile/ProfileMenu'
+import { useTour } from '../../../../../contexts/tour'
 import { EditProfileForm } from '../../../../../components/profile/EditProfileForm'
 import { RecentCheersPlaceholder, TrophyCase } from '../../../../../components/profile/TrophyCase'
 import { useAvatarUploader } from '../../../../../components/profile/useAvatarUploader'
@@ -40,6 +41,7 @@ type Props = {
 /** The loaded Profile tab: hero card, then either the settings menu or the edit form. */
 function MyProfileBody({ profile, totalCheers, badges, saving, updateProfile, setDisplaySlot, checkBadges, refreshing, onRefresh }: Props) {
   const router = useRouter()
+  const tour = useTour()
   const { setTabBarHidden, tabBarHeight, docScrollActive } = useTabsShell()
   const lastScrollY = useRef(0)
   const [section, setSection] = useState<'menu' | 'edit'>('menu')
@@ -112,7 +114,7 @@ function MyProfileBody({ profile, totalCheers, badges, saving, updateProfile, se
           <>
             <TrophyCase />
             <RecentCheersPlaceholder />
-            <ProfileMenu onOpen={s => router.push(routes.settings(s))} />
+            <ProfileMenu onOpen={s => router.push(routes.settings(s))} onTakeTour={() => tour.start('intro', 'profile_menu')} />
           </>
         ) : (
           <EditProfileForm
@@ -192,6 +194,7 @@ function MyProfileSignedIn() {
 /** Guests see a sign-in prompt; the signed-in screen (and its data hooks) only mounts with a session. */
 export default function MyProfile() {
   const { userId, loading } = useSession()
+  const tour = useTour()
   if (loading) return null
   if (!userId) {
     return (
@@ -199,6 +202,7 @@ export default function MyProfile() {
         icon="person-circle-outline"
         title="Your volleyball profile"
         body="Sign in or sign up to track the events you play, your cheers and your badges."
+        extra={{ label: 'Take the tour', onPress: () => tour.start('intro', 'profile_menu'), testID: 'take-tour' }}
       />
     )
   }

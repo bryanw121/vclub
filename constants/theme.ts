@@ -36,6 +36,8 @@ export const theme = {
     /** Scrim behind dialogs and bottom sheets. */
     overlay:      'rgba(0,0,0,0.5)',    // shared.modalOverlay (host, feedback)
     overlayLight: 'rgba(0,0,0,0.45)',   // event detail's confirm dialogs / ConfirmDialog
+    /** Dims everything but the highlighted target during a guided tour. */
+    tourScrim:    'rgba(8,6,18,0.74)',
     // Podium / trophy medals
     medalGold:    '#FFD54F',
     medalSilver:  '#B0BEC5',

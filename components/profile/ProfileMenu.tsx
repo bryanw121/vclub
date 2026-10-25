@@ -6,6 +6,8 @@ import type { SettingsSection } from '../../utils/routes'
 
 type Props = {
   onOpen: (section: SettingsSection) => void
+  /** "Take the tour" row: restarts the intro tour. */
+  onTakeTour: () => void
 }
 
 type MenuItem = {
@@ -25,25 +27,30 @@ const MENU_ITEMS: readonly MenuItem[] = [
 ]
 
 /** The settings shortcuts under the profile hero. Navigation is the caller's (`onOpen`). */
-export function ProfileMenu({ onOpen }: Props) {
+export function ProfileMenu({ onOpen, onTakeTour }: Props) {
+  const rows = [
+    ...MENU_ITEMS.map(item => ({ key: item.section, title: item.title, icon: item.icon, onPress: () => onOpen(item.section) })),
+    { key: 'tour', title: 'Take the tour', icon: 'compass-outline' as MenuItem['icon'], onPress: onTakeTour },
+  ]
   return (
     <View style={[shared.card, { gap: 0, marginTop: theme.spacing.lg, padding: 0, overflow: 'hidden' }]}>
-      {MENU_ITEMS.map((item, idx) => (
+      {rows.map((row, idx) => (
         <Pressable
-          key={item.section}
-          onPress={() => onOpen(item.section)}
+          key={row.key}
+          onPress={row.onPress}
           accessibilityRole="button"
-          accessibilityLabel={item.title}
+          accessibilityLabel={row.title}
+          testID={row.key === 'tour' ? 'take-tour' : `profile-menu-${row.key}`}
           style={({ pressed }) => [
             styles.row,
-            idx < MENU_ITEMS.length - 1 && styles.rowBorder,
+            idx < rows.length - 1 && styles.rowBorder,
             pressed && { backgroundColor: theme.colors.background },
           ]}
         >
           <View style={styles.rowIcon}>
-            <Ionicons name={item.icon} size={18} color={theme.colors.primary} />
+            <Ionicons name={row.icon} size={18} color={theme.colors.primary} />
           </View>
-          <Text style={styles.rowTitle}>{item.title}</Text>
+          <Text style={styles.rowTitle}>{row.title}</Text>
           <Ionicons name="chevron-forward" size={16} color={theme.colors.subtext} />
         </Pressable>
       ))}
