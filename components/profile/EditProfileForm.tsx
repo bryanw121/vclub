@@ -53,8 +53,8 @@ function PositionOptionChip({ label, rank, onPress }: { label: string; rank?: nu
       }}
     >
       {active && (
-        <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 9, fontWeight: theme.font.weight.bold, color: theme.colors.onPrimary, lineHeight: 12 }}>{rank}</Text>
+        <View style={{ width: 19, height: 19, borderRadius: 10, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.bold, color: theme.colors.onPrimary, lineHeight: 13 }}>{rank}</Text>
         </View>
       )}
       <Text style={{

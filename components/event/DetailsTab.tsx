@@ -95,7 +95,7 @@ function HostRow({
     >
       <ProfileAvatar uri={avatarUri} border={border ?? null} size={44} />
       <View style={{ flex: 1 }}>
-        <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</Text>
+        <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</Text>
         <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 16, color: theme.colors.text, letterSpacing: -0.2 }}>{name}</Text>
       </View>
       {!isMe && (
@@ -163,7 +163,7 @@ export function DetailsTab({
                 >
                   {s.k}
                 </Text>
-                <Text style={{ fontFamily: theme.fonts.body, fontSize: 10, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 0.7, textTransform: 'uppercase', marginTop: 2 }}>{s.l}</Text>
+                <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 0.7, textTransform: 'uppercase', marginTop: 2 }}>{s.l}</Text>
               </View>
             ))}
           </View>
@@ -438,7 +438,7 @@ export function DetailsTab({
       {/* ── About / description card ── */}
       {event.description ? (
         <View style={{ backgroundColor: theme.colors.card, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: theme.colors.border, marginBottom: theme.spacing.md }}>
-          <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8 }}>About</Text>
+          <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8 }}>About</Text>
           <LinkedText text={event.description} style={{ fontSize: theme.font.size.sm, color: theme.colors.text, lineHeight: 20 }} />
         </View>
       ) : null}

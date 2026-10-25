@@ -208,7 +208,7 @@ export default function UserProfileDetail() {
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={{
                   fontFamily: theme.fonts.body,
-                  fontSize: 10.5, fontWeight: '700',
+                  fontSize: theme.font.size.xs, fontWeight: '700',
                   color: 'rgba(255,255,255,0.55)',
                   letterSpacing: 1, textTransform: 'uppercase',
                 }}>
@@ -263,15 +263,15 @@ export default function UserProfileDetail() {
                 <Text style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: theme.colors.accent }}>
                   {profile.skill_level ? volleyballSkillLevelLabel(profile.skill_level) : '—'}
                 </Text>
-                <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>Skill</Text>
+                <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>Skill</Text>
               </View>
               <View style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center' }}>
                 <Text style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: theme.colors.white }}>{totalCheers}</Text>
-                <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>Cheers</Text>
+                <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>Cheers</Text>
               </View>
               <View style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center' }}>
                 <Text style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: theme.colors.white }}>0</Text>
-                <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>Trophies</Text>
+                <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>Trophies</Text>
               </View>
             </View>
 
@@ -317,8 +317,8 @@ export default function UserProfileDetail() {
                   }}>
                     <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 18, color: theme.colors.background }}>{t.place}</Text>
                   </View>
-                  <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: 10.5, color: theme.colors.text, letterSpacing: 0.2 }}>{t.label}</Text>
-                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 9.5, color: theme.colors.subtext, marginTop: 1 }}>—</Text>
+                  <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: theme.font.size.xs, color: theme.colors.text, letterSpacing: 0.2 }}>{t.label}</Text>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext, marginTop: 1 }}>—</Text>
                 </View>
               ))}
             </View>

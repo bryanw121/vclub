@@ -118,7 +118,7 @@ function AppLayoutInner() {
                     vteam
                   </Text>
                   <View style={{ backgroundColor: theme.colors.primary + '22', borderWidth: 1, borderColor: theme.colors.primary + '66', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: theme.colors.primary, letterSpacing: 1 }}>BETA</Text>
+                    <Text style={{ fontSize: theme.font.size.xs, fontWeight: '700', color: theme.colors.primary, letterSpacing: 1 }}>BETA</Text>
                   </View>
                 </View>
               )}
@@ -161,12 +161,12 @@ function AppLayoutInner() {
                     {badge > 0 && (
                       <View style={{
                         position: 'absolute', top: -5, right: -8,
-                        minWidth: 16, height: 16, borderRadius: 8,
+                        minWidth: 18, height: 18, borderRadius: 9,
                         backgroundColor: theme.colors.hot,
                         alignItems: 'center', justifyContent: 'center',
                         paddingHorizontal: 3,
                       }}>
-                        <Text style={{ fontSize: 8, fontWeight: '800', color: theme.colors.white, lineHeight: 11 }}>
+                        <Text style={{ fontSize: theme.font.size.xs, fontWeight: '800', color: theme.colors.white, lineHeight: 13 }}>
                           {badge > 99 ? '99+' : badge}
                         </Text>
                       </View>

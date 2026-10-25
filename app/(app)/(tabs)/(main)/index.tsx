@@ -753,7 +753,7 @@ const WeekStripContent = memo(function WeekStripContent({ weekDays, selectedDate
             >
               <Text style={{
                 fontFamily: theme.fonts.body,
-                fontSize: 9,
+                fontSize: theme.font.size.xs,
                 fontWeight: theme.font.weight.bold,
                 letterSpacing: 0.8,
                 color: isSelected ? theme.colors.white : theme.colors.subtext,
@@ -829,7 +829,7 @@ const MonthGridContent = memo(function MonthGridContent({ month, selectedDate, m
       {/* Day-of-week labels */}
       <View style={{ flexDirection: 'row', marginBottom: 4 }}>
         {DAY_LABELS.map(d => (
-          <Text key={d} style={{ flex: 1, textAlign: 'center', fontFamily: theme.fonts.bodySemiBold, fontSize: 10, fontWeight: theme.font.weight.bold, letterSpacing: 0.8, color: theme.colors.subtext }}>
+          <Text key={d} style={{ flex: 1, textAlign: 'center', fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, fontWeight: theme.font.weight.bold, letterSpacing: 0.8, color: theme.colors.subtext }}>
             {d}
           </Text>
         ))}

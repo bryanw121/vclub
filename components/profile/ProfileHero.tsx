@@ -18,7 +18,7 @@ type Props = {
   onEdit: () => void
 }
 
-const STAT_LABEL = { fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 } as const
+const STAT_LABEL = { fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 } as const
 
 /** The profile card at the top of the Profile tab: avatar, name, stats and pinned badges. */
 export function ProfileHero({ profile, uploader, mode, totalCheers, displayedBadges, onEdit }: Props) {
@@ -43,7 +43,7 @@ export function ProfileHero({ profile, uploader, mode, totalCheers, displayedBad
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, width: '100%' }}>
           <AvatarUploader profile={profile} uploader={uploader} editMode={false} />
           <View style={{ flex: 1, gap: 4 }}>
-            <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 1, textTransform: 'uppercase' }}>
+            <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 1, textTransform: 'uppercase' }}>
               Member since {new Date(profile.created_at).getFullYear().toString().slice(2)}
             </Text>
             <Text style={{ fontFamily: theme.fonts.display, fontSize: 22, letterSpacing: -0.5, color: theme.colors.white, lineHeight: 24 }}>

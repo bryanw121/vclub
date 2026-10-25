@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: theme.colors.primary, borderRadius: theme.radius.lg, padding: 14, marginBottom: 6 },
   pillRow: { flexDirection: 'row', gap: 6, marginBottom: theme.spacing.sm },
   pill: { paddingHorizontal: theme.spacing.sm, paddingVertical: 3, borderRadius: theme.radius.full, backgroundColor: theme.colors.accent },
-  pillText: { fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xxs, color: theme.colors.accentInk },
+  pillText: { fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, color: theme.colors.accentInk },
   title: { fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 17, letterSpacing: -0.3, color: theme.colors.onPrimary, marginBottom: theme.spacing.xs },
   // Same look as the old rgba(255,255,255,0.7) without a literal.
   location: { fontFamily: theme.fonts.body, fontSize: 11.5, color: theme.colors.onPrimary, opacity: 0.7 },
