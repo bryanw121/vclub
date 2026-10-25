@@ -18,4 +18,6 @@ export const STALE = {
   tags: 10 * 60_000,
   /** get_my_conversations (Chat list, chat tab badge, chat room header); realtime patches it in between. */
   conversations: 30_000,
+  /** Court availability from Schelagg (Book a court). Its API caches 60s, so refetching sooner gains nothing. */
+  courts: 60_000,
 } as const

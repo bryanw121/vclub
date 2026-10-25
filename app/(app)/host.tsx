@@ -75,13 +75,18 @@ export default function HostEventScreen() {
     if (router.canGoBack()) router.back()
     else router.replace(routes.app())
   }
-  const { mode: modeParam, edit: editId, maxAttendees: maxAttendeesParam } = useLocalSearchParams<{ mode?: string; edit?: string; maxAttendees?: string }>()
+  const {
+    mode: modeParam, edit: editId, maxAttendees: maxAttendeesParam, location: locationParam, surface: surfaceParam,
+  } = useLocalSearchParams<{ mode?: string; edit?: string; maxAttendees?: string; location?: string; surface?: string }>()
   const isEdit = !!editId
 
   const [view, setView] = useState<'form' | 'templates'>(modeParam === 'templates' ? 'templates' : 'form')
   const [form, setForm] = useState<CreateEventForm>({
     ...EMPTY_FORM,
     maxAttendees: (() => { const n = parseInt(maxAttendeesParam ?? '', 10); return Number.isFinite(n) && n > 0 ? n : null })(),
+    // "Already booked? Create a vteam event for it" (Book a court) passes the venue and its surface.
+    location: typeof locationParam === 'string' ? locationParam.slice(0, 200) : '',
+    surface: isSurface(surfaceParam) ? surfaceParam : null,
   })
   const [recurrence, setRecurrence] = useState({
     enabled: false,

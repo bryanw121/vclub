@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { Animated, Image, Platform, Pressable, View, Text, TouchableOpacity } from 'react-native'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { Stack, useRouter, usePathname } from 'expo-router'
-import { theme, BADGE_DEFINITIONS, BREAKPOINTS, TABS, CREATE_MENU, tabIndexFromPath } from '../../constants'
+import { theme, BADGE_DEFINITIONS, BREAKPOINTS, TABS, tabIndexFromPath } from '../../constants'
+import type { CreateMenuOption } from '../../constants'
+import { CreateMenuList } from '../../components/CreateMenuList'
 import { WebNavContext } from '../../contexts/webNav'
 import { SentryErrorBoundary } from '../../components/SentryErrorBoundary'
 import { ChatUnreadProvider, useChatUnread } from '../../hooks/useChatUnread'
 import { useIsNarrowWeb } from '../../hooks/useIsNarrowWeb'
 import { useRequireSignIn } from '../../hooks/useRequireSignIn'
-import { routes, type RouteString } from '../../utils/routes'
+import { routes } from '../../utils/routes'
 
 // Collect every badge image URL defined in code and prefetch them so the
 // badges screen renders instantly without a network loading flash.
@@ -62,8 +64,8 @@ function AppLayoutInner() {
     router.replace(TABS[index].path)
   }
 
+  // Anyone may open the menu ("Book a court" is public); creating on vteam asks guests to sign in (goCreate).
   function openFab() {
-    if (!requireSignIn()) return
     setFabOpen(true)
     Animated.spring(fabAnim, { toValue: 1, useNativeDriver: true, tension: 120, friction: 8 }).start()
   }
@@ -72,9 +74,10 @@ function AppLayoutInner() {
     Animated.timing(fabAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => setFabOpen(false))
   }
 
-  function goHost(path: RouteString) {
+  function goCreate(option: CreateMenuOption) {
     closeFab()
-    setTimeout(() => router.push(path), 160)
+    if (option.requiresAuth && !requireSignIn()) return
+    setTimeout(() => router.push(option.path), 160)
   }
 
   const sidebarActive = tabIndexFromPath(pathname)
@@ -202,6 +205,7 @@ function AppLayoutInner() {
               <Stack.Screen name="club/create" options={{ title: 'Create club', headerBackTitle: 'Clubs', gestureEnabled: true }} />
               <Stack.Screen name="notifications" options={{ title: 'Notifications', headerBackTitle: 'Back' }} />
               <Stack.Screen name="chat/[id]" options={{ headerShown: false, gestureEnabled: true }} />
+              <Stack.Screen name="book" options={{ headerShown: false, gestureEnabled: true }} />
             </Stack>
 
             {/* FAB backdrop */}
@@ -219,34 +223,12 @@ function AppLayoutInner() {
                   position: 'absolute',
                   bottom: 32 + 52 + theme.spacing.sm,
                   right: 32,
-                  gap: theme.spacing.sm,
                   alignItems: 'flex-end',
                   opacity: fabAnim,
                   transform: [{ translateY: fabAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
                 }}
               >
-                {CREATE_MENU.map(opt => (
-                  <TouchableOpacity
-                    key={opt.label}
-                    onPress={() => goHost(opt.path)}
-                    style={{
-                      backgroundColor: theme.colors.card,
-                      borderRadius: theme.radius.full,
-                      paddingVertical: theme.spacing.sm,
-                      paddingHorizontal: theme.spacing.lg,
-                      borderWidth: 1,
-                      borderColor: theme.colors.border,
-                      shadowColor: theme.colors.black,
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.12,
-                      shadowRadius: 4,
-                    }}
-                  >
-                    <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.medium, color: theme.colors.text }}>
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                <CreateMenuList variant="panel" onSelect={goCreate} />
               </Animated.View>
             )}
 
@@ -304,6 +286,7 @@ function AppLayoutInner() {
       <Stack.Screen name="club/create" options={{ title: 'Create club', headerBackTitle: 'Clubs', gestureEnabled: true }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications', headerBackTitle: 'Back' }} />
       <Stack.Screen name="chat/[id]" options={{ headerShown: false, gestureEnabled: true }} />
+      <Stack.Screen name="book" options={{ headerShown: false, gestureEnabled: true }} />
     </Stack>
     </SentryErrorBoundary>
   )

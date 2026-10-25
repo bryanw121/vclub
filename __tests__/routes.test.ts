@@ -48,6 +48,14 @@ describe('routes', () => {
     expect(routes.host({ edit: 'e1', maxAttendees: 10, mode: 'templates' })).toBe(
       '/host?edit=e1&maxAttendees=10&mode=templates',
     )
+    // "Already booked? Create a vteam event for it" from Book a court
+    expect(routes.host({ location: 'Roots · Treehouse Gym', surface: 'indoor' })).toBe(
+      '/host?location=Roots%20%C2%B7%20Treehouse%20Gym&surface=indoor',
+    )
+  })
+
+  it('builds the public Book a court route', () => {
+    expect(routes.book()).toBe('/book')
   })
 
   it('builds settings routes', () => {
