@@ -3,9 +3,9 @@
  * Run: npx playwright test e2e/chat.spec.ts
  *
  * Test account: E2E_USERNAME / E2E_PASSWORD (see .env.example)
- * Seed conversation: the e2e account's DM with @jexyissexy (id: 1e473b01-c06a-48b0-9308-21b3f593f603).
+ * Seed conversation: the e2e account's DM with @e2ebuddy (id: 1e473b01-c06a-48b0-9308-21b3f593f603).
  * It must belong to the E2E_USERNAME account: the compose test expects picking
- * @jexyissexy to open exactly this conversation.
+ * @e2ebuddy to open exactly this conversation.
  */
 
 import { test, expect, Page } from '@playwright/test'
@@ -151,21 +151,21 @@ test.describe('Chat', () => {
   test('compose search returns matching users', async ({ page }) => {
     await page.getByRole('button', { name: 'New message' }).click()
     await page.waitForTimeout(500)
-    await page.getByRole('textbox').fill('jexy')
+    await page.getByRole('textbox').fill('e2ebud')
     await page.waitForTimeout(1500)
-    await expect(page.getByText('@jexyissexy')).toBeVisible()
+    await expect(page.getByText('@e2ebuddy')).toBeVisible()
   })
 
   test('selecting a user from compose opens the conversation', async ({ page }) => {
     await page.getByRole('button', { name: 'New message' }).click()
     await page.waitForTimeout(500)
-    await page.getByRole('textbox').fill('jexy')
+    await page.getByRole('textbox').fill('e2ebud')
     await page.waitForTimeout(1500)
     // Target the @username, not the display name: a member can rename
     // themselves at any time, and this test previously hard-coded a first/last
     // name that has since changed. The username is the stable identifier, and
     // it's what the sibling search test asserts on.
-    await page.getByText('@jexyissexy').first().click({ force: true })
+    await page.getByText('@e2ebuddy').first().click({ force: true })
     await page.waitForTimeout(1500)
     expect(page.url()).toBe(CONVO_URL)
   })
