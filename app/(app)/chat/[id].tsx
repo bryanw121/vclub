@@ -295,9 +295,9 @@ export default function ChatRoomScreen() {
       username: convRow.other_user_username ?? 'player',
     })
     if (Platform.OS === 'web') {
-      window.alert(`${name} has been reported to the Vclub team.`)
+      window.alert(`${name} has been reported to vteam.`)
     } else {
-      Alert.alert('Report submitted', `${name} has been reported to the Vclub team.`)
+      Alert.alert('Report submitted', `${name} has been reported to vteam.`)
     }
   }, [convRow])
 
@@ -311,7 +311,7 @@ export default function ChatRoomScreen() {
 
     confirmDestructive(
       'Report this player?',
-      `Send a moderation report about ${name} to the Vclub team?`,
+      `Send a moderation report about ${name} to vteam?`,
       'Report',
       submitStubDmReport,
     )

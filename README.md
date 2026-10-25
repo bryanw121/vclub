@@ -1,4 +1,4 @@
-# vclub
+# vteam
 
 Repository documentation:
 

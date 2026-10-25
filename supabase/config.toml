@@ -5,7 +5,7 @@
 # `supabase functions deploy` reads verify_jwt from this file, so the setting
 # no longer depends on what someone clicked in the Dashboard.
 
-project_id = "vclub"
+project_id = "vteam"
 
 # Called by a Database Webhook on messages INSERT. Not a user request, so there is
 # no user JWT; the function authenticates the caller itself (_shared/webhook.ts).

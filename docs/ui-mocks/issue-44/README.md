@@ -16,5 +16,5 @@ The comparison board is illustrative. It does not approve a new event-preview
 component, phone chrome, or other form redesign.
 
 Approval must be recorded on
-[issue #44](https://github.com/bryanw121/vclub/issues/44) before implementation
+[issue #44](https://github.com/bryanw121/vteam/issues/44) before implementation
 is committed, as required by `CONTRIBUTING.md`.

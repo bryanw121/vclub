@@ -112,7 +112,7 @@ function AppLayoutInner() {
                     fontWeight: theme.font.weight.bold,
                     color: theme.colors.primary,
                   }}>
-                    vclub
+                    vteam
                   </Text>
                   <View style={{ backgroundColor: theme.colors.primary + '22', borderWidth: 1, borderColor: theme.colors.primary + '66', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
                     <Text style={{ fontSize: 10, fontWeight: '700', color: theme.colors.primary, letterSpacing: 1 }}>BETA</Text>

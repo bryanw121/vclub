@@ -33,7 +33,7 @@ if the inventory is stale, so code and its documentation land atomically.
 
 ## Architecture at a glance
 
-vclub does not have a conventional application API with controllers and DTOs.
+vteam does not have a conventional application API with controllers and DTOs.
 The Expo/React Native frontend usually calls Supabase directly with
 `@supabase/supabase-js`. The public project URL and anon key create the client;
 after sign-in, Supabase attaches the user's JWT and PostgreSQL Row Level

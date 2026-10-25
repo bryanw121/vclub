@@ -28,6 +28,7 @@ export function isProtectedPath(pathname: string): boolean {
  * and mirrored to sessionStorage on web because Google/Apple sign-in there is a
  * full-page redirect that would otherwise wipe it.
  */
+// Keeps the pre-rename "vclub" prefix so an in-flight redirect survives the deploy.
 const STORAGE_KEY = 'vclub.postSignInRedirect'
 const AUTH_SCREENS = ['/(auth)', '/login', '/register', '/reset-password']
 let pendingRedirect: string | null = null

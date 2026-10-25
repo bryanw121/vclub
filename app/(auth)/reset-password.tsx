@@ -63,7 +63,7 @@ export default function ResetPassword() {
       style={shared.authBackground}
     >
       <View style={shared.authCard}>
-        <Text style={shared.authTitle}>vclub</Text>
+        <Text style={shared.authTitle}>vteam</Text>
 
         {done ? (
           <>

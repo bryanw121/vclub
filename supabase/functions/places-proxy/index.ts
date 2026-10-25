@@ -14,7 +14,7 @@
  * rejects calls without a valid user JWT. supabase.functions.invoke sends one.
  *
  * CORS: set ALLOWED_ORIGINS (comma-separated, e.g.
- * "https://vclub.example.com,http://localhost:8081") to restrict browser callers.
+ * "https://vteam.example.com,http://localhost:8081") to restrict browser callers.
  * Unset keeps the old behaviour (`*`). Native apps send no Origin header and are
  * unaffected either way.
  */

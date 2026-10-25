@@ -1,9 +1,9 @@
 # Product Requirements Document (PRD)
 
-## vclub — Volleyball Events Platform
+## vteam — Volleyball Events Platform
 
 ### Document Purpose
-Define the product problem, goals, users, functional requirements, KPIs, risks, and a roadmap for `vclub`.
+Define the product problem, goals, users, functional requirements, KPIs, risks, and a roadmap for `vteam`.
 
 ### Current State (from code)
 The app is an Expo Router + React Native client backed by Supabase.

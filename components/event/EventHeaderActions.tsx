@@ -67,7 +67,7 @@ export function EventHeaderActions({ eventId, title, canManage, deleting, onBack
       return
     }
     const url = Linking.createURL(routes.event(eventId))
-    await Share.share({ message: `Check out "${title ?? 'Event'}" on vclub:\n${url}`, url })
+    await Share.share({ message: `Check out "${title ?? 'Event'}" on vteam:\n${url}`, url })
   }
 
   async function handleCopyLink() {

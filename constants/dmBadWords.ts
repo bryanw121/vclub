@@ -9,6 +9,7 @@ import { Platform } from 'react-native'
 /** Min time between unsportsmanlike report prompts for the same DM conversation. */
 export const DM_BAD_WORD_PROMPT_COOLDOWN_MS = 60 * 60 * 1000
 
+// Keeps the pre-rename "vclub" prefix: changing it would reset every device's stored value.
 const DM_BAD_WORD_PROMPT_AT_KEY = 'vclub:dmBadWordPromptAt:'
 
 export function dmBadWordPromptStorageKey(conversationId: string): string {

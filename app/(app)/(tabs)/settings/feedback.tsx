@@ -73,7 +73,7 @@ export default function FeedbackScreen() {
         <TouchableOpacity style={shared.modalOverlay} onPress={() => setFeedbackSubmitted(false)}>
           <View style={shared.modalCard}>
             <Text style={shared.modalEmoji}>🏐</Text>
-            <Text style={shared.modalTitle}>Thanks for making vclub better!</Text>
+            <Text style={shared.modalTitle}>Thanks for making vteam better!</Text>
             <Text style={shared.modalBody}>Your feedback has been saved and the team will review it.</Text>
             <TouchableOpacity style={shared.modalButton} onPress={() => setFeedbackSubmitted(false)}>
               <Text style={shared.modalButtonText}>Done</Text>
