@@ -9,8 +9,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "TZ=America/Chicago jest",
-    "test:timezones": "for tz in America/Chicago America/Denver Europe/Berlin Asia/Tokyo UTC; do echo \"── TZ=$tz ──\"; TZ=$tz jest __tests__/calendarDates.test.ts || exit 1; done",
+    "test": "jest",
+    "test:timezones": "node scripts/test-timezones.mjs",
     "e2e:sweep": "node e2e/sweep.mjs",
     "docs:update": "node scripts/generate-architecture-doc.mjs",
     "docs:check": "node scripts/generate-architecture-doc.mjs --check"
@@ -22,7 +22,8 @@
     ],
     "setupFiles": [
       "./jest.setup.js"
-    ]
+    ],
+    "globalSetup": "./jest.globalSetup.js"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
