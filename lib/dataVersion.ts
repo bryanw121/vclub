@@ -1,6 +1,15 @@
 import { useSyncExternalStore } from 'react'
+import { invalidate } from './query'
 
 /**
+ * DEPRECATED — migration shim over `lib/query`. New code reads with `useQuery`
+ * and writes with `useMutation({ invalidates })` / `invalidate(prefix)`.
+ * `bumpVersion(key)` now also calls `invalidate(key)`, so a screen already on
+ * `useQuery` with that key (e.g. `eventKey(id)`) refetches too. Remove once
+ * Phase B has moved `/host` and `/event/[id]` off it.
+ *
+ * Original contract, kept working for the existing readers:
+ *
  * Mutation-scoped cache invalidation.
  *
  * Screens cache what they fetch and only refetch when they think the data is
@@ -22,16 +31,20 @@ import { useSyncExternalStore } from 'react'
 const versions = new Map<string, number>()
 const listeners = new Set<() => void>()
 
-/** Key for a single event's detail data. */
+/** Key for a single event's detail data. Same as `queryKey('event', id)` for UUID ids. */
 export function eventKey(id: string): string {
   return `event:${id}`
 }
 
-/** Announce that `key`'s underlying data changed. Readers refetch on next focus. */
+/**
+ * Announce that `key`'s underlying data changed. Version readers refetch on
+ * next focus; `useQuery` readers of `key` (and keys under it) refetch now.
+ */
 export function bumpVersion(key: string): void {
   versions.set(key, (versions.get(key) ?? 0) + 1)
   // Copy before iterating: a listener may unsubscribe during the callback.
   Array.from(listeners).forEach(l => l())
+  invalidate(key)
 }
 
 export function getVersion(key: string): number {
