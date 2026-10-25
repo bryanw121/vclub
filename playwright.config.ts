@@ -8,6 +8,8 @@ export default defineConfig({
   timeout: 60_000,
   retries: 1,
   reporter: [
+    // On CI, also report failures as GitHub annotations (readable on the PR and via the API).
+    ...(process.env.CI ? [['github'] as const] : []),
     ['list'],                                    // test names + pass/fail as they run
     ['html', { open: 'never' }],                 // full HTML report saved to playwright-report/
   ],
