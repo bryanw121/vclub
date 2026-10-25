@@ -328,8 +328,11 @@ Test each surface mentally when building. If a component behaves differently acr
 
 ### Single mainline (since July 2026)
 - All development happens on `main` — there is no `beta` branch or beta GitHub environment
-- One Supabase project (`rmelsdqgrpfjzqisycdl`) serves as the only environment
-- CI (`.github/workflows/ci.yml`) runs unit tests on every push/PR to `main` and Playwright e2e on pull requests only (e2e load counts against the shared Supabase project's disk IO budget); secrets are repository-level Actions secrets
+- One live Supabase project (`rmelsdqgrpfjzqisycdl`, "Vteam") serves the app; a second, **vteam beta** (`uifolvbwtrbcmfrvelnl`), exists only for CI
+- CI (`.github/workflows/ci.yml`) runs unit tests on every push/PR to `main` and Playwright e2e on pull requests only; secrets are repository-level Actions secrets
+- **CI never touches the live project.** The web build and e2e in CI use the **vteam beta** Supabase project (`uifolvbwtrbcmfrvelnl`; URL and public anon key are in `ci.yml`). Beta is a schema copy of live with no real user data: only reference tables (`tags`, `major_cities`, `app_config`), `external_sessions` (its own hourly Schelagg ingest), the e2e account `e2ebot` (same credentials as the `E2E_*` secrets), a fake second user `e2ebuddy`, and the seed DM between them (id in `e2e/chat.spec.ts`). Edge functions and auth email settings are not deployed there.
+- **Schema changes go to both projects**: apply every migration to live AND beta (same SQL), then regenerate types from live. A migration applied only to live makes CI fail against beta.
+- Only one PR's suite runs at a time (each shard is in a repo-wide `e2e-beta-supabase-<shard>` concurrency group) because runs share the e2e account and seed conversation. Overlapping suites from several PRs on the live project once exhausted its disk IO budget and made real sign-ins time out. If a queued shard shows "cancelled", re-run its failed jobs; don't remove the group
 
 ### CI e2e specifics
 - The e2e job serves the static export with `npx serve dist` — dynamic routes (`/chat/[id]`, `/event/[id]`, etc.) only resolve because of the rewrite rules in `public/serve.json` (copied into `dist` on export). Add a rewrite there whenever a new dynamic route is created.
