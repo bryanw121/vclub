@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "vteam",
-    "slug": "vclub",
+    "slug": "vteam",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
-    "scheme": "vclub",
+    "scheme": "vteam",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
@@ -15,10 +15,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.vclub.app"
+      "bundleIdentifier": "com.vteamvolleyball.app"
     },
     "android": {
-      "package": "com.vclub.app",
+      "package": "com.vteamvolleyball.app",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
