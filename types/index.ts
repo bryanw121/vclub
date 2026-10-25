@@ -8,6 +8,7 @@
 // narrowed to non-null.
 
 import type { Database, Json, Tables, TablesInsert, TablesUpdate } from './database'
+import type { TabKey } from '../constants/navigation'
 
 /** The client's database type. Kept as an alias so callers don't care how it's assembled. */
 export type AppDatabase = Database
@@ -376,6 +377,71 @@ export type BannerDef = {
   id: string
   title: string
   body: string
+  /** Optional link under the body (e.g. "Check out our tour"). Tapping it also hides the banner. */
+  action?: BannerAction
+}
+
+/**
+ * What a banner's link does. A well-known action id rather than a callback, so
+ * banners stay plain data in constants/banners.ts; OneTimeBanner runs it.
+ * Add a member here (and a case in OneTimeBanner) for a new kind of action.
+ */
+export type BannerAction = { label: string; type: 'startTour'; tourId: TourId }
+
+// ─── Tours (constants/tours.ts, contexts/tour.tsx) ───────────────────────────
+
+export type TourId = 'intro'
+
+/** Where the step's card sits relative to its target. 'auto' picks the side with more room. */
+export type TourPlacement = 'auto' | 'top' | 'bottom'
+
+export type TourStepDef = {
+  /** Id a `<TourTarget id>` (or `useTourTarget(id)`) registers. Steps whose target isn't on screen are skipped. */
+  target: string
+  title: string
+  /** One plain sentence. */
+  body: string
+  /** Tab the target lives on; the tour switches there first. Omit for targets on every tab (the tab bar). */
+  tab?: TabKey
+  placement?: TourPlacement
+}
+
+export type TourDef = {
+  id: TourId
+  steps: readonly TourStepDef[]
+}
+
+/** Where the tour was started from (for analytics and debugging). */
+export type TourSource = 'banner' | 'profile_menu' | 'other'
+
+/** What the tab shell hands the tour so it can move between tabs (registered by the tabs layout). */
+export type TourShell = {
+  /** Switch to TABS[index], leaving any stack screen (settings, a profile) first. */
+  showTab: (index: number) => void
+  /** Bring back chrome that hides on scroll (the mobile tab bar) so its targets can be highlighted. */
+  revealChrome: () => void
+}
+
+/** `useTour()`: start or stop a tour from anywhere under the app layout. */
+export type TourControls = {
+  start: (id: TourId, source?: TourSource) => void
+  stop: () => void
+  active: boolean
+}
+
+/** A rectangle in window coordinates (what `measureInWindow` reports). */
+export type TourRect = { x: number; y: number; width: number; height: number }
+
+export type TourSize = { width: number; height: number }
+
+export type TourInsets = { top: number; right: number; bottom: number; left: number }
+
+/** Where the tour card goes: top-left corner, which side of the target, and the arrow's x inside the card. */
+export type TourCardPosition = { x: number; y: number; side: 'top' | 'bottom'; arrowX: number }
+
+/** Anything `measureInWindow` can be called on (a host View ref on native and web). */
+export type TourMeasurable = {
+  measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => void
 }
 
 /**
