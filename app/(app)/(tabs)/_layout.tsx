@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useFocusEffect, Stack, usePathname, useRouter } from "expo-router";
 import { Animated, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { BlurView } from "expo-blur";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Slot } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TabsActiveContext, TabsContext, TabsShellContext } from "../../../contexts/tabs";

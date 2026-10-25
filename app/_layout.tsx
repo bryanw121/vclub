@@ -104,7 +104,18 @@ function RootNavigator() {
   const segments = useSegments()
   const pathname = usePathname()
 
-  const ready = fontsLoaded && !loading
+  // Web: the static HTML is rendered at build time with no viewport, session,
+  // clock or device storage, and much of the app branches on exactly those
+  // (wide sidebar vs mobile shell via useIsNarrowWeb / useWindowDimensions,
+  // guest vs signed-in, today's date, the saved feed snapshot). So the static
+  // HTML and the first client render are the splash alone, which hydrates
+  // cleanly, and the app tree mounts right after hydration (still under the
+  // splash, with the snapshot already in the query cache). Native has nothing
+  // to hydrate and mounts the tree at once.
+  const [hydrated, setHydrated] = useState(Platform.OS !== 'web')
+  useEffect(() => { setHydrated(true) }, [])
+
+  const ready = fontsLoaded && !loading && hydrated
   const [splashVisible, setSplashVisible] = useState(true)
   const splashOpacity = useRef(new Animated.Value(1)).current
 
@@ -133,7 +144,8 @@ function RootNavigator() {
   // creates a session but the user still has to set a new password).
   const prevUserIdRef = useRef<string | null | undefined>(undefined)
   useEffect(() => {
-    if (loading) return
+    // Wait for the navigator to mount before redirecting.
+    if (loading || !hydrated) return
     const justSignedOut = !!prevUserIdRef.current && !userId
     prevUserIdRef.current = userId
     const inAuthGroup = segments[0] === '(auth)'
@@ -150,23 +162,25 @@ function RootNavigator() {
     } else if (userId && inAuthGroup && !onResetPassword) {
       router.replace(toRoute(takePostSignInRedirect() ?? routes.app()))
     }
-  }, [userId, loading, segments, pathname])
+  }, [userId, loading, hydrated, segments, pathname])
 
   return (
     <SentryErrorBoundary>
     <SafeAreaProvider>
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <Stack
-        screenOptions={{
-          headerStyle: { backgroundColor: theme.colors.background },
-          headerTintColor: theme.colors.primary,
-          headerShadowVisible: false,
-          gestureEnabled: true,
-        }}
-      >
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(app)" options={{ headerShown: false }} />
-      </Stack>
+      {hydrated && (
+        <Stack
+          screenOptions={{
+            headerStyle: { backgroundColor: theme.colors.background },
+            headerTintColor: theme.colors.primary,
+            headerShadowVisible: false,
+            gestureEnabled: true,
+          }}
+        >
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="(app)" options={{ headerShown: false }} />
+        </Stack>
+      )}
 
       {updateRequirement && !splashVisible && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
