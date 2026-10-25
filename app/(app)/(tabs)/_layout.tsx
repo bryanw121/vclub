@@ -7,29 +7,16 @@ import { Slot } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TabsActiveContext, TabsContext, TabsShellContext } from "../../../contexts/tabs";
 import { useWebNav } from "../../../contexts/webNav";
-import { theme } from "../../../constants";
+import { theme, BREAKPOINTS, TABS, CREATE_MENU, tabIndexFromPath } from "../../../constants";
 import { useChatUnread } from "../../../hooks/useChatUnread";
 import { useDocScrollMode } from "../../../hooks/useDocScrollMode";
 import { useIsNarrowWeb } from "../../../hooks/useIsNarrowWeb";
 import { shouldRefreshEventsOnFocus } from "../../../utils/monthKeys";
 import { useRequireSignIn } from "../../../hooks/useRequireSignIn";
-import { tabIndexFromPath } from "../../../utils/tabs";
+import type { RouteString } from "../../../utils/routes";
 
-// Pager indices: 0=Events, 1=Clubs, 2=Chat, 3=Profile
-const MOBILE_NAV_TABS = [
-  { name: "Events",  icon: "calendar-outline"     as const, pageIndex: 0 },
-  { name: "Clubs",   icon: "people-outline"        as const, pageIndex: 1 },
-  { name: "Chat",    icon: "chatbubbles-outline"   as const, pageIndex: 2 },
-  { name: "Profile", icon: "person-circle-outline" as const, pageIndex: 3 },
-];
-
-const FAB_OPTIONS = [
-  { label: "Open Play",     path: "/host?maxAttendees=18" },
-  { label: "Tournament",    path: "/tournament/create" },
-  { label: "From Template", path: "/host?mode=templates" },
-];
-
-const SIDEBAR_BREAKPOINT = 768;
+// The bottom bar renders TABS (constants/navigation.ts) in pager order, with the
+// create button inserted before the Chat tab.
 const noopSetTabBarHidden = (_hidden: boolean) => {};
 
 export default function TabsLayout() {
@@ -75,7 +62,7 @@ export default function TabsLayout() {
   }, [tabBarTranslateY]);
   const webNav = useWebNav();
   const router = useRouter();
-  const isNarrowWeb = useIsNarrowWeb(SIDEBAR_BREAKPOINT);
+  const isNarrowWeb = useIsNarrowWeb(BREAKPOINTS.sidebar);
   const chatUnread = useChatUnread();
 
   // Document-scroll mode: narrow web on Events/Clubs/Profile tabs (or an event
@@ -126,17 +113,14 @@ export default function TabsLayout() {
   /** When a stack screen (settings or another user's profile) is open, switch tabs by resetting the stack to the right home route. */
   function handleTabPress(tabIndex: number) {
     if (pathname.startsWith("/settings") || /^\/profile\/[^/]+$/.test(pathname) || pathname.startsWith("/chat")) {
-      if (tabIndex === 0) router.replace("/" as any);
-      else if (tabIndex === 1) router.replace("/clubs" as any);
-      else if (tabIndex === 2) router.replace("/chat" as any);
-      else router.replace("/profile" as any);
+      router.replace(TABS[tabIndex].path);
     }
     goToTab(tabIndex);
   }
 
-  function goHost(path: string) {
+  function goHost(path: RouteString) {
     closeFab();
-    setTimeout(() => router.push(path as any), 160);
+    setTimeout(() => router.push(path), 160);
   }
 
   const tabsShellValue = useMemo(() => ({
@@ -253,7 +237,7 @@ export default function TabsLayout() {
               transform: [{ translateY: fabAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
             }}
           >
-            {FAB_OPTIONS.map(opt => (
+            {CREATE_MENU.map(opt => (
               <TouchableOpacity
                 key={opt.label}
                 onPress={() => goHost(opt.path)}
@@ -310,12 +294,12 @@ export default function TabsLayout() {
               shadowRadius: 20,
               elevation: 12,
             }}>
-              {MOBILE_NAV_TABS.map((tab, idx) => {
+              {TABS.map(tab => {
                 const active = activeTabIndex === tab.pageIndex;
-                const badge = tab.name === 'Chat' && chatUnread > 0 ? chatUnread : 0;
+                const badge = tab.key === 'chat' && chatUnread > 0 ? chatUnread : 0;
 
-                // Insert Create button between Clubs (idx=1) and Chat (idx=2)
-                const createBtn = idx === 2 ? (
+                // Insert Create button between Clubs and Chat
+                const createBtn = tab.key === 'chat' ? (
                   <TouchableOpacity
                     key="create"
                     onPress={fabOpen ? closeFab : openFab}
@@ -337,7 +321,7 @@ export default function TabsLayout() {
                 ) : null;
 
                 return (
-                  <React.Fragment key={tab.name}>
+                  <React.Fragment key={tab.key}>
                     {createBtn}
                     <TouchableOpacity
                       onPress={() => handleTabPress(tab.pageIndex)}
@@ -373,7 +357,7 @@ export default function TabsLayout() {
                         color: active ? '#FFFFFF' : 'rgba(255,255,255,0.5)',
                         letterSpacing: 0.3,
                       }}>
-                        {tab.name === 'Profile' ? 'Me' : tab.name}
+                        {tab.mobileLabel}
                       </Text>
                     </TouchableOpacity>
                   </React.Fragment>

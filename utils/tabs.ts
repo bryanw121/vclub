@@ -1,7 +1,2 @@
-/** Tab for a URL path: 0 = Events, 1 = Clubs, 2 = Chat, 3 = Profile (same order as the pager and sidebar). */
-export function tabIndexFromPath(path: string): number {
-  if (path.startsWith('/profile') || path.startsWith('/settings')) return 3
-  if (path.startsWith('/chat')) return 2
-  if (path.startsWith('/clubs') || path.startsWith('/club')) return 1
-  return 0
-}
+// Moved to constants/navigation.ts (the single definition of the tabs). Re-exported so older imports keep working.
+export { tabIndexFromPath, tabForPath } from '../constants/navigation'
