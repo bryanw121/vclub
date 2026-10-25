@@ -27,6 +27,22 @@ test.describe('guest browsing', () => {
     await expect(page.getByTestId('filter-all').first()).toBeVisible({ timeout: 20_000 })
   })
 
+  // The static HTML is rendered without a viewport, session or clock, so the
+  // root layout renders only the splash until hydrated (app/_layout.tsx).
+  // Anything that breaks that shows up as React error #418 here.
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+    test(`pages hydrate without a mismatch at ${viewport.width}px`, async ({ page }) => {
+      await page.setViewportSize(viewport)
+      const errors: string[] = []
+      page.on('pageerror', err => errors.push(err.message))
+      for (const path of ['/', '/clubs']) {
+        await page.goto(`${BASE_URL}${path}`)
+        await expect(page.getByTestId('header-sign-in').first()).toBeVisible({ timeout: 20_000 })
+      }
+      expect(errors.filter(m => /#418|[Hh]ydrat/.test(m))).toEqual([])
+    })
+  }
+
   test('signing in from a page and backing out returns to that page', async ({ page }) => {
     await page.goto(`${BASE_URL}/clubs`)
     await page.getByTestId('header-sign-in').first().click()
