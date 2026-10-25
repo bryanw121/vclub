@@ -87,7 +87,9 @@ export async function mockPlacesProxy(page: Page): Promise<ProxyCall[]> {
             {
               place_id: MOCK_ADDRESS_PLACE_ID,
               description: `${MOCK_ADDRESS_MAIN}, ${MOCK_ADDRESS_SECONDARY}`,
-              types: ['street_address', 'geocode'],
+              // The shape the live proxy actually returns for a street address —
+              // an invented ['street_address','geocode'] hid a premise-handling bug.
+              types: ['geocode', 'premise'],
               structured_formatting: {
                 main_text: MOCK_ADDRESS_MAIN,
                 secondary_text: MOCK_ADDRESS_SECONDARY,

@@ -76,3 +76,39 @@ describe('formatVenueDisplay', () => {
     ).toBe('1100 Congress Ave, Austin')
   })
 })
+
+/**
+ * These type arrays are not invented — they are what the deployed places-proxy
+ * actually returned when called with these queries after `types=establishment`
+ * was removed. The original test set used ['street_address', 'geocode'], a
+ * shape Google did not send for the headline example, which is how `premise`
+ * got mistaken for a named-building marker and slipped through.
+ */
+describe('formatVenueDisplay against shapes observed from the live Places API', () => {
+  it('appends the city to a geocode+premise address — the most common address shape', () => {
+    expect(
+      formatVenueDisplay(prediction('1100 Congress Avenue', 'Austin, TX, USA', ['geocode', 'premise'])),
+    ).toBe('1100 Congress Avenue, Austin')
+  })
+
+  it('appends the city to a geocode+subpremise address', () => {
+    expect(
+      formatVenueDisplay(prediction('1100 South Congress Avenue', 'Austin, TX, USA', ['geocode', 'subpremise'])),
+    ).toBe('1100 South Congress Avenue, Austin')
+  })
+
+  it('leaves a real establishment alone even with extra category types', () => {
+    expect(
+      formatVenueDisplay(prediction('Gregory Gym', 'Speedway, Austin, TX, USA', ['establishment', 'gym', 'health'])),
+    ).toBe('Gregory Gym')
+  })
+
+  // A building that Google classifies as geocode rather than establishment now
+  // picks up the city. That is acceptable and unambiguous — the failure mode
+  // being guarded is a bare street number, not a slightly longer venue name.
+  it('appends the city to a named building Google classifies as a geocode', () => {
+    expect(
+      formatVenueDisplay(prediction('Gregory Gymnasium', 'Austin, TX, USA', ['geocode', 'premise'])),
+    ).toBe('Gregory Gymnasium, Austin')
+  })
+})
