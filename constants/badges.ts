@@ -1,4 +1,4 @@
-import type { BadgeType, CardBgType } from '../types'
+import type { BadgeType, CardBgType, ProfileBorder } from '../types'
 
 // ─── Category gradients (Discord-style: each badge type has its own palette) ──
 // Top color is used for glow; bottom for the gradient fill.
@@ -232,7 +232,8 @@ export const BADGE_DEFINITIONS: BadgeDef[] = [
 ]
 
 // ─── Profile borders ──────────────────────────────────────────────────────────
-export type ProfileBorderType = 'bronze' | 'gold' | 'gradient'
+/** Same as `ProfileBorder` in types (the `profiles.selected_border` values). */
+export type ProfileBorderType = ProfileBorder
 
 export type ProfileBorderDef = {
   type: ProfileBorderType
@@ -241,6 +242,8 @@ export type ProfileBorderDef = {
   color: string
   /** Gradient colors — defined means use LinearGradient. */
   gradientColors?: readonly string[]
+  /** Gradient stops for the picker swatch (so swatches are driven by data, not per-type branches). */
+  ringColors: readonly [string, string, ...string[]]
   description: string
   /** One of these badge+tier combos must be met to unlock this border. */
   unlockedBy: { badgeType: BadgeType; minTier: number }[]
@@ -251,6 +254,7 @@ export const PROFILE_BORDERS: ProfileBorderDef[] = [
     type: 'bronze',
     label: 'Bronze',
     color: '#CD7F32',
+    ringColors: ['#CD7F32', '#CD7F32'],
     description: 'Reach Veteran (10 events) or Organizer (5 hosted)',
     unlockedBy: [
       { badgeType: 'event_attendee', minTier: 3 },
@@ -261,6 +265,7 @@ export const PROFILE_BORDERS: ProfileBorderDef[] = [
     type: 'gold',
     label: 'Gold',
     color: '#FFD700',
+    ringColors: ['#FFE066', '#FFD700', '#CC8800'],
     description: 'Reach Elite (25 events) or Head Honcho (25 hosted)',
     unlockedBy: [
       { badgeType: 'event_attendee', minTier: 4 },
@@ -272,6 +277,7 @@ export const PROFILE_BORDERS: ProfileBorderDef[] = [
     label: 'Legend',
     color: '#6C47FF',
     gradientColors: ['#6C47FF', '#FFD700', '#B9F2FF'] as const,
+    ringColors: ['#6C47FF', '#FFD700', '#B9F2FF'],
     description: 'Reach Legend (100 events attended)',
     unlockedBy: [{ badgeType: 'event_attendee', minTier: 5 }],
   },

@@ -3,18 +3,27 @@ import { ActivityIndicator, ScrollView, Text, TextInput, View, TouchableOpacity,
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { supabase } from '../../lib/supabase'
-import { getSessionUser } from '../../lib/sessionUser'
 import { Sentry } from '../../lib/sentry'
-import { bumpVersion, eventKey } from '../../lib/dataVersion'
-import { Button } from '../../components/Button'
-import { Input } from '../../components/Input'
+import { invalidate, queryKey, useQuery } from '../../lib/query'
 import { DatePickerField } from '../../components/DatePickerField'
 import { LocationPickerField } from '../../components/LocationPickerField'
-import type { LocationValue } from '../../components/LocationPickerField'
-import { shared, theme, LOCATIONS, DAY_LABELS_SHORT, DURATION_OPTIONS, DEFAULT_DURATION_MINUTES } from '../../constants'
+import type { LocationValue } from '../../types'
+import { TemplatesView } from '../../components/host/TemplatesView'
+import { ScreenState } from '../../components/ui'
+import { shared, theme, STALE, DAY_LABELS_SHORT, DURATION_OPTIONS, DEFAULT_DURATION_MINUTES, GENERIC_ERROR_MESSAGE } from '../../constants'
 import type { RecurrenceCadence } from '../../constants'
+import { routes } from '../../utils/routes'
+import { useSession } from '../../contexts/session'
+import { useTags } from '../../hooks/useTags'
 import { cleanDate, diffTagIds, normalizePriceText, parsePrice, sanitizePriceInput } from '../../utils'
-import type { CreateEventForm, Tag, UserEventTemplate } from '../../types'
+import { defaultRecurrenceEndDate, generateEventDates } from '../../utils/recurrence'
+import type { CreateEventForm, OwnedClubOption, Tag, UserEventTemplate } from '../../types'
+
+const EMPTY_TAGS: Tag[] = []
+const EMPTY_CLUBS: OwnedClubOption[] = []
+const TEMPLATE_SELECT = 'id, user_id, name, title, description, location, max_attendees, created_at'
+const EDIT_EVENT_SELECT =
+  'id, title, description, location, latitude, longitude, event_date, duration_minutes, max_attendees, price, venmo_handle, club_id, event_tags (tag_id)'
 
 function roundToNearest5(): Date {
   const d = new Date()
@@ -42,55 +51,6 @@ const CADENCE_OPTIONS: { value: RecurrenceCadence; label: string }[] = [
   { value: 'monthly',  label: 'Monthly'   },
 ]
 
-function defaultEndDate(from: Date): Date {
-  const d = new Date(from)
-  d.setDate(d.getDate() + 28)
-  return d
-}
-
-function generateEventDates(
-  startDate: Date,
-  enabled: boolean,
-  days: number[],
-  cadence: RecurrenceCadence,
-  endDate: Date,
-): Date[] {
-  if (!enabled) return [startDate]
-
-  const h = startDate.getHours()
-  const m = startDate.getMinutes()
-  const dates: Date[] = []
-
-  if (cadence === 'monthly') {
-    let d = new Date(startDate)
-    while (d <= endDate) {
-      dates.push(new Date(d))
-      d = new Date(d.getFullYear(), d.getMonth() + 1, d.getDate(), h, m)
-    }
-    return dates
-  }
-
-  const stepDays = cadence === 'biweekly' ? 14 : 7
-  const selectedDays = days.length > 0 ? days : [startDate.getDay()]
-
-  const weekSunday = new Date(startDate)
-  weekSunday.setDate(weekSunday.getDate() - weekSunday.getDay())
-  weekSunday.setHours(h, m, 0, 0)
-
-  let cursor = new Date(weekSunday)
-  while (cursor <= endDate) {
-    for (const dayIdx of [...selectedDays].sort((a, b) => a - b)) {
-      const d = new Date(cursor)
-      d.setDate(d.getDate() + dayIdx)
-      d.setHours(h, m, 0, 0)
-      if (d >= startDate && d <= endDate) dates.push(new Date(d))
-    }
-    cursor.setDate(cursor.getDate() + stepDays)
-  }
-
-  return dates
-}
-
 /**
  * The event row saved but its tags did not. Distinguished from a generic
  * failure so the user is told their edit landed — otherwise they retry a save
@@ -111,7 +71,7 @@ export default function HostEventScreen() {
 
   function goBack() {
     if (router.canGoBack()) router.back()
-    else router.replace('/(app)')
+    else router.replace(routes.app())
   }
   const { mode: modeParam, edit: editId, maxAttendees: maxAttendeesParam } = useLocalSearchParams<{ mode?: string; edit?: string; maxAttendees?: string }>()
   const isEdit = !!editId
@@ -121,15 +81,14 @@ export default function HostEventScreen() {
     ...EMPTY_FORM,
     maxAttendees: (() => { const n = parseInt(maxAttendeesParam ?? '', 10); return Number.isFinite(n) && n > 0 ? n : null })(),
   })
-  const [recentVenues, setRecentVenues] = useState<LocationValue[]>([])
   const [recurrence, setRecurrence] = useState({
     enabled: false,
     days: [] as number[],
     cadence: 'weekly' as RecurrenceCadence,
-    endDate: defaultEndDate(new Date()),
+    endDate: defaultRecurrenceEndDate(new Date()),
   })
   const [loading, setLoading] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
+  const { userId, loading: sessionLoading } = useSession()
   const [successModal, setSuccessModal] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   /** Drives the result modal's body copy and whether it reads as a failure. */
@@ -138,75 +97,86 @@ export default function HostEventScreen() {
   const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   const [templateName, setTemplateName] = useState('')
 
-  // Template picker
-  const [userTemplates, setUserTemplates] = useState<UserEventTemplate[]>([])
-  const [templatesLoading, setTemplatesLoading] = useState(false)
-
-  // Tags
-  const [availableTags, setAvailableTags] = useState<Tag[]>([])
+  // Tags (shared, cached) and the form's selection of them
+  const tagsQuery = useTags()
+  const availableTags = tagsQuery.data ?? EMPTY_TAGS
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   // The tag set as it exists in the DB, so the save diffs against that rather
   // than against mutated UI state. Set on load, refreshed after each save.
   const originalTagIdsRef = useRef<string[]>([])
 
-  // Club
-  const [ownedClubs, setOwnedClubs] = useState<{ id: string; name: string }[]>([])
+  // Clubs the host owns can be attached to the event
+  const ownedClubsQuery = useQuery<OwnedClubOption[]>(
+    userId ? queryKey('clubs', 'owned', userId) : null,
+    async () => {
+      const { data, error } = await supabase
+        .from('club_members')
+        .select('club_id, clubs (id, name)')
+        .eq('user_id', userId as string)
+        .eq('role', 'owner')
+      if (error) throw error
+      return ((data ?? []) as { clubs: OwnedClubOption | null }[])
+        .map(m => m.clubs)
+        .filter((c): c is OwnedClubOption => !!c)
+    },
+    { staleMs: STALE.feed, enabled: !!userId },
+  )
+  const ownedClubs = ownedClubsQuery.data ?? EMPTY_CLUBS
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null)
 
-  const [initialLoading, setInitialLoading] = useState(true)
-  const [durationModalOpen, setDurationModalOpen] = useState(false)
-  const [hostPullRefreshing, setHostPullRefreshing] = useState(false)
-
-  useEffect(() => { void loadInitialData() }, [])
-
-  async function loadInitialData() {
-    const user = await getSessionUser()
-    if (user) setUserId(user.id)
-
-    const [tagsRes, clubsRes] = await Promise.all([
-      supabase.from('tags').select('id, name, category, display_order').order('display_order', { ascending: true }),
-      user
-        ? supabase.from('club_members').select('club_id, clubs (id, name)').eq('user_id', user.id).eq('role', 'owner')
-        : Promise.resolve({ data: null, error: null }),
-    ])
-
-    setAvailableTags((tagsRes.data ?? []) as Tag[])
-    setOwnedClubs(((clubsRes.data ?? []) as any[]).map((m: any) => m.clubs).filter(Boolean))
-
-    // Load recent venues from past hosted events
-    if (user) {
-      const { data: venueRows } = await supabase
+  // Venues from the host's past events, offered as quick picks in the location field
+  const venuesQuery = useQuery<LocationValue[]>(
+    userId ? queryKey('host', 'venues', userId) : null,
+    async () => {
+      const { data, error } = await supabase
         .from('events')
         .select('location, latitude, longitude')
-        .eq('created_by', user.id)
+        .eq('created_by', userId as string)
         .not('location', 'is', null)
         .order('event_date', { ascending: false })
         .limit(20)
-      if (venueRows) {
-        const seen = new Set<string>()
-        const unique: LocationValue[] = []
-        for (const e of venueRows) {
-          if (e.location && !seen.has(e.location)) {
-            seen.add(e.location)
-            unique.push({ display: e.location, latitude: e.latitude ?? null, longitude: e.longitude ?? null })
-          }
+      if (error) throw error
+      const seen = new Set<string>()
+      const unique: LocationValue[] = []
+      for (const e of data ?? []) {
+        if (e.location && !seen.has(e.location)) {
+          seen.add(e.location)
+          unique.push({ display: e.location, latitude: e.latitude ?? null, longitude: e.longitude ?? null })
         }
-        setRecentVenues(unique.slice(0, 5))
       }
-    }
+      return unique.slice(0, 5)
+    },
+    { staleMs: STALE.feed, enabled: !!userId },
+  )
+  const recentVenues = venuesQuery.data ?? []
 
-    if (editId && user) await loadEventForEdit(editId)
+  // Saved templates (only fetched once the picker is opened)
+  const templatesQuery = useQuery<UserEventTemplate[]>(
+    userId ? queryKey('templates', userId) : null,
+    async () => {
+      const { data, error } = await supabase
+        .from('user_event_templates')
+        .select(TEMPLATE_SELECT)
+        .eq('user_id', userId as string)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return (data ?? []) as UserEventTemplate[]
+    },
+    { staleMs: STALE.feed, enabled: !!userId && view === 'templates' },
+  )
 
-    setInitialLoading(false)
-  }
+  // Editing: the event being edited is loaded into the form once
+  const [editState, setEditState] = useState<'idle' | 'loading' | 'loaded' | 'error'>(isEdit ? 'loading' : 'idle')
+  const [durationModalOpen, setDurationModalOpen] = useState(false)
+  const [hostPullRefreshing, setHostPullRefreshing] = useState(false)
 
-  async function loadEventForEdit(id: string) {
+  const loadEventForEdit = useCallback(async (id: string): Promise<boolean> => {
     const { data, error } = await supabase
       .from('events')
-      .select('*, event_tags (tag_id)')
+      .select(EDIT_EVENT_SELECT)
       .eq('id', id)
       .single()
-    if (error || !data) return
+    if (error || !data) return false
 
     setForm({
       title: data.title,
@@ -220,48 +190,41 @@ export default function HostEventScreen() {
       priceText: data.price != null ? Number(data.price).toFixed(2) : '',
       venmoHandle: data.venmo_handle ?? '',
     })
-    const loadedTagIds = (data.event_tags ?? []).map((et: any) => et.tag_id)
+    const loadedTagIds = (data.event_tags ?? []).map((et: { tag_id: string }) => et.tag_id)
     setSelectedTagIds(loadedTagIds)
     originalTagIdsRef.current = loadedTagIds
     setSelectedClubId(data.club_id ?? null)
-  }
+    return true
+  }, [])
+
+  const loadEdit = useCallback(async () => {
+    if (!editId) return
+    setEditState('loading')
+    setEditState((await loadEventForEdit(editId)) ? 'loaded' : 'error')
+  }, [editId, loadEventForEdit])
 
   useEffect(() => {
-    if (view === 'templates') fetchUserTemplates()
-  }, [view])
+    if (!editId || sessionLoading) return
+    if (!userId) { setEditState('idle'); return }
+    void loadEdit()
+  }, [editId, userId, sessionLoading, loadEdit])
 
-  async function fetchUserTemplates(opts?: { quiet?: boolean }) {
-    if (!opts?.quiet) setTemplatesLoading(true)
-    const user = await getSessionUser()
-    if (!user) { if (!opts?.quiet) setTemplatesLoading(false); return }
-    const { data } = await supabase
-      .from('user_event_templates')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-    setUserTemplates((data ?? []) as UserEventTemplate[])
-    if (!opts?.quiet) setTemplatesLoading(false)
-  }
+  const initialLoading = sessionLoading || tagsQuery.isLoading || editState === 'loading'
 
-  const refreshHostContext = useCallback(async () => {
+  async function refreshHostContext() {
     setHostPullRefreshing(true)
     try {
-      const user = await getSessionUser()
-      if (user) setUserId(user.id)
-      const [tagsRes, clubsRes] = await Promise.all([
-        supabase.from('tags').select('id, name, category, display_order').order('display_order', { ascending: true }),
-        user
-          ? supabase.from('club_members').select('club_id, clubs (id, name)').eq('user_id', user.id).eq('role', 'owner')
-          : Promise.resolve({ data: null, error: null }),
+      await Promise.all([
+        tagsQuery.refetch({ force: true }),
+        ownedClubsQuery.refetch({ force: true }),
+        venuesQuery.refetch({ force: true }),
+        view === 'templates' ? templatesQuery.refetch({ force: true }) : undefined,
+        editId && userId ? loadEventForEdit(editId) : undefined,
       ])
-      setAvailableTags((tagsRes.data ?? []) as Tag[])
-      setOwnedClubs(((clubsRes.data ?? []) as any[]).map((m: any) => m.clubs).filter(Boolean))
-      if (editId && user) await loadEventForEdit(editId)
-      if (view === 'templates') await fetchUserTemplates({ quiet: true })
     } finally {
       setHostPullRefreshing(false)
     }
-  }, [view, editId])
+  }
 
   function applyUserTemplate(t: UserEventTemplate) {
     setForm(prev => ({
@@ -292,11 +255,13 @@ export default function HostEventScreen() {
   }
 
   async function handleSubmit() {
+    // Set once an events row is written: from then on readers must be told,
+    // even if a later step (tags) fails.
+    let eventRowsSaved = false
     try {
       setLoading(true)
       setSaveOutcome('saved')
-      const user = await getSessionUser()
-      if (!user) throw new Error('Not logged in')
+      if (!userId) throw new Error('Not logged in')
 
       // Text → number happens once, here at the write boundary. Keeping the
       // form state as raw text is what lets a host type "5.50" at all.
@@ -321,6 +286,7 @@ export default function HostEventScreen() {
           })
           .eq('id', editId)
         if (error) throw error
+        eventRowsSaved = true
 
         // Diff rather than delete-all-then-reinsert: a failure never exposes
         // the old empty-set window. Editing a title with tags untouched writes
@@ -392,12 +358,13 @@ export default function HostEventScreen() {
           }
         }
 
-        // Tell the event detail screen its cached copy is out of date. Without
-        // this it keeps showing the pre-edit row: its focus refetch only fires
-        // after 30s of staleness, and an edit round-trip is much faster.
-        // Bump after the tag rewrite and waitlist promotion so the refetch sees
-        // every part of this save, not just the events row.
-        bumpVersion(eventKey(editId))
+        // Tell every reader of this event (detail screen, feed cards, its club page)
+        // their cached copy is out of date. After the tag rewrite and waitlist
+        // promotion, so the refetch sees every part of this save, not just the
+        // events row.
+        invalidate(queryKey('event', editId))
+        invalidate('feed')
+        invalidate('club')
 
         setSuccessMessage('Event updated!')
         setSuccessModal(true)
@@ -420,7 +387,7 @@ export default function HostEventScreen() {
           event_date: cleanDate(d),
           duration_minutes: form.durationMinutes,
           max_attendees: form.maxAttendees,
-          created_by: user.id,
+          created_by: userId,
           club_id: selectedClubId,
           price: parsedPrice,
           venmo_handle: parsedPrice && parsedPrice > 0 ? (form.venmoHandle.trim() || null) : null,
@@ -428,6 +395,7 @@ export default function HostEventScreen() {
 
         const { data: insertedEvents, error } = await supabase.from('events').insert(rows).select('id')
         if (error) throw error
+        eventRowsSaved = true
 
         if (selectedTagIds.length > 0 && insertedEvents) {
           const tagRows = insertedEvents.flatMap(e =>
@@ -439,7 +407,7 @@ export default function HostEventScreen() {
 
         if (saveAsTemplate && (templateName.trim() || form.title)) {
           await supabase.from('user_event_templates').insert({
-            user_id: user.id,
+            user_id: userId,
             name: templateName.trim() || form.title,
             title: form.title,
             description: form.description || null,
@@ -448,10 +416,14 @@ export default function HostEventScreen() {
           })
         }
 
+        invalidate('feed')
+        invalidate('club')
+        if (saveAsTemplate) invalidate(queryKey('templates'))
+
         setSuccessMessage(dates.length > 1 ? `${dates.length} events created!` : 'Event created!')
         setSuccessModal(true)
         setForm(EMPTY_FORM)
-        setRecurrence({ enabled: false, days: [], cadence: 'weekly', endDate: defaultEndDate(new Date()) })
+        setRecurrence({ enabled: false, days: [], cadence: 'weekly', endDate: defaultRecurrenceEndDate(new Date()) })
         setSaveAsTemplate(false)
         setTemplateName('')
         setSelectedTagIds([])
@@ -459,12 +431,18 @@ export default function HostEventScreen() {
       }
     } catch (e: any) {
       Sentry.captureException(e)
+      // The events row saved, so cached copies are stale even though a later write failed.
+      if (eventRowsSaved) {
+        if (isEdit && editId) invalidate(queryKey('event', editId))
+        invalidate('feed')
+        invalidate('club')
+      }
       if (e instanceof TagWriteError) {
         setSaveOutcome(e.tagsMayHaveChanged ? 'tags-uncertain' : 'tags-failed')
         setSuccessMessage('Event saved — tags not updated')
       } else {
         setSaveOutcome('failed')
-        setSuccessMessage('Something went wrong. Please try again.')
+        setSuccessMessage(GENERIC_ERROR_MESSAGE)
       }
       // The modal is the only place `successMessage` renders, so without this
       // every failure was silent — the form just stopped with no explanation.
@@ -483,44 +461,30 @@ export default function HostEventScreen() {
   // ── Templates view ────────────────────────────────────────────────────────
   if (view === 'templates') {
     return (
-      <ScrollView
-        style={shared.screen}
-        contentContainerStyle={shared.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={hostPullRefreshing} onRefresh={() => void refreshHostContext()} tintColor={theme.colors.primary} />
-        }
-      >
-        <Text style={[shared.subheading, shared.mb_md]}>My Templates</Text>
-
-        {templatesLoading ? (
-          <ActivityIndicator color={theme.colors.primary} />
-        ) : userTemplates.length === 0 ? (
-          <View style={[shared.card, { alignItems: 'center', gap: theme.spacing.sm }]}>
-            <Ionicons name="document-outline" size={32} color={theme.colors.subtext} />
-            <Text style={[shared.caption, { textAlign: 'center' }]}>
-              No templates yet. Create an event and check "Save as template" to save it here.
-            </Text>
-          </View>
-        ) : (
-          userTemplates.map(t => (
-            <TouchableOpacity
-              key={t.id}
-              onPress={() => applyUserTemplate(t)}
-              style={[shared.card, { gap: theme.spacing.xs }]}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={shared.subheading}>{t.name}</Text>
-                <Ionicons name="chevron-forward" size={16} color={theme.colors.subtext} />
-              </View>
-              <Text style={shared.caption}>{t.title}{t.location ? ` · ${t.location}` : ''}{t.max_attendees ? ` · ${t.max_attendees} max` : ''}</Text>
-            </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
+      <TemplatesView
+        templates={templatesQuery.data}
+        loading={templatesQuery.isLoading}
+        error={templatesQuery.error ? 'Could not load your templates. Check your connection and try again.' : null}
+        refreshing={hostPullRefreshing}
+        onRefresh={() => void refreshHostContext()}
+        onRetry={() => void templatesQuery.refetch({ force: true })}
+        onPick={applyUserTemplate}
+      />
     )
   }
 
   // ── Form view ─────────────────────────────────────────────────────────────
+  if (editState === 'error') {
+    return (
+      <>
+        <Stack.Screen options={{ title: '' }} />
+        <View style={[shared.screen, shared.centered]}>
+          <ScreenState error="Could not load this event. Check your connection and try again." onRetry={() => void loadEdit()} />
+        </View>
+      </>
+    )
+  }
+
   if (initialLoading) {
     return (
       <>
@@ -616,7 +580,7 @@ export default function HostEventScreen() {
                       borderColor: theme.colors.border,
                     }}
                   >
-                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 17, letterSpacing: -0.3, color: selected ? '#fff' : theme.colors.text }}>
+                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 17, letterSpacing: -0.3, color: selected ? theme.colors.white : theme.colors.text }}>
                       {tag.name}
                     </Text>
                     {meta.subtitle ? (
@@ -665,7 +629,7 @@ export default function HostEventScreen() {
             value={form.date}
             onChange={d => {
               setField('date', d)
-              if (!recurrence.enabled) setRecurrence(prev => ({ ...prev, endDate: defaultEndDate(d) }))
+              if (!recurrence.enabled) setRecurrence(prev => ({ ...prev, endDate: defaultRecurrenceEndDate(d) }))
             }}
           />
         </View>
@@ -850,7 +814,7 @@ export default function HostEventScreen() {
                       onPress={() => setRecurrence(prev => ({ ...prev, cadence: opt.value }))}
                       style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, backgroundColor: recurrence.cadence === opt.value ? theme.colors.primary : 'transparent' }}
                     >
-                      <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: recurrence.cadence === opt.value ? '#fff' : theme.colors.subtext }}>
+                      <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: recurrence.cadence === opt.value ? theme.colors.white : theme.colors.subtext }}>
                         {opt.label}
                       </Text>
                     </TouchableOpacity>
@@ -874,7 +838,7 @@ export default function HostEventScreen() {
                               alignItems: 'center', justifyContent: 'center',
                             }}
                           >
-                            <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: active ? '#fff' : theme.colors.subtext }}>
+                            <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: active ? theme.colors.white : theme.colors.subtext }}>
                               {label}
                             </Text>
                           </TouchableOpacity>
@@ -913,7 +877,7 @@ export default function HostEventScreen() {
                       backgroundColor: active ? theme.colors.primary : theme.colors.border,
                     }}
                   >
-                    <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: active ? '#fff' : theme.colors.text }}>
+                    <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: active ? theme.colors.white : theme.colors.text }}>
                       {club.name}
                     </Text>
                   </TouchableOpacity>

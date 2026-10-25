@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Platform } from 'react-native'
+import { BREAKPOINTS } from '../constants/layout'
 
 /**
  * True when running on web with a viewport narrower than `breakpoint` (default
- * 768 — the sidebar/tablet cutoff). On native it is always false (the callers
+ * `BREAKPOINTS.sidebar` — the sidebar/tablet cutoff). On native it is always false (the callers
  * that use it are web-only branches).
  *
  * Unlike `useWindowDimensions`, this re-renders ONLY when the breakpoint boolean
@@ -11,7 +12,7 @@ import { Platform } from 'react-native'
  * doc-scroll mode, where the browser chrome collapses continuously as you scroll
  * and would otherwise re-render the whole tab shell every frame.
  */
-export function useIsNarrowWeb(breakpoint = 768): boolean {
+export function useIsNarrowWeb(breakpoint: number = BREAKPOINTS.sidebar): boolean {
   const [narrow, setNarrow] = useState(
     () => Platform.OS === 'web' && typeof window !== 'undefined' && window.innerWidth < breakpoint,
   )

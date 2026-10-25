@@ -9,17 +9,38 @@
  *   { action: 'details', place_id: string, sessiontoken: string }
  *
  * Set GOOGLE_MAPS_KEY in Supabase Dashboard → Edge Functions → Secrets
+ *
+ * Auth: deployed with verify_jwt = true (supabase/config.toml), so the gateway
+ * rejects calls without a valid user JWT. supabase.functions.invoke sends one.
+ *
+ * CORS: set ALLOWED_ORIGINS (comma-separated, e.g.
+ * "https://vclub.example.com,http://localhost:8081") to restrict browser callers.
+ * Unset keeps the old behaviour (`*`). Native apps send no Origin header and are
+ * unaffected either way.
  */
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+const ALLOW_HEADERS = 'authorization, x-client-info, apikey, content-type'
+
+function corsHeaders(req: Request): Record<string, string> {
+  const allowed = (Deno.env.get('ALLOWED_ORIGINS') ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+  if (!allowed.length) {
+    return { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': ALLOW_HEADERS }
+  }
+  const headers: Record<string, string> = { 'Access-Control-Allow-Headers': ALLOW_HEADERS, Vary: 'Origin' }
+  const origin = req.headers.get('Origin')
+  // A non-listed origin gets no Allow-Origin header, so the browser blocks the response.
+  if (origin && allowed.includes(origin)) headers['Access-Control-Allow-Origin'] = origin
+  return headers
 }
 
 const LOCATION  = '30.2672,-97.7431' // Austin, TX
 const RADIUS    = '50000'
 
 Deno.serve(async (req) => {
+  const CORS_HEADERS = corsHeaders(req)
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS })
   }
@@ -32,9 +53,17 @@ Deno.serve(async (req) => {
     })
   }
 
+  let body: { action: string; input?: string; place_id?: string; sessiontoken: string }
   try {
-    const body = await req.json() as { action: string; input?: string; place_id?: string; sessiontoken: string }
+    body = await req.json()
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+      status: 400,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    })
+  }
 
+  try {
     let url: string
 
     if (body.action === 'autocomplete' && body.input) {

@@ -145,7 +145,7 @@ export const shared = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.overlay,
   },
   modalCard: {
     backgroundColor: colors.card,
@@ -365,4 +365,140 @@ export const shared = StyleSheet.create({
     fontSize: theme.font.size.sm,
     color: theme.colors.subtext,
   },
+
+  // ═══ UI primitives (components/ui) ═══════════════════════════════════════
+  // Values are lifted from the hand-built versions in the screens so adopting
+  // a primitive in Phase B does not change how anything looks.
+
+  // ── Button extensions ─────────────────────────────────────
+  buttonGhost:        { backgroundColor: 'transparent' },
+  buttonSm:           { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, minHeight: 36 },
+  buttonAuto:         { alignSelf: 'flex-start' },
+  buttonWithIcon:     { flexDirection: 'row', gap: spacing.xs + 2 },
+  buttonLabelSm:      { fontSize: font.size.smd },
+
+  // ── Chip (feed filter chips) ──────────────────────────────
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  chipActive:      { backgroundColor: colors.primary, borderColor: colors.primary },
+  /** Clubs-style active state: 14% primary wash instead of a solid fill. */
+  chipActiveTint:  { backgroundColor: colors.primary + '24', borderColor: colors.primary },
+  chipLabel: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 12.5,
+    fontWeight: font.weight.semibold,
+    color: colors.subtext,
+  },
+  chipLabelActive:     { color: colors.onPrimary },
+  chipLabelActiveTint: { color: colors.primary },
+
+  // ── IconButton (notifications bell, etc.) ─────────────────
+  iconButton: {
+    borderRadius: radius.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconButtonDot: {
+    position: 'absolute',
+    top: -2,
+    right: -3,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.hot,
+    borderWidth: 1.5,
+    borderColor: colors.card,
+  },
+
+  // ── ScreenHeader ──────────────────────────────────────────
+  screenHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md + 4,
+    paddingBottom: spacing.sm,
+  },
+  screenHeaderText:  { flexShrink: 1 },
+  screenHeaderKicker: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: font.size.xs,
+    fontWeight: font.weight.semibold,
+    letterSpacing: 1.2,
+    color: colors.subtext,
+    textTransform: 'uppercase',
+  },
+  screenHeaderTitle: {
+    fontFamily: theme.fonts.display,
+    fontSize: 34,
+    lineHeight: 34,
+    letterSpacing: -1.2,
+    color: colors.text,
+    marginTop: 2,
+  },
+  screenHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingBottom: spacing.xs },
+  screenHeaderBack:  { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', marginLeft: spacing.lg, marginTop: spacing.sm },
+  screenHeaderBackLabel: { fontFamily: theme.fonts.body, fontSize: font.size.sm, color: colors.primary },
+
+  // ── EmptyState / ScreenState ──────────────────────────────
+  emptyState:       { alignItems: 'center', paddingTop: spacing.xxl, paddingHorizontal: spacing.lg, gap: spacing.sm },
+  emptyStateBody:   { textAlign: 'center', maxWidth: 320 },
+  emptyStateAction: { fontSize: font.size.sm, color: colors.primary, fontWeight: font.weight.medium },
+  screenStateCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.sm },
+  screenStateSpinner: { marginTop: spacing.xl },
+
+  // ── ConfirmDialog ─────────────────────────────────────────
+  /** Centering wrapper; the scrim is a sibling Pressable (see ConfirmDialog) so it can be tapped to dismiss. */
+  modalOverlayPlain: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  dialogCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    width: 320,
+    maxWidth: '92%',
+    gap: spacing.md,
+    zIndex: 1,
+  },
+  dialogTitle:   { fontSize: font.size.lg, fontWeight: font.weight.semibold, color: colors.text },
+  dialogBody:    { fontSize: font.size.sm, color: colors.subtext },
+  dialogActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
+  dialogAction:  { flex: 1 },
+
+  // ── BottomSheet ───────────────────────────────────────────
+  sheetRoot:     { flex: 1, justifyContent: 'flex-end' },
+  sheetCard: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+    padding: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  sheetTitle: {
+    fontFamily: theme.fonts.displaySemiBold,
+    fontSize: font.size.lg,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+
+  // ── ScreenContainer ───────────────────────────────────────
+  screenContainerWide:  { flex: 1, alignItems: 'center' },
+  screenContainerInner: { flex: 1, width: '100%' },
 })

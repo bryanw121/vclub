@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'
 import { shared, theme, CLUB_POST_COMMENT_MAX, CLUB_POST_BODY_MAX } from '../constants'
+import { routes } from '../utils/routes'
 import type { ClubPostCommentWithAuthor, ClubPostWithFeed } from '../types'
 import { profileDisplayName, resolveProfileAvatarUriSmall } from '../utils'
 import { ProfileAvatar } from './ProfileAvatar'
@@ -126,14 +127,14 @@ export function ClubPostCard({
     <View style={styles.card}>
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => author && router.push(`/profile/${author.id}` as any)}
+          onPress={() => author && router.push(routes.profileOf(author.id))}
           accessibilityRole="button"
           accessibilityLabel={`${authorName} profile`}
         >
           <ProfileAvatar uri={avatarUri} border={author?.selected_border ?? null} size={40} />
         </TouchableOpacity>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <TouchableOpacity onPress={() => author && router.push(`/profile/${author.id}` as any)}>
+          <TouchableOpacity onPress={() => author && router.push(routes.profileOf(author.id))}>
             <Text style={styles.authorName} numberOfLines={1}>{authorName}</Text>
           </TouchableOpacity>
           <Text style={styles.meta}>{formatPostTime(post.created_at)}</Text>
@@ -238,11 +239,11 @@ function ClubPostCommentLine({ comment }: { comment: ClubPostCommentWithAuthor }
 
   return (
     <View style={styles.commentRow}>
-      <TouchableOpacity onPress={() => router.push(`/profile/${comment.user_id}` as any)}>
+      <TouchableOpacity onPress={() => router.push(routes.profileOf(comment.user_id))}>
         <ProfileAvatar uri={avatarUri} border={p?.selected_border ?? null} size={28} />
       </TouchableOpacity>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <TouchableOpacity onPress={() => router.push(`/profile/${comment.user_id}` as any)}>
+        <TouchableOpacity onPress={() => router.push(routes.profileOf(comment.user_id))}>
           <Text style={styles.commentAuthor} numberOfLines={1}>{name}</Text>
         </TouchableOpacity>
         <LinkedText text={comment.body} style={styles.commentBody} />
@@ -360,7 +361,7 @@ export function ClubPostComposerModal({ visible, clubId, onClose, onCreated }: C
                   style={[shared.buttonBase, shared.buttonPrimary, { flex: 1 }, (busy || !body.trim()) && shared.buttonDisabled]}
                 >
                   {busy
-                    ? <ActivityIndicator color="#fff" />
+                    ? <ActivityIndicator color={theme.colors.white} />
                     : <Text style={shared.buttonLabelPrimary}>Post</Text>
                   }
                 </TouchableOpacity>

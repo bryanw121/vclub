@@ -32,7 +32,7 @@ export function MajorCityAutocomplete({ label = 'Metro area', value, onChange, e
         setLoadError(e.message)
         return
       }
-      setCatalog((data ?? []) as unknown as MajorCity[])
+      setCatalog((data ?? []) as MajorCity[])
     })()
     return () => {
       cancelled = true

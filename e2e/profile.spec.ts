@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test'
-
-const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8081'
+import { E2E_BASE_URL as BASE_URL } from './env'
 
 test.describe('Own profile', () => {
   test('Cheers count matches its detail screen and survives a refresh', async ({ page }) => {

@@ -2,7 +2,8 @@ import React, { useMemo, useRef, useState } from 'react'
 import { View, Text, Image, Pressable, TouchableOpacity, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { theme } from '../constants/theme'
-import { AnchorOptionsMenu, type AnchorRect } from './AnchorOptionsMenu'
+import { AnchorOptionsMenu } from './AnchorOptionsMenu'
+import type { AnchorRect } from '../types'
 import type { MessageWithDetails } from '../types'
 import { profileAvatarSmallUri } from '../utils'
 
@@ -23,6 +24,8 @@ type Props = {
   onLongPress: (message: MessageWithDetails, position: { x: number; y: number }) => void
   onReplyPress: (message: MessageWithDetails) => void
   onImagePress?: (url: string) => void
+  /** Own message whose send failed (`_failed`): tapping the bubble retries it. */
+  onRetryPress?: (message: MessageWithDetails) => void
 }
 
 function displayName(p: { first_name: string | null; last_name: string | null; username: string } | null) {
@@ -41,6 +44,7 @@ export function MessageBubble({
   onLongPress,
   onReplyPress,
   onImagePress,
+  onRetryPress,
 }: Props) {
   const peerKebabWrapRef = useRef<View>(null)
   const [peerMenuVisible, setPeerMenuVisible] = useState(false)
@@ -59,7 +63,7 @@ export function MessageBubble({
   const reactions = Object.entries(reactionGroups)
 
   const bubbleBg = isOwn ? theme.colors.primary : theme.colors.card
-  const bubbleText = isOwn ? '#fff' : theme.colors.text
+  const bubbleText = isOwn ? theme.colors.white : theme.colors.text
 
   const peerUserId = message.profiles?.id
   const peerMenuOptions = useMemo(() => {
@@ -81,15 +85,18 @@ export function MessageBubble({
     })
   }
 
+  const failed = !!message._failed
+  const unsent = !!message._sending || failed
+
   function openActionMenu(pageX: number, pageY: number) {
-    if (!deleted && !message._sending) onLongPress(message, { x: pageX, y: pageY })
+    if (!deleted && !unsent) onLongPress(message, { x: pageX, y: pageY })
   }
 
   const webMenuProps =
     Platform.OS === 'web'
       ? {
           onContextMenu: (e: { preventDefault?: () => void; nativeEvent: { pageX?: number; pageY?: number; clientX?: number; clientY?: number } }) => {
-            if (hiddenIncoming || deleted || message._sending) return
+            if (hiddenIncoming || deleted || unsent) return
             e.preventDefault?.()
             const ne = e.nativeEvent
             const x = ne.clientX ?? ne.pageX ?? 0
@@ -102,6 +109,9 @@ export function MessageBubble({
   const bubblePressable = (
     <Pressable
       delayLongPress={350}
+      onPress={failed && onRetryPress ? () => onRetryPress(message) : undefined}
+      accessibilityRole={failed ? 'button' : undefined}
+      accessibilityLabel={failed ? 'Message not sent. Tap to retry' : undefined}
       onLongPress={hiddenIncoming ? undefined : e => {
         const { pageX, pageY } = e.nativeEvent
         openActionMenu(pageX, pageY)
@@ -193,7 +203,7 @@ export function MessageBubble({
                   lineHeight: 20,
                 }}>
                   {message.content}
-                  {message.edited_at && !message._sending
+                  {message.edited_at && !unsent
                     ? <Text style={{ fontSize: 10, color: isOwn ? 'rgba(255,255,255,0.6)' : theme.colors.subtext, fontStyle: 'italic' }}>{' (edited)'}</Text>
                     : null}
                 </Text>
@@ -220,7 +230,7 @@ export function MessageBubble({
                 borderRadius: theme.radius.full,
                 paddingHorizontal: 6, paddingVertical: 3,
                 borderWidth: 1, borderColor: theme.colors.border,
-                shadowColor: '#000',
+                shadowColor: theme.colors.black,
                 shadowOffset: { width: 0, height: 1 },
                 shadowOpacity: 0.12,
                 shadowRadius: 2,
@@ -236,16 +246,16 @@ export function MessageBubble({
         )}
       </View>
 
-      {/* Timestamp / sending indicator */}
+      {/* Timestamp / sending / failed indicator */}
       <Text style={{
-        fontFamily: theme.fonts.body,
-        fontSize: 10,
-        color: message._sending ? theme.colors.primary : theme.colors.subtext,
+        fontFamily: failed ? theme.fonts.bodySemiBold : theme.fonts.body,
+        fontSize: failed ? theme.font.size.xs : 10,
+        color: failed ? theme.colors.error : message._sending ? theme.colors.primary : theme.colors.subtext,
         marginTop: 2,
         marginHorizontal: 4,
         fontStyle: message._sending ? 'italic' : 'normal',
       }}>
-        {message._sending ? 'Sending…' : formatTime(message.created_at)}
+        {failed ? 'Not sent · Tap to retry' : message._sending ? 'Sending…' : formatTime(message.created_at)}
       </Text>
     </Pressable>
   )
@@ -261,7 +271,7 @@ export function MessageBubble({
         marginHorizontal: theme.spacing.md,
         marginBottom: 4,
         gap: 8,
-        opacity: message._sending ? 0.6 : 1,
+        opacity: message._sending ? 0.6 : failed ? 0.85 : 1,
       }}
     >
       <View style={{ width: 28 }}>

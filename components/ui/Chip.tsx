@@ -1,0 +1,22 @@
+import { Text, TouchableOpacity } from 'react-native'
+import { shared } from '../../constants'
+import type { ChipProps } from '../../types'
+
+/** Pill filter chip. `solid` fills with primary when active (feed); `tint` uses a 14% wash (clubs-style). */
+export function Chip({ label, active = false, onPress, badge, variant = 'solid', testID }: ChipProps) {
+  const tint = variant === 'tint'
+  const hasBadge = badge !== undefined && badge !== null && badge !== ''
+  return (
+    <TouchableOpacity
+      testID={testID}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      style={[shared.chip, active && (tint ? shared.chipActiveTint : shared.chipActive)]}
+    >
+      <Text style={[shared.chipLabel, active && (tint ? shared.chipLabelActiveTint : shared.chipLabelActive)]}>
+        {hasBadge ? `${label} ${badge}` : label}
+      </Text>
+    </TouchableOpacity>
+  )
+}

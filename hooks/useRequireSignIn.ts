@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { usePathname, useRouter } from 'expo-router'
 import { useSession } from '../contexts/session'
 import { setPostSignInRedirect } from '../utils/authGate'
+import { routes } from '../utils/routes'
 
 /**
  * Open the sign-in (or sign-up) screen and remember where to come back to.
@@ -15,7 +16,7 @@ export function useGoToSignIn() {
   const pathname = usePathname()
   return useCallback((screen: 'login' | 'register' = 'login', returnTo?: string) => {
     setPostSignInRedirect(returnTo ?? pathname)
-    router.replace(`/(auth)/${screen}` as any)
+    router.replace(screen === 'login' ? routes.login() : routes.register())
   }, [router, pathname])
 }
 

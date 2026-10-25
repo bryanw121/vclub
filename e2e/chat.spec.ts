@@ -2,22 +2,31 @@
  * Chat E2E tests — requires the Expo dev server to be running on port 8081.
  * Run: npx playwright test e2e/chat.spec.ts
  *
- * Test account: bryanw121 / password
- * Seed conversation: "jexy is so sexy" (id: 01bc0c4f-2e83-4402-afce-5fc7ddd729f9)
+ * Test account: E2E_USERNAME / E2E_PASSWORD (see .env.example)
+ * Seed conversation: the e2e account's DM with @jexyissexy (id: 1e473b01-c06a-48b0-9308-21b3f593f603).
+ * It must belong to the E2E_USERNAME account: the compose test expects picking
+ * @jexyissexy to open exactly this conversation.
  */
 
 import { test, expect, Page } from '@playwright/test'
+import { E2E_BASE_URL as BASE_URL } from './env'
 
-const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8081'
-const CONVO_ID = '01bc0c4f-2e83-4402-afce-5fc7ddd729f9'
+const CONVO_ID = '1e473b01-c06a-48b0-9308-21b3f593f603'
 const CONVO_URL = `${BASE_URL}/chat/${CONVO_ID}`
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Close the Expo dev-server error overlay (its button reads exactly "Dismiss").
+ * Must be an exact match: a substring match also hits app content — e.g. the
+ * chat list preview "You: e2e-reply-dismiss-<ts>" left by the reply-banner test
+ * below — and clicking that row opened the conversation, leaving the list as a
+ * hidden stack screen underneath (chatHeader then resolved to its hidden title).
+ */
 async function dismissErrorOverlays(page: Page) {
-  const dismissBtns = await page.getByText('Dismiss').all()
+  const dismissBtns = await page.getByText('Dismiss', { exact: true }).all()
   for (const btn of dismissBtns) {
     try { await btn.click({ timeout: 500 }) } catch {}
   }

@@ -3,26 +3,26 @@ import { Platform, TouchableOpacity, Text, View, useWindowDimensions, StyleSheet
 import { Slot, usePathname, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated'
-import { theme } from '../constants'
+import { BREAKPOINTS, theme } from '../constants'
+import { routes, type RouteString } from '../utils/routes'
 
-function getBackPath(pathname: string): string {
-  if (pathname.startsWith('/settings/')) return '/profile'
-  if (pathname.startsWith('/profile/')) return '/profile'
-  return '/profile'
+/** Every subpage that shows this back row lives under the Profile tab. */
+function getBackPath(_pathname: string): RouteString {
+  return routes.profile()
 }
 
 /**
  * Web: native-stack uses instant show/hide. Keyed fade gives a short transition when
  * opening routes from the profile tab (and between subpages). Native uses the real stack animation.
  *
- * On desktop web (≥768px) the tab navigator has headerShown:false, so we render an
+ * On desktop web (≥ BREAKPOINTS.sidebar) the tab navigator has headerShown:false, so we render an
  * inline back row here so subpages always have a way to navigate back.
  */
 export function WebStackContentTransition() {
   const pathname = usePathname()
   const router = useRouter()
   const { width } = useWindowDimensions()
-  const isDesktopWeb = Platform.OS === 'web' && width >= 768
+  const isDesktopWeb = Platform.OS === 'web' && width >= BREAKPOINTS.sidebar
 
   if (Platform.OS !== 'web') {
     return <Slot />
@@ -38,7 +38,7 @@ export function WebStackContentTransition() {
       {isDesktopWeb && (
         <View style={styles.backRow}>
           <TouchableOpacity
-            onPress={() => router.replace(getBackPath(pathname) as any)}
+            onPress={() => router.replace(getBackPath(pathname))}
             style={styles.backButton}
             accessibilityRole="button"
             accessibilityLabel="Go back"

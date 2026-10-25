@@ -4,8 +4,9 @@ import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, usePathname } from 'expo-router'
 import { theme, eventAttendeeDisplayCount } from '../constants'
+import { routes } from '../utils/routes'
 import { profileAvatarSmallUri, profileDisplayName } from '../utils'
-import type { EventWithDetails, Tag } from '../types'
+import type { EventCardRsvpHandler, EventWithDetails, Tag } from '../types'
 
 // ─── Attendance helpers ───────────────────────────────────────────────────────
 
@@ -19,6 +20,19 @@ import type { EventWithDetails, Tag } from '../types'
  */
 function isAttendingRow(row: { status?: string }): boolean {
   return (row.status ?? 'attending') === 'attending'
+}
+
+/**
+ * Label for a viewer who is waitlisted or has a pending join request. The card
+ * shows it as a status pill, not a button: an RSVP tap would try to insert a
+ * second row. Tapping the pill opens the event, where they can leave/cancel.
+ */
+function awaitingLabel(event: EventWithDetails, currentUserId: string | null | undefined): string | null {
+  if (!currentUserId) return null
+  const status = event.my_attendance?.find(a => a.user_id === currentUserId)?.status
+  if (status === 'waitlisted') return 'Waitlisted'
+  if (status === 'requested') return 'Requested'
+  return null
 }
 
 // ─── Tag helpers ──────────────────────────────────────────────────────────────
@@ -51,28 +65,32 @@ function parseEventDate(dateString: string): { day: string; date: number; time: 
 
 // ─── Event Card ───────────────────────────────────────────────────────────────
 
-export type EventCardRsvpHandler = (eventId: string, action: 'join' | 'leave') => Promise<void>
 
 function EventCardInner({
   event,
   from: fromOverride,
   currentUserId,
   onRsvp,
+  rsvpPending = false,
 }: {
   event: EventWithDetails
   from?: string
   currentUserId?: string | null
   onRsvp?: EventCardRsvpHandler
+  /** The parent's RSVP write for this event is in flight (survives a remount, unlike the local spinner). */
+  rsvpPending?: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [rsvpLoading, setRsvpLoading] = useState(false)
+  const [rsvpTapped, setRsvpTapped] = useState(false)
+  const rsvpLoading = rsvpTapped || rsvpPending
 
   const isAttending = !!currentUserId && (
     event.my_attendance != null
       ? event.my_attendance.some(a => a.user_id === currentUserId && isAttendingRow(a))
       : (event.attendee_previews ?? []).some(p => p.user_id === currentUserId)
   )
+  const awaiting = awaitingLabel(event, currentUserId)
 
   const attendeeCount = eventAttendeeDisplayCount(event)
   const spotsLeft = event.max_attendees != null ? Math.max(0, event.max_attendees - attendeeCount) : null
@@ -92,10 +110,11 @@ function EventCardInner({
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={() => {
-        const path = event._isTournament
-          ? `/tournament/${event.id}`
-          : `/event/${event.id}?from=${encodeURIComponent(fromOverride ?? pathname)}`
-        router.push(path as any)
+        router.push(
+          event._isTournament
+            ? routes.tournament(event.id)
+            : routes.eventFrom(event.id, fromOverride ?? pathname),
+        )
       }}
       style={{
         backgroundColor: theme.colors.card,
@@ -146,7 +165,7 @@ function EventCardInner({
 
         {/* Title */}
         <Text
-          style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 22, letterSpacing: -0.6, color: '#fff', lineHeight: 26, maxWidth: '78%' }}
+          style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 22, letterSpacing: -0.6, color: theme.colors.white, lineHeight: 26, maxWidth: '78%' }}
           numberOfLines={2}
         >
           {event.title}
@@ -203,7 +222,7 @@ function EventCardInner({
               </View>
             )}
             <View>
-              <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 15, letterSpacing: -0.2, color: '#fff' }}>
+              <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 15, letterSpacing: -0.2, color: theme.colors.white }}>
                 {attendeeCount}
                 {event.max_attendees
                   ? <Text style={{ opacity: 0.4, fontSize: 13 }}>/{event.max_attendees}</Text>
@@ -214,13 +233,22 @@ function EventCardInner({
               </Text>
             </View>
           </View>
-          {onRsvp && currentUserId && (
+          {onRsvp && currentUserId && awaiting && (
+            <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border }}>
+              <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 12, letterSpacing: 0.2, color: theme.colors.subtext }}>{awaiting}</Text>
+            </View>
+          )}
+          {onRsvp && currentUserId && !awaiting && (
             <TouchableOpacity
               onPress={async e => {
                 e.stopPropagation?.()
-                setRsvpLoading(true)
-                try { await onRsvp(event.id, isAttending ? 'leave' : 'join') } finally { setRsvpLoading(false) }
+                if (rsvpLoading) return
+                setRsvpTapped(true)
+                try { await onRsvp(event.id, isAttending ? 'leave' : 'join') } finally { setRsvpTapped(false) }
               }}
+              disabled={rsvpLoading}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: rsvpLoading, busy: rsvpLoading }}
               activeOpacity={0.75}
               style={{
                 paddingHorizontal: 14,
@@ -267,21 +295,25 @@ export const HeroEventCard = EventCard
 
 // ─── Row Event Card (desktop secondary cards) ─────────────────────────────────
 
-function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp }: {
+function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, rsvpPending = false }: {
   event: EventWithDetails
   from?: string
   currentUserId?: string | null
-  onRsvp?: (eventId: string, action: 'join' | 'leave') => Promise<void>
+  onRsvp?: EventCardRsvpHandler
+  /** See EventCard. */
+  rsvpPending?: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [rsvpLoading, setRsvpLoading] = useState(false)
+  const [rsvpTapped, setRsvpTapped] = useState(false)
+  const rsvpLoading = rsvpTapped || rsvpPending
 
   const isAttending = !!currentUserId && (
     event.my_attendance != null
       ? event.my_attendance.some(a => a.user_id === currentUserId && isAttendingRow(a))
       : (event.attendee_previews ?? []).some(p => p.user_id === currentUserId)
   )
+  const awaiting = awaitingLabel(event, currentUserId)
 
   const attendeeCount = eventAttendeeDisplayCount(event)
   const spotsLeft = event.max_attendees != null ? Math.max(0, event.max_attendees - attendeeCount) : null
@@ -301,10 +333,11 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp }:
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={() => {
-        const path = event._isTournament
-          ? `/tournament/${event.id}`
-          : `/event/${event.id}?from=${encodeURIComponent(fromOverride ?? pathname)}`
-        router.push(path as any)
+        router.push(
+          event._isTournament
+            ? routes.tournament(event.id)
+            : routes.eventFrom(event.id, fromOverride ?? pathname),
+        )
       }}
       style={{
         backgroundColor: theme.colors.card,
@@ -423,13 +456,22 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp }:
               <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '600', color: theme.colors.subtext }}>{spotsLeft != null ? `${spotsLeft} left` : '∞'}</Text>
             </View>
           </View>
-          {onRsvp && currentUserId && (
+          {onRsvp && currentUserId && awaiting && (
+            <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, flexShrink: 0, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border }}>
+              <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: theme.colors.subtext }}>{awaiting}</Text>
+            </View>
+          )}
+          {onRsvp && currentUserId && !awaiting && (
             <TouchableOpacity
               onPress={async e => {
                 e.stopPropagation?.()
-                setRsvpLoading(true)
-                try { await onRsvp(event.id, isAttending ? 'leave' : 'join') } finally { setRsvpLoading(false) }
+                if (rsvpLoading) return
+                setRsvpTapped(true)
+                try { await onRsvp(event.id, isAttending ? 'leave' : 'join') } finally { setRsvpTapped(false) }
               }}
+              disabled={rsvpLoading}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: rsvpLoading, busy: rsvpLoading }}
               activeOpacity={0.75}
               style={{
                 paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, flexShrink: 0,
@@ -439,8 +481,8 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp }:
               }}
             >
               {rsvpLoading
-                ? <ActivityIndicator size="small" color={isAttending ? theme.colors.subtext : '#fff'} />
-                : <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: isAttending ? theme.colors.subtext : '#fff' }}>
+                ? <ActivityIndicator size="small" color={isAttending ? theme.colors.subtext : theme.colors.white} />
+                : <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: isAttending ? theme.colors.subtext : theme.colors.white }}>
                     {isAttending ? 'Going ✓' : 'RSVP'}
                   </Text>
               }
@@ -453,4 +495,3 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp }:
 }
 
 export const RowEventCard = memo(RowEventCardInner) as typeof RowEventCardInner
-export type RowEventCardRsvpHandler = EventCardRsvpHandler

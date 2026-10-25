@@ -4,10 +4,9 @@ import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { Button } from '../Button'
 import { shared, theme, CHEER_TYPES, CHEERS_MAX_PER_EVENT, TEAM_COLORS, TEAM_COLOR_NAMES } from '../../constants'
-import type { Profile, CheerType, Cheer, TeamAssignment } from '../../types'
+import type { Profile, CheerType, Cheer, IoniconName, PendingCheer, TeamAssignment } from '../../types'
 import { profileDisplayName, profileInitial, resolveProfileAvatarUriSmall } from '../../utils'
-
-type PendingCheer = { receiverId: string; cheerType: CheerType }
+import type { EventCheersApi, EventData, EventTeamsApi } from '../../types'
 
 type CheerPersonCardProps = {
   profile: Profile
@@ -69,38 +68,27 @@ function CheerPersonCard({ profile, hasGiven, disabled, teamColor, onPress }: Ch
 }
 
 type Props = {
+  cheers: EventCheersApi
   isEventOver: boolean
   isAttending: boolean
   isOwner: boolean
-  cheersLoading: boolean
-  refreshing: boolean
-  onRefresh: () => void
-  selectedCheerType: CheerType | null
-  setSelectedCheerType: (t: CheerType | null) => void
-  myCheersGiven: Cheer[]
-  pendingCheers: PendingCheer[]
-  cheersSent: boolean
-  cheerSubmitError: string | null
-  submittingCheers: boolean
-  submitCheers: () => void
-  resetCheers: () => void
-  toggleCheer: (receiverId: string, cheerType: CheerType) => void
-  attendees: Profile[]
-  userId: string | null
-  hasTeams: boolean
-  assignments: Record<string, TeamAssignment>
-  numTeams: number
+  /** Attendees, viewer id and pull-to-refresh. */
+  data: EventData
+  /** Team colours on the person cards. */
+  teams: Pick<EventTeamsApi, 'hasTeams' | 'assignments' | 'numTeams'>
   isMobileWeb: boolean
   bottomInset: number
 }
 
 /** Tab 3 of the event detail screen: give post-event cheers to other attendees. */
-export function CheersTab({
-  isEventOver, isAttending, isOwner, cheersLoading, refreshing, onRefresh,
-  selectedCheerType, setSelectedCheerType, myCheersGiven, pendingCheers,
-  cheersSent, cheerSubmitError, submittingCheers, submitCheers, resetCheers,
-  toggleCheer, attendees, userId, hasTeams, assignments, numTeams, isMobileWeb, bottomInset,
-}: Props) {
+export function CheersTab({ cheers, isEventOver, isAttending, isOwner, data, teams, isMobileWeb, bottomInset }: Props) {
+  const {
+    cheersLoading, selectedCheerType, setSelectedCheerType, myCheersGiven, pendingCheers,
+    cheersSent, cheerSubmitError, submittingCheers, submitCheers, resetCheers, toggleCheer,
+  } = cheers
+  const { refreshing, refresh: onRefresh, userId } = data
+  const { attendees } = data.roster
+  const { hasTeams, assignments, numTeams } = teams
   const refresh = <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
 
   return (
@@ -176,7 +164,7 @@ export function CheersTab({
                   }}
                 >
                   <Ionicons
-                    name={kt.icon as any}
+                    name={kt.icon as IoniconName}
                     size={28}
                     color={totalCount > 0 ? theme.colors.primary : theme.colors.subtext}
                   />
@@ -257,7 +245,7 @@ export function CheersTab({
               <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
             </TouchableOpacity>
             <Ionicons
-              name={(CHEER_TYPES.find(k => k.type === selectedCheerType)?.icon ?? 'star-outline') as any}
+              name={(CHEER_TYPES.find(k => k.type === selectedCheerType)?.icon ?? 'star-outline') as IoniconName}
               size={18}
               color={theme.colors.primary}
             />

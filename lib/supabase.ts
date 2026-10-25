@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { createClient } from '@supabase/supabase-js'
-import { Platform } from 'react-native'
+import type { AppDatabase } from '../types'
+import { AppState, Platform } from 'react-native'
 import 'react-native-url-polyfill/auto'
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
@@ -14,7 +15,7 @@ const storage = isSSR
   ? { getItem: () => null, setItem: () => {}, removeItem: () => {} }
   : AsyncStorage
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient<AppDatabase>(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage,
     autoRefreshToken: !isSSR,
@@ -24,3 +25,15 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: Platform.OS === 'web',
   },
 })
+
+// Native: the token refresh timer only runs while the app is in the
+// foreground (Supabase's React Native guidance). A backgrounded app otherwise
+// wakes with an expired access token, and the first requests / realtime joins
+// after resume fail until the next tick. Web keeps the default visibility-based
+// handling; SSR has no session to refresh.
+if (Platform.OS !== 'web' && !isSSR) {
+  AppState.addEventListener('change', state => {
+    if (state === 'active') void supabase.auth.startAutoRefresh()
+    else void supabase.auth.stopAutoRefresh()
+  })
+}

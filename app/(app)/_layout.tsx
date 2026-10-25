@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { Animated, Image, Platform, Pressable, View, Text, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Stack, useRouter, usePathname } from 'expo-router'
-import { theme, BADGE_DEFINITIONS } from '../../constants'
+import { theme, BADGE_DEFINITIONS, BREAKPOINTS, TABS, CREATE_MENU, tabIndexFromPath } from '../../constants'
 import { WebNavContext } from '../../contexts/webNav'
 import { SentryErrorBoundary } from '../../components/SentryErrorBoundary'
 import { ChatUnreadProvider, useChatUnread } from '../../hooks/useChatUnread'
 import { useIsNarrowWeb } from '../../hooks/useIsNarrowWeb'
 import { useRequireSignIn } from '../../hooks/useRequireSignIn'
-import { tabIndexFromPath } from '../../utils/tabs'
+import { routes, type RouteString } from '../../utils/routes'
 
 // Collect every badge image URL defined in code and prefetch them so the
 // badges screen renders instantly without a network loading flash.
@@ -16,12 +16,6 @@ const BADGE_IMAGE_URLS: string[] = BADGE_DEFINITIONS.flatMap(def => [
   ...(def.imageUri ? [def.imageUri] : []),
   ...(def.tierImageUris ? Object.values(def.tierImageUris) : []),
 ])
-
-const FAB_OPTIONS = [
-  { label: 'Open Play',     path: '/host?maxAttendees=18' },
-  { label: 'Tournament',    path: '/tournament/create' },
-  { label: 'From Template', path: '/host?mode=templates' },
-]
 
 function SidebarToggleIcon({ color }: { color: string }) {
   return (
@@ -37,15 +31,6 @@ function SidebarToggleIcon({ color }: { color: string }) {
     </View>
   )
 }
-
-const TABS = [
-  { name: 'Events',  icon: 'calendar-outline'     as const, path: '/'        },
-  { name: 'Clubs',   icon: 'people-outline'        as const, path: '/clubs'   },
-  { name: 'Chat',    icon: 'chatbubbles-outline'   as const, path: '/chat'    },
-  { name: 'Profile', icon: 'person-circle-outline' as const, path: '/profile' },
-]
-
-const SIDEBAR_BREAKPOINT = 768
 
 
 export default function AppLayout() {
@@ -70,11 +55,11 @@ function AppLayoutInner() {
   }, [])
   const [fabOpen, setFabOpen] = useState(false)
   const fabAnim = useRef(new Animated.Value(0)).current
-  const isNarrowWeb = useIsNarrowWeb(SIDEBAR_BREAKPOINT)
+  const isNarrowWeb = useIsNarrowWeb(BREAKPOINTS.sidebar)
   const requireSignIn = useRequireSignIn()
 
   function goToTab(index: number) {
-    router.replace(TABS[index].path as any)
+    router.replace(TABS[index].path)
   }
 
   function openFab() {
@@ -87,9 +72,9 @@ function AppLayoutInner() {
     Animated.timing(fabAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => setFabOpen(false))
   }
 
-  function goHost(path: string) {
+  function goHost(path: RouteString) {
     closeFab()
-    setTimeout(() => router.push(path as any), 160)
+    setTimeout(() => router.push(path), 160)
   }
 
   const sidebarActive = tabIndexFromPath(pathname)
@@ -145,10 +130,10 @@ function AppLayoutInner() {
 
             {TABS.map((tab, i) => {
               const active = sidebarActive === i
-              const badge = i === 2 && chatUnread > 0 ? chatUnread : 0
+              const badge = tab.key === 'chat' && chatUnread > 0 ? chatUnread : 0
               return (
                 <TouchableOpacity
-                  key={tab.name}
+                  key={tab.key}
                   onPress={() => goToTab(i)}
                   style={{
                     flexDirection: 'row',
@@ -174,11 +159,11 @@ function AppLayoutInner() {
                       <View style={{
                         position: 'absolute', top: -5, right: -8,
                         minWidth: 16, height: 16, borderRadius: 8,
-                        backgroundColor: theme.colors.primary,
+                        backgroundColor: theme.colors.hot,
                         alignItems: 'center', justifyContent: 'center',
                         paddingHorizontal: 3,
                       }}>
-                        <Text style={{ fontSize: 8, fontWeight: '800', color: '#fff', lineHeight: 11 }}>
+                        <Text style={{ fontSize: 8, fontWeight: '800', color: theme.colors.white, lineHeight: 11 }}>
                           {badge > 99 ? '99+' : badge}
                         </Text>
                       </View>
@@ -240,7 +225,7 @@ function AppLayoutInner() {
                   transform: [{ translateY: fabAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
                 }}
               >
-                {FAB_OPTIONS.map(opt => (
+                {CREATE_MENU.map(opt => (
                   <TouchableOpacity
                     key={opt.label}
                     onPress={() => goHost(opt.path)}
@@ -251,7 +236,7 @@ function AppLayoutInner() {
                       paddingHorizontal: theme.spacing.lg,
                       borderWidth: 1,
                       borderColor: theme.colors.border,
-                      shadowColor: '#000',
+                      shadowColor: theme.colors.black,
                       shadowOffset: { width: 0, height: 2 },
                       shadowOpacity: 0.12,
                       shadowRadius: 4,
@@ -265,8 +250,9 @@ function AppLayoutInner() {
               </Animated.View>
             )}
 
-            {/* FAB button */}
-            {pathname === '/' && (
+            {/* FAB button. Wide web shows it on Events only; the mobile tab bar shows its
+                create button on every tab. Long-standing difference, kept as is. */}
+            {pathname === routes.events() && (
               <TouchableOpacity
                 onPress={fabOpen ? closeFab : openFab}
                 style={{
@@ -279,7 +265,7 @@ function AppLayoutInner() {
                   backgroundColor: theme.colors.primary,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  shadowColor: '#000',
+                  shadowColor: theme.colors.black,
                   shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.2,
                   shadowRadius: 6,

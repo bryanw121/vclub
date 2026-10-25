@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test'
-
-const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8081'
+import { E2E_BASE_URL as BASE_URL } from './env'
 
 // Runs without the shared session (see the `guest` project in playwright.config.ts).
 test.describe('guest browsing', () => {

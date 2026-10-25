@@ -1,5 +1,5 @@
 import { planBadgeAwards, badgeStatValue } from '../utils/badges'
-import type { BadgeStats } from '../utils/badges'
+import type { BadgeStats } from '../types'
 import { BADGE_DEFINITIONS, VEX_MEMBER_ACTIVE } from '../constants/badges'
 import type { UserBadge } from '../types'
 

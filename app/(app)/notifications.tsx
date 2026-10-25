@@ -12,6 +12,7 @@ import { Stack, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useNotifications } from '../../hooks/useNotifications'
 import { shared, theme } from '../../constants'
+import { routes, isAppPath, toRoute } from '../../utils/routes'
 import { formatShortTime } from '../../utils/notificationUtils'
 import type { Notification } from '../../types'
 
@@ -33,12 +34,12 @@ export default function NotificationsScreen() {
         /* still navigate */
       }
       const path = item.data?.deep_link
-      if (path) {
-        router.push(path as any)
+      if (isAppPath(path)) {
+        router.push(toRoute(path))
         return
       }
       if (item.data?.event_id) {
-        router.push(`/event/${item.data.event_id}` as any)
+        router.push(routes.event(item.data.event_id))
       }
     },
     [markRead, router],

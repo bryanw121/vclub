@@ -9,15 +9,9 @@ import { supabase } from '../lib/supabase'
 import { theme } from '../constants'
 import { LOCATIONS } from '../constants/events'
 import { formatVenueDisplay } from '../utils'
-import type { GooglePlacePrediction } from '../types'
+import type { GooglePlacePrediction, LocationValue } from '../types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-export type LocationValue = {
-  display: string
-  latitude: number | null
-  longitude: number | null
-}
 
 type GooglePrediction = GooglePlacePrediction
 

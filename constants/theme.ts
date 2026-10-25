@@ -30,8 +30,22 @@ export const theme = {
     warning:      '#FFA040',
     success:      '#00D26A',
     white:        '#FFFFFF',
+    black:        '#000000',
+    /** Label/icon colour on `primary`, `error` and other saturated fills. */
+    onPrimary:    '#FFFFFF',
+    /** Scrim behind dialogs and bottom sheets. */
+    overlay:      'rgba(0,0,0,0.5)',    // shared.modalOverlay (host, feedback)
+    overlayLight: 'rgba(0,0,0,0.45)',   // event detail's confirm dialogs / ConfirmDialog
+    // Podium / trophy medals
+    medalGold:    '#FFD54F',
+    medalSilver:  '#B0BEC5',
+    medalBronze:  '#D7A86E',
     // Misc
     announcementHighlight: '#2A1F6B',
+  },
+  /** Gradient stops for `LinearGradient colors={...}`. */
+  gradients: {
+    brand: ['#4FC3F7', '#7C4DFF', '#E040FB'] as const,
   },
   /** Font family names registered via @expo-google-fonts (native + web). */
   fonts: {
@@ -54,9 +68,12 @@ export const theme = {
   },
   font: {
     size: {
+      xxs: 10,
       xs:  11,
       sm:  12,
+      smd: 13,
       md:  14,
+      lgs: 15,
       lg:  18,
       xl:  24,
       xxl: 32,
@@ -78,6 +95,8 @@ export const theme = {
     md:   12,
     lg:   16,
     xl:   20,
+    /** Top corners of bottom sheets. */
+    sheet: 24,
     xxl:  28,
     full: 999,
   },

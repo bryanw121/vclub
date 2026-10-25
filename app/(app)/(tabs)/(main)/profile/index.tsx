@@ -1,633 +1,87 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import type { ComponentProps } from 'react'
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native'
-import * as ImagePicker from 'expo-image-picker'
-import { LinearGradient } from 'expo-linear-gradient'
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  withSpring,
-  runOnJS,
-  Easing,
-} from 'react-native-reanimated'
+import { Alert, Platform, Pressable, RefreshControl, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { useFocusEffect, useRouter } from 'expo-router'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { supabase } from '../../../../../lib/supabase'
-import { Sentry } from '../../../../../lib/sentry'
-import { Button } from '../../../../../components/Button'
+import { useRouter } from 'expo-router'
 import { DocScrollView } from '../../../../../components/DocScrollView'
-import { Input } from '../../../../../components/Input'
 import { Toast } from '../../../../../components/Toast'
-import { BadgeIcon } from '../../../../../components/BadgeIcon'
-import {
-  shared,
-  theme,
-  AVATARS_BUCKET,
-  AVATAR_MAX_FILE_BYTES,
-  BADGE_DEFINITIONS,
-  badgeTitle,
-  badgeTierLabel,
-} from '../../../../../constants'
-
-import { PROFILE_BORDERS, isBorderUnlocked } from '../../../../../constants/badges'
-import type { ProfileBorderDef, ProfileBorderType } from '../../../../../constants/badges'
-import {
-  normalizeVolleyballPositions,
-  normalizeVolleyballSkillLevel,
-  resolveProfileAvatarUriWithError,
-  volleyballPositionsEqualUnordered,
-  volleyballSkillLevelLabel,
-  profileFullName,
-  resolveReceivedCheersCount,
-} from '../../../../../utils'
-import type { Profile, VolleyballPosition, VolleyballSkillLevel } from '../../../../../types'
-import { useTabsShell } from '../../../../../contexts/tabs'
-import { useBadges } from '../../../../../hooks/useBadges'
-import { useSession } from '../../../../../contexts/session'
 import { SignInPrompt } from '../../../../../components/SignInPrompt'
+import { ScreenState } from '../../../../../components/ui'
+import { ProfileHero } from '../../../../../components/profile/ProfileHero'
+import { ProfileMenu } from '../../../../../components/profile/ProfileMenu'
+import { EditProfileForm } from '../../../../../components/profile/EditProfileForm'
+import { RecentCheersPlaceholder, TrophyCase } from '../../../../../components/profile/TrophyCase'
+import { useAvatarUploader } from '../../../../../components/profile/useAvatarUploader'
+import { PROFILE_TAB_INDEX, shared, theme } from '../../../../../constants'
+import { useSession } from '../../../../../contexts/session'
+import { useTabsActive, useTabsShell } from '../../../../../contexts/tabs'
+import { badgesKey, useBadges } from '../../../../../hooks/useBadges'
+import {
+  myCheersCountKey,
+  myProfileKey,
+  useMyCheersCount,
+  useMyProfile,
+} from '../../../../../hooks/useMyProfile'
+import { useFocusRefetch } from '../../../../../lib/query'
+import { routes } from '../../../../../utils/routes'
+import type { Profile, ProfilePatch, ToastState, UserBadge } from '../../../../../types'
 
-type Section = 'menu' | 'edit'
-
-const VOLLEYBALL_POSITION_OPTIONS: { value: VolleyballPosition; label: string }[] = [
-  { value: 'setter', label: 'Setter' },
-  { value: 'libero', label: 'Libero' },
-  { value: 'outside_hitter', label: 'Outside Hitter (OH)' },
-  { value: 'middle_blocker', label: 'Middle Blocker (MB)' },
-  { value: 'defensive_specialist', label: 'Defensive Specialist (DS)' },
-  { value: 'opposite_hitter', label: 'Opposite Hitter (OPP)' },
-]
-
-const VOLLEYBALL_SKILL_LEVEL_OPTIONS: { value: VolleyballSkillLevel; label: string }[] = [
-  { value: 'd',       label: 'D (Newbie)' },
-  { value: 'c',       label: 'C' },
-  { value: 'b',       label: 'B' },
-  { value: 'bb',      label: 'BB' },
-  { value: 'a',       label: 'A' },
-  { value: 'aa_plus', label: 'AA+' },
-]
-
-const AVATAR_SIZE = 88
-
-function positionLabels(positions: VolleyballPosition[]): string {
-  if (positions.length === 0) return ''
-  return positions
-    .map(p => VOLLEYBALL_POSITION_OPTIONS.find(o => o.value === p)?.label ?? p)
-    .join(' · ')
+type Props = {
+  profile: Profile
+  totalCheers: number
+  badges: UserBadge[]
+  saving: boolean
+  updateProfile: (patch: ProfilePatch) => Promise<boolean>
+  setDisplaySlot: ReturnType<typeof useBadges>['setDisplaySlot']
+  checkBadges: ReturnType<typeof useBadges>['checkBadges']
+  refreshing: boolean
+  onRefresh: () => void
 }
 
-// ─── Avatar with animated/styled border ───────────────────────────────────────
-
-/** Ring thickness in px. All border variants use the same outer container size. */
-const RING = 3
-const AVATAR_OUTER = AVATAR_SIZE + RING * 2  // 94 — consistent for all border types
-
-type AvatarProps = {
-  uri: string | null
-  loading: boolean
-  border: Profile['selected_border']
-  onPress: () => void
-  editMode: boolean
-  onDelete: () => void
-  hasAvatar: boolean
-}
-
-function AvatarInner({
-  uri, loading, onPress, editMode,
-}: Pick<AvatarProps, 'uri' | 'loading' | 'onPress' | 'editMode'>) {
-  return (
-    <Pressable
-      onPress={editMode ? onPress : undefined}
-      disabled={loading || !editMode}
-      accessibilityRole="button"
-      accessibilityLabel={editMode ? 'Change profile picture' : 'Profile picture'}
-      style={{
-        width: AVATAR_SIZE, height: AVATAR_SIZE,
-        borderRadius: AVATAR_SIZE / 2,
-        overflow: 'hidden',
-        backgroundColor: theme.colors.border,
-        alignItems: 'center', justifyContent: 'center',
-      }}
-    >
-      {loading ? (
-        <ActivityIndicator color={theme.colors.primary} />
-      ) : uri ? (
-        <Image source={{ uri }} style={{ width: '100%', height: '100%' }} accessibilityIgnoresInvertColors />
-      ) : (
-        <Ionicons name="person" size={40} color={theme.colors.subtext} />
-      )}
-    </Pressable>
-  )
-}
-
-/** Shared inner hole — cuts out center of gradient ring, hosts the avatar content. */
-function RingHole({ children, style }: { children: React.ReactNode; style?: object }) {
-  return (
-    <View style={[{
-      position: 'absolute',
-      top: RING, left: RING, right: RING, bottom: RING,
-      borderRadius: AVATAR_SIZE / 2,
-      overflow: 'hidden',
-      backgroundColor: theme.colors.card,
-      alignItems: 'center', justifyContent: 'center',
-    }, style]}>
-      {children}
-    </View>
-  )
-}
-
-/** Bronze border — warm gradient ring, no animation. */
-function BronzeBorder({ children }: { children: React.ReactNode }) {
-  return (
-    <View style={{ width: AVATAR_OUTER, height: AVATAR_OUTER, borderRadius: AVATAR_OUTER / 2, overflow: 'hidden' }}>
-      <LinearGradient
-        colors={['#C4873A', '#CD7F32', '#7A3B0A'] as [string, string, string]}
-        start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-      />
-      <RingHole>{children}</RingHole>
-    </View>
-  )
-}
-
-/** Gold border — rich gold gradient ring with a warm persistent glow. */
-function GoldBorder({ children }: { children: React.ReactNode }) {
-  return (
-    <View style={[
-      { width: AVATAR_OUTER, height: AVATAR_OUTER, borderRadius: AVATAR_OUTER / 2 },
-      Platform.select({
-        ios: { shadowColor: '#FFD700', shadowRadius: 10, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.72 },
-        android: { elevation: 8 },
-        web: { filter: 'drop-shadow(0 0 8px #FFD700BB)' } as any,
-      }),
-    ]}>
-      <View style={{ width: AVATAR_OUTER, height: AVATAR_OUTER, borderRadius: AVATAR_OUTER / 2, overflow: 'hidden' }}>
-        <LinearGradient
-          colors={['#FFE566', '#FFD700', '#C8860A'] as [string, string, string]}
-          start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-        />
-        <RingHole>{children}</RingHole>
-      </View>
-    </View>
-  )
-}
-
-/**
- * Legend border — spinning aurora gradient ring with pulsing glow.
- * Outer container is exactly AVATAR_OUTER × AVATAR_OUTER (same as other borders).
- * The spinning is achieved by rotating the outer ring container; the inner content
- * counter-rotates so the avatar stays upright.
- */
-function LegendBorder({ children }: { children: React.ReactNode }) {
-  const rot = useSharedValue(0)
-  const glowO = useSharedValue(0.45)
-
-  useEffect(() => {
-    rot.value = withRepeat(withTiming(360, { duration: 3200, easing: Easing.linear }), -1, false)
-    glowO.value = withRepeat(withTiming(0.9, { duration: 2000, easing: Easing.inOut(Easing.sin) }), -1, true)
-  }, [])
-
-  const spinStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${rot.value}deg` }] }))
-  const counterStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `-${rot.value}deg` }] }))
-  const glowStyle = useAnimatedStyle(() => ({ opacity: glowO.value }))
-
-  return (
-    <View style={{ width: AVATAR_OUTER, height: AVATAR_OUTER }}>
-      {/* Pulsing glow halo — absolute, overflow is intentional visual-only bleed */}
-      <Animated.View
-        pointerEvents="none"
-        style={[{
-          position: 'absolute',
-          top: -10, left: -10,
-          width: AVATAR_OUTER + 20, height: AVATAR_OUTER + 20,
-          borderRadius: (AVATAR_OUTER + 20) / 2,
-          backgroundColor: '#A78BFA18',
-          ...Platform.select({
-            ios: { shadowColor: '#A78BFA', shadowRadius: 18, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 1 },
-            android: { elevation: 14 },
-            web: { filter: 'blur(8px)' } as any,
-          }),
-        }, glowStyle]}
-      />
-
-      {/* Spinning gradient ring — overflow:hidden clips the gradient to a circle */}
-      <Animated.View style={[{
-        width: AVATAR_OUTER, height: AVATAR_OUTER,
-        borderRadius: AVATAR_OUTER / 2,
-        overflow: 'hidden',
-      }, spinStyle]}>
-        <LinearGradient
-          colors={['#A78BFA', '#38BDF8', '#34D399', '#FBBF24', '#F43F5E', '#A78BFA'] as [string, string, ...string[]]}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-        />
-        {/* Counter-rotate so avatar stays upright while ring spins */}
-        <Animated.View style={[{
-          position: 'absolute',
-          top: RING, left: RING, right: RING, bottom: RING,
-          borderRadius: AVATAR_SIZE / 2,
-          overflow: 'hidden',
-          backgroundColor: theme.colors.card,
-          alignItems: 'center', justifyContent: 'center',
-        }, counterStyle]}>
-          {children}
-        </Animated.View>
-      </Animated.View>
-    </View>
-  )
-}
-
-function ProfileAvatar(props: AvatarProps) {
-  const { border, editMode, onDelete, hasAvatar, loading } = props
-  const inner = <AvatarInner uri={props.uri} loading={props.loading} onPress={props.onPress} editMode={props.editMode} />
-
-  let bordered: React.ReactNode
-  if (!border) {
-    bordered = (
-      <View style={{ width: AVATAR_OUTER, height: AVATAR_OUTER, alignItems: 'center', justifyContent: 'center' }}>
-        {inner}
-      </View>
-    )
-  } else if (border === 'gradient') {
-    bordered = <LegendBorder>{inner}</LegendBorder>
-  } else if (border === 'gold') {
-    bordered = <GoldBorder>{inner}</GoldBorder>
-  } else {
-    bordered = <BronzeBorder>{inner}</BronzeBorder>
-  }
-
-  return (
-    <View style={{ width: AVATAR_OUTER, height: AVATAR_OUTER, flexShrink: 0 }}>
-      {bordered}
-      {/* Delete button rendered here — outside all ring clipping contexts */}
-      {editMode && hasAvatar && !loading && (
-        <Pressable
-          onPress={onDelete}
-          accessibilityRole="button"
-          accessibilityLabel="Remove profile picture"
-          style={{
-            position: 'absolute', top: 0, right: 0,
-            width: 22, height: 22, borderRadius: 11,
-            backgroundColor: theme.colors.subtext,
-            alignItems: 'center', justifyContent: 'center',
-            borderWidth: 2, borderColor: theme.colors.card,
-          }}
-        >
-          <Ionicons name="close" size={12} color={theme.colors.white} />
-        </Pressable>
-      )}
-    </View>
-  )
-}
-
-// ─── Main screen ──────────────────────────────────────────────────────────────
-
-function MyProfileSignedIn() {
+/** The loaded Profile tab: hero card, then either the settings menu or the edit form. */
+function MyProfileBody({ profile, totalCheers, badges, saving, updateProfile, setDisplaySlot, checkBadges, refreshing, onRefresh }: Props) {
   const router = useRouter()
   const { setTabBarHidden, tabBarHeight, docScrollActive } = useTabsShell()
   const lastScrollY = useRef(0)
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [totalCheers, setTotalCheers] = useState(0)
-  const [loading, setLoading] = useState(true)
-  // Incremented on every local save so stale in-flight fetches don't overwrite newer state.
-  const profileGenRef = useRef(0)
-  const [refreshing, setRefreshing] = useState(false)
-  const [section, setSection] = useState<Section>('menu')
-  const handleScroll = useCallback((e: any) => {
-    if (Platform.OS !== 'web') return
-    if (section === 'edit') return
-    const y: number = e.nativeEvent.contentOffset.y
-    const diff = y - lastScrollY.current
-    lastScrollY.current = y
-    if (y <= 60) { setTabBarHidden(false); return }
-    if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
-  }, [section, setTabBarHidden])
-  const [positionDraft, setPositionDraft] = useState<VolleyballPosition[]>([])
-  const [skillLevelDraft, setSkillLevelDraft] = useState<VolleyballSkillLevel | null>(null)
-  const [firstNameDraft, setFirstNameDraft] = useState('')
-  const [lastNameDraft, setLastNameDraft] = useState('')
-  const [bioDraft, setBioDraft] = useState('')
-  const [profileSaving, setProfileSaving] = useState(false)
-  const [borderDraft, setBorderDraft] = useState<ProfileBorderType | null>(null)
-  const [borderSaving, setBorderSaving] = useState(false)
-  const [avatarUploading, setAvatarUploading] = useState(false)
-  const [avatarDisplayUri, setAvatarDisplayUri] = useState<string | null>(null)
-  const [avatarUriResolving, setAvatarUriResolving] = useState(false)
-  const [avatarUriError, setAvatarUriError] = useState<string | null>(null)
-  const lastResolvedAvatarUrl = useRef<string | null>(null)
-  const [pendingAsset, setPendingAsset] = useState<ImagePicker.ImagePickerAsset | null>(null)
-  const [toast, setToast] = useState<{ message: string; variant: 'error' | 'success' | 'info' } | null>(null)
-  const [pickingSlot, setPickingSlot] = useState<number | null>(null)
-  const [sheetMounted, setSheetMounted] = useState(false)
-  const [badgeGridWidth, setBadgeGridWidth] = useState(0)
-  const sheetProgress = useSharedValue(0)
-  const insets = useSafeAreaInsets()
+  const [section, setSection] = useState<'menu' | 'edit'>('menu')
+  const [toast, setToast] = useState<ToastState | null>(null)
 
-  const sheetTranslateStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: (1 - sheetProgress.value) * 400 }],
-  }))
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: sheetProgress.value,
-  }))
+  const showToast = useCallback((message: string) => setToast({ message, variant: 'error' }), [])
+  const onAvatarSaved = useCallback((updated: Profile) => { void checkBadges(updated, true) }, [checkBadges])
+  const uploader = useAvatarUploader({ profile, updateProfile, onSaved: onAvatarSaved, onToast: showToast })
 
-  // Hide tab bar while in edit mode
+  // Hide the tab bar while editing.
   useEffect(() => {
     setTabBarHidden(section === 'edit')
     return () => { if (section === 'edit') setTabBarHidden(false) }
   }, [section, setTabBarHidden])
 
-  function openSheet(slot: number) {
-    setPickingSlot(slot)
-    setSheetMounted(true)
-    sheetProgress.value = 0
-    sheetProgress.value = withTiming(1, { duration: 280 })
-  }
+  const handleScroll = useCallback((e: { nativeEvent: { contentOffset: { y: number } } }) => {
+    if (Platform.OS !== 'web') return
+    if (section === 'edit') return
+    const y = e.nativeEvent.contentOffset.y
+    const diff = y - lastScrollY.current
+    lastScrollY.current = y
+    if (y <= 60) { setTabBarHidden(false); return }
+    if (Math.abs(diff) > 5) setTabBarHidden(diff > 0)
+  }, [section, setTabBarHidden])
 
-  function closeSheet() {
-    sheetProgress.value = withTiming(0, { duration: 220 }, (finished) => {
-      'worklet'
-      if (finished) {
-        runOnJS(setSheetMounted)(false)
-        runOnJS(setPickingSlot)(null)
-      }
-    })
-  }
-
-  function showToast(message: string, variant: 'error' | 'success' | 'info' = 'error') {
-    setToast({ message, variant })
-  }
-
-  const { badges, checkBadges, fetchBadges, setDisplaySlot } = useBadges()
-
-  async function handleProfileRefresh() {
-    setRefreshing(true)
-    lastResolvedAvatarUrl.current = null // force fresh signed URL on refresh
-    try {
-      await Promise.all([fetchProfile(), fetchBadges(true)])
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
-  useFocusEffect(
-    // Cache-respecting on purpose: forcing here defeated useBadges' 10-minute
-    // memory + AsyncStorage cache on every single visit to the tab.
-    useCallback(() => {
-      void fetchProfile()
-      void fetchBadges()
-    }, [fetchBadges]),
-  )
-
-  async function fetchProfile() {
-    const gen = profileGenRef.current
-    const { data: { session } } = await supabase.auth.getSession()
-    const userId = session?.user?.id
-    if (!userId) { setLoading(false); return }
-
-    const [profileRes, cheersRes] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('id, username, first_name, last_name, avatar_url, position, skill_level, created_at, selected_border, selected_card_bg, bio')
-        .eq('id', userId)
-        .single(),
-      supabase.from('cheers').select('id', { count: 'exact', head: true }).eq('receiver_id', userId),
-    ])
-
-    // A local save happened while this fetch was in-flight — discard stale result.
-    if (profileGenRef.current !== gen) return
-
-    setTotalCheers(previous => resolveReceivedCheersCount(cheersRes, previous))
-
-    if (!profileRes.error) {
-      const row = profileRes.data as Partial<Profile>
-      const positions = normalizeVolleyballPositions(row.position)
-      const skillLevel = normalizeVolleyballSkillLevel((row as any).skill_level)
-      const normalized: Profile = {
-        id: row.id as string,
-        username: row.username as string,
-        first_name: row.first_name ?? null,
-        last_name: row.last_name ?? null,
-        avatar_url: row.avatar_url ?? null,
-        position: positions,
-        skill_level: skillLevel,
-        created_at: row.created_at as string,
-        selected_border: (row as any).selected_border ?? null,
-        selected_card_bg: (row as any).selected_card_bg ?? null,
-        bio: (row as any).bio ?? null,
-      }
-      setProfile(normalized)
-      setPositionDraft(positions)
-      setSkillLevelDraft(skillLevel)
-      setBioDraft((row as any).bio ?? '')
-      if (normalized.avatar_url) {
-        if (normalized.avatar_url !== lastResolvedAvatarUrl.current) {
-          setAvatarUriResolving(true)
-          setAvatarUriError(null)
-          const { uri, error } = await resolveProfileAvatarUriWithError(normalized.avatar_url)
-          setAvatarDisplayUri(uri)
-          setAvatarUriError(error)
-          setAvatarUriResolving(false)
-          lastResolvedAvatarUrl.current = normalized.avatar_url
-        }
-      } else {
-        setAvatarDisplayUri(null)
-        setAvatarUriError(null)
-        lastResolvedAvatarUrl.current = null
-      }
-      void checkBadges(normalized)
-    }
-    setLoading(false)
-  }
-
-  function openEditProfile() {
-    if (!profile) return
-    setFirstNameDraft(profile.first_name ?? '')
-    setLastNameDraft(profile.last_name ?? '')
-    setPositionDraft([...profile.position])
-    setSkillLevelDraft(profile.skill_level ?? null)
-    setBioDraft(profile.bio ?? '')
-    setBorderDraft(profile.selected_border ?? null)
-    setSection('edit')
-  }
-
-  async function saveBorder(border: ProfileBorderType | null) {
-    if (borderSaving) return
-    const previous = borderDraft
-    setBorderDraft(border)
-    setProfile(prev => prev ? { ...prev, selected_border: border } : prev)
-    try {
-      setBorderSaving(true)
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user?.id) return
-      const { error } = await supabase.from('profiles').update({ selected_border: border }).eq('id', session.user.id)
-      if (error) {
-        setBorderDraft(previous)
-        setProfile(prev => prev ? { ...prev, selected_border: previous } : prev)
-      }
-    } finally {
-      setBorderSaving(false)
-    }
-  }
-
-  async function saveProfileEdits() {
-    if (!profile) return
-    try {
-      setProfileSaving(true)
-      profileGenRef.current += 1
-      const { data: { session } } = await supabase.auth.getSession()
-      const userId = session?.user?.id
-      if (!userId) throw new Error('Not logged in')
-      const trimmedBio = bioDraft.trim()
-      const trimmedFirst = firstNameDraft.trim()
-      const trimmedLast = lastNameDraft.trim()
-      const { error } = await supabase.from('profiles').update({
-        position: positionDraft,
-        skill_level: skillLevelDraft,
-        bio: trimmedBio || null,
-        first_name: trimmedFirst || null,
-        last_name: trimmedLast || null,
-      }).eq('id', userId)
-      if (error) throw error
-      const updated = {
-        ...profile,
-        position: [...positionDraft],
-        skill_level: skillLevelDraft,
-        bio: trimmedBio || null,
-        first_name: trimmedFirst || null,
-        last_name: trimmedLast || null,
-      }
-      setProfile(updated)
-      void checkBadges(updated, true)
-      Alert.alert('Saved', 'Your profile was updated.')
-      setSection('menu')
-    } catch (e: any) {
-      Sentry.captureException(e)
+  async function handleSave(patch: ProfilePatch) {
+    const saved = await updateProfile(patch)
+    if (!saved) {
       Alert.alert('Error', 'Could not save profile. Please try again.')
-    } finally {
-      setProfileSaving(false)
+      return
     }
+    void checkBadges({ ...profile, ...patch }, true)
+    Alert.alert('Saved', 'Your profile was updated.')
+    setSection('menu')
   }
 
-  async function pickAndUploadAvatar() {
-    try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
-      if (!perm.granted) {
-        Alert.alert('Permission needed', 'Allow photo library access to upload a profile picture.')
-        return
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true, aspect: [1, 1], quality: 0.6,
-      })
-      if (result.canceled) return
-      const asset = result.assets[0]
-      if (asset.fileSize != null && asset.fileSize > AVATAR_MAX_FILE_BYTES) {
-        showToast('Photo must be smaller than 3 MB. Please try again.')
-        return
-      }
-      setPendingAsset(asset)
-    } catch (e: any) {
-      Sentry.captureException(e)
-      Alert.alert('Error', 'Could not select photo. Please try again.')
-    }
-  }
-
-  async function uploadPendingAsset() {
-    if (!pendingAsset) return
-    const asset = pendingAsset
-    setPendingAsset(null)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const userId = session?.user?.id
-      if (!userId) throw new Error('Not logged in')
-      setAvatarUploading(true)
-      const ext = asset.mimeType?.includes('png') ? 'png' : 'jpg'
-      const path = `${userId}/avatar_${Date.now()}.${ext}`
-      const contentType = asset.mimeType ?? (ext === 'png' ? 'image/png' : 'image/jpeg')
-      const response = await fetch(asset.uri)
-      const arrayBuffer = await response.arrayBuffer()
-      if (arrayBuffer.byteLength > AVATAR_MAX_FILE_BYTES) {
-        showToast('Photo must be smaller than 3 MB. Please try again.')
-        return
-      }
-      if (profile?.avatar_url && !/^https?:\/\//i.test(profile.avatar_url)) {
-        await supabase.storage.from(AVATARS_BUCKET).remove([profile.avatar_url])
-      }
-      const { error: uploadError } = await supabase.storage.from(AVATARS_BUCKET).upload(path, arrayBuffer, { contentType })
-      if (uploadError) throw uploadError
-      const { error: profileError } = await supabase.from('profiles').update({ avatar_url: path }).eq('id', userId)
-      if (profileError) throw profileError
-      const updatedProfile = profile ? { ...profile, avatar_url: path } : null
-      setProfile(updatedProfile)
-      lastResolvedAvatarUrl.current = null
-      const { uri, error: resolveError } = await resolveProfileAvatarUriWithError(path)
-      setAvatarDisplayUri(uri)
-      setAvatarUriError(resolveError)
-      if (!resolveError && updatedProfile) void checkBadges(updatedProfile, true)
-    } catch (e: any) {
-      Sentry.captureException(e)
-      Alert.alert('Error', 'Could not upload photo. Please try again.')
-    } finally {
-      setAvatarUploading(false)
-    }
-  }
-
-  async function deleteAvatar() {
-    if (!profile?.avatar_url) return
-    try {
-      setAvatarUploading(true)
-      const { data: { session } } = await supabase.auth.getSession()
-      const userId = session?.user?.id
-      if (!userId) throw new Error('Not logged in')
-      if (!/^https?:\/\//i.test(profile.avatar_url)) {
-        await supabase.storage.from(AVATARS_BUCKET).remove([profile.avatar_url])
-      }
-      const { error } = await supabase.from('profiles').update({ avatar_url: null }).eq('id', userId)
-      if (error) throw error
-      setProfile(prev => prev ? { ...prev, avatar_url: null } : prev)
-      setAvatarDisplayUri(null)
-      setAvatarUriError(null)
-      lastResolvedAvatarUrl.current = null
-    } catch (e: any) {
-      Sentry.captureException(e)
-      Alert.alert('Error', 'Could not remove photo. Please try again.')
-    } finally {
-      setAvatarUploading(false)
-    }
-  }
-
-  if (loading || !profile) return (
-    <View style={[shared.screen, { alignItems: 'center', justifyContent: 'center' }]}>
-      <ActivityIndicator color={theme.colors.primary} />
-    </View>
-  )
-
-  const editDirty =
-    !volleyballPositionsEqualUnordered(profile.position, positionDraft)
-    || (profile.skill_level ?? null) !== (skillLevelDraft ?? null)
-    || bioDraft !== (profile.bio ?? '')
   const displayedBadges = [1, 2, 3]
-    .map(s => badges.find(b => b.display_order === s) ?? null)
-    .filter(Boolean) as NonNullable<typeof badges[0]>[]
+    .map(slot => badges.find(b => b.display_order === slot))
+    .filter((b): b is UserBadge => !!b)
 
   return (
-    <View style={[shared.screen, { position: 'relative' }, docScrollActive && ({ flex: undefined } as any)]}>
+    <View style={[shared.screen, { position: 'relative' }, docScrollActive && ({ flex: undefined } as object)]}>
       <DocScrollView
         docScroll={docScrollActive}
         contentContainerStyle={[shared.scrollContent, { paddingBottom: tabBarHeight + 32 }]}
@@ -635,814 +89,105 @@ function MyProfileSignedIn() {
         scrollEventThrottle={100}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => void handleProfileRefresh()} tintColor={theme.colors.primary} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
       >
         {section === 'edit' && (
           <View style={{ alignItems: 'flex-start', marginBottom: theme.spacing.sm }}>
-            <Pressable onPress={() => setSection('menu')} hitSlop={10} accessibilityRole="button">
+            <Pressable onPress={() => setSection('menu')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close editor">
               <Ionicons name="close" size={22} color={theme.colors.subtext} />
             </Pressable>
           </View>
         )}
 
-        {/* ── Profile hero ── */}
-        <View style={profileStyles.heroCard}>
-          {/* Radial gradient decoration */}
-          <LinearGradient
-            colors={[theme.colors.primary, 'transparent']}
-            start={{ x: 1, y: 0 }}
-            end={{ x: 0.3, y: 0.7 }}
-            style={{
-              position: 'absolute', top: 0, right: 0,
-              width: 200, height: 200, borderRadius: 100,
-              opacity: 0.55,
-            }}
-            pointerEvents="none"
-          />
+        <ProfileHero
+          profile={profile}
+          uploader={uploader}
+          mode={section}
+          totalCheers={totalCheers}
+          displayedBadges={displayedBadges}
+          onEdit={() => setSection('edit')}
+        />
 
-          {section === 'edit' ? (
-            /* Edit mode: centered layout */
-            <View style={{ alignItems: 'center', gap: theme.spacing.xs, width: '100%' }}>
-              <ProfileAvatar
-                uri={avatarUploading || avatarUriResolving ? null : avatarDisplayUri}
-                loading={avatarUploading || avatarUriResolving}
-                border={profile.selected_border}
-                onPress={pickAndUploadAvatar}
-                editMode
-                onDelete={deleteAvatar}
-                hasAvatar={!!profile.avatar_url}
-              />
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.sm, color: 'rgba(255,255,255,0.6)', textAlign: 'center' }}>
-                Tap to {profile.avatar_url ? 'change' : 'add'} a photo.
-              </Text>
-              {section === 'edit' && avatarUriError && profile.avatar_url ? (
-                <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.sm, color: theme.colors.hot, textAlign: 'center' }}>
-                  Could not load image. Fix Storage SELECT policy for the avatars bucket.
-                </Text>
-              ) : null}
-            </View>
-          ) : (
-            /* Menu mode: horizontal layout */
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, width: '100%' }}>
-              <ProfileAvatar
-                uri={avatarUploading || avatarUriResolving ? null : avatarDisplayUri}
-                loading={avatarUploading || avatarUriResolving}
-                border={profile.selected_border}
-                onPress={pickAndUploadAvatar}
-                editMode={false}
-                onDelete={deleteAvatar}
-                hasAvatar={!!profile.avatar_url}
-              />
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 1, textTransform: 'uppercase' }}>
-                  Member since {new Date(profile.created_at).getFullYear().toString().slice(2)}
-                </Text>
-                <Text style={{ fontFamily: theme.fonts.display, fontSize: 22, letterSpacing: -0.5, color: '#FFFFFF', lineHeight: 24 }}>
-                  {profileFullName(profile)}
-                </Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 2 }}>
-                  {profile.position.slice(0, 2).map(pos => {
-                    const label = VOLLEYBALL_POSITION_OPTIONS.find(o => o.value === pos)?.label ?? pos
-                    const short = label.replace('Outside Hitter', 'OH').replace('Opposite Hitter', 'OPP').replace('Middle Blocker', 'MB').replace('Defensive Specialist', 'DS')
-                    return (
-                      <View key={pos} style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, backgroundColor: theme.colors.accent }}>
-                        <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: theme.colors.accentInk }}>{short}</Text>
-                      </View>
-                    )
-                  })}
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* Bio (both modes) */}
-          {profile.bio ? (
-            <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.sm, color: 'rgba(255,255,255,0.75)', lineHeight: 18, marginTop: 4, width: '100%' }}>
-              {profile.bio}
-            </Text>
-          ) : null}
-
-          {/* Stat trio */}
-          {section === 'menu' && (
-            <View style={{ flexDirection: 'row', gap: 1, marginTop: 14, borderRadius: 14, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.08)', width: '100%' }}>
-              <View style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center' }}>
-                <Text style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: theme.colors.accent }}>
-                  {profile.skill_level ? volleyballSkillLevelLabel(profile.skill_level) : '—'}
-                </Text>
-                <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>Skill</Text>
-              </View>
-              {([
-                { n: totalCheers, l: 'Cheers' },
-                { n: 0, l: 'Trophies' },
-              ] as const).map((s) => (
-                <View key={s.l} style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center' }}>
-                  <Text
-                    testID={s.l === 'Cheers' ? 'profile-cheers-count' : 'profile-trophies-count'}
-                    style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: '#FFFFFF' }}
-                  >{s.n}</Text>
-                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>{s.l}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Displayed badges row */}
-          {displayedBadges.length > 0 && (
-            <View style={[profileStyles.badgeRow, { borderTopColor: 'rgba(255,255,255,0.15)' }]}>
-              {displayedBadges.map(badge => {
-                const def = BADGE_DEFINITIONS.find(d => d.type === badge.badge_type)
-                if (!def) return null
-                return <BadgeIcon key={badge.badge_type} def={def} tier={badge.display_tier ?? badge.tier} size="sm" />
-              })}
-            </View>
-          )}
-
-          {section === 'menu' && (
-            <View style={{ alignSelf: 'stretch', marginTop: theme.spacing.sm }}>
-              <TouchableOpacity
-                onPress={openEditProfile}
-                style={{ paddingVertical: 11, borderRadius: theme.radius.md, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center' }}
-              >
-                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.md, color: '#FFFFFF' }}>Edit profile</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {/* ── Trophy case ── */}
-        {section === 'menu' && (
-          <View style={{ marginTop: theme.spacing.md }}>
-            <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 18, color: theme.colors.text, marginBottom: theme.spacing.sm }}>Trophy case</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {([
-                { place: '1', color: '#FFD54F', label: '1st place' },
-                { place: '2', color: '#B0BEC5', label: '2nd place' },
-                { place: '3', color: '#D7A86E', label: '3rd place' },
-              ] as const).map((t) => (
-                <View key={t.place} style={{ flex: 1, backgroundColor: theme.colors.card, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: t.color, alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
-                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 18, color: '#1A1A1A' }}>{t.place}</Text>
-                  </View>
-                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '700', color: theme.colors.subtext, textAlign: 'center' }}>{t.label}</Text>
-                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 9.5, color: theme.colors.subtext, marginTop: 2, opacity: 0.6 }}>—</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* ── Recent cheers ── */}
-        {section === 'menu' && (
-          <View style={{ marginTop: theme.spacing.lg }}>
-            <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 18, color: theme.colors.text, marginBottom: theme.spacing.sm }}>Recent cheers</Text>
-            <View style={{ backgroundColor: theme.colors.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center', gap: theme.spacing.sm }}>
-              <Ionicons name="star-outline" size={28} color={theme.colors.border} />
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.subtext, textAlign: 'center' }}>
-                Cheers you receive from teammates will show up here.
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* ── Menu ── */}
-        {section === 'menu' && (
-          <View style={[shared.card, { gap: 0, marginTop: theme.spacing.lg, padding: 0, overflow: 'hidden' }]}>
-            {([
-              { title: 'Account Settings', icon: 'settings-outline', route: '/settings/account' },
-              { title: 'Silenced people', icon: 'eye-off-outline', route: '/settings/silenced' },
-              { title: 'Notifications',    icon: 'notifications-outline', route: '/settings/notifications' },
-              { title: 'History',          icon: 'time-outline', route: '/settings/history' },
-              { title: 'Cheers',           icon: 'star-outline', route: '/settings/cheers' },
-              { title: 'Badges',           icon: 'ribbon-outline', route: '/settings/badges' },
-              { title: 'Submit Feedback',  icon: 'chatbubble-ellipses-outline', route: '/settings/feedback' },
-            ] as const).map((item, idx, arr) => (
-              <MenuRow
-                key={item.route}
-                title={item.title}
-                icon={item.icon as any}
-                onPress={() => router.push(item.route as any)}
-                last={idx === arr.length - 1}
-              />
-            ))}
-          </View>
-        )}
-
-        {/* ── Edit sections ── */}
-        {section === 'edit' && (
+        {section === 'menu' ? (
           <>
-            {/* Name */}
-            <View style={[shared.card, { marginTop: theme.spacing.md }]}>
-              <Text style={shared.subheading}>Name</Text>
-              <View style={shared.mt_sm} />
-              <Input
-                label="First Name"
-                value={firstNameDraft}
-                onChangeText={setFirstNameDraft}
-                placeholder="Jane"
-                autoCorrect={false}
-                autoCapitalize="words"
-              />
-              <Input
-                label="Last Name"
-                value={lastNameDraft}
-                onChangeText={setLastNameDraft}
-                placeholder="Smith"
-                autoCorrect={false}
-                autoCapitalize="words"
-              />
-            </View>
-
-            {/* Bio */}
-            <View style={[shared.card, { marginTop: theme.spacing.md }]}>
-              <Text style={shared.subheading}>Bio</Text>
-              <View style={shared.mt_sm} />
-              <Input
-                value={bioDraft}
-                onChangeText={t => setBioDraft(t.slice(0, 140))}
-                placeholder="Tell the club a little about yourself…"
-                multiline
-                numberOfLines={3}
-                maxLength={140}
-                autoCorrect={false}
-                containerStyle={{ marginBottom: 0 }}
-                inputStyle={{ padding: theme.spacing.md, paddingTop: theme.spacing.md }}
-              />
-              <Text style={[shared.caption, { textAlign: 'right', marginTop: theme.spacing.xs, color: bioDraft.length >= 130 ? theme.colors.error : theme.colors.subtext }]}>
-                {bioDraft.length}/140
-              </Text>
-            </View>
-
-            {/* Skill level */}
-            <View style={[shared.card, { marginTop: theme.spacing.md }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={shared.subheading}>Skill level</Text>
-                {skillLevelDraft !== null && (
-                  <Pressable onPress={() => setSkillLevelDraft(null)} hitSlop={8}>
-                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>Clear</Text>
-                  </Pressable>
-                )}
-              </View>
-              <Text style={[shared.caption, shared.mt_xs]}>Shown to hosts when you join events so they can balance teams.</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
-                {VOLLEYBALL_SKILL_LEVEL_OPTIONS.map(opt => {
-                  const active = skillLevelDraft === opt.value
-                  return (
-                    <Pressable
-                      key={opt.value}
-                      onPress={() => setSkillLevelDraft(active ? null : opt.value)}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: active }}
-                      style={{
-                        borderRadius: theme.radius.full,
-                        borderWidth: 1,
-                        borderColor: active ? theme.colors.primary : theme.colors.border,
-                        backgroundColor: active ? theme.colors.primary + '14' : theme.colors.card,
-                        paddingHorizontal: theme.spacing.md,
-                        paddingVertical: theme.spacing.sm,
-                      }}
-                    >
-                      <Text style={{
-                        fontSize: theme.font.size.sm,
-                        fontWeight: active ? theme.font.weight.semibold : theme.font.weight.regular,
-                        color: active ? theme.colors.primary : theme.colors.text,
-                      }}>
-                        {opt.label}
-                      </Text>
-                    </Pressable>
-                  )
-                })}
-              </View>
-            </View>
-
-            {/* Positions */}
-            <View style={[shared.card, { marginTop: theme.spacing.md }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={shared.subheading}>Preferred Positions</Text>
-                {positionDraft.length > 0 && (
-                  <Pressable onPress={() => setPositionDraft([])} hitSlop={8}>
-                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>Clear</Text>
-                  </Pressable>
-                )}
-              </View>
-              <Text style={[shared.caption, shared.mt_xs]}>Rank up to 3 positions. Tap to add in order, tap again to remove.</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
-                {VOLLEYBALL_POSITION_OPTIONS.map(opt => {
-                  const rankIdx = positionDraft.indexOf(opt.value)
-                  const rank = rankIdx !== -1 ? rankIdx + 1 : undefined
-                  const atMax = positionDraft.length >= 3
-                  return (
-                    <PositionOptionChip
-                      key={opt.value}
-                      label={opt.label}
-                      rank={rank}
-                      onPress={() => setPositionDraft(prev =>
-                        prev.includes(opt.value)
-                          ? prev.filter(p => p !== opt.value)
-                          : atMax ? prev : [...prev, opt.value]
-                      )}
-                    />
-                  )
-                })}
-              </View>
-            </View>
-
-            {/* Display Badges */}
-            <View style={[shared.card, { marginTop: theme.spacing.md }]}>
-              <Text style={shared.subheading}>Display Badges</Text>
-              <Text style={[shared.caption, shared.mt_xs]}>Up to 3 badges shown on your profile. Tap a slot to pick.</Text>
-              <View style={{ flexDirection: 'row', gap: theme.spacing.lg, marginTop: theme.spacing.md, justifyContent: 'center' }}>
-                {[1, 2, 3].map(slot => {
-                  const badge = badges.find(b => b.display_order === slot)
-                  const def = badge ? BADGE_DEFINITIONS.find(d => d.type === badge.badge_type) : null
-                  return (
-                    <View key={slot} style={{ alignItems: 'center', gap: 4 }}>
-                      <View style={{ position: 'relative' }}>
-                        {def && badge ? (
-                          <>
-                            <BadgeIcon def={def} tier={badge.display_tier ?? badge.tier} size="sm" />
-                            <Pressable
-                              onPress={() => void setDisplaySlot(badge.badge_type, null)}
-                              hitSlop={8}
-                              style={{
-                                position: 'absolute', top: -4, right: -4,
-                                width: 18, height: 18, borderRadius: 9,
-                                backgroundColor: theme.colors.subtext,
-                                alignItems: 'center', justifyContent: 'center',
-                                borderWidth: 1.5, borderColor: theme.colors.card,
-                              }}
-                            >
-                              <Ionicons name="close" size={10} color="#fff" />
-                            </Pressable>
-                          </>
-                        ) : (
-                          <Pressable
-                            onPress={() => openSheet(slot)}
-                            style={({ pressed }) => ({
-                              width: 58, height: 58, borderRadius: 29,
-                              borderWidth: 2, borderColor: pressed ? theme.colors.primary : theme.colors.border,
-                              borderStyle: 'dashed',
-                              alignItems: 'center', justifyContent: 'center',
-                              backgroundColor: pressed ? theme.colors.primary + '0A' : 'transparent',
-                            })}
-                          >
-                            <Ionicons name="add" size={22} color={theme.colors.subtext} />
-                          </Pressable>
-                        )}
-                      </View>
-                      <Text style={[shared.caption, { color: theme.colors.subtext }]} numberOfLines={1}>
-                        {def && badge
-                          ? (def.tiers.length > 1
-                              ? badgeTierLabel(def, badge.display_tier ?? badge.tier)
-                              : badgeTitle(def.type))
-                          : `Slot ${slot}`}
-                      </Text>
-                    </View>
-                  )
-                })}
-              </View>
-            </View>
-
-            {/* Profile Border */}
-            <View style={[shared.card, { marginTop: theme.spacing.md }]}>
-              <Text style={shared.subheading}>Profile Border</Text>
-              <Text style={[shared.caption, shared.mt_xs]}>Select a border for your avatar.</Text>
-              <View style={{ flexDirection: 'row', gap: theme.spacing.lg, marginTop: theme.spacing.md, flexWrap: 'wrap' }}>
-                <BorderSwatch
-                  label="None"
-                  selected={borderDraft === null}
-                  unlocked
-                  onPress={() => void saveBorder(null)}
-                />
-                {PROFILE_BORDERS.map(border => {
-                  const unlocked = isBorderUnlocked(border, badges.map(b => ({ badge_type: b.badge_type, tier: b.tier })))
-                  return (
-                    <BorderSwatch
-                      key={border.type}
-                      label={border.label}
-                      borderDef={border}
-                      selected={borderDraft === border.type}
-                      unlocked={unlocked}
-                      onPress={() => { if (unlocked) void saveBorder(border.type) }}
-                    />
-                  )
-                })}
-              </View>
-            </View>
-
-            <View style={{ marginTop: theme.spacing.md }}>
-              <Button label="Save profile" onPress={saveProfileEdits} loading={profileSaving} disabled={profileSaving} />
-            </View>
+            <TrophyCase />
+            <RecentCheersPlaceholder />
+            <ProfileMenu onOpen={s => router.push(routes.settings(s))} />
           </>
+        ) : (
+          <EditProfileForm
+            profile={profile}
+            badges={badges}
+            saving={saving}
+            onSave={patch => void handleSave(patch)}
+            onSetBorder={border => void updateProfile({ selected_border: border })}
+            onSetBadgeSlot={(type, slot, tier) => void setDisplaySlot(type, slot, tier)}
+          />
         )}
       </DocScrollView>
-      <Toast
-        message={toast?.message ?? ''}
-        variant={toast?.variant ?? 'error'}
-        visible={!!toast}
-        onHide={() => setToast(null)}
-      />
-
-      {/* Avatar preview modal */}
-      {pendingAsset && (
-        <Modal transparent animationType="fade" onRequestClose={() => setPendingAsset(null)}>
-          <View style={{
-            flex: 1,
-            backgroundColor: 'rgba(0,0,0,0.75)',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: theme.spacing.xl,
-          }}>
-            <View style={{
-              backgroundColor: theme.colors.card,
-              borderRadius: theme.radius.xl,
-              padding: theme.spacing.xl,
-              alignItems: 'center',
-              gap: theme.spacing.lg,
-              width: '100%',
-              maxWidth: 320,
-            }}>
-              <Text style={{ fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold, color: theme.colors.text }}>
-                Preview
-              </Text>
-              <View style={{
-                width: AVATAR_OUTER + 8, height: AVATAR_OUTER + 8,
-                borderRadius: (AVATAR_OUTER + 8) / 2,
-                overflow: 'hidden',
-                backgroundColor: theme.colors.border,
-              }}>
-                <Image
-                  source={{ uri: pendingAsset.uri }}
-                  style={{ width: AVATAR_OUTER + 8, height: AVATAR_OUTER + 8 }}
-                  resizeMode="cover"
-                />
-              </View>
-              <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, textAlign: 'center' }}>
-                This is how your profile picture will appear.
-              </Text>
-              <View style={{ flexDirection: 'row', gap: theme.spacing.md, width: '100%' }}>
-                <Pressable
-                  onPress={() => setPendingAsset(null)}
-                  style={({ pressed }) => ({
-                    flex: 1, paddingVertical: theme.spacing.sm + 2,
-                    borderRadius: theme.radius.md,
-                    borderWidth: 1, borderColor: theme.colors.border,
-                    alignItems: 'center',
-                    opacity: pressed ? 0.7 : 1,
-                  })}
-                >
-                  <Text style={{ fontSize: theme.font.size.md, color: theme.colors.subtext, fontWeight: theme.font.weight.medium }}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  onPress={uploadPendingAsset}
-                  style={({ pressed }) => ({
-                    flex: 1, paddingVertical: theme.spacing.sm + 2,
-                    borderRadius: theme.radius.md,
-                    backgroundColor: theme.colors.primary,
-                    alignItems: 'center',
-                    opacity: pressed ? 0.85 : 1,
-                  })}
-                >
-                  <Text style={{ fontSize: theme.font.size.md, color: '#fff', fontWeight: theme.font.weight.semibold }}>Use Photo</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
-
-      {/* Badge picker bottom sheet */}
-      {sheetMounted && (
-        <>
-          <Animated.View
-            style={[{
-              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.4)',
-            }, backdropStyle]}
-          >
-            <Pressable style={{ flex: 1 }} onPress={closeSheet} />
-          </Animated.View>
-
-          <Animated.View style={[{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
-            backgroundColor: theme.colors.card,
-            borderTopLeftRadius: theme.radius.xl,
-            borderTopRightRadius: theme.radius.xl,
-            paddingTop: theme.spacing.sm,
-            paddingHorizontal: theme.spacing.md,
-            maxHeight: '70%',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: -3 },
-            shadowOpacity: 0.12,
-            shadowRadius: 12,
-            elevation: 16,
-            overflow: 'hidden',
-          }, sheetTranslateStyle]}>
-            {/* Fixed header */}
-            <View style={{ alignItems: 'center', marginBottom: theme.spacing.md }}>
-              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: theme.colors.border }} />
-            </View>
-
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.md }}>
-              <Text style={shared.subheading}>Choose a badge for slot {pickingSlot}</Text>
-              <Pressable onPress={closeSheet} hitSlop={10}>
-                <Ionicons name="close-circle" size={24} color={theme.colors.subtext} />
-              </Pressable>
-            </View>
-
-            {(() => {
-              // Expand multi-tier badges into one item per earned tier so users
-              // can pick which tier to display (e.g. show Bronze spike instead of Gold).
-              const pickerItems: { badge: typeof badges[0]; def: typeof BADGE_DEFINITIONS[0]; displayTier: number }[] = []
-              badges
-                .filter(b => b.tier > 0 && b.display_order !== pickingSlot)
-                .forEach(badge => {
-                  const def = BADGE_DEFINITIONS.find(d => d.type === badge.badge_type)
-                  if (!def) return
-                  if (def.tiers.length > 1) {
-                    // One item per earned tier
-                    for (let t = 1; t <= badge.tier; t++) {
-                      pickerItems.push({ badge, def, displayTier: t })
-                    }
-                  } else {
-                    pickerItems.push({ badge, def, displayTier: 1 })
-                  }
-                })
-
-              if (pickerItems.length === 0) return (
-                <Text style={[shared.caption, { textAlign: 'center', paddingVertical: theme.spacing.xl, paddingBottom: insets.bottom + theme.spacing.xl }]}>
-                  No earned badges available to add.
-                </Text>
-              )
-
-              return (
-                <ScrollView
-                  onLayout={e => setBadgeGridWidth(e.nativeEvent.layout.width)}
-                  style={{ flex: 1 }}
-                  contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.md, paddingBottom: insets.bottom + theme.spacing.md, justifyContent: 'center' }}
-                >
-                  {pickerItems.map(({ badge, def, displayTier }) => (
-                    <Pressable
-                      key={`${badge.badge_type}-${displayTier}`}
-                      onPress={() => {
-                        closeSheet()
-                        void setDisplaySlot(badge.badge_type, pickingSlot!, displayTier)
-                      }}
-                      style={({ pressed }) => ({ opacity: pressed ? 0.65 : 1 })}
-                    >
-                      <BadgeIcon def={def} tier={displayTier} size="sm" showLabel />
-                    </Pressable>
-                  ))}
-                  {/* Spacers force last row to start from left while full rows stay centered */}
-                  {badgeGridWidth > 0 && (() => {
-                    const itemsPerRow = Math.floor((badgeGridWidth + theme.spacing.md) / (58 + theme.spacing.md))
-                    return Array.from({ length: Math.max(0, itemsPerRow - 1) }).map((_, i) => (
-                      <View key={`sp-${i}`} style={{ width: 58 }} />
-                    ))
-                  })()}
-                </ScrollView>
-              )
-            })()}
-          </Animated.View>
-        </>
-      )}
+      <Toast message={toast?.message ?? ''} variant={toast?.variant ?? 'error'} visible={!!toast} onHide={() => setToast(null)} />
     </View>
   )
 }
 
-// ─── MenuRow ──────────────────────────────────────────────────────────────────
+/** Owns the data: profile, cheers count and badges, fetched only while this tab is the active one. */
+function MyProfileSignedIn() {
+  const { userId } = useSession()
+  const { activeTabIndex } = useTabsActive()
+  const isActive = activeTabIndex === PROFILE_TAB_INDEX
+  const [refreshing, setRefreshing] = useState(false)
 
-function MenuRow({ title, icon, onPress, last }: {
-  title: string
-  icon: ComponentProps<typeof Ionicons>['name']
-  onPress: () => void
-  last?: boolean
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      style={({ pressed }) => [
-        profileStyles.menuRow,
-        !last && profileStyles.menuRowBorder,
-        pressed && { backgroundColor: theme.colors.background },
-      ]}
-    >
-      <View style={profileStyles.menuRowIcon}>
-        <Ionicons name={icon} size={18} color={theme.colors.primary} />
-      </View>
-      <Text style={profileStyles.menuRowTitle}>{title}</Text>
-      <Ionicons name="chevron-forward" size={16} color={theme.colors.subtext} />
-    </Pressable>
-  )
-}
+  const me = useMyProfile({ enabled: isActive })
+  const cheers = useMyCheersCount({ enabled: isActive })
+  const { badges, checkBadges, fetchBadges, setDisplaySlot } = useBadges({ enabled: isActive })
 
-// ─── PositionOptionChip ───────────────────────────────────────────────────────
+  // Refetch on focus / foreground only while visible, and only when stale.
+  useFocusRefetch(isActive && userId ? myProfileKey(userId) : null)
+  useFocusRefetch(isActive && userId ? myCheersCountKey(userId) : null)
+  useFocusRefetch(isActive && userId ? badgesKey(userId) : null)
 
-function PositionOptionChip({ label, rank, onPress }: { label: string; rank?: number; onPress: () => void }) {
-  const active = rank !== undefined
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      style={{
-        flexDirection: 'row', alignItems: 'center', gap: 5,
-        borderRadius: theme.radius.full, borderWidth: 1,
-        borderColor: active ? theme.colors.primary : theme.colors.border,
-        backgroundColor: active ? theme.colors.primary + '14' : theme.colors.card,
-        paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm,
-        maxWidth: '100%',
-      }}
-    >
-      {active && (
-        <View style={{
-          width: 16, height: 16, borderRadius: 8,
-          backgroundColor: theme.colors.primary,
-          alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Text style={{ fontSize: 9, fontWeight: theme.font.weight.bold, color: '#fff', lineHeight: 12 }}>
-            {rank}
-          </Text>
-        </View>
-      )}
-      <Text style={{
-        fontSize: theme.font.size.sm, lineHeight: theme.font.lineHeight.tight,
-        fontWeight: active ? theme.font.weight.semibold : theme.font.weight.regular,
-        color: active ? theme.colors.primary : theme.colors.text,
-      }}>
-        {label}
-      </Text>
-    </Pressable>
-  )
-}
+  // Award any newly earned badges (throttled inside checkBadges).
+  const profile = me.profile
+  useEffect(() => {
+    if (isActive && profile) void checkBadges(profile)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run on tab activation / user change, not on every edit
+  }, [isActive, profile?.id, checkBadges])
 
-// ─── BorderSwatch ─────────────────────────────────────────────────────────────
-
-function BorderSwatch({ label, borderDef, selected, unlocked, onPress }: {
-  label: string
-  borderDef?: ProfileBorderDef
-  selected: boolean
-  unlocked: boolean
-  onPress: () => void
-}) {
-  const SIZE = 52
-  const RING = 3
-
-  function renderRing() {
-    if (!borderDef) {
-      return (
-        <View style={{
-          width: SIZE, height: SIZE, borderRadius: SIZE / 2,
-          borderWidth: 2, borderColor: theme.colors.border,
-          backgroundColor: theme.colors.background,
-          alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Ionicons name="close" size={18} color={theme.colors.subtext} />
-        </View>
-      )
+  async function handleRefresh() {
+    setRefreshing(true)
+    try {
+      await Promise.all([me.refetch({ force: true }), cheers.refetch({ force: true }), fetchBadges(true)])
+    } finally {
+      setRefreshing(false)
     }
-    const outerSize = SIZE + RING * 2
-    const colors: [string, string, ...string[]] = borderDef.gradientColors
-      ? borderDef.gradientColors as [string, string, ...string[]]
-      : borderDef.type === 'gold'
-        ? ['#FFE066', borderDef.color, '#CC8800']
-        : [borderDef.color, borderDef.color]
+  }
 
+  if (!profile) {
     return (
-      <View style={{ width: outerSize, height: outerSize, borderRadius: outerSize / 2, overflow: 'hidden', opacity: unlocked ? 1 : 0.3 }}>
-        <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: 'absolute', inset: 0 }} />
-        <View style={{
-          position: 'absolute', top: RING, left: RING, right: RING, bottom: RING,
-          borderRadius: SIZE / 2, backgroundColor: theme.colors.card,
-          alignItems: 'center', justifyContent: 'center',
-        }}>
-          {!unlocked && <Ionicons name="lock-closed" size={14} color={theme.colors.subtext} />}
-        </View>
+      <View style={shared.screen}>
+        <ScreenState
+          loading={me.isFetching || !me.error}
+          error={me.error ? 'Could not load your profile. Check your connection and try again.' : null}
+          onRetry={() => void me.refetch({ force: true })}
+        />
       </View>
     )
   }
 
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={!unlocked}
-      accessibilityRole="radio"
-      accessibilityState={{ selected, disabled: !unlocked }}
-      style={({ pressed }) => ({ alignItems: 'center', gap: theme.spacing.xs, opacity: pressed && unlocked ? 0.7 : 1 })}
-    >
-      <View style={{ position: 'relative' }}>
-        {renderRing()}
-        {selected && unlocked && (
-          <View style={{
-            position: 'absolute', bottom: -2, right: -2,
-            width: 18, height: 18, borderRadius: 9,
-            backgroundColor: theme.colors.primary,
-            alignItems: 'center', justifyContent: 'center',
-            borderWidth: 2, borderColor: theme.colors.card,
-          }}>
-            <Ionicons name="checkmark" size={10} color="#fff" />
-          </View>
-        )}
-      </View>
-      <Text style={{
-        fontSize: theme.font.size.xs,
-        fontWeight: selected ? theme.font.weight.semibold : theme.font.weight.regular,
-        color: unlocked ? theme.colors.text : theme.colors.subtext,
-        opacity: unlocked ? 1 : 0.5,
-      }}>
-        {label}
-      </Text>
-    </Pressable>
+    <MyProfileBody
+      profile={profile}
+      totalCheers={cheers.data ?? 0}
+      badges={badges}
+      saving={me.isSaving}
+      updateProfile={me.updateProfile}
+      setDisplaySlot={setDisplaySlot}
+      checkBadges={checkBadges}
+      refreshing={refreshing}
+      onRefresh={() => void handleRefresh()}
+    />
   )
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const profileStyles = StyleSheet.create({
-  heroCard: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 24,
-    padding: 18,
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  heroName: {
-    fontFamily: theme.fonts.display,
-    fontSize: 22,
-    letterSpacing: -0.5,
-    color: theme.colors.text,
-    marginTop: theme.spacing.xs,
-    textAlign: 'center',
-  },
-  heroHandle: {
-    fontFamily: theme.fonts.body,
-    fontSize: theme.font.size.sm,
-    color: theme.colors.subtext,
-    textAlign: 'center',
-  },
-  heroPosition: {
-    fontFamily: theme.fonts.bodySemiBold,
-    fontSize: theme.font.size.sm,
-    color: theme.colors.primary,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  heroBio: {
-    fontFamily: theme.fonts.body,
-    fontSize: theme.font.size.md,
-    color: theme.colors.text,
-    textAlign: 'center',
-    lineHeight: theme.font.lineHeight.normal,
-    marginTop: theme.spacing.xs,
-  },
-  heroJoined: {
-    fontFamily: theme.fonts.body,
-    fontSize: theme.font.size.xs,
-    color: theme.colors.subtext,
-    marginTop: 2,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.sm,
-    paddingTop: theme.spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    alignSelf: 'stretch',
-    justifyContent: 'center',
-  },
-  menuRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
-    gap: theme.spacing.md,
-    backgroundColor: theme.colors.card,
-  },
-  menuRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  menuRowIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: theme.radius.sm,
-    backgroundColor: theme.colors.primary + '14',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuRowTitle: {
-    flex: 1,
-    fontFamily: theme.fonts.bodyMedium,
-    fontSize: theme.font.size.md,
-    color: theme.colors.text,
-  },
-})
 
 /** Guests see a sign-in prompt; the signed-in screen (and its data hooks) only mounts with a session. */
 export default function MyProfile() {

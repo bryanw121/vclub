@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, type ComponentType } from 'react'
 import { Platform, View, useWindowDimensions } from 'react-native'
-import { theme } from '../../../../constants'
+import { theme, BREAKPOINTS, TABS, EVENTS_TAB_INDEX, type TabKey } from '../../../../constants'
 import { Slot } from 'expo-router'
 import { Pager } from '../../../../components/Pager'
 import { useTabsActive, useTabsShell } from '../../../../contexts/tabs'
@@ -9,8 +9,14 @@ import ProfileScreen from './profile/index'
 import ClubsScreen from '../clubs'
 import ChatScreen from '../chat'
 
-const SIDEBAR_BREAKPOINT = 768
-const TAB_COUNT = 4
+const TAB_COUNT = TABS.length
+/** One screen per tab; rendered in TABS order so page i is TABS[i]. */
+const TAB_SCREENS: Record<TabKey, ComponentType> = {
+  events: EventsScreen,
+  clubs: ClubsScreen,
+  chat: ChatScreen,
+  profile: ProfileScreen,
+}
 const NEIGHBOR_PREFETCH_DELAY_MS = 2000
 
 /** Prefetch the next tab once the active one has settled so the first swipe isn't empty. */
@@ -40,7 +46,7 @@ export default function MainLayout() {
   const { width } = useWindowDimensions()
   const { activeTabIndex } = useTabsActive()
   const { goToTab, pagerBlocked, docScrollActive } = useTabsShell()
-  const [mountedTabs, setMountedTabs] = useState(() => nextMountedTabs(new Set([0]), 0))
+  const [mountedTabs, setMountedTabs] = useState(() => nextMountedTabs(new Set([EVENTS_TAB_INDEX]), EVENTS_TAB_INDEX))
 
   useEffect(() => {
     setMountedTabs(prev => nextMountedTabs(prev, activeTabIndex))
@@ -56,18 +62,13 @@ export default function MainLayout() {
   }, [activeTabIndex])
 
   const screens = useMemo(() => {
-    const factory = [
-      () => <EventsScreen key="events" />,
-      () => <ClubsScreen key="clubs" />,
-      () => <ChatScreen key="chat" />,
-      () => <ProfileScreen key="profile" />,
-    ]
-    return factory.map((render, i) =>
-      mountedTabs.has(i) ? render() : <View key={`tab-placeholder-${i}`} style={{ flex: 1 }} />,
-    )
+    return TABS.map((tab, i) => {
+      const Screen = TAB_SCREENS[tab.key]
+      return mountedTabs.has(i) ? <Screen key={tab.key} /> : <View key={`tab-placeholder-${i}`} style={{ flex: 1 }} />
+    })
   }, [mountedTabs])
 
-  if (Platform.OS === 'web' && width >= SIDEBAR_BREAKPOINT) {
+  if (Platform.OS === 'web' && width >= BREAKPOINTS.sidebar) {
     return (
       <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <Slot />
