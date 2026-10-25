@@ -2063,6 +2063,7 @@ export type Database = {
         Returns: number
       }
       schema_fingerprint: { Args: never; Returns: Json }
+      schema_pending_changes: { Args: never; Returns: Json }
       send_kudos_reminders: { Args: never; Returns: undefined }
     }
     Enums: {

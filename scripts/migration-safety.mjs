@@ -64,9 +64,15 @@ function isReplacedLater(code, m) {
   return new RegExp(`\\b(create|add)\\b[^;]*?"?\\b${esc}\\b"?`, 'i').test(after)
 }
 
+/** Up migrations added or changed in this PR (`*.down.sql` rollbacks are not scanned: dropping is their job). */
 function changedMigrations(base) {
   const out = execFileSync('git', ['diff', '--name-only', '--diff-filter=AM', `${base}...HEAD`, '--', 'supabase/migrations/'], { encoding: 'utf8' })
-  return out.split('\n').filter(f => f.endsWith('.sql') && existsSync(f))
+  return out.split('\n').filter(f => f.endsWith('.sql') && !f.endsWith('.down.sql') && existsSync(f))
+}
+
+/** Every up migration needs a rollback beside it, so beta can be reset if its PR is closed. */
+export function downFileFor(file) {
+  return file.replace(/\.sql$/, '.down.sql')
 }
 
 function main() {
@@ -75,6 +81,7 @@ function main() {
   let bad = 0
   for (const f of files) {
     const problems = findDestructive(readFileSync(f, 'utf8'))
+    if (!existsSync(downFileFor(f))) problems.push(`has no rollback: add ${downFileFor(f).split('/').pop()} that undoes it (used to reset beta if the PR is closed)`)
     if (!problems.length) continue
     bad++
     console.error(`${f}:`)
@@ -82,12 +89,12 @@ function main() {
     if (process.env.GITHUB_ACTIONS) console.log(`::error file=${f},title=Destructive migration::${problems.join('; ')}`)
   }
   if (bad) {
-    console.error(`\n${bad} migration(s) would break the app that is deployed when they are applied.`)
-    console.error('Make the change additive (expand), or, if no deployed code uses the old shape any more,')
-    console.error('add a line "-- contract: <reason>" to the migration. See CLAUDE.md "Schema migrations".')
+    console.error(`\n${bad} migration(s) need attention. A destructive one would break the app that is deployed`)
+    console.error('when it is applied: make it additive (expand), or, if no deployed code uses the old shape any more,')
+    console.error('add a line "-- contract: <reason>". Every migration needs a .down.sql. See CLAUDE.md "Schema migrations".')
     process.exitCode = 1
   } else {
-    console.log(`Migration safety: ${files.length} changed migration(s), nothing destructive.`)
+    console.log(`Migration safety: ${files.length} changed migration(s), nothing destructive, all have rollbacks.`)
   }
 }
 

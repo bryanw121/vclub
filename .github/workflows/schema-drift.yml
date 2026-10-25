@@ -21,3 +21,5 @@ jobs:
         with:
           node-version: 20
       - run: npm run db:drift
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

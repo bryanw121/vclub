@@ -68,6 +68,8 @@ jobs:
       # runs on live. Fails when a migration reached only one of them.
       - name: Schema drift (live vs beta)
         run: npm run db:drift
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # reads the state of PRs in beta's ledger
       # Migrations reach live before the PR's code is deployed: flag drops,
       # renames, type changes and new required columns (expand, then contract).
       - name: Migration safety
