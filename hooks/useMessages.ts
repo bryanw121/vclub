@@ -371,6 +371,8 @@ export function useMessages(conversationId: string) {
         .select('id')
       if (e) throw e
       if (!data?.length) throw new Error('Message not updated')
+      // mutate() resolves undefined on failure, so success must return a value.
+      return true
     },
     {
       onMutate: ({ id, content, editedAt }) => {
@@ -398,6 +400,7 @@ export function useMessages(conversationId: string) {
         .select('id')
       if (e) throw e
       if (!data?.length) throw new Error('Message not deleted')
+      return true
     },
     {
       onMutate: ({ id, deletedAt }) => {
