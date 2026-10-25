@@ -289,11 +289,11 @@ export type EventWithDetails = Event & {
   my_attendance?: Array<{ user_id: string; status?: EventAttendee['status'] }>
   /** Set to true for items normalized from the tournaments table. Cards use this to navigate to /tournament/[id] instead of /event/[id]. */
   _isTournament?: boolean
-  /** Set for sessions run elsewhere in Austin (Volley ATX data). Rendered by ExternalSessionCard, which links out to the venue's sign-up. */
+  /** Set for sessions run elsewhere in Austin (Schelagg data). Rendered by ExternalSessionCard, which links out to the venue's sign-up. */
   _external?: ExternalSession
 }
 
-/** Row of `external_sessions`: a session another Austin venue or group runs, synced nightly from Volley ATX. */
+/** Row of `external_sessions`: a session another Austin venue or group runs, synced hourly by Schelagg. */
 export type ExternalSession = Pick<
   Override<Tables<'external_sessions'>, { surface: 'indoor' | 'sand' | 'grass' | null }>,
   | 'id' | 'source_id' | 'title' | 'venue' | 'city' | 'surface' | 'session_type' | 'level' | 'price'

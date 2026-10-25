@@ -181,8 +181,8 @@ Nobody has to sign in to look around. Guests see Events, Clubs, event pages, clu
 - Account-only routes are listed in `utils/authGate.ts` (`isProtectedPath`); the root layout bounces guests on those to login. Add new account-only routes there.
 - RLS: anything a guest screen reads must have a SELECT policy for `anon` (events, attendees, profiles, clubs, tags already do).
 
-### Sessions from other Austin venues (Volley ATX)
-`external_sessions` holds sessions other venues and groups run (Volleyworld, ACES, ATX Beach, Reclub meets...). The Volley ATX repo (`bryanw121/volleyball-atx`, `scripts/sync-vclub.mjs`) upserts it after each nightly scrape with the service role; vteam only reads it (anon SELECT policy). `useMonthEvents` fetches it with events/tournaments and `utils/feedItems.ts` normalizes rows into `EventWithDetails` with `_external` set; the feed renders those with `ExternalSessionCard`, which links out to the venue's sign-up (no RSVP). They show under All and the "Around Austin" chip, never under Mine or Not Full.
+### Sessions from other Austin venues (Schelagg)
+`external_sessions` holds sessions other venues and groups run (Volleyworld, ACES, ATX Beach, Reclub meets...). The Schelagg repo ("schedule aggregator", `bryanw121/schelagg`, `scripts/sync-vteam.mjs`) upserts it after each scrape (hourly, daytime Austin) with the service role and deletes upcoming rows that vanished at the source; vteam only reads it (anon SELECT policy). The table is the whole contract: vteam imports no Schelagg code. `useMonthEvents` fetches it with events/tournaments, skipping rows not refreshed within `EXTERNAL_SESSION_MAX_AGE_MS` (a stopped sync shows nothing rather than possibly-cancelled sessions), and `utils/feedItems.ts` normalizes rows into `EventWithDetails` with `_external` set; the feed renders those with `ExternalSessionCard`, which links out to the venue's sign-up (no RSVP). They show under All and the "Around Austin" chip, never under Mine or Not Full.
 
 ### Login accepts email or username
 If the login field doesn't look like an email, `login.tsx` calls the `get_email_by_username` RPC, then signs in with the resolved email.
