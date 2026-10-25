@@ -496,6 +496,52 @@ export type MyUpcomingEvent = {
   inProgress: boolean
 }
 
+// ─── Events Feed Types ────────────────────────────────────────────────────────
+
+/** Events-tab filter chip ids. */
+export type FeedFilter = 'mine' | 'all' | 'open_play' | 'tournament' | 'not_full' | 'austin'
+
+export type FeedFilterChip = { id: FeedFilter; label: string }
+
+export type FeedRsvpAction = 'join' | 'leave'
+
+export type FeedRsvpVars = { eventId: string; action: FeedRsvpAction; userId: string }
+
+/** What the RSVP write actually saved: the DB turns a join into a waitlist spot if the event filled first. */
+export type FeedRsvpResult = { status: 'attending' | 'waitlisted' | null }
+
+export type EventsHeaderProps = {
+  /** Desktop (sidebar layout) sizing; otherwise the mobile ScreenHeader. */
+  wide: boolean
+  /** Bell or SignInButton. */
+  right: import('react').ReactNode
+}
+
+export type FilterChipsProps = {
+  chips: FeedFilterChip[]
+  active: FeedFilter
+  onSelect: (id: FeedFilter) => void
+  /** Count shown on the Mine chip; hidden when 0. */
+  mineCount: number
+  /** Desktop wraps the row; mobile scrolls it horizontally. */
+  wide: boolean
+}
+
+export type FeedEmptyProps = {
+  loading: boolean
+  /** Only pass when there is no data at all — a filter with no matches is not an error. */
+  error: Error | null
+  onRetry: () => void
+  filterActive: boolean
+  isGuest: boolean
+  onClearFilter: () => void
+}
+
+export type NextUpCardProps = {
+  event: EventWithDetails
+  onPress: () => void
+}
+
 // ─── Chat Types ───────────────────────────────────────────────────────────────
 
 export type ConversationType = 'dm' | 'club'

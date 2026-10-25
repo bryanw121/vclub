@@ -58,15 +58,19 @@ function EventCardInner({
   from: fromOverride,
   currentUserId,
   onRsvp,
+  rsvpPending = false,
 }: {
   event: EventWithDetails
   from?: string
   currentUserId?: string | null
   onRsvp?: EventCardRsvpHandler
+  /** The parent's RSVP write for this event is in flight (survives a remount, unlike the local spinner). */
+  rsvpPending?: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [rsvpLoading, setRsvpLoading] = useState(false)
+  const [rsvpTapped, setRsvpTapped] = useState(false)
+  const rsvpLoading = rsvpTapped || rsvpPending
 
   const isAttending = !!currentUserId && (
     event.my_attendance != null
@@ -218,9 +222,13 @@ function EventCardInner({
             <TouchableOpacity
               onPress={async e => {
                 e.stopPropagation?.()
-                setRsvpLoading(true)
-                try { await onRsvp(event.id, isAttending ? 'leave' : 'join') } finally { setRsvpLoading(false) }
+                if (rsvpLoading) return
+                setRsvpTapped(true)
+                try { await onRsvp(event.id, isAttending ? 'leave' : 'join') } finally { setRsvpTapped(false) }
               }}
+              disabled={rsvpLoading}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: rsvpLoading, busy: rsvpLoading }}
               activeOpacity={0.75}
               style={{
                 paddingHorizontal: 14,
@@ -267,15 +275,18 @@ export const HeroEventCard = EventCard
 
 // ─── Row Event Card (desktop secondary cards) ─────────────────────────────────
 
-function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp }: {
+function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, rsvpPending = false }: {
   event: EventWithDetails
   from?: string
   currentUserId?: string | null
-  onRsvp?: (eventId: string, action: 'join' | 'leave') => Promise<void>
+  onRsvp?: EventCardRsvpHandler
+  /** See EventCard. */
+  rsvpPending?: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [rsvpLoading, setRsvpLoading] = useState(false)
+  const [rsvpTapped, setRsvpTapped] = useState(false)
+  const rsvpLoading = rsvpTapped || rsvpPending
 
   const isAttending = !!currentUserId && (
     event.my_attendance != null
@@ -427,9 +438,13 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp }:
             <TouchableOpacity
               onPress={async e => {
                 e.stopPropagation?.()
-                setRsvpLoading(true)
-                try { await onRsvp(event.id, isAttending ? 'leave' : 'join') } finally { setRsvpLoading(false) }
+                if (rsvpLoading) return
+                setRsvpTapped(true)
+                try { await onRsvp(event.id, isAttending ? 'leave' : 'join') } finally { setRsvpTapped(false) }
               }}
+              disabled={rsvpLoading}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: rsvpLoading, busy: rsvpLoading }}
               activeOpacity={0.75}
               style={{
                 paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, flexShrink: 0,
