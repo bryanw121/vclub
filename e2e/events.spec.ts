@@ -3,9 +3,9 @@
  * server (`npx expo start --web --port 8081`) running locally.
  * Run: npx playwright test e2e/events.spec.ts
  *
- * Test account: bryanw121 / password
+ * Test account: E2E_USERNAME / E2E_PASSWORD (see .env.example)
  *
- * Fixtures: beforeAll creates two relative-dated events hosted by bryanw121
+ * Fixtures: beforeAll creates two relative-dated events hosted by the e2e account
  * (`[e2e] Open Play`, `[e2e] Tournament`) and afterAll deletes them. No
  * permanent shared seed events are required in the live DB.
  */
@@ -31,8 +31,8 @@ import {
   unmockPlacesProxy,
   clearPlacesCache,
 } from './placesMock'
+import { E2E_BASE_URL as BASE_URL } from './env'
 
-const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8081'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -142,7 +142,7 @@ test.describe('Events', () => {
   })
 
   test('host adds a +1 guest, sees it on the roster, then removes it', async ({ page }) => {
-    // bryanw121 hosts the fixtures, so host-only UI (+1 button, guest remove X)
+    // the e2e account hosts the fixtures, so host-only UI (+1 button, guest remove X)
     // renders for the e2e account. Removal doubles as cleanup so the shared DB
     // doesn't accumulate guests across runs.
     const guestFirst = 'E2eguest'
@@ -172,7 +172,7 @@ test.describe('Events', () => {
     await expect(page.getByText(guestCardName)).toHaveCount(0, { timeout: 15000 })
   })
 
-  // #41: the "You're going" rail. bryanw121 hosts both fixtures, so the account
+  // #41: the "You're going" rail. the e2e account hosts both fixtures, so the account
   // always has at least two upcoming commitments and the rail is guaranteed
   // non-empty. Deliberately NOT asserting that a specific fixture appears in the
   // rail: it's capped at 3 and sorted soonest-first, and the fixtures are seeded

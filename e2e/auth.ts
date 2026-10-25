@@ -1,8 +1,7 @@
 import { expect, type Page, type Request, type Response } from '@playwright/test'
 
-const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8081'
-const E2E_USERNAME = process.env.E2E_USERNAME ?? 'bryanw121'
-const E2E_PASSWORD = process.env.E2E_PASSWORD ?? 'password'
+import { E2E_BASE_URL as BASE_URL, E2E_PASSWORD, E2E_USERNAME } from './env'
+
 const MAX_LOGIN_ATTEMPTS = 3
 
 function isAuthRequest(urlString: string): boolean {

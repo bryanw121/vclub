@@ -14,6 +14,7 @@ jobs:
   docs:
     name: Architecture docs
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,6 +25,7 @@ jobs:
   unit:
     name: Unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,7 +39,14 @@ jobs:
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [docs, unit]
+    # Credentials of the dedicated e2e account (repository secrets). Required:
+    # e2e/env.ts fails fast with a clear message when they are missing, which is
+    # also what happens on PRs from forks (secrets are not exposed to them).
+    env:
+      E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
     # The e2e suites write to the single shared Supabase project (seed
     # conversation sends/edits, event join/leave). Concurrent runs interfere
     # through the DB and can exhaust connection limits — observed when three
@@ -61,8 +70,22 @@ jobs:
       - name: Serve + run Playwright
         run: |
           npx serve dist -p 8081 &
-          sleep 3
+          ready=0
+          for i in $(seq 1 30); do
+            if curl -sf -o /dev/null http://localhost:8081/; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != 1 ]; then
+            echo "::error::static server did not answer on :8081 within 30s"
+            exit 1
+          fi
           npx playwright test e2e/
+      - name: Sweep leftover [e2e] events
+        # A cancelled or crashed run skips the suite's afterAll cleanup. Never
+        # let a failed sweep turn a green run red (or hide the real failure).
+        if: always()
+        continue-on-error: true
+        run: npm run e2e:sweep
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4

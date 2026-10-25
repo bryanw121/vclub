@@ -4,44 +4,15 @@
  * permanent pilot-visible seed events.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { existsSync, readFileSync } from 'fs'
-import { resolve } from 'path'
+import { E2E_PASSWORD, E2E_USERNAME, SUPABASE_ANON_KEY, SUPABASE_URL } from './env'
 
 export const OPEN_PLAY_EVENT = '[e2e] Open Play'
 export const TOURNAMENT_EVENT = '[e2e] Tournament'
 
-const E2E_USERNAME = 'bryanw121'
-const E2E_PASSWORD = 'password'
 const TITLE_PREFIX = '[e2e]'
 
 const OPEN_PLAY_TAG = 'Open Play'
 const TOURNAMENT_TAG = 'Tournament'
-
-/** Load EXPO_PUBLIC_* from .env when running Playwright locally (CI sets them in the workflow). */
-function loadLocalEnv() {
-  if (process.env.EXPO_PUBLIC_SUPABASE_URL && process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) return
-  const envPath = resolve(process.cwd(), '.env')
-  if (!existsSync(envPath)) return
-  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
-    const eq = trimmed.indexOf('=')
-    if (eq < 0) continue
-    const key = trimmed.slice(0, eq).trim()
-    let value = trimmed.slice(eq + 1).trim()
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1)
-    } else {
-      // Match dotenv's handling of unquoted values such as
-      // KEY=actual-value # local note.
-      value = value.replace(/\s+#.*$/, '').trim()
-    }
-    if (process.env[key] === undefined) process.env[key] = value
-  }
-}
 
 function daysFromNow(days: number, hour = 19): string {
   const d = new Date()
@@ -52,16 +23,7 @@ function daysFromNow(days: number, hour = 19): string {
 }
 
 async function signInE2eClient(): Promise<{ supabase: SupabaseClient; userId: string }> {
-  loadLocalEnv()
-  const url = process.env.EXPO_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !anonKey) {
-    throw new Error(
-      'Missing EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY (set in CI secrets or local .env)',
-    )
-  }
-
-  const supabase = createClient(url, anonKey)
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   const { data: email, error: rpcError } = await supabase.rpc('get_email_by_username', {
     p_username: E2E_USERNAME,
   })

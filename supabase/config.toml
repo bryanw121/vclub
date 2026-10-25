@@ -1,0 +1,22 @@
+# Supabase CLI configuration. Only the pieces we version are declared here;
+# the hosted project's database/auth settings are managed in the Dashboard
+# (see CLAUDE.md "Not captured by migrations").
+#
+# `supabase functions deploy` reads verify_jwt from this file, so the setting
+# no longer depends on what someone clicked in the Dashboard.
+
+project_id = "vclub"
+
+# Called by a Database Webhook on messages INSERT. Not a user request, so there is
+# no user JWT; the function authenticates the caller itself (_shared/webhook.ts).
+[functions.send-chat-push]
+verify_jwt = false
+
+# Called by pg_cron. Same self-authentication as above (service-role bearer).
+[functions.check-push-receipts]
+verify_jwt = false
+
+# Called by signed-in clients through supabase.functions.invoke; the gateway
+# verifies the user JWT.
+[functions.places-proxy]
+verify_jwt = true

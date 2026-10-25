@@ -2,13 +2,13 @@
  * Chat E2E tests — requires the Expo dev server to be running on port 8081.
  * Run: npx playwright test e2e/chat.spec.ts
  *
- * Test account: bryanw121 / password
+ * Test account: E2E_USERNAME / E2E_PASSWORD (see .env.example)
  * Seed conversation: "jexy is so sexy" (id: 01bc0c4f-2e83-4402-afce-5fc7ddd729f9)
  */
 
 import { test, expect, Page } from '@playwright/test'
+import { E2E_BASE_URL as BASE_URL } from './env'
 
-const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8081'
 const CONVO_ID = '01bc0c4f-2e83-4402-afce-5fc7ddd729f9'
 const CONVO_URL = `${BASE_URL}/chat/${CONVO_ID}`
 

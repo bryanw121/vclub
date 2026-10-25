@@ -186,19 +186,26 @@ network or a real `.env`. Unit tests must never hit the network.
   the dashboard). The files in `supabase/migrations/` are **not in sync** with
   the applied history — never replay them onto a fresh project; baseline from
   `supabase db dump` instead.
-- **E2E authentication**: `e2e/auth.setup.ts` logs in as `bryanw121` once per
-  Playwright run and saves ignored browser state under `playwright/.auth/`.
-  `e2e/auth.verify.ts` proves that state restores in a fresh context before
-  functional specs start; do not add per-test password logins. The setup
-  retries transient Supabase failures and accepts `E2E_USERNAME` /
-  `E2E_PASSWORD` overrides for local runs. Fixture clients that use the same
-  account must sign out with `{ scope: 'local' }`; the default global sign-out
-  revokes the browser session shared by every spec.
+- **E2E authentication**: `e2e/auth.setup.ts` logs in as the dedicated e2e
+  account once per Playwright run and saves ignored browser state under
+  `playwright/.auth/`. `e2e/auth.verify.ts` proves that state restores in a
+  fresh context before functional specs start; do not add per-test password
+  logins. The setup retries transient Supabase failures. Credentials are never
+  committed: `E2E_USERNAME` and `E2E_PASSWORD` are **required** (CI repository
+  secrets; locally in `.env`, see `.env.example`), and `e2e/env.ts` is the only
+  file that reads them. Fixture clients that use the same account must sign out
+  with `{ scope: 'local' }`; the default global sign-out revokes the browser
+  session shared by every spec.
 - **E2E seeds**: Events e2e creates its own
   relative-dated `[e2e]` fixtures in `beforeAll` and deletes them in
   `afterAll` (see `e2e/eventsFixtures.ts`) — no permanent shared events are
   required. Chat e2e still relies on a seed conversation defined in
-  `e2e/chat.spec.ts`.
+  `e2e/chat.spec.ts`. A crashed or cancelled run can skip that cleanup, so CI
+  ends with `npm run e2e:sweep`, which deletes leftover `[e2e]` events hosted by
+  the e2e account (run it by hand if a local run dies).
+- **Edge functions**: `supabase/config.toml` declares `verify_jwt` per function and
+  `supabase/functions/README.md` documents the webhook header, secrets and deploy
+  commands.
 - **RLS is the security boundary.** Anything the client shouldn't be able to
   do must be blocked by policy, not by UI.
 

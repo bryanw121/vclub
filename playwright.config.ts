@@ -14,7 +14,7 @@ export default defineConfig({
     ['html', { open: 'never' }],                 // full HTML report saved to playwright-report/
   ],
   use: {
-    baseURL: 'http://localhost:8081',
+    baseURL: process.env.E2E_BASE_URL || 'http://localhost:8081',
     // Expo web runs in a desktop browser context
     ...devices['Desktop Chrome'],
     // Most interactions need force due to React Native Web's pointer-event layering

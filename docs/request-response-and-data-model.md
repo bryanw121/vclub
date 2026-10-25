@@ -436,7 +436,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Contract source fingerprint: `048c1d6adebb`
+> Contract source fingerprint: `99b1fe7495a3`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -449,15 +449,15 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Table or view | Frontend/server call sites |
 |---|---|
 | `app_config` | [`hooks/useMinVersion.ts:19`](../hooks/useMinVersion.ts#L19) |
-| `chat_silences` | [`hooks/useChatUnread.tsx:34`](../hooks/useChatUnread.tsx#L34)<br>[`hooks/useSilencedUsers.ts:33`](../hooks/useSilencedUsers.ts#L33)<br>[`supabase/functions/send-chat-push/index.ts:73`](../supabase/functions/send-chat-push/index.ts#L73) |
+| `chat_silences` | [`hooks/useChatUnread.tsx:34`](../hooks/useChatUnread.tsx#L34)<br>[`hooks/useSilencedUsers.ts:33`](../hooks/useSilencedUsers.ts#L33)<br>[`supabase/functions/send-chat-push/index.ts:135`](../supabase/functions/send-chat-push/index.ts#L135) |
 | `cheers` | [`app/(app)/(tabs)/(main)/profile/index.tsx:409`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L409)<br>[`app/(app)/(tabs)/settings/cheers.tsx:26`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L26)<br>[`app/(app)/event/[id].tsx:684`](../app/%28app%29/event/%5Bid%5D.tsx#L684)<br>[`app/(app)/profile/[id].tsx:53`](../app/%28app%29/profile/%5Bid%5D.tsx#L53)<br>[`utils/badges.ts:48`](../utils/badges.ts#L48) |
 | `club_members` | [`app/(app)/(tabs)/clubs.tsx:285`](../app/%28app%29/%28tabs%29/clubs.tsx#L285)<br>[`app/(app)/chat/[id].tsx:91`](../app/%28app%29/chat/%5Bid%5D.tsx#L91)<br>[`app/(app)/club/[id].tsx:224`](../app/%28app%29/club/%5Bid%5D.tsx#L224)<br>[`app/(app)/host.tsx:169`](../app/%28app%29/host.tsx#L169)<br>[`app/(app)/tournament/create.tsx:737`](../app/%28app%29/tournament/create.tsx#L737) |
 | `club_post_comments` | [`components/ClubPostCard.tsx:107`](../components/ClubPostCard.tsx#L107) |
 | `club_post_likes` | [`app/(app)/club/[id].tsx:114`](../app/%28app%29/club/%5Bid%5D.tsx#L114)<br>[`components/ClubPostCard.tsx:78`](../components/ClubPostCard.tsx#L78) |
 | `club_posts` | [`app/(app)/club/[id].tsx:100`](../app/%28app%29/club/%5Bid%5D.tsx#L100)<br>[`components/ClubPostCard.tsx:281`](../components/ClubPostCard.tsx#L281) |
 | `clubs` | [`app/(app)/(tabs)/clubs.tsx:197`](../app/%28app%29/%28tabs%29/clubs.tsx#L197)<br>[`app/(app)/club/[id].tsx:136`](../app/%28app%29/club/%5Bid%5D.tsx#L136)<br>[`app/(app)/club/create.tsx:39`](../app/%28app%29/club/create.tsx#L39) |
-| `conversation_members` | [`supabase/functions/send-chat-push/index.ts:64`](../supabase/functions/send-chat-push/index.ts#L64) |
-| `conversations` | [`supabase/functions/send-chat-push/index.ts:63`](../supabase/functions/send-chat-push/index.ts#L63) |
+| `conversation_members` | [`supabase/functions/send-chat-push/index.ts:119`](../supabase/functions/send-chat-push/index.ts#L119) |
+| `conversations` | [`supabase/functions/send-chat-push/index.ts:118`](../supabase/functions/send-chat-push/index.ts#L118) |
 | `event_attendees` | [`app/(app)/(tabs)/(main)/index.tsx:95`](../app/%28app%29/%28tabs%29/%28main%29/index.tsx#L95)<br>[`app/(app)/event/[id].tsx:826`](../app/%28app%29/event/%5Bid%5D.tsx#L826)<br>[`app/(app)/host.tsx:366`](../app/%28app%29/host.tsx#L366)<br>[`hooks/useMyUpcomingEvents.ts:100`](../hooks/useMyUpcomingEvents.ts#L100)<br>[`utils/badges.ts:33`](../utils/badges.ts#L33) |
 | `event_cohosts` | [`app/(app)/event/[id].tsx:544`](../app/%28app%29/event/%5Bid%5D.tsx#L544) |
 | `event_comments` | [`app/(app)/event/[id].tsx:517`](../app/%28app%29/event/%5Bid%5D.tsx#L517) |
@@ -471,8 +471,8 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `messages` | [`hooks/useMessages.ts:22`](../hooks/useMessages.ts#L22) |
 | `notifications` | [`app/(app)/event/[id].tsx:647`](../app/%28app%29/event/%5Bid%5D.tsx#L647)<br>[`hooks/useNotifications.ts:34`](../hooks/useNotifications.ts#L34)<br>[`utils/badges.ts:237`](../utils/badges.ts#L237) |
 | `profiles` | [`app/_layout.tsx:41`](../app/_layout.tsx#L41)<br>[`app/(app)/(tabs)/(main)/profile/index.tsx:405`](../app/%28app%29/%28tabs%29/%28main%29/profile/index.tsx#L405)<br>[`app/(app)/(tabs)/chat.tsx:50`](../app/%28app%29/%28tabs%29/chat.tsx#L50)<br>[`app/(app)/(tabs)/settings/badges.tsx:93`](../app/%28app%29/%28tabs%29/settings/badges.tsx#L93)<br>[`app/(app)/(tabs)/settings/notifications.tsx:34`](../app/%28app%29/%28tabs%29/settings/notifications.tsx#L34)<br>[`app/(app)/event/[id].tsx:258`](../app/%28app%29/event/%5Bid%5D.tsx#L258)<br>+4 more files |
-| `push_receipts` | [`supabase/functions/check-push-receipts/index.ts:26`](../supabase/functions/check-push-receipts/index.ts#L26)<br>[`supabase/functions/send-chat-push/index.ts:135`](../supabase/functions/send-chat-push/index.ts#L135) |
-| `push_tokens` | [`supabase/functions/check-push-receipts/index.ts:55`](../supabase/functions/check-push-receipts/index.ts#L55)<br>[`supabase/functions/send-chat-push/index.ts:82`](../supabase/functions/send-chat-push/index.ts#L82)<br>[`utils/pushNotifications.ts:47`](../utils/pushNotifications.ts#L47) |
+| `push_receipts` | [`supabase/functions/check-push-receipts/index.ts:37`](../supabase/functions/check-push-receipts/index.ts#L37)<br>[`supabase/functions/send-chat-push/index.ts:199`](../supabase/functions/send-chat-push/index.ts#L199) |
+| `push_tokens` | [`supabase/functions/check-push-receipts/index.ts:82`](../supabase/functions/check-push-receipts/index.ts#L82)<br>[`supabase/functions/send-chat-push/index.ts:144`](../supabase/functions/send-chat-push/index.ts#L144)<br>[`utils/pushNotifications.ts:47`](../utils/pushNotifications.ts#L47) |
 | `tags` | [`app/(app)/host.tsx:167`](../app/%28app%29/host.tsx#L167) |
 | `tournament_comments` | [`app/(app)/tournament/[id].tsx:283`](../app/%28app%29/tournament/%5Bid%5D.tsx#L283) |
 | `tournament_matches` | [`app/(app)/tournament/[id].tsx:293`](../app/%28app%29/tournament/%5Bid%5D.tsx#L293) |
