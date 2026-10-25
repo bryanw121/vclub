@@ -64,3 +64,14 @@ export function e2eCredentials(): { username: string; password: string } {
 
 export const SUPABASE_URL = required('EXPO_PUBLIC_SUPABASE_URL', 'the same value the web build uses')
 export const SUPABASE_ANON_KEY = required('EXPO_PUBLIC_SUPABASE_ANON_KEY', 'the same value the web build uses')
+
+/**
+ * Marks the rows this run creates. Event fixtures are titled
+ * `[e2e <tag>] ...`, and cleanup / the sweep delete only their own tag (plus
+ * stale `[e2e` rows older than STALE_FIXTURE_HOURS), so parallel CI runs against
+ * the shared project never collide. CI sets `r<run_id>-<attempt>`; local runs
+ * get a per-process tag. Keep the shape in sync with e2e/sweep.mjs.
+ */
+export const E2E_RUN_TAG = process.env.E2E_RUN_TAG || `local${process.pid}`
+export const E2E_TITLE_PREFIX = `[e2e ${E2E_RUN_TAG}]`
+export const STALE_FIXTURE_HOURS = 3

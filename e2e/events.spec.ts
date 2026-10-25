@@ -6,13 +6,14 @@
  * Test account: E2E_USERNAME / E2E_PASSWORD (see .env.example)
  *
  * Fixtures: beforeAll creates two relative-dated events hosted by the e2e account
- * (`[e2e] Open Play`, `[e2e] Tournament`) and afterAll deletes them. No
+ * (`[e2e <run>] Open Play`, `[e2e <run>] Tournament`) and afterAll deletes them. No
  * permanent shared seed events are required in the live DB.
  */
 
 import { test, expect, Page } from '@playwright/test'
 import {
   OPEN_PLAY_EVENT,
+  TITLE_PREFIX,
   TOURNAMENT_EVENT,
   seedEventFixtures,
   cleanupEventFixtures,
@@ -249,7 +250,7 @@ test.describe('Events', () => {
   // window masked the change. Deliberately no reload and no pull-to-refresh
   // anywhere in this test; that's the entire point.
   test('editing an event shows the new title on the detail page without a refresh', async ({ page }) => {
-    const editedTitle = `[e2e] Edited ${Date.now()}`
+    const editedTitle = `${TITLE_PREFIX} Edited ${Date.now()}`
 
     await page.getByText(OPEN_PLAY_EVENT).first().click()
     await page.waitForURL(/\/event\//, { timeout: 20000 })
@@ -291,7 +292,7 @@ test.describe('Events', () => {
   // The save now diffs, so a title-only edit writes no tag rows at all.
   test('editing an event\'s title keeps its tags, so it stays under its filter chip', async ({ page }) => {
     const feed = page.getByTestId('events-feed')
-    const editedTitle = `[e2e] Open Play ${Date.now()}`
+    const editedTitle = `${OPEN_PLAY_EVENT} ${Date.now()}`
 
     // Precondition: the fixture is tagged Open Play and shows under that chip.
     await page.getByTestId('filter-open_play').first().click()

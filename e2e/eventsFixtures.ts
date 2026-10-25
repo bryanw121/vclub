@@ -4,12 +4,12 @@
  * permanent pilot-visible seed events.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { e2eCredentials, SUPABASE_ANON_KEY, SUPABASE_URL } from './env'
+import { e2eCredentials, E2E_TITLE_PREFIX, STALE_FIXTURE_HOURS, SUPABASE_ANON_KEY, SUPABASE_URL } from './env'
 
-export const OPEN_PLAY_EVENT = '[e2e] Open Play'
-export const TOURNAMENT_EVENT = '[e2e] Tournament'
-
-const TITLE_PREFIX = '[e2e]'
+/** This run's title prefix, e.g. `[e2e r123-1]`; see E2E_RUN_TAG in ./env. */
+export const TITLE_PREFIX = E2E_TITLE_PREFIX
+export const OPEN_PLAY_EVENT = `${TITLE_PREFIX} Open Play`
+export const TOURNAMENT_EVENT = `${TITLE_PREFIX} Tournament`
 
 const OPEN_PLAY_TAG = 'Open Play'
 const TOURNAMENT_TAG = 'Tournament'
@@ -43,13 +43,26 @@ async function signInE2eClient(): Promise<{ supabase: SupabaseClient; userId: st
   return { supabase, userId: data.user.id }
 }
 
+/**
+ * Delete this run's fixtures, plus any e2e fixtures abandoned by a crashed run
+ * long enough ago that no live run can still be using them. Never touches
+ * another in-flight run's rows (those carry a different tag).
+ */
 async function deleteE2eEvents(supabase: SupabaseClient, userId: string) {
-  const { error } = await supabase
+  const own = await supabase
     .from('events')
     .delete()
     .eq('created_by', userId)
     .like('title', `${TITLE_PREFIX}%`)
-  if (error) throw new Error(`Failed to clean e2e events: ${error.message}`)
+  if (own.error) throw new Error(`Failed to clean e2e events: ${own.error.message}`)
+  const staleBefore = new Date(Date.now() - STALE_FIXTURE_HOURS * 3600_000).toISOString()
+  const stale = await supabase
+    .from('events')
+    .delete()
+    .eq('created_by', userId)
+    .like('title', '[e2e%')
+    .lt('created_at', staleBefore)
+  if (stale.error) throw new Error(`Failed to clean stale e2e events: ${stale.error.message}`)
 }
 
 /**
