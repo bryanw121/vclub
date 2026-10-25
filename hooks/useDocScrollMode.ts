@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Platform } from 'react-native'
 import { setDocScrollClaim } from '../lib/docScroll'
+import { TABS } from '../constants/navigation'
 
 /**
  * Document-scroll mode: on narrow mobile web, the Events tab content flows in
@@ -14,11 +15,11 @@ import { setDocScrollClaim } from '../lib/docScroll'
  *
  * @returns whether doc-scroll mode is currently active
  */
-// Tabs that use document scroll: Events (0), Clubs (1), Profile (3).
-// Chat (2) keeps the app-shell layout — its pinned input bar needs a fixed viewport.
+// Tabs that use document scroll (TABS[].docScroll): currently Events, Clubs, Profile.
+// Chat keeps the app-shell layout — its pinned input bar needs a fixed viewport.
 // Note: the event detail page (/event/[id]) manages the body class itself,
 // since only its Details/People tabs use document scroll.
-const DOC_SCROLL_TABS = new Set([0, 1, 3])
+const DOC_SCROLL_TABS = new Set(TABS.filter(tab => tab.docScroll).map(tab => tab.pageIndex))
 
 export function useDocScrollMode(
   isNarrowWeb: boolean,

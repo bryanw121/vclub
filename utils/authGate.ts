@@ -1,4 +1,5 @@
 import { Platform } from 'react-native'
+import { routes } from './routes'
 
 /**
  * Guest browsing rules.
@@ -8,17 +9,17 @@ import { Platform } from 'react-native'
  * place. The routes below need an account outright, so a guest who lands on one
  * (deep link, back button, typed URL) is sent to the login screen instead.
  */
-const PROTECTED_ROUTES = [
-  '/host',
-  '/tournament/create',
-  '/notifications',
-  '/settings',
-  '/club/create',
+const PROTECTED_ROUTES: string[] = [
+  routes.host(),
+  routes.tournamentCreate(),
+  routes.notifications(),
+  routes.settings(),
+  routes.clubCreate(),
 ]
 
 export function isProtectedPath(pathname: string): boolean {
   // A conversation needs an account; the /chat tab itself shows a prompt instead.
-  if (pathname.startsWith('/chat/')) return true
+  if (pathname.startsWith(`${routes.chat()}/`)) return true
   return PROTECTED_ROUTES.some(route => pathname === route || pathname.startsWith(`${route}/`))
 }
 
@@ -63,5 +64,5 @@ export function takePostSignInRedirect(): string | null {
 /** Where "Keep browsing without an account" goes: back where the guest was, unless that page needs an account. */
 export function takeGuestReturnPath(): string {
   const path = takePostSignInRedirect()
-  return path && !isProtectedPath(path) ? path : '/'
+  return path && !isProtectedPath(path) ? path : routes.events()
 }
