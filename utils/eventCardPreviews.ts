@@ -1,33 +1,13 @@
 import { supabase } from '../lib/supabase'
-import type { EventCardPreviews, EventWithDetails } from '../types'
-
-type PreviewRow = {
-  event_id: string
-  user_id: string
-  username: string
-  first_name: string | null
-  last_name: string | null
-  avatar_url: string | null
-}
+import type { EventCardPreviewRow, EventCardPreviews, EventWithDetails } from '../types'
 
 /**
- * Up to 3 attendee avatar previews per event via RPC (avoids unbounded
- * `event_attendees_attending → profiles` embeds on list queries).
- * Returns an empty map on error — previews are decoration, never block a list.
+ * Group preview rows by event. Every id in `eventIds` gets an entry (empty when
+ * nobody is going yet), so merging the result replaces stale previews too.
  */
-export async function fetchEventCardPreviews(eventIds: string[]): Promise<EventCardPreviews> {
-  const byEvent: EventCardPreviews = new Map()
-  if (eventIds.length === 0) return byEvent
-
-  const { data, error } = await supabase.rpc('get_event_card_attendee_previews', {
-    p_event_ids: eventIds,
-  })
-  if (error) {
-    console.error('[fetchEventCardPreviews]', error.message)
-    return byEvent
-  }
-
-  for (const row of (data ?? []) as PreviewRow[]) {
+export function previewsFromRows(rows: EventCardPreviewRow[], eventIds: string[] = []): EventCardPreviews {
+  const byEvent: EventCardPreviews = new Map(eventIds.map(id => [id, []]))
+  for (const row of rows) {
     const list = byEvent.get(row.event_id) ?? []
     list.push({
       user_id: row.user_id,
@@ -42,6 +22,24 @@ export async function fetchEventCardPreviews(eventIds: string[]): Promise<EventC
     byEvent.set(row.event_id, list)
   }
   return byEvent
+}
+
+/**
+ * Up to 3 attendee avatar previews per event via RPC (avoids unbounded
+ * `event_attendees_attending → profiles` embeds on list queries).
+ * Returns an empty map on error — previews are decoration, never block a list.
+ */
+export async function fetchEventCardPreviews(eventIds: string[]): Promise<EventCardPreviews> {
+  if (eventIds.length === 0) return new Map()
+
+  const { data, error } = await supabase.rpc('get_event_card_attendee_previews', {
+    p_event_ids: eventIds,
+  })
+  if (error) {
+    console.error('[fetchEventCardPreviews]', error.message)
+    return new Map()
+  }
+  return previewsFromRows(data ?? [])
 }
 
 /** Copy of `events` with `attendee_previews` filled from `previews` (tournaments get none). */

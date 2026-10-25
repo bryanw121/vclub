@@ -28,12 +28,12 @@ import { useSession } from '../contexts/session'
 import { startOfToday } from '../utils'
 import { addMonths, bucketByMonthKey, enumerateMonths, monthEndIso, monthKeyFromIso, monthStartIso } from '../utils/monthKeys'
 import { readFeedSnapshot, SNAPSHOT_MONTHS, writeFeedSnapshot } from '../utils/feedSnapshot'
-import { fetchEventCardPreviews, withEventCardPreviews } from '../utils/eventCardPreviews'
-import type { EventCardPreviews } from '../types'
+import { fetchEventCardPreviews, previewsFromRows, withEventCardPreviews } from '../utils/eventCardPreviews'
+import { isFeedRpcUnavailable, parseFeedSpan } from '../utils/feedSpan'
 import { normalizeExternalSessions, normalizeTournaments } from '../utils/feedItems'
 import { notifyError, notifyInfo } from '../utils/notify'
 import { eventKeys } from './event/keys'
-import type { EventWithDetails, ExternalSession, FeedRsvpResult, FeedRsvpVars } from '../types'
+import type { EventCardPreviews, EventWithDetails, ExternalSession, FeedRsvpResult, FeedRsvpVars, FeedSpanRows } from '../types'
 
 /**
  * The Events feed, on `lib/query`.
@@ -43,12 +43,15 @@ import type { EventWithDetails, ExternalSession, FeedRsvpResult, FeedRsvpVars } 
  *   local month, past ones included. The cache is module-level, so leaving the
  *   tab (desktop: unmount) and coming back paints instantly from cache.
  * - Fetches batch: every month fetcher called in the same tick joins one
- *   microtask-flushed queue and they share ONE range query per table. That is
- *   what keeps "current month + 3" on desktop, `invalidate('feed')` after an
- *   RSVP, and pull-to-refresh at three round trips instead of 3 × months.
- * - Two-phase paint: a month's events land first (with the last avatar previews
- *   we had); previews arrive in a second round trip and are merged with
- *   `setQueryData` only if nothing touched that month in between.
+ *   microtask-flushed queue and they share ONE span fetch: a single
+ *   `get_feed_span` RPC returning events, tournaments, other venues' sessions
+ *   and avatar previews together. That is what keeps "current month + 3" on
+ *   desktop, `invalidate('feed')` after an RSVP, and pull-to-refresh at one
+ *   request instead of one per month.
+ * - Fallback while the RPC isn't deployed (or can't run): one range query per
+ *   table, and a two-phase paint: a month's events land first (with the last
+ *   avatar previews we had); previews arrive in a second round trip and are
+ *   merged with `setQueryData` only if nothing touched that month in between.
  *
  * Hook calls can't vary in number and `lib/query` has no `useQueries`, so the
  * hook reads months through a fixed `MAX_FEED_MONTHS` row of `useQuery` slots;
@@ -78,6 +81,7 @@ export function __resetFeedState(): void {
   lastPreviews = new Map()
   feedOwner = undefined
   queue = []
+  feedRpcEnabled = true
 }
 
 // ─── Device snapshot: paint last visit's events at once on a cold start ─────
@@ -130,12 +134,68 @@ export function resetFeed(): void {
 const TOURNAMENT_FEED_SELECT =
   'id, created_by, club_id, title, location, start_date, max_teams, price, skill_levels, status, created_at, profiles!tournaments_created_by_fkey(id, username, first_name, last_name, avatar_url), clubs(id, name, avatar_url)'
 
-/** One range query per table for `startMonth..endMonth`, bucketed by local month. Throws if the events query fails. */
-async function fetchFeedSpan(startMonth: string, endMonth: string): Promise<Record<string, EventWithDetails[]>> {
-  const span = enumerateMonths(startMonth, endMonth)
+/** What one span fetch produced. `previews` is set when they came with the rows (the RPC), so no second round trip is needed. */
+type FeedSpanFetch = {
+  buckets: Record<string, EventWithDetails[]>
+  previews: EventCardPreviews | null
+}
+
+/**
+ * Whether to try `get_feed_span` first. Turned off for the rest of the session
+ * the first time the server says the function is missing or can't run (see
+ * isFeedRpcUnavailable), so a client shipped before the migration pays for
+ * that once, not on every fetch.
+ */
+let feedRpcEnabled = true
+
+/** Merge the three sources, newest previews applied, sorted and bucketed by local month. */
+function bucketFeed(
+  span: string[],
+  events: EventWithDetails[],
+  tournaments: unknown[] | null,
+  external: ExternalSession[] | null,
+  previews: EventCardPreviews,
+): Record<string, EventWithDetails[]> {
+  const combined = [
+    ...withEventCardPreviews(events, previews),
+    ...normalizeTournaments(tournaments),
+    ...normalizeExternalSessions(external),
+  ]
+  combined.sort((a, b) => a.event_date.localeCompare(b.event_date))
+  return bucketByMonthKey(combined, span)
+}
+
+/**
+ * The whole span in one request. Returns null when the RPC can't be used (the
+ * caller then runs the three queries); latches it off for the session when the
+ * error says it will keep failing.
+ */
+async function fetchFeedSpanRpc(rangeStart: string, rangeEnd: string, externalSince: string): Promise<FeedSpanRows | null> {
+  const { data, error } = await supabase.rpc('get_feed_span', {
+    p_start: rangeStart,
+    p_end: rangeEnd,
+    p_external_updated_since: externalSince,
+  })
+  if (error) {
+    if (isFeedRpcUnavailable(error)) feedRpcEnabled = false
+    console.warn('[useMonthEvents] get_feed_span unavailable, using separate queries:', error.message)
+    return null
+  }
+  const rows = parseFeedSpan(data)
+  if (!rows) {
+    feedRpcEnabled = false
+    console.warn('[useMonthEvents] get_feed_span returned an unexpected shape, using separate queries')
+  }
+  return rows
+}
+
+/** Previous path, kept as the fallback: one range query per table, previews fetched afterwards. */
+async function fetchFeedSpanQueries(
+  rangeStart: string,
+  rangeEnd: string,
+  externalSince: string,
+): Promise<{ events: EventWithDetails[]; tournaments: unknown[] | null; external: ExternalSession[] | null }> {
   const user = await getSessionUser()
-  const rangeStart = monthStartIso(span[0])
-  const rangeEnd = monthEndIso(span[span.length - 1])
 
   const buildEventsQuery = (mySelect: string | null) => {
     let q = supabase
@@ -172,7 +232,7 @@ async function fetchFeedSpan(startMonth: string, endMonth: string): Promise<Reco
       .lt('start_date', rangeEnd)
       .neq('status', 'draft')
       .neq('status', 'cancelled'),
-    // Sessions at other Austin venues (Schelagg). A failure here only
+    // Sessions at other venues (Schelagg). A failure here only
     // drops those cards; the club's own events still render.
     supabase
       .from('external_sessions')
@@ -180,7 +240,7 @@ async function fetchFeedSpan(startMonth: string, endMonth: string): Promise<Reco
       .gte('starts_at', rangeStart)
       .lt('starts_at', rangeEnd)
       .eq('canceled', false)
-      .gte('updated_at', new Date(Date.now() - EXTERNAL_SESSION_MAX_AGE_MS).toISOString())
+      .gte('updated_at', externalSince)
       .order('starts_at', { ascending: true }),
   ])
 
@@ -190,14 +250,38 @@ async function fetchFeedSpan(startMonth: string, endMonth: string): Promise<Reco
   if (tournamentsRes.error) console.warn('[useMonthEvents] tournaments:', tournamentsRes.error.message)
   if (externalRes.error) console.warn('[useMonthEvents] external_sessions:', externalRes.error.message)
 
-  const combined = [
+  return {
     // Runtime-chosen select string: PostgREST inference cannot parse it, hence the double cast.
-    ...withEventCardPreviews((eventsRes.data ?? []) as unknown as EventWithDetails[], lastPreviews),
-    ...normalizeTournaments(tournamentsRes.data as unknown[] | null),
-    ...normalizeExternalSessions(externalRes.data as ExternalSession[] | null),
-  ]
-  combined.sort((a, b) => a.event_date.localeCompare(b.event_date))
-  return bucketByMonthKey(combined, span)
+    events: (eventsRes.data ?? []) as unknown as EventWithDetails[],
+    tournaments: tournamentsRes.data as unknown[] | null,
+    external: externalRes.data as ExternalSession[] | null,
+  }
+}
+
+/**
+ * Everything dated `startMonth..endMonth`, bucketed by local month: one
+ * `get_feed_span` call (rows + avatar previews), or, while that isn't
+ * available, the three-query path with previews to follow. Throws if the
+ * club's events could not be read.
+ */
+async function fetchFeedSpan(startMonth: string, endMonth: string): Promise<FeedSpanFetch> {
+  const span = enumerateMonths(startMonth, endMonth)
+  const rangeStart = monthStartIso(span[0])
+  const rangeEnd = monthEndIso(span[span.length - 1])
+  const externalSince = new Date(Date.now() - EXTERNAL_SESSION_MAX_AGE_MS).toISOString()
+
+  if (feedRpcEnabled) {
+    const rows = await fetchFeedSpanRpc(rangeStart, rangeEnd, externalSince)
+    if (rows) {
+      const ids = rows.events.map(e => e.id)
+      const previews = previewsFromRows(rows.previews, ids)
+      for (const id of ids) lastPreviews.set(id, previews.get(id) ?? [])
+      return { buckets: bucketFeed(span, rows.events, rows.tournaments, rows.external, previews), previews }
+    }
+  }
+
+  const { events, tournaments, external } = await fetchFeedSpanQueries(rangeStart, rangeEnd, externalSince)
+  return { buckets: bucketFeed(span, events, tournaments, external, lastPreviews), previews: null }
 }
 
 type MonthWaiter = {
@@ -226,9 +310,10 @@ function flushQueue(): void {
   if (batch.length === 0) return
   const months = [...new Set(batch.map(w => w.month))].sort()
   fetchFeedSpan(months[0], months[months.length - 1]).then(
-    buckets => {
+    ({ buckets, previews }) => {
+      // Previews that didn't come with the rows follow in a second round trip.
       // Subscribe before resolving, so the cache writes these trigger are seen.
-      hydratePreviewsWhenLanded(new Map(months.map(m => [feedMonthKey(m), buckets[m] ?? []])))
+      if (!previews) hydratePreviewsWhenLanded(new Map(months.map(m => [feedMonthKey(m), buckets[m] ?? []])))
       batch.forEach(w => w.resolve(buckets[w.month] ?? []))
       scheduleSnapshot()
     },
