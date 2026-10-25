@@ -308,6 +308,7 @@ Test each surface mentally when building. If a component behaves differently acr
 - All development happens on `main` — there is no `beta` branch or beta GitHub environment
 - One Supabase project (`rmelsdqgrpfjzqisycdl`) serves as the only environment
 - CI (`.github/workflows/ci.yml`) runs unit tests on every push/PR to `main` and Playwright e2e on pull requests only (e2e load counts against the shared Supabase project's disk IO budget); secrets are repository-level Actions secrets
+- E2e runs against the live project, so only one PR's suite runs at a time (each shard is in a repo-wide `e2e-live-supabase-<shard>` concurrency group). Overlapping suites from several PRs exhausted the disk IO budget once and made real sign-ins time out. If a queued shard shows "cancelled", re-run its failed jobs; don't remove the group
 
 ### CI e2e specifics
 - The e2e job serves the static export with `npx serve dist` — dynamic routes (`/chat/[id]`, `/event/[id]`, etc.) only resolve because of the rewrite rules in `public/serve.json` (copied into `dist` on export). Add a rewrite there whenever a new dynamic route is created.

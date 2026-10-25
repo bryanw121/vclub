@@ -69,6 +69,15 @@ jobs:
     # squash of a PR that already passed. Skipping the post-merge rerun halves
     # the load on the project's disk IO budget.
     if: github.event_name == 'pull_request'
+    # One e2e suite at a time across ALL PRs: each shard of a run shares a
+    # repo-wide group with the same shard of every other PR's run. Five PRs'
+    # suites overlapping on 2026-10-25 exhausted the live project's disk IO and
+    # made real sign-ins time out. GitHub keeps one pending job per group, so
+    # with three or more PRs queued the middle one's shard is cancelled:
+    # re-run it ("Re-run failed jobs") once the queue clears.
+    concurrency:
+      group: e2e-live-supabase-${{ matrix.shard }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [build-web]
