@@ -1,4 +1,4 @@
-import type { Profile, VolleyballPosition, VolleyballSkillLevel, EventAttendee, EventAttendeeCountEmbed, GooglePlacePrediction } from '../types'
+import type { Profile, VolleyballPosition, VolleyballSkillLevel, EventAttendee, EventAttendeeCountEmbed, GooglePlacePrediction, Surface } from '../types'
 import { AVATARS_BUCKET, CLUB_AVATARS_BUCKET } from '../constants/storage'
 import { SKILL_LEVEL_LABELS } from '../constants/copy'
 
@@ -546,4 +546,15 @@ export function formatVenueDisplay(prediction: GooglePlacePrediction): string {
   if (!locality) return main
   if (main.toLowerCase().endsWith(locality.toLowerCase())) return main
   return `${main}, ${locality}`
+}
+
+/** Narrow a DB string to a court surface (`events.surface`, `external_sessions.surface`). */
+export function isSurface(value: unknown): value is Surface {
+  return value === 'indoor' || value === 'sand' || value === 'grass'
+}
+
+/** A feed item's surface: the host's choice for club events, the venue's for outside sessions. */
+export function surfaceOf(event: { surface?: string | null; _external?: { surface?: string | null } | null }): Surface | null {
+  const s = event._external ? event._external.surface : event.surface
+  return isSurface(s) ? s : null
 }

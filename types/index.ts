@@ -150,7 +150,10 @@ export type Event = Pick<EventRow,
   | 'id' | 'created_by' | 'title' | 'description' | 'location' | 'event_date' | 'duration_minutes'
   | 'max_attendees' | 'created_at' | 'club_id'>
   & Partial<Pick<EventRow,
-    'cancelled_at' | 'price' | 'venmo_handle' | 'latitude' | 'longitude' | 'requires_approval' | 'skill_levels'>>
+    'cancelled_at' | 'price' | 'venmo_handle' | 'latitude' | 'longitude' | 'requires_approval' | 'skill_levels' | 'surface'>>
+
+/** Court surface. Same values on club events (`events.surface`) and outside sessions (`external_sessions.surface`). */
+export type Surface = 'indoor' | 'sand' | 'grass'
 
 /** Cheer categories for post-event peer recognition */
 export type CheerType =
@@ -327,6 +330,8 @@ export type CreateEventForm = {
   venmoHandle: string          // optional; only used when the parsed price > 0
   /** Host reviews each join request (`events.requires_approval`). Independent of price; defaults off. */
   requiresApproval: boolean
+  /** Court surface (`events.surface`); null = not set. Lets the feed's surface filter include this event. */
+  surface: Surface | null
 }
 
 /**
@@ -455,6 +460,16 @@ export type MyUpcomingEvent = {
 export type FeedFilter = 'mine' | 'all' | 'open_play' | 'tournament' | 'not_full' | 'austin'
 
 export type FeedFilterChip = { id: FeedFilter; label: string }
+
+/** Events-tab surface filter: combines (AND) with the chip filter above. */
+export type SurfaceFilter = 'any' | Surface
+
+export type SurfaceFilterProps = {
+  active: SurfaceFilter
+  onSelect: (id: SurfaceFilter) => void
+  /** Desktop wraps the row; mobile scrolls it horizontally. */
+  wide: boolean
+}
 
 export type FeedRsvpAction = 'join' | 'leave'
 

@@ -9,13 +9,13 @@ import { DatePickerField } from '../../components/DatePickerField'
 import { LocationPickerField } from '../../components/LocationPickerField'
 import type { LocationValue } from '../../types'
 import { TemplatesView } from '../../components/host/TemplatesView'
-import { ScreenState } from '../../components/ui'
-import { shared, theme, STALE, DAY_LABELS_SHORT, DURATION_OPTIONS, DEFAULT_DURATION_MINUTES, GENERIC_ERROR_MESSAGE } from '../../constants'
+import { Chip, ScreenState } from '../../components/ui'
+import { shared, theme, STALE, SURFACE_OPTIONS, DAY_LABELS_SHORT, DURATION_OPTIONS, DEFAULT_DURATION_MINUTES, GENERIC_ERROR_MESSAGE } from '../../constants'
 import type { RecurrenceCadence } from '../../constants'
 import { routes } from '../../utils/routes'
 import { useSession } from '../../contexts/session'
 import { useTags } from '../../hooks/useTags'
-import { cleanDate, diffTagIds, normalizePriceText, parsePrice, sanitizePriceInput } from '../../utils'
+import { cleanDate, diffTagIds, isSurface, normalizePriceText, parsePrice, sanitizePriceInput } from '../../utils'
 import { defaultRecurrenceEndDate, generateEventDates } from '../../utils/recurrence'
 import type { CreateEventForm, OwnedClubOption, Tag, UserEventTemplate } from '../../types'
 
@@ -23,7 +23,7 @@ const EMPTY_TAGS: Tag[] = []
 const EMPTY_CLUBS: OwnedClubOption[] = []
 const TEMPLATE_SELECT = 'id, user_id, name, title, description, location, max_attendees, created_at'
 const EDIT_EVENT_SELECT =
-  'id, title, description, location, latitude, longitude, event_date, duration_minutes, max_attendees, price, venmo_handle, requires_approval, club_id, event_tags (tag_id)'
+  'id, title, description, location, latitude, longitude, event_date, duration_minutes, max_attendees, price, venmo_handle, requires_approval, surface, club_id, event_tags (tag_id)'
 
 function roundToNearest5(): Date {
   const d = new Date()
@@ -44,6 +44,7 @@ const EMPTY_FORM: CreateEventForm = {
   priceText: '',
   venmoHandle: '',
   requiresApproval: false,
+  surface: null,
 }
 
 const CADENCE_OPTIONS: { value: RecurrenceCadence; label: string }[] = [
@@ -191,6 +192,7 @@ export default function HostEventScreen() {
       priceText: data.price != null ? Number(data.price).toFixed(2) : '',
       venmoHandle: data.venmo_handle ?? '',
       requiresApproval: data.requires_approval ?? false,
+      surface: isSurface(data.surface) ? data.surface : null,
     })
     const loadedTagIds = (data.event_tags ?? []).map((et: { tag_id: string }) => et.tag_id)
     setSelectedTagIds(loadedTagIds)
@@ -286,6 +288,7 @@ export default function HostEventScreen() {
             price: parsedPrice,
             venmo_handle: parsedPrice && parsedPrice > 0 ? (form.venmoHandle.trim() || null) : null,
             requires_approval: form.requiresApproval,
+            surface: form.surface,
           })
           .eq('id', editId)
         if (error) throw error
@@ -395,6 +398,7 @@ export default function HostEventScreen() {
           price: parsedPrice,
           venmo_handle: parsedPrice && parsedPrice > 0 ? (form.venmoHandle.trim() || null) : null,
           requires_approval: form.requiresApproval,
+          surface: form.surface,
         }))
 
         const { data: insertedEvents, error } = await supabase.from('events').insert(rows).select('id')
@@ -795,6 +799,24 @@ export default function HostEventScreen() {
               </View>
             </View>
           )}
+        </View>
+
+        {/* ── Surface ── optional; lets the Events feed's surface filter include this event. */}
+        <View style={hostStyles.fieldCard}>
+          <Text style={hostStyles.fieldLabel}>Surface</Text>
+          <View style={shared.chipRowWrap}>
+            {SURFACE_OPTIONS.map(opt => (
+              <Chip
+                key={opt.id}
+                testID={`event-surface-${opt.id}`}
+                label={opt.label}
+                active={form.surface === opt.id}
+                // Tap the selected surface again to clear it.
+                onPress={() => setField('surface', form.surface === opt.id ? null : opt.id)}
+              />
+            ))}
+          </View>
+          <Text style={shared.caption}>Players can filter the Events feed by surface.</Text>
         </View>
 
         {/* ── Approval ──

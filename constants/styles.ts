@@ -519,6 +519,9 @@ export const shared = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  // ── Wrapping row of Chips (forms) ─────────────────────────
+  chipRowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs, marginTop: theme.spacing.xs, marginBottom: theme.spacing.xs },
+
   // ── Events feed: refresh failed, showing older events ─────
   feedStaleNotice: {
     minHeight: 44,
@@ -531,6 +534,8 @@ export const shared = StyleSheet.create({
     borderColor: theme.colors.warning,
     backgroundColor: theme.colors.card,
   },
+  /** Mobile: the notice sits outside the padded list column. */
+  feedStaleNoticeMobile: { marginHorizontal: theme.spacing.lg },
   feedStaleNoticeText: { color: theme.colors.warning, fontSize: theme.font.size.sm, fontFamily: theme.fonts.bodyMedium },
 
   // ── ScreenContainer ───────────────────────────────────────

@@ -11,13 +11,14 @@ import { MyEventsRail } from '../../../../components/MyEventsRail'
 import { ExternalSessionCard } from '../../../../components/ExternalSessionCard'
 import { EventsHeader } from '../../../../components/events/EventsHeader'
 import { FilterChips } from '../../../../components/events/FilterChips'
+import { SurfaceFilter } from '../../../../components/events/SurfaceFilter'
 import { FeedEmpty } from '../../../../components/events/FeedEmpty'
 import { NextUpCard } from '../../../../components/events/NextUpCard'
 import { IconButton } from '../../../../components/ui'
 import { myStatusFor, useMyUpcomingEvents } from '../../../../hooks/useMyUpcomingEvents'
 import { NotificationPopup } from '../../../../components/NotificationPopup'
 import { BREAKPOINTS, FEED_STALE_NOTICE, shared, theme } from '../../../../constants'
-import type { EventWithDetails, FeedFilter, FeedFilterChip, Notification } from '../../../../types'
+import type { EventWithDetails, FeedFilter, FeedFilterChip, Notification, SurfaceFilter as SurfaceFilterValue } from '../../../../types'
 import { useTabsShell } from '../../../../contexts/tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useSession } from '../../../../contexts/session'
@@ -25,7 +26,7 @@ import { useRequireSignIn } from '../../../../hooks/useRequireSignIn'
 import { SignInButton } from '../../../../components/SignInButton'
 import { addMonths } from '../../../../utils/monthKeys'
 import { routes, isAppPath, toRoute } from '../../../../utils/routes'
-import { eventLocalDateKey, localDateKey } from '../../../../utils'
+import { eventLocalDateKey, localDateKey, surfaceOf } from '../../../../utils'
 
 const _now = new Date()
 const TODAY = localDateKey(_now)
@@ -85,6 +86,7 @@ export default function EventsScreen() {
 
   const [selectedDate, setSelectedDate] = useState<string>(TODAY)
   const [activeFilter, setActiveFilter] = useState<FeedFilter>('all')
+  const [surfaceFilter, setSurfaceFilter] = useState<SurfaceFilterValue>('any')
   const [notifOpen, setNotifOpen] = useState(false)
   const [curWeekPage, setCurWeekPage] = useState(WEEK_CENTER)
   const [curMonthPage, setCurMonthPage] = useState(MONTH_CENTER)
@@ -177,6 +179,7 @@ export default function EventsScreen() {
 
   const sections: DateSection[] = useMemo(() => {
     const filtered = events.filter(event => {
+      if (surfaceFilter !== 'any' && surfaceOf(event) !== surfaceFilter) return false
       if (activeFilter === 'all') return true
       if (activeFilter === 'austin') return !!event._external
       if (activeFilter === 'mine') return !!currentUserId && myStatusFor(event, currentUserId) !== null
@@ -206,7 +209,7 @@ export default function EventsScreen() {
       grouped[date].sort((a, b) => a.event_date.localeCompare(b.event_date))
     }
     return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([date, data]) => ({ date, data }))
-  }, [events, activeFilter, currentUserId])
+  }, [events, activeFilter, surfaceFilter, currentUserId])
 
   // "You're going" rail. Derived from events already in memory — no extra query
   // on the happy path, and it re-derives whenever the feed does, so an RSVP made
@@ -316,7 +319,7 @@ export default function EventsScreen() {
       onPress={() => void refresh()}
       accessibilityRole="button"
       accessibilityLabel={FEED_STALE_NOTICE}
-      style={shared.feedStaleNotice}
+      style={[shared.feedStaleNotice, isMobile && shared.feedStaleNoticeMobile]}
     >
       <Text style={shared.feedStaleNoticeText}>{FEED_STALE_NOTICE}</Text>
     </TouchableOpacity>
@@ -331,6 +334,7 @@ export default function EventsScreen() {
         mineCount={myUpcoming.length}
         wide={!isMobile}
       />
+      <SurfaceFilter active={surfaceFilter} onSelect={setSurfaceFilter} wide={!isMobile} />
       {staleNotice}
     </>
   )
@@ -343,9 +347,9 @@ export default function EventsScreen() {
       loading={loading}
       error={events.length === 0 ? error : null}
       onRetry={() => void refresh()}
-      filterActive={activeFilter !== 'all'}
+      filterActive={activeFilter !== 'all' || surfaceFilter !== 'any'}
       isGuest={isGuest}
-      onClearFilter={() => setActiveFilter('all')}
+      onClearFilter={() => { setActiveFilter('all'); setSurfaceFilter('any') }}
     />
   )
 
