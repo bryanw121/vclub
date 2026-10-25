@@ -4,7 +4,7 @@ import Animated from 'react-native-reanimated'
 import { shared, theme, TEAM_COLORS } from '../../constants'
 import type { Profile, TeamAssignment } from '../../types'
 import { profileDisplayName, profileInitial } from '../../utils'
-import type { TeamDragApi } from '../../hooks/event'
+import type { TeamDragApi } from '../../types'
 
 type Props = {
   drag: TeamDragApi

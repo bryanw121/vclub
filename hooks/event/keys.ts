@@ -4,7 +4,7 @@ import { profileBriefKey } from '../useMyProfile'
 /**
  * Cache keys for one event's detail data. Everything lives under
  * `event:<id>`, so `invalidate(eventKeys.root(id))` (what `/host` does after an
- * edit, via the `bumpVersion` shim) refreshes all of it.
+ * edit) refreshes all of it.
  *
  * `event:<id>` holds the EVENT_DETAIL_SELECT shape (full attendee rows with
  * profiles). Don't seed it with a feed/list row: those carry counts, not rows.

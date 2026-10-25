@@ -3,7 +3,7 @@ import { Text, TouchableOpacity, View } from 'react-native'
 import { theme } from '../../constants'
 import { SCHEDULE_OPTIONS } from '../../constants/tournamentCopy'
 import { Button } from '../Button'
-import type { ScheduleConfig } from '../../types/tournamentScreen'
+import type { ScheduleConfig } from '../../types'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

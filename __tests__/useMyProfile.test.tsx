@@ -11,7 +11,7 @@ import {
   useMyCheersCount,
   useMyProfile,
 } from '../hooks/useMyProfile'
-import type { MyProfile } from '../hooks/useMyProfile'
+import type { MyProfile } from '../types'
 import type { QueryResult } from '../lib/query'
 
 jest.mock('expo-router', () => ({ useFocusEffect: () => {} }))

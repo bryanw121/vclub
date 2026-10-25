@@ -57,7 +57,7 @@ export default function ProfileHistoryScreen() {
       .limit(HISTORY_LIMIT)
 
     if (err) setError(err.message)
-    else setAttendedEvents((data ?? []) as unknown as EventWithDetails[])
+    else setAttendedEvents((data ?? []) as EventWithDetails[])
     setAttendedFetched(true)
     setLoading(false)
   }
@@ -78,7 +78,7 @@ export default function ProfileHistoryScreen() {
       .limit(HISTORY_LIMIT)
 
     if (err) setError(err.message)
-    else setHostedEvents((data ?? []) as unknown as EventWithDetails[])
+    else setHostedEvents((data ?? []) as EventWithDetails[])
     setHostedFetched(true)
     setLoading(false)
   }

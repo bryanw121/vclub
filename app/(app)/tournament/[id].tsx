@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { Text, TouchableOpacity, View } from 'react-native'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { theme } from '../../../constants'
-import { TOURNAMENT_TABS, type TournamentTabName } from '../../../constants/tournamentCopy'
+import { TOURNAMENT_TABS } from '../../../constants/tournamentCopy'
+import type { TournamentTabName } from '../../../types'
 import { useSession } from '../../../contexts/session'
 import { useRequireSignIn } from '../../../hooks/useRequireSignIn'
 import { notifyInfo } from '../../../utils/notify'
@@ -16,14 +17,14 @@ import { DiscussionTab } from '../../../components/tournament/DiscussionTab'
 import { InviteModal } from '../../../components/tournament/InviteModal'
 import { OverviewTab } from '../../../components/tournament/OverviewTab'
 import { ScheduleTab } from '../../../components/tournament/ScheduleTab'
-import type { TeamCardActions } from '../../../components/tournament/TeamCard'
+import type { TeamCardActions } from '../../../types'
 import { TeamsTab } from '../../../components/tournament/TeamsTab'
 import { TournamentHero } from '../../../components/tournament/TournamentHero'
 import {
   AnnouncementSheet, JoinRequestSheet, PickTeamSheet, PrizeSheet, RegisterSheet,
 } from '../../../components/tournament/TournamentSheets'
 import type { TournamentTeamWithRoster } from '../../../types'
-import type { ScheduleConfig, TournamentConfirm } from '../../../types/tournamentScreen'
+import type { ScheduleConfig, TournamentConfirm } from '../../../types'
 
 type MovingPlayer = { userId: string; fromTeamId: string; playerName: string }
 

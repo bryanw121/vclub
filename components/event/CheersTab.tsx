@@ -4,11 +4,9 @@ import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { Button } from '../Button'
 import { shared, theme, CHEER_TYPES, CHEERS_MAX_PER_EVENT, TEAM_COLORS, TEAM_COLOR_NAMES } from '../../constants'
-import type { Profile, CheerType, Cheer, TeamAssignment } from '../../types'
+import type { Profile, CheerType, Cheer, IoniconName, PendingCheer, TeamAssignment } from '../../types'
 import { profileDisplayName, profileInitial, resolveProfileAvatarUriSmall } from '../../utils'
-import type { EventCheersApi, EventData, EventTeamsApi } from '../../hooks/event'
-
-type PendingCheer = { receiverId: string; cheerType: CheerType }
+import type { EventCheersApi, EventData, EventTeamsApi } from '../../types'
 
 type CheerPersonCardProps = {
   profile: Profile
@@ -166,7 +164,7 @@ export function CheersTab({ cheers, isEventOver, isAttending, isOwner, data, tea
                   }}
                 >
                   <Ionicons
-                    name={kt.icon as any}
+                    name={kt.icon as IoniconName}
                     size={28}
                     color={totalCount > 0 ? theme.colors.primary : theme.colors.subtext}
                   />
@@ -247,7 +245,7 @@ export function CheersTab({ cheers, isEventOver, isAttending, isOwner, data, tea
               <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
             </TouchableOpacity>
             <Ionicons
-              name={(CHEER_TYPES.find(k => k.type === selectedCheerType)?.icon ?? 'star-outline') as any}
+              name={(CHEER_TYPES.find(k => k.type === selectedCheerType)?.icon ?? 'star-outline') as IoniconName}
               size={18}
               color={theme.colors.primary}
             />

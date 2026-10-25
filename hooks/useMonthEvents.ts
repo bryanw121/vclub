@@ -26,7 +26,8 @@ import {
 import { useSession } from '../contexts/session'
 import { startOfToday } from '../utils'
 import { bucketByMonthKey, enumerateMonths, monthEndIso, monthStartIso } from '../utils/monthKeys'
-import { fetchEventCardPreviews, withEventCardPreviews, type EventCardPreviews } from '../utils/eventCardPreviews'
+import { fetchEventCardPreviews, withEventCardPreviews } from '../utils/eventCardPreviews'
+import type { EventCardPreviews } from '../types'
 import { normalizeExternalSessions, normalizeTournaments } from '../utils/feedItems'
 import { notifyError, notifyInfo } from '../utils/notify'
 import { eventKeys } from './event/keys'
@@ -148,6 +149,7 @@ async function fetchFeedSpan(startMonth: string, endMonth: string): Promise<Reco
   if (externalRes.error) console.warn('[useMonthEvents] external_sessions:', externalRes.error.message)
 
   const combined = [
+    // Runtime-chosen select string: PostgREST inference cannot parse it, hence the double cast.
     ...withEventCardPreviews((eventsRes.data ?? []) as unknown as EventWithDetails[], lastPreviews),
     ...normalizeTournaments(tournamentsRes.data as unknown[] | null),
     ...normalizeExternalSessions(externalRes.data as ExternalSession[] | null),

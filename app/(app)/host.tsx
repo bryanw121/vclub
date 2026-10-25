@@ -7,7 +7,7 @@ import { Sentry } from '../../lib/sentry'
 import { invalidate, queryKey, useQuery } from '../../lib/query'
 import { DatePickerField } from '../../components/DatePickerField'
 import { LocationPickerField } from '../../components/LocationPickerField'
-import type { LocationValue } from '../../components/LocationPickerField'
+import type { LocationValue } from '../../types'
 import { TemplatesView } from '../../components/host/TemplatesView'
 import { ScreenState } from '../../components/ui'
 import { shared, theme, STALE, DAY_LABELS_SHORT, DURATION_OPTIONS, DEFAULT_DURATION_MINUTES, GENERIC_ERROR_MESSAGE } from '../../constants'
@@ -114,7 +114,7 @@ export default function HostEventScreen() {
         .eq('user_id', userId as string)
         .eq('role', 'owner')
       if (error) throw error
-      return ((data ?? []) as unknown as { clubs: OwnedClubOption | null }[])
+      return ((data ?? []) as { clubs: OwnedClubOption | null }[])
         .map(m => m.clubs)
         .filter((c): c is OwnedClubOption => !!c)
     },

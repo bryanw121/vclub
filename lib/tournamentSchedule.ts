@@ -1,6 +1,6 @@
 import type {
   GeneratedSchedule, ScheduleInput, ScheduleMatch, SchedulePool,
-} from '../types/tournamentScreen'
+} from '../types'
 
 /**
  * Pure schedule generator for the tournament organizer ("Generate Schedule").

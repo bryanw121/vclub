@@ -71,6 +71,7 @@ export function useSilencedUsers() {
 
   const silence = useMutation(
     async (silencedUserId: string) => {
+      if (!userId) throw new Error('Sign in to continue.')
       const { error } = await supabase
         .from('chat_silences')
         .insert({ user_id: userId, silenced_user_id: silencedUserId })
@@ -94,6 +95,7 @@ export function useSilencedUsers() {
 
   const unsilence = useMutation(
     async (silencedUserId: string) => {
+      if (!userId) throw new Error('Sign in to continue.')
       const { error } = await supabase
         .from('chat_silences')
         .delete()

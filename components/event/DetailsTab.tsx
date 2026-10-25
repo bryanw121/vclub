@@ -8,7 +8,7 @@ import { DocScrollView } from '../DocScrollView'
 import { LinkedText } from '../LinkedText'
 import { shared, theme, LOCATIONS } from '../../constants'
 import type { EventWithDetails, Profile, AttendanceStatus } from '../../types'
-import type { EventData } from '../../hooks/event'
+import type { EventData } from '../../types'
 import { profileDisplayName, profileInitial, formatDuration, formatPrice, formatPriceAmount, resolveProfileAvatarUriSmall } from '../../utils'
 
 function formatEndTime(startIso: string, durationMinutes: number): string {

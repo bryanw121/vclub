@@ -9,15 +9,7 @@ import {
   View,
 } from 'react-native'
 import { theme } from '../constants/theme'
-
-export type AnchorRect = { x: number; y: number; width: number; height: number }
-
-export type AnchorMenuOption = {
-  key: string
-  label: string
-  destructive?: boolean
-  onPress: () => void
-}
+import type { AnchorMenuOption, AnchorRect } from '../types'
 
 const MENU_WIDTH = 224
 const ROW_MIN_HEIGHT = 48

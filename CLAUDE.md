@@ -129,7 +129,7 @@ Three tables currently in Supabase:
 - `user_id` UUID → profiles.id
 - `joined_at` timestamp
 
-**Custom RPC**: `get_email_by_user_id(user_id UUID)` — used for username-based login.
+**Custom RPC**: `get_email_by_username(p_username text)` — used for username-based login.
 
 *Upcoming tables to add: `teams`, `team_members`, `kudos`, `trophies`, `tournament_brackets`, `notifications`, `feedback_submissions`*
 
@@ -160,7 +160,7 @@ Nobody has to sign in to look around. Guests see Events, Clubs, event pages, clu
 `external_sessions` holds sessions other venues and groups run (Volleyworld, ACES, ATX Beach, Reclub meets...). The Volley ATX repo (`bryanw121/volleyball-atx`, `scripts/sync-vclub.mjs`) upserts it after each nightly scrape with the service role; vclub only reads it (anon SELECT policy). `useMonthEvents` fetches it with events/tournaments and `utils/feedItems.ts` normalizes rows into `EventWithDetails` with `_external` set; the feed renders those with `ExternalSessionCard`, which links out to the venue's sign-up (no RSVP). They show under All and the "Around Austin" chip, never under Mine or Not Full.
 
 ### Login accepts email or username
-If the login field doesn't look like an email, `login.tsx` queries `profiles` for that username, calls the `get_email_by_user_id` RPC, then signs in with the resolved email.
+If the login field doesn't look like an email, `login.tsx` calls the `get_email_by_username` RPC, then signs in with the resolved email.
 
 ## Code Conventions
 
@@ -226,7 +226,6 @@ Test each surface mentally when building. If a component behaves differently acr
   - Reads: `useQuery(queryKey('event', id), fetcher, { staleMs: STALE.x })` (`STALE` windows live in `constants/cache.ts`) — module-level cache, deduped, survives unmount; a failed refetch keeps `data` and sets `error`. Add `useFocusRefetch(key)` to refetch on focus/foreground only when stale. `refetch({ force: true })` only for explicit user actions (pull-to-refresh).
   - Writes: `useMutation(fn, { onMutate, invalidates })` — `fn` must throw on a Supabase `{ error }`; optimistic changes go through `setQueryData` and return a rollback from `onMutate`. Outside a mutation, call `invalidate(prefix)` after a write.
   - Realtime: `useRealtimeChannel(topic, bindings, { onReconnect })`, never `supabase.channel()` directly. Subscribers sharing a topic must pass identical bindings; otherwise use a distinct topic.
-  - `lib/dataVersion` is a deprecated shim (`bumpVersion` → `invalidate`) until Phase B migrates its readers.
 - **Fetch on demand**: don't pre-fetch data for tabs or screens the user hasn't opened yet. Fetch when the tab becomes active (`useFocusEffect` or an `activeTab` effect).
 - **Avoid N+1 patterns**: if you're iterating over a list and fetching per-item, restructure to a single `IN (...)` query or an embedded join instead.
 - **Count with PostgREST**: use `select('id', { count: 'exact', head: true })` for counts — don't fetch full rows just to call `.length`.
@@ -244,6 +243,8 @@ Test each surface mentally when building. If a component behaves differently acr
 
 ### Schema migrations
 Schema changes are usually applied directly via the Supabase MCP (`apply_migration`). Note: the migration files in `supabase/migrations/` are NOT in sync with the applied migration history — if a separate prod project is ever created, baseline it from `supabase db dump` of the live schema rather than replaying the migration files.
+
+`types/database.ts` is generated from the live schema: after any schema change, regenerate it with `npx supabase gen types typescript --project-id rmelsdqgrpfjzqisycdl > types/database.ts` (or the Supabase MCP `generate_typescript_types`) and commit it with the change. Never hand-edit it; row types in `types/index.ts` derive from it. Objects that exist only in an unapplied migration file go in `types/database.pending.ts` until the migration is applied.
 
 ### Not captured by migrations (manual setup if replicating the project)
 - Storage bucket creation

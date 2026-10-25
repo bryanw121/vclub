@@ -1,5 +1,5 @@
 import { generateSchedule, poolLayout, roundRobinRounds, shuffle } from '../lib/tournamentSchedule'
-import type { ScheduleConfig, ScheduleInput } from '../types/tournamentScreen'
+import type { ScheduleConfig, ScheduleInput } from '../types'
 
 const START = new Date('2026-11-01T15:00:00.000Z')
 const BASE_CONFIG: ScheduleConfig = { numCourts: 1, matchDuration: 45, breakDuration: 10, gamesPerTeam: null }

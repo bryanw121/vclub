@@ -1,6 +1,6 @@
 import React from 'react'
 import { ConfirmDialog } from '../ui'
-import type { RemoveTarget } from '../../hooks/event'
+import type { RemoveTarget } from '../../types'
 
 type Props = {
   target: RemoveTarget | null

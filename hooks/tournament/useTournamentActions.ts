@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { TOURNAMENT_ERROR_TITLE as T } from '../../constants/tournamentCopy'
 import { invalidate, useMutation, type MutationOptions } from '../../lib/query'
-import type { GeneratedSchedule } from '../../types/tournamentScreen'
+import type { GeneratedSchedule } from '../../types'
 import * as api from './api'
 import { tournamentKeys } from './api'
 import { notifyError, notifyInfo } from '../../utils/notify'
@@ -169,4 +169,3 @@ export function useTournamentActions(id: string, userId: string | null) {
   }
 }
 
-export type TournamentActions = ReturnType<typeof useTournamentActions>

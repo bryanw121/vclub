@@ -4,22 +4,9 @@ import { Ionicons } from '@expo/vector-icons'
 import { theme } from '../../constants'
 import { SKILL_LABELS } from '../../constants/tournamentCopy'
 import { profileDisplayName } from '../../utils'
-import type { TournamentTeam, TournamentTeamWithRoster } from '../../types'
-import type { TournamentJoinRequestWithRequester } from '../../types/tournamentScreen'
+import type { TeamCardActions, TournamentJoinRequestWithRequester, TournamentTeam, TournamentTeamWithRoster } from '../../types'
 import { AutoAvatar, MiniButton, OrgButton, StatusPill } from './TournamentBits'
 import { ts } from './tournamentStyles'
-
-export type TeamCardActions = {
-  onInvite: () => void
-  onMovePlayer: (player: { userId: string; fromTeamId: string; playerName: string }) => void
-  onApprove: (teamId: string) => void
-  onMarkPaid: (teamId: string) => void
-  onRemove: (teamId: string, teamName: string) => void
-  onAssign: (team: TournamentTeamWithRoster) => void
-  onRequestJoin: (team: TournamentTeamWithRoster) => void
-  onApproveRequest: (req: TournamentJoinRequestWithRequester) => void
-  onDeclineRequest: (requestId: string) => void
-}
 
 type Props = {
   team: TournamentTeamWithRoster

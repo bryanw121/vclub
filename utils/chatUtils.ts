@@ -1,6 +1,8 @@
 import { Alert, Platform } from 'react-native'
 import type { RealtimeBinding } from '../lib/realtime'
-import type { ConversationRow, Message, MessageReaction, MessageWithDetails } from '../types'
+import type {
+  ConversationRow, DebouncedCall, Message, MessageReaction, MessageRecord, MessageWithDetails, ReplySnapshot, SenderProfile,
+} from '../types'
 
 export function timeAgo(iso: string | null): string {
   if (!iso) return ''
@@ -101,12 +103,6 @@ export function silencesBindings(userId: string, h: { onChange: Handler }): Real
 }
 
 // ── Payload → message rows ───────────────────────────────────────────────────
-
-export type SenderProfile = NonNullable<MessageWithDetails['profiles']>
-export type ReplySnapshot = NonNullable<MessageWithDetails['reply_to']>
-
-/** The `messages` columns a realtime payload carries (`mentions` is ignored). */
-export type MessageRecord = Message
 
 /** Quote snapshot of `m` for a reply bubble. */
 export function replySnapshotOf(m: MessageWithDetails): ReplySnapshot {
@@ -368,15 +364,6 @@ export function unreadTotal(rows: readonly ConversationRow[], silenced: Readonly
 }
 
 // ── markRead debounce ────────────────────────────────────────────────────────
-
-export type DebouncedCall = {
-  /** (Re)start the timer; the call runs once, `delayMs` after the last schedule. */
-  schedule: () => void
-  /** Run now if scheduled (e.g. on unmount), otherwise do nothing. */
-  flush: () => void
-  cancel: () => void
-  isPending: () => boolean
-}
 
 /** Trailing-edge debounce with flush, for `mark_conversation_read`. */
 export function createDebouncedCall(fn: () => void, delayMs: number): DebouncedCall {

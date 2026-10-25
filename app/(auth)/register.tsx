@@ -76,7 +76,7 @@ export default function Register() {
 
       if (error) {
         const msg = error.message.toLowerCase()
-        if (msg.includes('already') || msg.includes('registered') || (error as any).code === 'user_already_exists') {
+        if (msg.includes('already') || msg.includes('registered') || error.code === 'user_already_exists') {
           setErrors({ email: 'An account with this email already exists' })
         } else {
           setErrors({ password: error.message })

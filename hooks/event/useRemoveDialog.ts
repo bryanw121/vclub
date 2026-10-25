@@ -1,9 +1,7 @@
 import { useEffect, useReducer } from 'react'
-import type { RemoveTarget } from './useEventAttendance'
+import type { RemoveDialogAction as Action, RemoveDialogState as State, RemoveTarget } from '../../types'
 
 // target / armed always change together (open → arm → close), so one reducer.
-type State = { target: RemoveTarget | null; armed: boolean }
-type Action = { type: 'open'; target: RemoveTarget } | { type: 'arm' } | { type: 'close' }
 
 const initial: State = { target: null, armed: false }
 

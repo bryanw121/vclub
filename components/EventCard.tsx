@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter, usePathname } from 'expo-router'
 import { theme, eventAttendeeDisplayCount } from '../constants'
 import { profileAvatarSmallUri, profileDisplayName } from '../utils'
-import type { EventWithDetails, Tag } from '../types'
+import type { EventCardRsvpHandler, EventWithDetails, Tag } from '../types'
 
 // ─── Attendance helpers ───────────────────────────────────────────────────────
 
@@ -64,7 +64,6 @@ function parseEventDate(dateString: string): { day: string; date: number; time: 
 
 // ─── Event Card ───────────────────────────────────────────────────────────────
 
-export type EventCardRsvpHandler = (eventId: string, action: 'join' | 'leave') => Promise<void>
 
 function EventCardInner({
   event,
@@ -493,4 +492,3 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
 }
 
 export const RowEventCard = memo(RowEventCardInner) as typeof RowEventCardInner
-export type RowEventCardRsvpHandler = EventCardRsvpHandler

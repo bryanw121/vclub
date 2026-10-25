@@ -35,7 +35,6 @@ export const FORMAT_LABELS: Record<string, string> = {
 }
 
 export const TOURNAMENT_TABS = ['Overview', 'Teams', 'Schedule', 'Discussion'] as const
-export type TournamentTabName = typeof TOURNAMENT_TABS[number]
 
 /** Choices offered by the schedule generator form. */
 export const SCHEDULE_OPTIONS = {

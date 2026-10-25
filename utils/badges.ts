@@ -1,24 +1,9 @@
 import { supabase } from '../lib/supabase'
 import { BADGE_DEFINITIONS, BETA_ACTIVE, VEX_MEMBER_ACTIVE, badgeTierLabel } from '../constants/badges'
 import type { BadgeDef } from '../constants/badges'
-import type { UserBadge, Profile } from '../types'
+import type { BadgeAwardPlan, BadgeStats, UserBadge, Profile } from '../types'
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
-
-export type BadgeStats = {
-  events_attended_past: number
-  events_hosted_past: number
-  cheers_received_total: number
-  cheers_given_events: number   // distinct event count where user gave cheers
-  spike_cheers: number
-  serve_cheers: number
-  block_cheers: number
-  set_cheers: number
-  dig_pass_cheers: number
-  communication_cheers: number
-  tournament_hosted: boolean
-  profile_complete: boolean
-}
 
 export async function collectBadgeStats(
   userId: string,
@@ -120,11 +105,6 @@ export function badgeStatValue(def: BadgeDef, stats: BadgeStats): number {
     case 'profile_complete':  return stats.profile_complete ? 1 : 0
     default:                  return stats[def.stat as keyof BadgeStats] as number
   }
-}
-
-export type BadgeAwardPlan = {
-  inserts: { badge_type: string; tier: number; label: string; description: string }[]
-  upgrades: { id: string; badge_type: string; tier: number; label: string; description: string }[]
 }
 
 /**

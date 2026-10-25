@@ -6,7 +6,8 @@ import { Input } from '../Input'
 import { theme } from '../../constants'
 import type { Profile } from '../../types'
 import { profileDisplayName } from '../../utils'
-import { MAX_COHOSTS, type CohostsApi } from '../../hooks/event'
+import { MAX_COHOSTS } from '../../hooks/event'
+import type { CohostsApi } from '../../types'
 
 type Props = { cohosts: CohostsApi }
 
@@ -28,7 +29,7 @@ export function CohostsDialog({ cohosts: c }: Props) {
                   const removing = c.removingId === row.user_id
                   return (
                     <View key={row.user_id} style={styles.cohostRow}>
-                      <Text style={styles.name} numberOfLines={1}>{profileDisplayName(row.profiles as unknown as Profile)}</Text>
+                      <Text style={styles.name} numberOfLines={1}>{profileDisplayName(row.profiles as Profile)}</Text>
                       <TouchableOpacity onPress={() => c.remove(row.user_id)} hitSlop={8} disabled={removing}>
                         {removing
                           ? <ActivityIndicator size="small" color={theme.colors.subtext} />

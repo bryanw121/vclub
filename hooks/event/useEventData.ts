@@ -25,7 +25,7 @@ import { deriveRoster } from './derive'
 export async function fetchEventDetail(id: string): Promise<EventWithDetails | null> {
   const { data, error } = await supabase.from('events').select(EVENT_DETAIL_SELECT).eq('id', id).maybeSingle()
   if (error) throw error
-  return (data ?? null) as unknown as EventWithDetails | null
+  return (data ?? null) as EventWithDetails | null
 }
 
 export async function fetchEventGuests(id: string): Promise<EventGuest[]> {
@@ -35,7 +35,7 @@ export async function fetchEventGuests(id: string): Promise<EventGuest[]> {
     .eq('event_id', id)
     .order('joined_at', { ascending: true })
   if (error) throw error
-  return (data ?? []) as unknown as EventGuest[]
+  return (data ?? []) as EventGuest[]
 }
 
 export async function fetchEventCohosts(id: string): Promise<EventCohostWithProfile[]> {
@@ -45,7 +45,7 @@ export async function fetchEventCohosts(id: string): Promise<EventCohostWithProf
     .eq('event_id', id)
     .order('added_at', { ascending: true })
   if (error) throw error
-  return (data ?? []) as unknown as EventCohostWithProfile[]
+  return (data ?? []) as EventCohostWithProfile[]
 }
 
 export async function fetchEventComments(id: string): Promise<EventCommentWithAuthor[]> {
@@ -55,7 +55,7 @@ export async function fetchEventComments(id: string): Promise<EventCommentWithAu
     .eq('event_id', id)
     .order('created_at', { ascending: true })
   if (error) throw error
-  return (data ?? []) as unknown as EventCommentWithAuthor[]
+  return (data ?? []) as EventCommentWithAuthor[]
 }
 
 /** Same key and shape (`ProfileBrief`) chat caches sender profiles under. */
@@ -146,4 +146,3 @@ export function useEventData(id: string) {
   }
 }
 
-export type EventData = ReturnType<typeof useEventData>

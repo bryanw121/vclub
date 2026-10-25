@@ -18,10 +18,6 @@ import {
   reactionsBindings,
   replySnapshotOf,
   upsertIncoming,
-  type DebouncedCall,
-  type MessageRecord,
-  type ReplySnapshot,
-  type SenderProfile,
 } from '../utils/chatUtils'
 import {
   applyOwnMessageToConversations,
@@ -29,7 +25,7 @@ import {
   markConversationReadLocally,
   profileBriefKey,
 } from './useConversations'
-import type { MessageWithDetails } from '../types'
+import type { DebouncedCall, MessageRecord, MessageWithDetails, PendingSend, ReplySnapshot, SenderProfile } from '../types'
 import { toProfileBrief } from './useMyProfile'
 
 const PROFILE_BRIEF = 'id, username, first_name, last_name, avatar_url, selected_border'
@@ -87,7 +83,7 @@ async function attachReplyTo(rows: MessageWithDetails[]): Promise<MessageWithDet
   const fetched = new Map<string, ReplySnapshot>()
   if (missing.length) {
     const { data } = await supabase.from('messages').select(REPLY_SELECT).in('id', missing)
-    for (const r of data ?? []) fetched.set(r.id, r as unknown as ReplySnapshot)
+    for (const r of data ?? []) fetched.set(r.id, r as ReplySnapshot)
   }
   return rows.map(m => {
     if (!m.reply_to_id) return m
@@ -98,7 +94,7 @@ async function attachReplyTo(rows: MessageWithDetails[]): Promise<MessageWithDet
 
 async function fetchReply(id: string): Promise<ReplySnapshot | null> {
   const { data } = await supabase.from('messages').select(REPLY_SELECT).eq('id', id).maybeSingle()
-  return (data as unknown as ReplySnapshot | null) ?? null
+  return (data as ReplySnapshot | null) ?? null
 }
 
 async function fetchPage(conversationId: string, before?: string): Promise<MessageWithDetails[]> {
@@ -111,17 +107,10 @@ async function fetchPage(conversationId: string, before?: string): Promise<Messa
   if (before) query = query.lt('created_at', before)
   const { data, error } = await query
   if (error) throw error
-  const rows = (data ?? []) as unknown as MessageWithDetails[]
+  const rows = (data ?? []) as MessageWithDetails[]
   rows.forEach(r => rememberProfile(r.profiles))
   // Newest first — the order the inverted native list wants.
   return attachReplyTo(rows)
-}
-
-type PendingSend = {
-  content: string | null
-  imageUrl: string | null
-  replyTo: ReplySnapshot | null
-  mentions: string[]
 }
 
 type Updater = MessageWithDetails[] | ((prev: MessageWithDetails[]) => MessageWithDetails[])
@@ -333,7 +322,7 @@ export function useMessages(conversationId: string) {
       return false
     }
     pendingSends.current.delete(tempId)
-    const confirmed: MessageWithDetails = { ...(data as unknown as MessageWithDetails), reply_to: pending.replyTo }
+    const confirmed: MessageWithDetails = { ...(data as MessageWithDetails), reply_to: pending.replyTo }
     rememberProfile(confirmed.profiles)
     setMessages(prev => confirmSent(prev, tempId, confirmed))
     applyOwnMessageToConversations(userId, confirmed, confirmed.profiles)
