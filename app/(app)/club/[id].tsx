@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   View,
   Text,
@@ -20,27 +20,19 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../../lib/supabase'
+import { getQueryData, invalidate, queryKey, setQueryData, useFocusRefetch, useMutation } from '../../../lib/query'
+import { useSession } from '../../../contexts/session'
 import { useRequireSignIn } from '../../../hooks/useRequireSignIn'
-import { shared, theme, CLUB_AVATARS_BUCKET, EVENT_CARD_LIST_SELECT, EVENT_CARD_MY_ATTENDANCE_SELECT } from '../../../constants'
-import { resolveClubAvatarUri, profileDisplayName } from '../../../utils'
-import { attachEventCardPreviews } from '../../../utils/eventCardPreviews'
+import { clubDetailKey, clubPostsKey, useClubDetail, useClubPosts } from '../../../hooks/useClub'
+import { myProfileKey } from '../../../hooks/useMyProfile'
+import { shared, theme, CLUB_AVATARS_BUCKET } from '../../../constants'
+import { resolveClubAvatarUri, profileDisplayName, confirmDestructive } from '../../../utils'
+import { routes } from '../../../utils/routes'
 import { EventCard } from '../../../components/EventCard'
 import { MajorCityAutocomplete } from '../../../components/MajorCityAutocomplete'
 import { ClubPostCard, ClubPostComposerModal } from '../../../components/ClubPostCard'
-import type { ClubPostWithFeed, ClubWithDetails, EventWithDetails, MajorCity } from '../../../types'
-
-const CLUB_POST_FEED_SELECT = `
-  id, club_id, body, created_at, created_by,
-  profiles:created_by (id, username, first_name, last_name, avatar_url, selected_border),
-  club_post_likes (count),
-  club_post_comments (
-    id, body, created_at, user_id,
-    profiles:user_id (id, username, first_name, last_name, avatar_url, selected_border)
-  )
-`
-
-const CLUB_DETAIL_SELECT =
-  'id, name, description, membership_type, created_by, avatar_url, cover_url, created_at, major_city_id, major_cities (id, display_name, city_name, admin_region, country_code), club_members (club_id, user_id, role, joined_at, profiles (id, username, first_name, last_name, avatar_url))'
+import { ScreenState } from '../../../components/ui'
+import type { ClubDetailData, ClubWithDetails, MajorCity, Profile } from '../../../types'
 
 const COVER_HEIGHT = 200
 const AVATAR_SIZE = 80
@@ -70,17 +62,23 @@ export default function ClubDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const { userId } = useSession()
+  const requireSignIn = useRequireSignIn()
 
-  const [club, setClub] = useState<ClubWithDetails | null>(null)
-  const [loading, setLoading] = useState(true)
+  // Header + events and the updates feed are separate cache entries so their
+  // requests overlap on a cold open; each refetches alone.
+  const detail = useClubDetail(id)
+  const postsQuery = useClubPosts(id)
+  useFocusRefetch(clubDetailKey(id, userId))
+  useFocusRefetch(userId ? clubPostsKey(id, userId) : null)
+  const club = detail.data?.club ?? null
+  const upcomingEvents = detail.data?.upcomingEvents ?? []
+  const pastCount = detail.data?.pastCount ?? 0
+  const clubPosts = postsQuery.data?.posts ?? []
+  const likedPostIds = useMemo(() => new Set(postsQuery.data?.likedPostIds ?? []), [postsQuery.data])
+
   const [avatarUri, setAvatarUri] = useState<string | null>(null)
   const [coverUri, setCoverUri] = useState<string | null>(null)
-  const [upcomingEvents, setUpcomingEvents] = useState<EventWithDetails[]>([])
-  const [pastCount, setPastCount] = useState(0)
-  const [userId, setUserId] = useState<string | null>(null)
-  const requireSignIn = useRequireSignIn()
-  const [joining, setJoining] = useState(false)
-
   const [editMode, setEditMode] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
@@ -91,159 +89,92 @@ export default function ClubDetailScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [pullRefreshing, setPullRefreshing] = useState(false)
-  const [clubPosts, setClubPosts] = useState<ClubPostWithFeed[]>([])
-  const [likedPostIds, setLikedPostIds] = useState<Set<string>>(() => new Set())
   const [showPostComposer, setShowPostComposer] = useState(false)
 
-  async function fetchClubPosts(clubId: string, uid: string | null) {
-    const { data, error } = await supabase
-      .from('club_posts')
-      .select(CLUB_POST_FEED_SELECT)
-      .eq('club_id', clubId)
-      .order('created_at', { ascending: false })
-      .order('created_at', { foreignTable: 'club_post_comments', ascending: true })
-    if (error) {
-      setClubPosts([])
-      setLikedPostIds(new Set())
-      return
-    }
-    const list = (data ?? []) as unknown as ClubPostWithFeed[]
-    setClubPosts(list)
-    if (uid && list.length > 0) {
-      const { data: likeRows } = await supabase
-        .from('club_post_likes')
-        .select('club_post_id')
-        .eq('user_id', uid)
-        .in('club_post_id', list.map(p => p.id))
-      setLikedPostIds(new Set(likeRows?.map(r => r.club_post_id) ?? []))
-    } else {
-      setLikedPostIds(new Set())
-    }
-  }
+  const coverPath = club?.cover_url ?? null
+  const avatarPath = club?.avatar_url ?? null
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all([resolveClubAvatarUri(avatarPath), resolveClubAvatarUri(coverPath)]).then(([avatar, cover]) => {
+      if (cancelled) return
+      setAvatarUri(avatar)
+      setCoverUri(cover)
+    })
+    return () => { cancelled = true }
+  }, [avatarPath, coverPath])
 
   function goBack() {
     if (router.canGoBack()) router.back()
-    else router.replace('/(app)/(tabs)' as any)
+    else router.replace(routes.events())
   }
-
-  async function fetchAll(opts?: { silent?: boolean }) {
-    if (!opts?.silent) setLoading(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    setUserId(session?.user.id ?? null)
-
-    const [clubRes, eventsRes, pastRes] = await Promise.all([
-      supabase
-        .from('clubs')
-        .select(CLUB_DETAIL_SELECT)
-        .eq('id', id)
-        .single(),
-      (async () => {
-        const uid = session?.user.id
-        const listSelect = uid
-          ? `${EVENT_CARD_LIST_SELECT}, ${EVENT_CARD_MY_ATTENDANCE_SELECT}`
-          : EVENT_CARD_LIST_SELECT
-        let q = supabase
-          .from('events')
-          .select(listSelect)
-          .eq('club_id', id)
-          .gte('event_date', new Date().toISOString())
-          .order('event_date', { ascending: true })
-        if (uid) q = q.eq('my_attendance.user_id', uid)
-        return q
-      })(),
-      supabase
-        .from('events')
-        .select('id', { count: 'exact', head: true })
-        .eq('club_id', id)
-        .lt('event_date', new Date().toISOString()),
-    ])
-
-    if (clubRes.data) {
-      const clubData = clubRes.data as unknown as ClubWithDetails
-      setClub(clubData)
-      setEditName(clubData.name)
-      setEditDescription(clubData.description ?? '')
-      setEditMajorCity(clubData.major_cities ?? null)
-      const [avatar, cover] = await Promise.all([
-        resolveClubAvatarUri(clubData.avatar_url),
-        resolveClubAvatarUri((clubData as any).cover_url),
-      ])
-      setAvatarUri(avatar)
-      setCoverUri(cover)
-    }
-
-    const upcoming = await attachEventCardPreviews(
-      (eventsRes.data ?? []) as unknown as EventWithDetails[],
-    )
-    setUpcomingEvents(upcoming)
-    setPastCount(pastRes.count ?? 0)
-
-    if (clubRes.data && session?.user.id) {
-      const isClubMember = (clubRes.data as unknown as ClubWithDetails).club_members.some(
-        m => m.user_id === session.user.id,
-      )
-      if (isClubMember) {
-        await fetchClubPosts(id, session.user.id)
-      } else {
-        setClubPosts([])
-        setLikedPostIds(new Set())
-      }
-    } else {
-      setClubPosts([])
-      setLikedPostIds(new Set())
-    }
-
-    setLoading(false)
-  }
-
-  useEffect(() => { void fetchAll() }, [id])
 
   async function handleClubRefresh() {
     setPullRefreshing(true)
     try {
-      await fetchAll({ silent: true })
+      await Promise.all([detail.refetch({ force: true }), postsQuery.refetch({ force: true })])
     } finally {
       setPullRefreshing(false)
     }
   }
 
-  const isOwner = useCallback(() => {
-    if (!club || !userId) return false
-    return club.club_members.some(m => m.user_id === userId && m.role === 'owner')
-  }, [club, userId])
-
-  const isMember = useCallback(() => {
-    if (!club || !userId) return false
-    return club.club_members.some(m => m.user_id === userId)
-  }, [club, userId])
-
-  async function handleJoin() {
-    if (!club) return
-    if (!userId) { requireSignIn(); return }
-    setJoining(true)
-    const { error } = await supabase.from('club_members').insert({ club_id: club.id, user_id: userId, role: 'member' })
-    if (error) Alert.alert('Error', error.message)
-    else await fetchAll()
-    setJoining(false)
+  /** The club changed (edit, new photo): refetch its page and the Clubs list. */
+  function clubChanged() {
+    invalidate(queryKey('club', id))
+    invalidate('clubs')
   }
 
-  async function handleLeave() {
+  const owner = !!club && !!userId && club.club_members.some(m => m.user_id === userId && m.role === 'owner')
+  const member = !!club && !!userId && club.club_members.some(m => m.user_id === userId)
+
+  // Join / leave: flips membership in the cached club at once and rolls back if the write fails.
+  const membership = useMutation<'join' | 'leave', void>(
+    async action => {
+      if (!userId) throw new Error('Not signed in')
+      const { error } =
+        action === 'join'
+          ? await supabase.from('club_members').insert({ club_id: id, user_id: userId, role: 'member' })
+          : await supabase.from('club_members').delete().eq('club_id', id).eq('user_id', userId)
+      if (error) throw error
+    },
+    {
+      onMutate: action => {
+        const key = clubDetailKey(id, userId)
+        const before = getQueryData<ClubDetailData>(key)
+        if (!before?.club || !userId) return
+        const me = getQueryData<Profile>(myProfileKey(userId))
+        const members: ClubWithDetails['club_members'] =
+          action === 'join'
+            ? [
+                ...before.club.club_members,
+                {
+                  club_id: id,
+                  user_id: userId,
+                  role: 'member',
+                  joined_at: new Date().toISOString(),
+                  profiles: (me
+                    ? { id: me.id, username: me.username, first_name: me.first_name, last_name: me.last_name, avatar_url: me.avatar_url }
+                    : null) as ClubWithDetails['club_members'][number]['profiles'],
+                },
+              ]
+            : before.club.club_members.filter(m => m.user_id !== userId)
+        setQueryData<ClubDetailData>(key, { ...before, club: { ...before.club, club_members: members } })
+        return () => setQueryData<ClubDetailData>(key, before)
+      },
+      onError: error => Alert.alert('Error', error.message),
+      // Membership gates the updates feed and the Clubs tab's "Joined" list.
+      invalidates: [queryKey('club', id), 'clubs'],
+    },
+  )
+
+  function handleJoin() {
+    if (!club) return
+    if (!userId) { requireSignIn(); return }
+    void membership.mutate('join')
+  }
+
+  function handleLeave() {
     if (!userId || !club) return
-    const doLeave = async () => {
-      setJoining(true)
-      const { error } = await supabase.from('club_members').delete().eq('club_id', club.id).eq('user_id', userId)
-      if (error) Alert.alert('Error', error.message)
-      else await fetchAll()
-      setJoining(false)
-    }
-    if (Platform.OS === 'web') {
-      if (window.confirm(`Leave ${club.name}?`)) doLeave()
-    } else {
-      Alert.alert('Leave club', `Leave ${club.name}?`, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Leave', style: 'destructive', onPress: doLeave },
-      ])
-    }
+    confirmDestructive('Leave club', `Leave ${club.name}?`, 'Leave', () => void membership.mutate('leave'))
   }
 
   async function handleSaveEdit() {
@@ -264,16 +195,16 @@ export default function ClubDetailScreen() {
         major_city_id: editMajorCity.id,
       })
       .eq('id', club.id)
-    if (error) Alert.alert('Error', error.message)
-    else { setEditMode(false); await fetchAll() }
     setSaving(false)
+    if (error) Alert.alert('Error', error.message)
+    else { setEditMode(false); clubChanged() }
   }
 
   async function uploadFile(kind: 'avatar' | 'cover', file: Blob, mimeType: string) {
     if (!club) return
     const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg'
     const path = `${club.id}/${kind}_${Date.now()}.${ext}`
-    const oldPath = kind === 'avatar' ? club.avatar_url : (club as any).cover_url
+    const oldPath = kind === 'avatar' ? club.avatar_url : club.cover_url
     if (oldPath && !/^https?:\/\//i.test(oldPath)) {
       await supabase.storage.from(CLUB_AVATARS_BUCKET).remove([oldPath])
     }
@@ -287,7 +218,7 @@ export default function ClubDetailScreen() {
     const column = kind === 'avatar' ? 'avatar_url' : 'cover_url'
     const { error: updateError } = await supabase.from('clubs').update({ [column]: path }).eq('id', club.id)
     if (updateError) Alert.alert('Error', updateError.message)
-    else await fetchAll()
+    else clubChanged()
   }
 
   function pickAndUploadImage(kind: 'avatar' | 'cover') {
@@ -342,12 +273,18 @@ export default function ClubDetailScreen() {
     setDeleting(true)
     const { error } = await supabase.from('clubs').delete().eq('id', club.id)
     setDeleting(false)
-    if (error) Alert.alert('Error', error.message)
-    else { setShowDeleteModal(false); goBack() }
+    if (error) {
+      Alert.alert('Error', error.message)
+      return
+    }
+    setShowDeleteModal(false)
+    // Mark stale without refetching: this page is about to close, and a refetch
+    // would briefly render "Club not found".
+    invalidate(queryKey('club', club.id), { refetchActive: false })
+    invalidate('clubs')
+    goBack()
   }
 
-  const owner = isOwner()
-  const member = isMember()
   const memberCount = club?.club_members.length ?? 0
   const initial = club ? club.name.charAt(0).toUpperCase() : ''
   const foundedYear = club ? new Date(club.created_at).getFullYear() : ''
@@ -356,19 +293,28 @@ export default function ClubDetailScreen() {
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {loading ? (
-        <View style={shared.centered}>
-          <ActivityIndicator color={theme.colors.primary} />
-        </View>
-      ) : !club ? (
-        <ScrollView
-          contentContainerStyle={[shared.centered, { flexGrow: 1 }]}
-          refreshControl={
-            <RefreshControl refreshing={pullRefreshing} onRefresh={() => void handleClubRefresh()} tintColor={theme.colors.primary} />
-          }
-        >
-          <Text style={shared.errorText}>Club not found</Text>
-        </ScrollView>
+      {!club ? (
+        <>
+          <View style={{ paddingTop: Math.max(insets.top, theme.spacing.md) + theme.spacing.xs, paddingHorizontal: theme.spacing.md }}>
+            <TouchableOpacity
+              onPress={goBack}
+              style={[styles.floatingBtn, { backgroundColor: theme.colors.card }]}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
+              <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
+            </TouchableOpacity>
+          </View>
+          <ScreenState
+            loading={detail.isFetching || !detail.error}
+            error={detail.error ? 'Could not load this club. Check your connection and try again.' : null}
+            onRetry={() => void detail.refetch({ force: true })}
+            empty={!!detail.data}
+            emptyIcon="people-outline"
+            emptyTitle="Club not found"
+          />
+        </>
       ) : (
         <ScrollView
           style={{ flex: 1 }}
@@ -385,7 +331,7 @@ export default function ClubDetailScreen() {
                 <Image source={{ uri: coverUri }} style={[StyleSheet.absoluteFillObject, { pointerEvents: 'none' } as any]} resizeMode="cover" />
               ) : (
                 <LinearGradient
-                  colors={['#4FC3F7', '#7C4DFF', '#E040FB']}
+                  colors={theme.gradients.brand}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={[StyleSheet.absoluteFillObject, { pointerEvents: 'none' } as any]}
@@ -408,7 +354,7 @@ export default function ClubDetailScreen() {
                 alignItems: 'center',
               }}>
                 <TouchableOpacity onPress={goBack} style={styles.floatingBtn} hitSlop={12}>
-                  <Ionicons name="chevron-back" size={20} color="#fff" />
+                  <Ionicons name="chevron-back" size={20} color={theme.colors.white} />
                 </TouchableOpacity>
 
                 {owner && !editMode && (
@@ -424,16 +370,16 @@ export default function ClubDetailScreen() {
                       style={styles.floatingBtn}
                       hitSlop={12}
                     >
-                      <Ionicons name="pencil-outline" size={18} color="#fff" />
+                      <Ionicons name="pencil-outline" size={18} color={theme.colors.white} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => setShowDeleteModal(true)} style={[styles.floatingBtn, { backgroundColor: 'rgba(220,50,50,0.65)' }]} hitSlop={12}>
-                      <Ionicons name="trash-outline" size={18} color="#fff" />
+                      <Ionicons name="trash-outline" size={18} color={theme.colors.white} />
                     </TouchableOpacity>
                   </View>
                 )}
                 {editMode && (
                   <TouchableOpacity onPress={() => setEditMode(false)} style={styles.floatingBtn} hitSlop={12}>
-                    <Ionicons name="close" size={20} color="#fff" />
+                    <Ionicons name="close" size={20} color={theme.colors.white} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -446,10 +392,10 @@ export default function ClubDetailScreen() {
                   disabled={uploadingCover}
                 >
                   {uploadingCover
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <Ionicons name="camera-outline" size={14} color="#fff" />
+                    ? <ActivityIndicator size="small" color={theme.colors.white} />
+                    : <Ionicons name="camera-outline" size={14} color={theme.colors.white} />
                   }
-                  <Text style={{ color: '#fff', fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold }}>
+                  <Text style={{ color: theme.colors.white, fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold }}>
                     {coverUri ? 'Edit cover' : 'Add cover'}
                   </Text>
                 </TouchableOpacity>
@@ -476,7 +422,7 @@ export default function ClubDetailScreen() {
                 </View>
                 {owner && (
                   <View style={styles.avatarCameraBtn}>
-                    <Ionicons name="camera-outline" size={12} color="#fff" />
+                    <Ionicons name="camera-outline" size={12} color={theme.colors.white} />
                   </View>
                 )}
               </TouchableOpacity>
@@ -531,12 +477,12 @@ export default function ClubDetailScreen() {
           {userId && !owner && (
             <View style={{ paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.md }}>
               {member ? (
-                <TouchableOpacity onPress={handleLeave} disabled={joining} style={[shared.buttonBase, shared.buttonSecondary, joining && shared.buttonDisabled]}>
-                  {joining ? <ActivityIndicator color={theme.colors.primary} /> : <Text style={shared.buttonLabelSecondary}>Leave club</Text>}
+                <TouchableOpacity onPress={handleLeave} disabled={membership.isPending} style={[shared.buttonBase, shared.buttonSecondary, membership.isPending && shared.buttonDisabled]}>
+                  {membership.isPending ? <ActivityIndicator color={theme.colors.primary} /> : <Text style={shared.buttonLabelSecondary}>Leave club</Text>}
                 </TouchableOpacity>
               ) : club.membership_type === 'open' ? (
-                <TouchableOpacity onPress={handleJoin} disabled={joining} style={[shared.buttonBase, shared.buttonPrimary, joining && shared.buttonDisabled]}>
-                  {joining ? <ActivityIndicator color="#fff" /> : <Text style={shared.buttonLabelPrimary}>Join club</Text>}
+                <TouchableOpacity onPress={handleJoin} disabled={membership.isPending} style={[shared.buttonBase, shared.buttonPrimary, membership.isPending && shared.buttonDisabled]}>
+                  {membership.isPending ? <ActivityIndicator color={theme.colors.white} /> : <Text style={shared.buttonLabelPrimary}>Join club</Text>}
                 </TouchableOpacity>
               ) : (
                 <View style={[shared.buttonBase, { backgroundColor: theme.colors.border }]}>
@@ -578,7 +524,7 @@ export default function ClubDetailScreen() {
                 disabled={saving}
                 style={[shared.buttonBase, shared.buttonPrimary, saving && shared.buttonDisabled]}
               >
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={shared.buttonLabelPrimary}>Save changes</Text>}
+                {saving ? <ActivityIndicator color={theme.colors.white} /> : <Text style={shared.buttonLabelPrimary}>Save changes</Text>}
               </TouchableOpacity>
             </View>
           )}
@@ -615,7 +561,9 @@ export default function ClubDetailScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-              {clubPosts.length === 0 ? (
+              {postsQuery.isLoading ? (
+                <ActivityIndicator color={theme.colors.primary} style={{ marginVertical: theme.spacing.lg }} />
+              ) : clubPosts.length === 0 ? (
                 <View style={[shared.card, {
                   marginHorizontal: theme.spacing.md,
                   marginBottom: theme.spacing.md,
@@ -645,7 +593,7 @@ export default function ClubDetailScreen() {
                       likedByMe={likedPostIds.has(p.id)}
                       currentUserId={userId}
                       isClubMember={member}
-                      onDataChanged={() => { void fetchClubPosts(club.id, userId) }}
+                      onDataChanged={() => { void postsQuery.refetch({ force: true }) }}
                     />
                   ))}
                 </View>
@@ -654,7 +602,7 @@ export default function ClubDetailScreen() {
                 visible={showPostComposer}
                 clubId={club.id}
                 onClose={() => setShowPostComposer(false)}
-                onCreated={() => { void fetchClubPosts(club.id, userId) }}
+                onCreated={() => { void postsQuery.refetch({ force: true }) }}
               />
             </>
           )}
@@ -720,7 +668,7 @@ export default function ClubDetailScreen() {
                 disabled={deleting}
                 style={[shared.buttonBase, { flex: 1, backgroundColor: theme.colors.error, borderRadius: theme.radius.md, alignItems: 'center', justifyContent: 'center', paddingVertical: theme.spacing.sm }]}
               >
-                {deleting ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold }}>Delete</Text>}
+                {deleting ? <ActivityIndicator color={theme.colors.white} /> : <Text style={{ color: theme.colors.white, fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold }}>Delete</Text>}
               </TouchableOpacity>
             </View>
           </Pressable>

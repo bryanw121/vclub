@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { View, Platform, ActivityIndicator } from 'react-native'
+import { View, Platform, ActivityIndicator, Pressable } from 'react-native'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import Animated, {
@@ -19,6 +19,12 @@ type Props = {
   uri: string | null
   border: Profile['selected_border']
   size: number
+  /** Show a spinner in place of the picture (an upload or lookup in flight). */
+  loading?: boolean
+  /** Make the picture tappable (the owner's "change photo" action). */
+  onPress?: () => void
+  /** Show a remove (x) button on the ring's top-right corner. */
+  onDelete?: () => void
 }
 
 function RingHole({ children, size, ring }: { children: React.ReactNode; size: number; ring: number }) {
@@ -128,24 +134,57 @@ function LegendBorder({ children, outerSize }: { children: React.ReactNode; oute
 }
 
 /**
- * Displays an avatar circle with an optional animated border.
- * Read-only — no edit controls. Use this when viewing any profile.
+ * Avatar circle with an optional animated border. Read-only by default (use it
+ * when viewing any profile); the owner's own profile passes `onPress` /
+ * `onDelete` to make the picture changeable and removable.
  */
-export function ProfileAvatar({ uri, border, size }: Props) {
+export function ProfileAvatar({ uri, border, size, loading = false, onPress, onDelete }: Props) {
   const outerSize = size + RING * 2
 
-  const inner = (
+  const picture = (
     <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden', backgroundColor: theme.colors.border, alignItems: 'center', justifyContent: 'center' }}>
-      {uri ? (
+      {loading ? (
+        <ActivityIndicator color={theme.colors.primary} />
+      ) : uri ? (
         <Image source={{ uri }} style={{ width: size, height: size }} contentFit="cover" transition={200} accessibilityIgnoresInvertColors />
       ) : (
         <Ionicons name="person" size={Math.round(size * 0.45)} color={theme.colors.subtext} />
       )}
     </View>
   )
+  const inner = onPress ? (
+    <Pressable onPress={onPress} disabled={loading} accessibilityRole="button" accessibilityLabel="Change profile picture">
+      {picture}
+    </Pressable>
+  ) : picture
 
-  if (border === 'gradient') return <LegendBorder outerSize={outerSize}>{inner}</LegendBorder>
-  if (border === 'gold') return <GoldBorder outerSize={outerSize}>{inner}</GoldBorder>
-  if (border === 'bronze') return <BronzeBorder outerSize={outerSize}>{inner}</BronzeBorder>
-  return <View style={{ width: outerSize, height: outerSize, alignItems: 'center', justifyContent: 'center' }}>{inner}</View>
+  let bordered: React.ReactNode
+  if (border === 'gradient') bordered = <LegendBorder outerSize={outerSize}>{inner}</LegendBorder>
+  else if (border === 'gold') bordered = <GoldBorder outerSize={outerSize}>{inner}</GoldBorder>
+  else if (border === 'bronze') bordered = <BronzeBorder outerSize={outerSize}>{inner}</BronzeBorder>
+  else bordered = <View style={{ width: outerSize, height: outerSize, alignItems: 'center', justifyContent: 'center' }}>{inner}</View>
+
+  if (!onDelete) return <>{bordered}</>
+  return (
+    <View style={{ width: outerSize, height: outerSize, flexShrink: 0 }}>
+      {bordered}
+      {/* Rendered here, outside every ring's clipping context. */}
+      {!loading && (
+        <Pressable
+          onPress={onDelete}
+          accessibilityRole="button"
+          accessibilityLabel="Remove profile picture"
+          style={{
+            position: 'absolute', top: 0, right: 0,
+            width: 22, height: 22, borderRadius: 11,
+            backgroundColor: theme.colors.subtext,
+            alignItems: 'center', justifyContent: 'center',
+            borderWidth: 2, borderColor: theme.colors.card,
+          }}
+        >
+          <Ionicons name="close" size={12} color={theme.colors.white} />
+        </Pressable>
+      )}
+    </View>
+  )
 }

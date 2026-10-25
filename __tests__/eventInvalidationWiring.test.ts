@@ -12,26 +12,35 @@ const host = readFileSync(join(root, 'app/(app)/host.tsx'), 'utf8')
 const detail = readFileSync(join(root, 'app/(app)/event/[id].tsx'), 'utf8')
 
 describe('host.tsx publishes the invalidation signal', () => {
-  it('imports the version store', () => {
-    expect(host).toMatch(/import\s*\{[^}]*bumpVersion[^}]*\}\s*from\s*'\.\.\/\.\.\/lib\/dataVersion'/)
+  it('imports invalidate and queryKey from lib/query (not the deprecated version store)', () => {
+    expect(host).toMatch(/import\s*\{[^}]*\binvalidate\b[^}]*\}\s*from\s*'\.\.\/\.\.\/lib\/query'/)
+    expect(host).not.toMatch(/dataVersion/)
   })
 
-  it('bumps the edited event key on a successful edit', () => {
-    expect(host).toMatch(/bumpVersion\(eventKey\(editId\)\)/)
+  it('invalidates the edited event, the feed and club pages on a successful edit', () => {
+    expect(host).toMatch(/invalidate\(queryKey\('event', editId\)\)/)
+    expect(host).toMatch(/invalidate\('feed'\)/)
+    expect(host).toMatch(/invalidate\('club'\)/)
   })
 
-  it('bumps only after the whole save (tags + waitlist), not right after the events update', () => {
-    const bumpAt = host.indexOf('bumpVersion(eventKey(editId))')
+  it('invalidates only after the whole save (tags + waitlist), not right after the events update', () => {
+    const invalidateAt = host.indexOf("invalidate(queryKey('event', editId))")
     // Anchored on the tag-write entry point rather than a specific query
     // string: #45 replaced delete-all-then-reinsert with a diff, and the old
     // literal anchor silently stopped matching.
     const tagsAt = host.indexOf('diffTagIds(originalTagIdsRef.current, selectedTagIds)')
     const waitlistAt = host.lastIndexOf("status: 'attending'")
-    expect(bumpAt).toBeGreaterThan(-1)
+    expect(invalidateAt).toBeGreaterThan(-1)
     expect(tagsAt).toBeGreaterThan(-1)
     expect(waitlistAt).toBeGreaterThan(-1)
-    expect(bumpAt).toBeGreaterThan(tagsAt)
-    expect(bumpAt).toBeGreaterThan(waitlistAt)
+    expect(invalidateAt).toBeGreaterThan(tagsAt)
+    expect(invalidateAt).toBeGreaterThan(waitlistAt)
+  })
+
+  it('also invalidates the feed when new events are created', () => {
+    const createAt = host.indexOf("supabase.from('events').insert(rows)")
+    expect(createAt).toBeGreaterThan(-1)
+    expect(host.indexOf("invalidate('feed')", createAt)).toBeGreaterThan(createAt)
   })
 })
 

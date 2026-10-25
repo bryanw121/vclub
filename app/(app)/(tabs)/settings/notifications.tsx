@@ -1,13 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, RefreshControl, ScrollView, Switch, Text, View } from 'react-native'
+import React, { useMemo, useState } from 'react'
+import { RefreshControl, ScrollView, Switch, Text, View } from 'react-native'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
-import { supabase } from '../../../../lib/supabase'
-import { getSessionUser } from '../../../../lib/sessionUser'
-import { Sentry } from '../../../../lib/sentry'
+import { useMyProfile } from '../../../../hooks/useMyProfile'
+import { ScreenState } from '../../../../components/ui'
 import { shared, theme } from '../../../../constants'
 import { NOTIFICATION_TYPE_LABELS } from '../../../../constants/notifications'
 import {
-  defaultNotificationPrefs,
   listNotificationPrefsResolved,
   patchNotificationPrefs,
 } from '../../../../utils/notificationPrefs'
@@ -15,83 +13,26 @@ import type { NotificationPrefs, NotificationType } from '../../../../types'
 
 export default function NotificationSettingsScreen() {
   useStackBackTitle('Notification settings')
-  const [prefs, setPrefs] = useState<NotificationPrefs>(defaultNotificationPrefs())
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const me = useMyProfile()
+  const [saveFailed, setSaveFailed] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const user = await getSessionUser()
-      if (!user) {
-        setLoading(false)
-        return
-      }
-      const { data, error: qErr } = await supabase
-        .from('profiles')
-        .select('notification_prefs')
-        .eq('id', user.id)
-        .single()
-      if (qErr) throw qErr
-      const row = data as { notification_prefs?: NotificationPrefs | null }
-      const raw = row.notification_prefs
-      setPrefs({
-        in_app: { ...raw?.in_app },
-        push: { ...raw?.push },
-      })
-    } catch (e: any) {
-      Sentry.captureException(e)
-      setError('Could not load notification settings. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const raw = me.profile?.notification_prefs
+  const prefs = useMemo<NotificationPrefs>(() => ({ in_app: { ...raw?.in_app }, push: { ...raw?.push } }), [raw])
 
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  const persist = useCallback(
-    async (next: NotificationPrefs) => {
-      const user = await getSessionUser()
-      if (!user) return
-      setSaving(true)
-      setError(null)
-      try {
-        const { error: uErr } = await supabase
-          .from('profiles')
-          .update({ notification_prefs: next })
-          .eq('id', user.id)
-        if (uErr) throw uErr
-        setPrefs(next)
-      } catch (e: any) {
-        Sentry.captureException(e)
-        setError('Could not save settings. Please try again.')
-      } finally {
-        setSaving(false)
-      }
-    },
-    [],
-  )
-
-  const toggle = useCallback(
-    (channel: keyof NotificationPrefs, type: NotificationType, enabled: boolean) => {
-      const next = patchNotificationPrefs(prefs, channel, type, enabled)
-      setPrefs(next)
-      void persist(next)
-    },
-    [persist, prefs],
-  )
+  // Optimistic: the cached profile updates at once and rolls back if the write fails.
+  async function toggle(channel: keyof NotificationPrefs, type: NotificationType, enabled: boolean) {
+    setSaveFailed(false)
+    const saved = await me.updateProfile({ notification_prefs: patchNotificationPrefs(prefs, channel, type, enabled) })
+    if (!saved) setSaveFailed(true)
+  }
 
   const rows = listNotificationPrefsResolved(prefs)
 
   async function handleRefresh() {
     setRefreshing(true)
     try {
-      await load()
+      await me.refetch({ force: true })
     } finally {
       setRefreshing(false)
     }
@@ -105,14 +46,17 @@ export default function NotificationSettingsScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={theme.colors.primary} />
         }
       >
-        {loading ? (
-          <ActivityIndicator color={theme.colors.primary} style={{ marginTop: theme.spacing.lg }} />
-        ) : (
+        <ScreenState
+          loading={me.isLoading}
+          ready={!!me.profile}
+          error={me.error ? 'Could not load notification settings. Please try again.' : null}
+          onRetry={() => void me.refetch({ force: true })}
+        >
           <>
             <Text style={[shared.caption, { marginBottom: theme.spacing.md }]}>
               Choose which updates you want. In-app notifications always appear in your inbox when enabled. Push delivery will use the same choices when it is available.
             </Text>
-            {error ? <Text style={shared.errorText}>{error}</Text> : null}
+            {saveFailed ? <Text style={shared.errorText}>Could not save settings. Please try again.</Text> : null}
             <View style={shared.card}>
               <Text style={[shared.label, { marginBottom: theme.spacing.sm }]}>In-app</Text>
               {rows.map(({ type, in_app }) => (
@@ -120,8 +64,8 @@ export default function NotificationSettingsScreen() {
                   key={`in_app_${type}`}
                   label={NOTIFICATION_TYPE_LABELS[type]}
                   value={in_app}
-                  disabled={saving}
-                  onValueChange={v => toggle('in_app', type, v)}
+                  disabled={me.isSaving}
+                  onValueChange={v => void toggle('in_app', type, v)}
                 />
               ))}
             </View>
@@ -132,14 +76,14 @@ export default function NotificationSettingsScreen() {
                   key={`push_${type}`}
                   label={NOTIFICATION_TYPE_LABELS[type]}
                   value={push}
-                  disabled={saving}
+                  disabled={me.isSaving}
                   subtitle="Saved for when push is enabled"
-                  onValueChange={v => toggle('push', type, v)}
+                  onValueChange={v => void toggle('push', type, v)}
                 />
               ))}
             </View>
           </>
-        )}
+        </ScreenState>
       </ScrollView>
     </View>
   )

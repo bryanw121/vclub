@@ -951,3 +951,37 @@ export type ScreenContainerProps = {
   /** Add the standard screen padding (spacing.lg). */
   padded?: boolean
 }
+
+// ─── Profile / club / host (Phase B4) ─────────────────────────────────────────
+
+/** Columns a signed-in user can change on their own profile row. */
+export type ProfilePatch = Partial<
+  Pick<Profile, 'first_name' | 'last_name' | 'bio' | 'position' | 'skill_level' | 'selected_border' | 'avatar_url' | 'notification_prefs'>
+>
+
+export type ToastState = { message: string; variant: 'error' | 'success' | 'info' }
+
+/** One row of the Clubs tab list: member count plus the viewer's own membership embed. */
+export type ClubListItem = Club & {
+  major_cities: MajorCity | null
+  club_members: { count: number }[]
+  my_membership?: Pick<ClubMember, 'club_id' | 'user_id' | 'role' | 'joined_at'>[]
+}
+
+/** The club header, its upcoming events and past-event count: one cache entry per viewer. */
+export type ClubDetailData = {
+  /** null when no club has that id (or the viewer cannot see it). */
+  club: ClubWithDetails | null
+  upcomingEvents: EventWithDetails[]
+  pastCount: number
+}
+
+/** A club's updates feed (members only: RLS returns nothing to anyone else). */
+export type ClubPostsData = {
+  posts: ClubPostWithFeed[]
+  /** ids of `posts` the viewer has liked. */
+  likedPostIds: string[]
+}
+
+/** A club the viewer owns, as offered in the host form's club picker. */
+export type OwnedClubOption = { id: string; name: string }

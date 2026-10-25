@@ -1,6 +1,5 @@
-import React, { useCallback, useState } from 'react'
+import React, { useState } from 'react'
 import {
-  ActivityIndicator,
   Modal,
   Pressable,
   RefreshControl,
@@ -18,23 +17,26 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
-import { useFocusEffect } from 'expo-router'
-import { supabase } from '../../../../lib/supabase'
+import { useFocusRefetch } from '../../../../lib/query'
+import { useSession } from '../../../../contexts/session'
 import { BadgeIcon } from '../../../../components/BadgeIcon'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
-import { useBadges } from '../../../../hooks/useBadges'
+import { BorderSwatch } from '../../../../components/profile/BorderSwatch'
+import { badgesKey, useBadges } from '../../../../hooks/useBadges'
+import { myProfileKey, useMyProfile } from '../../../../hooks/useMyProfile'
 import {
   shared,
   theme,
   BADGE_DEFINITIONS,
   BADGE_CATEGORY_GRADIENTS,
+  BREAKPOINTS,
   PROFILE_BORDERS,
   isBorderUnlocked,
   badgeTitle,
 } from '../../../../constants'
-import type { BadgeType, UserBadge } from '../../../../types'
+import { ScreenState } from '../../../../components/ui'
+import type { UserBadge } from '../../../../types'
 import type { ProfileBorderType, BadgeDef } from '../../../../constants'
 
 export default function BadgesScreen() {
@@ -42,12 +44,12 @@ export default function BadgesScreen() {
 
   const { width } = useWindowDimensions()
   const insets = useSafeAreaInsets()
-  const cols = width >= 768 ? 6 : 4
+  const cols = width >= BREAKPOINTS.sidebar ? 6 : 4
 
+  const { userId } = useSession()
   const { badges, loading, fetchBadges } = useBadges()
-  const [selectedBorder, setSelectedBorder] = useState<ProfileBorderType | null>(null)
-  const [borderSaving, setBorderSaving] = useState(false)
-  const [profileLoading, setProfileLoading] = useState(true)
+  const me = useMyProfile()
+  const selectedBorder: ProfileBorderType | null = me.profile?.selected_border ?? null
   const [detailDef, setDetailDef] = useState<BadgeDef | null>(null)
   const [detailMounted, setDetailMounted] = useState(false)
   const [listRefreshing, setListRefreshing] = useState(false)
@@ -77,57 +79,34 @@ export default function BadgesScreen() {
     })
   }
 
-  useFocusEffect(
-    useCallback(() => {
-      void fetchBadges(true)
-      void fetchBorder()
-    }, [fetchBadges]),
-  )
-
-  async function fetchBorder() {
-    // profileLoading starts true (initial state) and only clears once.
-    // Subsequent calls update selectedBorder silently with no spinner flash.
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.user?.id) { setProfileLoading(false); return }
-    const { data } = await supabase
-      .from('profiles')
-      .select('selected_border')
-      .eq('id', session.user.id)
-      .single()
-    setSelectedBorder((data as any)?.selected_border ?? null)
-    setProfileLoading(false)
-  }
+  // Both lists refetch on focus only when stale (badges are written server-side, rarely).
+  useFocusRefetch(userId ? badgesKey(userId) : null)
+  useFocusRefetch(userId ? myProfileKey(userId) : null)
 
   async function handleBadgesRefresh() {
     setListRefreshing(true)
     try {
-      await Promise.all([fetchBadges(true), fetchBorder()])
+      await Promise.all([fetchBadges(true), me.refetch({ force: true })])
     } finally {
       setListRefreshing(false)
     }
   }
 
-  async function saveBorder(border: ProfileBorderType | null) {
-    if (borderSaving) return
-    const previous = selectedBorder
-    setSelectedBorder(border)
-    try {
-      setBorderSaving(true)
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user?.id) return
-      const { error } = await supabase.from('profiles').update({ selected_border: border }).eq('id', session.user.id)
-      if (error) setSelectedBorder(previous)
-    } finally {
-      setBorderSaving(false)
-    }
+  function saveBorder(border: ProfileBorderType | null) {
+    if (me.isSaving) return
+    void me.updateProfile({ selected_border: border })
   }
 
   const earnedBadges = badges.filter(b => b.tier > 0)
 
-  if (loading || profileLoading) {
+  if ((loading && badges.length === 0) || !me.profile) {
     return (
       <View style={[shared.screen, shared.centered]}>
-        <ActivityIndicator color={theme.colors.primary} />
+        <ScreenState
+          loading={me.isFetching || !me.error}
+          error={me.error ? 'Could not load your badges. Check your connection and try again.' : null}
+          onRetry={() => void handleBadgesRefresh()}
+        />
       </View>
     )
   }
@@ -189,30 +168,27 @@ export default function BadgesScreen() {
           </Text>
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.lg }}>
-            <BorderOption
+            <BorderSwatch
               label="None"
+              size="lg"
               unlocked
               selected={!selectedBorder}
-              onPress={() => void saveBorder(null)}
-              saving={borderSaving}
+              onPress={() => saveBorder(null)}
+              disabled={me.isSaving}
             />
-            {PROFILE_BORDERS.map(border => {
-              const unlocked = isBorderUnlocked(border, badges)
-              return (
-                <BorderOption
-                  key={border.type}
-                  label={border.label}
-                  borderType={border.type}
-                  color={border.color}
-                  gradientColors={border.gradientColors}
-                  unlocked={unlocked}
-                  selected={selectedBorder === border.type}
-                  description={border.description}
-                  onPress={() => void saveBorder(border.type)}
-                  saving={borderSaving}
-                />
-              )
-            })}
+            {PROFILE_BORDERS.map(border => (
+              <BorderSwatch
+                key={border.type}
+                label={border.label}
+                size="lg"
+                borderDef={border}
+                unlocked={isBorderUnlocked(border, badges)}
+                selected={selectedBorder === border.type}
+                description={border.description}
+                onPress={() => saveBorder(border.type)}
+                disabled={me.isSaving}
+              />
+            ))}
           </View>
         </View>
 
@@ -374,123 +350,3 @@ function BadgeDetailPanel({ def, badge, onClose, bottomInset, animStyle }: Badge
     </Animated.View>
   )
 }
-
-// ─── Border option ────────────────────────────────────────────────────────────
-
-type BorderOptionProps = {
-  label: string
-  borderType?: ProfileBorderType
-  color?: string
-  gradientColors?: readonly string[]
-  selected: boolean
-  unlocked: boolean
-  description?: string
-  saving: boolean
-  onPress: () => void
-}
-
-function BorderOption({
-  label, borderType, color, gradientColors, selected, unlocked, description, saving, onPress,
-}: BorderOptionProps) {
-  const SIZE = 64
-  const RING = 4
-
-  function renderSwatch() {
-    if (!borderType) {
-      // "None" option
-      return (
-        <View style={{
-          width: SIZE, height: SIZE, borderRadius: SIZE / 2,
-          borderWidth: 2, borderColor: theme.colors.border,
-          backgroundColor: theme.colors.background,
-          alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Ionicons name="close" size={22} color={theme.colors.subtext} />
-        </View>
-      )
-    }
-
-    if (gradientColors && borderType === 'gradient') {
-      return (
-        <View style={{ width: SIZE + RING * 2, height: SIZE + RING * 2, borderRadius: (SIZE + RING * 2) / 2, overflow: 'hidden', opacity: unlocked ? 1 : 0.3 }}>
-          <LinearGradient
-            colors={gradientColors as [string, string, ...string[]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ position: 'absolute', inset: 0 }}
-          />
-          <View style={{
-            position: 'absolute', top: RING, left: RING, right: RING, bottom: RING,
-            borderRadius: SIZE / 2, backgroundColor: theme.colors.card,
-            alignItems: 'center', justifyContent: 'center',
-          }}>
-            {!unlocked && <Ionicons name="lock-closed" size={18} color={theme.colors.subtext} />}
-          </View>
-        </View>
-      )
-    }
-
-    // Solid or gold border
-    const isGold = borderType === 'gold'
-    return (
-      <View style={{ width: SIZE + RING * 2, height: SIZE + RING * 2, borderRadius: (SIZE + RING * 2) / 2, overflow: 'hidden', opacity: unlocked ? 1 : 0.3 }}>
-        <LinearGradient
-          colors={isGold ? ['#FFE066', color!, '#CC8800'] as [string, string, string] : [color!, color!] as [string, string]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ position: 'absolute', inset: 0 }}
-        />
-        <View style={{
-          position: 'absolute', top: RING, left: RING, right: RING, bottom: RING,
-          borderRadius: SIZE / 2, backgroundColor: theme.colors.card,
-          alignItems: 'center', justifyContent: 'center',
-        }}>
-          {!unlocked && <Ionicons name="lock-closed" size={18} color={theme.colors.subtext} />}
-        </View>
-      </View>
-    )
-  }
-
-  return (
-    <Pressable
-      onPress={() => { if (unlocked && !saving) onPress() }}
-      disabled={!unlocked || saving}
-      accessibilityRole="radio"
-      accessibilityState={{ selected, disabled: !unlocked }}
-      accessibilityHint={description}
-      style={({ pressed }) => ({
-        alignItems: 'center', gap: theme.spacing.xs,
-        opacity: pressed && unlocked ? 0.75 : 1,
-      })}
-    >
-      <View style={{ position: 'relative' }}>
-        {renderSwatch()}
-        {selected && unlocked && (
-          <View style={{
-            position: 'absolute', bottom: -2, right: -2,
-            width: 20, height: 20, borderRadius: 10,
-            backgroundColor: theme.colors.primary,
-            alignItems: 'center', justifyContent: 'center',
-            borderWidth: 2, borderColor: theme.colors.card,
-          }}>
-            <Ionicons name="checkmark" size={11} color="#fff" />
-          </View>
-        )}
-      </View>
-      <Text style={{
-        fontSize: theme.font.size.xs,
-        fontWeight: selected ? theme.font.weight.semibold : theme.font.weight.regular,
-        color: unlocked ? theme.colors.text : theme.colors.subtext,
-        opacity: unlocked ? 1 : 0.5,
-      }}>
-        {label}
-      </Text>
-      {!unlocked && description && (
-        <Text style={{ fontSize: 9, color: theme.colors.subtext, textAlign: 'center', maxWidth: 72, opacity: 0.7 }} numberOfLines={2}>
-          {description}
-        </Text>
-      )}
-    </Pressable>
-  )
-}
-
