@@ -220,6 +220,17 @@ export const shared = StyleSheet.create({
 
   // ─── Update required screen ───────────────────────────────────────────────
   // ── External session card (Schelagg sessions in the Events feed) ─────────
+  // TimePill: event start time, its own high-contrast colour
+  timePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.time,
+  },
+  timePillLabel: {
+    fontFamily: theme.fonts.bodySemiBold, fontWeight: '800', fontSize: 15,
+    color: theme.colors.timeInk, letterSpacing: -0.2,
+  },
+  timePillLabelLg: { fontSize: 17 },
   externalCard: {
     backgroundColor: theme.colors.card,
     borderRadius: 20,

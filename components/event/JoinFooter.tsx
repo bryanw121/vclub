@@ -3,11 +3,14 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { Button } from '../Button'
 import { APPROVAL_REQUIRED_NOTE, shared, theme } from '../../constants'
+import { eventDateMs } from '../../hooks/event'
 import { resolveJoinAction } from '../../hooks/event/derive'
 import type { AttendanceStatus } from '../../types'
 import type { EventAttendanceApi } from '../../types'
 
 type Props = {
+  /** `events.event_date`; restated above the button so nobody signs up for the wrong time. */
+  eventDate: string
   eventStatus: AttendanceStatus
   /** `events.requires_approval`: joins become requests the host approves. Independent of price. */
   requiresApproval: boolean
@@ -24,9 +27,12 @@ type Props = {
  * viewer's state (join / leave / waitlist / request / denied, decided by
  * `resolveJoinAction`), plus the +1 button for attendees and hosts.
  */
-export function JoinFooter({ eventStatus, requiresApproval, attendance, onAddGuest, docScrollActive, bottomInset, onHeightChange }: Props) {
+export function JoinFooter({ eventDate, eventStatus, requiresApproval, attendance, onAddGuest, docScrollActive, bottomInset, onHeightChange }: Props) {
   const { joining } = attendance
   const action = resolveJoinAction({ ...eventStatus, requiresApproval })
+  const signingUp = action === 'join' || action === 'request' || action === 'waitlist' || action === 'rerequest'
+  const start = new Date(eventDateMs(eventDate))
+  const startLabel = `${start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`
   return (
     <View
       onLayout={e => onHeightChange(e.nativeEvent.layout.height)}
@@ -35,6 +41,12 @@ export function JoinFooter({ eventStatus, requiresApproval, attendance, onAddGue
         { position: (docScrollActive ? 'fixed' : 'absolute') as 'absolute', paddingBottom: Math.max(bottomInset, theme.spacing.md) },
       ]}
     >
+      {signingUp && (
+        <View testID="join-footer-time" style={styles.signupTime}>
+          <Ionicons name="time" size={16} color={theme.colors.time} />
+          <Text style={styles.signupTimeLabel}>You're signing up for {startLabel}</Text>
+        </View>
+      )}
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm }}>
         <View style={{ flex: 1 }}>
           {action === 'leave' ? (
@@ -85,6 +97,8 @@ export function JoinFooter({ eventStatus, requiresApproval, attendance, onAddGue
 }
 
 const styles = StyleSheet.create({
+  signupTime: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: theme.spacing.sm },
+  signupTimeLabel: { fontFamily: theme.fonts.bodySemiBold, fontWeight: '700', fontSize: 15, color: theme.colors.time },
   footer: {
     bottom: 0,
     left: 0,
