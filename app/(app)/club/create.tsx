@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
 import { supabase } from '../../../lib/supabase'
+import { invalidate } from '../../../lib/query'
+import { routes } from '../../../utils/routes'
 import { Input } from '../../../components/Input'
 import { Button } from '../../../components/Button'
 import { MajorCityAutocomplete } from '../../../components/MajorCityAutocomplete'
@@ -55,7 +57,9 @@ export default function CreateClubScreen() {
     }
 
     if (data?.id) {
-      router.replace(`/club/${data.id}` as any)
+      // The Clubs tab caches its list; the new club (and your ownership) must show up there.
+      invalidate('clubs')
+      router.replace(routes.club(data.id))
     }
   }
 

@@ -3,7 +3,7 @@
 -- (schema comments retained from prior clubs setup — see git history for full DDL)
 */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
@@ -17,29 +17,26 @@ import {
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
-import { Stack, useRouter, useFocusEffect } from 'expo-router'
+import { Stack, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
+import { queryKey, setQueryData, useFocusRefetch, useMutation, useQuery } from '../../../lib/query'
 import { useSession } from '../../../contexts/session'
 import { useRequireSignIn } from '../../../hooks/useRequireSignIn'
 import { SignInButton } from '../../../components/SignInButton'
-import { shared, theme } from '../../../constants'
+import { ScreenState } from '../../../components/ui'
+import { CLUBS_TAB_INDEX, STALE, shared, theme } from '../../../constants'
 import { DocScrollView } from '../../../components/DocScrollView'
 import { useTabsActive, useTabsShell } from '../../../contexts/tabs'
 import { resolveClubAvatarUri } from '../../../utils'
-import type { Club, ClubMember, MajorCity } from '../../../types'
+import { routes } from '../../../utils/routes'
+import type { ClubListItem, MajorCity } from '../../../types'
 
 /** List payload: member count; membership embed is added when signed in. */
 const CLUB_LIST_SELECT_BASE =
   'id, name, description, membership_type, created_by, avatar_url, cover_url, created_at, major_city_id, major_cities (id, display_name, city_name, admin_region, country_code), club_members(count)'
 
 const CLUB_LIST_MY_MEMBERSHIP = 'my_membership:club_members(club_id, user_id, role, joined_at)'
-
-type ClubListItem = Club & {
-  major_cities: MajorCity | null
-  club_members: { count: number }[]
-  my_membership?: Pick<ClubMember, 'club_id' | 'user_id' | 'role' | 'joined_at'>[]
-}
 
 /** PostgREST usually returns one embedded row as an object; normalize if it ever comes back as a single-element array. */
 function resolvedMajorCity(c: ClubListItem): MajorCity | null {
@@ -64,20 +61,50 @@ function clubColor(name: string): string {
   return PALETTE[Math.abs(h) % PALETTE.length]
 }
 
+/** Replace one club in the cached list (optimistic join/rollback). */
+function replaceClubInList(listKey: string, club: ClubListItem): void {
+  setQueryData<ClubListItem[]>(listKey, prev => (prev ?? []).map(c => (c.id === club.id ? club : c)))
+}
+
 type ClubCardProps = {
   club: ClubListItem
+  /** The signed-in viewer, or null for a guest. */
+  userId: string | null
+  /** Cache key of the list this card is in (the join updates it optimistically). */
+  listKey: string
   isOwner: boolean
   isMember: boolean
   onPress: () => void
-  onJoin: () => Promise<void>
 }
 
-function ClubCard({ club, isOwner, isMember, onPress, onJoin }: ClubCardProps) {
+function ClubCard({ club, userId, listKey, isOwner, isMember, onPress }: ClubCardProps) {
   const [avatarUri, setAvatarUri] = useState<string | null>(null)
-  const [joining, setJoining] = useState(false)
+  const requireSignIn = useRequireSignIn()
   const count = memberCount(club)
   const initial = club.name.charAt(0).toUpperCase()
   const color = clubColor(club.name)
+
+  // One mutation per card, so joining two clubs in a row never drops the second tap.
+  const join = useMutation<string, void>(
+    async uid => {
+      const { error } = await supabase.from('club_members').insert({ club_id: club.id, user_id: uid, role: 'member' })
+      if (error) throw error
+    },
+    {
+      onMutate: uid => {
+        const before = club
+        replaceClubInList(listKey, {
+          ...club,
+          club_members: [{ count: memberCount(club) + 1 }],
+          my_membership: [{ club_id: club.id, user_id: uid, role: 'member', joined_at: new Date().toISOString() }],
+        })
+        return () => replaceClubInList(listKey, before)
+      },
+      onError: error => Alert.alert('Could not join', error.message),
+      // The club's own page lists its members and posts.
+      invalidates: [queryKey('club', club.id)],
+    },
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -87,14 +114,10 @@ function ClubCard({ club, isOwner, isMember, onPress, onJoin }: ClubCardProps) {
     return () => { cancelled = true }
   }, [club.avatar_url])
 
-  async function handleJoinPress(e: any) {
+  function handleJoinPress(e: { stopPropagation?: () => void }) {
     e.stopPropagation?.()
-    setJoining(true)
-    try {
-      await onJoin()
-    } finally {
-      setJoining(false)
-    }
+    if (!userId) { requireSignIn(); return }
+    void join.mutate(userId)
   }
 
   return (
@@ -124,7 +147,7 @@ function ClubCard({ club, isOwner, isMember, onPress, onJoin }: ClubCardProps) {
             end={{ x: 1, y: 1 }}
             style={{ width: 54, height: 54, alignItems: 'center', justifyContent: 'center' }}
           >
-            <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 24, color: '#fff', textShadowColor: 'rgba(0,0,0,0.2)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
+            <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 24, color: theme.colors.white, textShadowColor: 'rgba(0,0,0,0.2)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
               {initial}
             </Text>
           </LinearGradient>
@@ -147,12 +170,12 @@ function ClubCard({ club, isOwner, isMember, onPress, onJoin }: ClubCardProps) {
       ) : (
         <TouchableOpacity
           onPress={handleJoinPress}
-          disabled={joining}
-          style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: theme.colors.primary, opacity: joining ? 0.6 : 1 }}
+          disabled={join.isPending}
+          style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: theme.colors.primary, opacity: join.isPending ? 0.6 : 1 }}
         >
-          {joining
-            ? <ActivityIndicator size="small" color="#fff" />
-            : <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: '#fff' }}>Join</Text>
+          {join.isPending
+            ? <ActivityIndicator size="small" color={theme.colors.white} />
+            : <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: theme.colors.white }}>Join</Text>
           }
         </TouchableOpacity>
       )}
@@ -162,19 +185,16 @@ function ClubCard({ club, isOwner, isMember, onPress, onJoin }: ClubCardProps) {
 
 type ClubFilter = 'joined' | 'nearby' | 'popular'
 
+const EMPTY_CLUBS: ClubListItem[] = []
+
 export default function ClubsScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { docScrollActive, tabBarHeight } = useTabsShell()
   const { activeTabIndex } = useTabsActive()
-  const isActive = activeTabIndex === 1
-  const [clubs, setClubs] = useState<ClubListItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const isActive = activeTabIndex === CLUBS_TAB_INDEX
+  const { isGuest, userId, loading: sessionLoading } = useSession()
   const [refreshing, setRefreshing] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
-  const { isGuest, userId: sessionUserId } = useSession()
-  const requireSignIn = useRequireSignIn()
-  const [fetchError, setFetchError] = useState<string | null>(null)
   const [filter, setFilter] = useState<ClubFilter>('joined')
   // Guests have no joined clubs, so show them Popular. An effect, not the initial
   // state: on a direct load the screen can mount before the session has loaded.
@@ -182,59 +202,34 @@ export default function ClubsScreen() {
     if (isGuest) setFilter(f => (f === 'joined' ? 'popular' : f))
   }, [isGuest])
   const [searchQuery, setSearchQuery] = useState('')
-  const hasFetched = useRef(false)
 
-  const fetchClubs = useCallback(async (showRefreshing = false) => {
-    if (showRefreshing) setRefreshing(true)
-    else if (!hasFetched.current) setLoading(true)
-    setFetchError(null)
+  // One cache entry per viewer (membership flags depend on who is signed in).
+  // Fetched when this page is the active tab, refetched on focus only when stale.
+  const listKey = queryKey('clubs', userId)
+  const clubsQuery = useQuery<ClubListItem[]>(
+    listKey,
+    async () => {
+      let query = supabase
+        .from('clubs')
+        .select(userId ? `${CLUB_LIST_SELECT_BASE}, ${CLUB_LIST_MY_MEMBERSHIP}` : CLUB_LIST_SELECT_BASE)
+        .order('created_at', { ascending: false })
+      if (userId) query = query.eq('my_membership.user_id', userId)
+      const { data, error } = await query
+      if (error) throw error
+      return (data ?? []) as unknown as ClubListItem[]
+    },
+    { staleMs: STALE.feed, enabled: isActive && !sessionLoading },
+  )
+  useFocusRefetch(isActive && !sessionLoading ? listKey : null)
+  const clubs = clubsQuery.data ?? EMPTY_CLUBS
 
-    const { data: { session } } = await supabase.auth.getSession()
-    const uid = session?.user.id ?? null
-    setUserId(uid)
-
-    let query = supabase
-      .from('clubs')
-      .select(uid ? `${CLUB_LIST_SELECT_BASE}, ${CLUB_LIST_MY_MEMBERSHIP}` : CLUB_LIST_SELECT_BASE)
-      .order('created_at', { ascending: false })
-    if (uid) {
-      query = query.eq('my_membership.user_id', uid)
+  async function onRefresh() {
+    setRefreshing(true)
+    try {
+      await clubsQuery.refetch({ force: true })
+    } finally {
+      setRefreshing(false)
     }
-
-    const { data, error } = await query
-
-    if (error) {
-      console.error('clubs fetch error:', error)
-      setFetchError(error.message)
-    }
-    setClubs((data ?? []) as unknown as ClubListItem[])
-    hasFetched.current = true
-    if (showRefreshing) setRefreshing(false)
-    else setLoading(false)
-  }, [])
-
-  // Fetch when this pager page becomes active (neighbor prefetch may mount early).
-  useEffect(() => {
-    if (!isActive) return
-    void fetchClubs()
-  }, [isActive, fetchClubs])
-
-  // Membership flags depend on who is signed in; refetch when that changes.
-  const clubsUserRef = useRef(sessionUserId)
-  useEffect(() => {
-    if (clubsUserRef.current === sessionUserId) return
-    clubsUserRef.current = sessionUserId
-    if (hasFetched.current) void fetchClubs()
-  }, [sessionUserId, fetchClubs])
-
-  // Refetch when returning to the main shell while already on Clubs.
-  useFocusEffect(useCallback(() => {
-    if (!isActive || !hasFetched.current) return
-    void fetchClubs()
-  }, [isActive, fetchClubs]))
-
-  function onRefresh() {
-    void fetchClubs(true)
   }
 
   const myClubs = useMemo(() =>
@@ -272,30 +267,6 @@ export default function ClubsScreen() {
     return (club.my_membership ?? []).some(m => m.user_id === userId)
   }
 
-  async function handleJoin(club: ClubListItem) {
-    if (!userId) { requireSignIn(); return }
-    setClubs(prev => prev.map(c =>
-      c.id !== club.id ? c : {
-        ...c,
-        club_members: [{ count: memberCount(c) + 1 }],
-        my_membership: [{ club_id: c.id, user_id: userId, role: 'member', joined_at: new Date().toISOString() }],
-      }
-    ))
-    const { error } = await supabase
-      .from('club_members')
-      .insert({ club_id: club.id, user_id: userId, role: 'member' })
-    if (error) {
-      setClubs(prev => prev.map(c =>
-        c.id !== club.id ? c : {
-          ...c,
-          club_members: [{ count: Math.max(0, memberCount(c) - 1) }],
-          my_membership: [],
-        }
-      ))
-      Alert.alert('Could not join', error.message)
-    }
-  }
-
   const baseList = filter === 'joined' ? myClubs : discoverOrdered
   const visibleClubs = (q ? clubs : baseList).filter(matchesSearch)
 
@@ -315,7 +286,7 @@ export default function ClubsScreen() {
         </Text>
         {isGuest ? <SignInButton /> : (
         <TouchableOpacity
-          onPress={() => router.push('/club/create' as any)}
+          onPress={() => router.push(routes.clubCreate())}
           accessibilityRole="button"
           accessibilityLabel="Create a new club"
           style={{
@@ -329,8 +300,8 @@ export default function ClubsScreen() {
             backgroundColor: theme.colors.primary,
           }}
         >
-          <Ionicons name="add" size={20} color="#fff" />
-          <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: '#fff' }}>Create</Text>
+          <Ionicons name="add" size={20} color={theme.colors.white} />
+          <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.white }}>Create</Text>
         </TouchableOpacity>
         )}
       </View>
@@ -354,7 +325,7 @@ export default function ClubsScreen() {
                 borderColor: theme.colors.border,
               }}
             >
-              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: active ? '#fff' : theme.colors.text }}>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: active ? theme.colors.white : theme.colors.text }}>
                 {f.label}
               </Text>
             </TouchableOpacity>
@@ -415,21 +386,14 @@ export default function ClubsScreen() {
     <View style={[shared.screen, { paddingTop: insets.top }, docScrollActive && ({ flex: undefined } as any)]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {loading ? (
+      {!clubsQuery.data ? (
         <>
           {listHeader}
-          <View style={shared.centered}>
-            <ActivityIndicator color={theme.colors.primary} />
-          </View>
-        </>
-      ) : fetchError ? (
-        <>
-          {listHeader}
-          <View style={shared.centered}>
-            <Text style={[shared.caption, { color: theme.colors.error, textAlign: 'center', paddingHorizontal: theme.spacing.lg }]}>
-              {fetchError}
-            </Text>
-          </View>
+          <ScreenState
+            loading={clubsQuery.isFetching || !clubsQuery.error}
+            error={clubsQuery.error ? 'Could not load clubs. Check your connection and try again.' : null}
+            onRetry={() => void clubsQuery.refetch({ force: true })}
+          />
         </>
       ) : docScrollActive ? (
         <DocScrollView
@@ -444,10 +408,11 @@ export default function ClubsScreen() {
               <View key={club.id} style={{ paddingHorizontal: theme.spacing.lg }}>
                 <ClubCard
                   club={club}
+                  userId={userId}
+                  listKey={listKey}
                   isOwner={isOwner(club)}
                   isMember={isMember(club)}
-                  onPress={() => router.push(`/club/${club.id}` as any)}
-                  onJoin={() => handleJoin(club)}
+                  onPress={() => router.push(routes.club(club.id))}
                 />
               </View>
             ))}
@@ -464,7 +429,7 @@ export default function ClubsScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={onRefresh}
+              onRefresh={() => void onRefresh()}
               tintColor={theme.colors.primary}
               colors={[theme.colors.primary]}
             />
@@ -474,10 +439,11 @@ export default function ClubsScreen() {
             <View style={{ paddingHorizontal: theme.spacing.lg }}>
               <ClubCard
                 club={club}
+                userId={userId}
+                listKey={listKey}
                 isOwner={isOwner(club)}
                 isMember={isMember(club)}
-                onPress={() => router.push(`/club/${club.id}` as any)}
-                onJoin={() => handleJoin(club)}
+                onPress={() => router.push(routes.club(club.id))}
               />
             </View>
           )}
