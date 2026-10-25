@@ -158,7 +158,7 @@ signatures. Regenerate it after every schema change; never hand-edit it. Key dom
 Also **user_settings** (private per-user settings: home city, seen banners).
 
 Custom RPCs include `get_email_by_username` (username login), `get_my_conversations`,
-`get_event_card_attendee_previews`, `mark_conversation_read`, `mark_notification_read`.
+`get_event_card_attendee_previews`, `get_feed_span` (the Events feed for a date range in one call; `useMonthEvents` falls back to separate queries if it is missing), `mark_conversation_read`, `mark_notification_read`.
 
 ## Key Architectural Decisions
 

@@ -1972,6 +1972,14 @@ export type Database = {
           username: string
         }[]
       }
+      get_feed_span: {
+        Args: {
+          p_end: string
+          p_external_updated_since?: string
+          p_start: string
+        }
+        Returns: Json
+      }
       get_my_conversations: {
         Args: never
         Returns: {

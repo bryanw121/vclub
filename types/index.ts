@@ -1219,4 +1219,26 @@ export type BadgeAwardPlan = {
 /** Attendee avatar previews per event id (`get_event_card_attendee_previews`). */
 export type EventCardPreviews = Map<string, EventWithDetails['attendee_previews']>
 
+/** One row of `get_event_card_attendee_previews` (and of `get_feed_span().previews`). */
+export type EventCardPreviewRow = Database['public']['Functions']['get_event_card_attendee_previews']['Returns'][number]
+
+/**
+ * `get_feed_span(p_start, p_end)`: the Events feed for a date range in one call.
+ * `events` are shaped like `EVENT_CARD_LIST_SELECT` + the viewer's `my_attendance`,
+ * `tournaments` like `TOURNAMENT_FEED_SELECT` (raw, for `normalizeTournaments`),
+ * `external` like `EXTERNAL_SESSION_SELECT`.
+ */
+export type FeedSpanRows = {
+  events: EventWithDetails[]
+  tournaments: unknown[]
+  external: ExternalSession[]
+  previews: EventCardPreviewRow[]
+}
+
+/** Events tab filters remembered on the device (utils/feedFilters.ts). */
+export type StoredFeedFilters = {
+  filter: FeedFilter
+  surface: SurfaceFilter
+}
+
 export type TournamentTabName = (typeof import('../constants/tournamentCopy').TOURNAMENT_TABS)[number]

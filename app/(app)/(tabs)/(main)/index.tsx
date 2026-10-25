@@ -20,7 +20,8 @@ import { NotificationPopup } from '../../../../components/NotificationPopup'
 import { BANNERS, BREAKPOINTS, FEED_STALE_NOTICE, shared, theme } from '../../../../constants'
 import { OneTimeBanner } from '../../../../components/ui'
 import { useFeedRegion } from '../../../../hooks/useUserSettings'
-import type { EventWithDetails, FeedFilter, FeedFilterChip, Notification, SurfaceFilter as SurfaceFilterValue } from '../../../../types'
+import type { EventWithDetails, FeedFilter, FeedFilterChip, Notification, StoredFeedFilters, SurfaceFilter as SurfaceFilterValue } from '../../../../types'
+import { DEFAULT_FEED_FILTERS, feedFiltersNow, loadFeedFilters, saveFeedFilters, usableFeedFilter } from '../../../../utils/feedFilters'
 import { useTabsShell } from '../../../../contexts/tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useSession } from '../../../../contexts/session'
@@ -85,8 +86,10 @@ export default function EventsScreen() {
   const insets = useSafeAreaInsets()
 
   const [selectedDate, setSelectedDate] = useState<string>(TODAY)
-  const [activeFilter, setActiveFilter] = useState<FeedFilter>('all')
-  const [surfaceFilter, setSurfaceFilter] = useState<SurfaceFilterValue>('any')
+  // Filters are remembered per device (utils/feedFilters): restored before the
+  // first paint on web, a moment later on native.
+  const [chosenFilter, setChosenFilter] = useState<FeedFilter>(() => feedFiltersNow()?.filter ?? DEFAULT_FEED_FILTERS.filter)
+  const [surfaceFilter, setSurfaceFilter] = useState<SurfaceFilterValue>(() => feedFiltersNow()?.surface ?? DEFAULT_FEED_FILTERS.surface)
   const feedRegion = useFeedRegion()
   const [notifOpen, setNotifOpen] = useState(false)
   const [curWeekPage, setCurWeekPage] = useState(WEEK_CENTER)
@@ -94,6 +97,29 @@ export default function EventsScreen() {
   const [eventsPullRefreshing, setEventsPullRefreshing] = useState(false)
   const { userId: currentUserId, isGuest } = useSession()
   const requireSignIn = useRequireSignIn()
+  // A remembered "Mine" waits for an account: guests (and the moment before the session restores) see All.
+  const activeFilter = usableFeedFilter(chosenFilter, !!currentUserId)
+
+  const filtersTouchedRef = useRef(false)
+  useEffect(() => {
+    if (feedFiltersNow()) return
+    let live = true
+    void loadFeedFilters().then(saved => {
+      if (!live || filtersTouchedRef.current) return
+      setChosenFilter(saved.filter)
+      setSurfaceFilter(saved.surface)
+    })
+    return () => { live = false }
+  }, [])
+
+  const selectFilters = useCallback((next: StoredFeedFilters) => {
+    filtersTouchedRef.current = true
+    setChosenFilter(next.filter)
+    setSurfaceFilter(next.surface)
+    saveFeedFilters(next)
+  }, [])
+  const selectFilter = useCallback((filter: FeedFilter) => selectFilters({ filter, surface: surfaceFilter }), [selectFilters, surfaceFilter])
+  const selectSurface = useCallback((surface: SurfaceFilterValue) => selectFilters({ filter: chosenFilter, surface }), [selectFilters, chosenFilter])
 
   const handleRsvp: EventCardRsvpHandler = useCallback(async (eventId, action) => {
     if (!currentUserId) {
@@ -224,7 +250,7 @@ export default function EventsScreen() {
       onPressEvent={eventId => router.push(routes.event(eventId))}
       // "See all" switches the feed to Mine rather than growing the rail — one
       // place to look for the long list, and the rail stays above the fold.
-      onSeeAll={() => setActiveFilter('mine')}
+      onSeeAll={() => selectFilter('mine')}
     />
   )
 
@@ -333,11 +359,11 @@ export default function EventsScreen() {
       <FilterChips
         chips={visibleChips}
         active={activeFilter}
-        onSelect={setActiveFilter}
+        onSelect={selectFilter}
         mineCount={myUpcoming.length}
         wide={!isMobile}
       />
-      <SurfaceFilter active={surfaceFilter} onSelect={setSurfaceFilter} wide={!isMobile} />
+      <SurfaceFilter active={surfaceFilter} onSelect={selectSurface} wide={!isMobile} />
       {staleNotice}
     </>
   )
@@ -352,7 +378,7 @@ export default function EventsScreen() {
       onRetry={() => void refresh()}
       filterActive={activeFilter !== 'all' || surfaceFilter !== 'any'}
       isGuest={isGuest}
-      onClearFilter={() => { setActiveFilter('all'); setSurfaceFilter('any') }}
+      onClearFilter={() => selectFilters(DEFAULT_FEED_FILTERS)}
     />
   )
 
