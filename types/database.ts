@@ -700,7 +700,7 @@ export type Database = {
           level: string | null
           note: string | null
           price: string | null
-          region: string | null
+          region: string
           session_type: string | null
           signup_label: string | null
           signup_url: string | null
@@ -720,7 +720,7 @@ export type Database = {
           level?: string | null
           note?: string | null
           price?: string | null
-          region?: string | null
+          region?: string
           session_type?: string | null
           signup_label?: string | null
           signup_url?: string | null
@@ -740,7 +740,7 @@ export type Database = {
           level?: string | null
           note?: string | null
           price?: string | null
-          region?: string | null
+          region?: string
           session_type?: string | null
           signup_label?: string | null
           signup_url?: string | null

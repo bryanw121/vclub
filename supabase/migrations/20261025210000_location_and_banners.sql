@@ -7,9 +7,12 @@
 --      seen_banners  ids of one-time banners already shown to this user, so a
 --                    banner seen on one device doesn't show on another.
 -- 2. external_sessions.region: Schelagg's region slug ('austin', ...). Existing
---    rows are Austin.
+--    rows are Austin (column default).
 -- 3. ingest_schelagg_feed() keeps volleyball sessions for every region (was
 --    Austin only) and stores the region; the app filters by the viewer's city.
+--    It also prunes sessions that started over a week ago.
+-- No UPDATE/DELETE/DROP statements at top level (they need interactive
+-- confirmation through the Supabase connector).
 -- Idempotent.
 
 create table if not exists public.user_settings (
@@ -21,19 +24,27 @@ create table if not exists public.user_settings (
 create index if not exists user_settings_home_city_id_idx on public.user_settings (home_city_id);
 
 alter table public.user_settings enable row level security;
-drop policy if exists "Users read own settings" on public.user_settings;
-create policy "Users read own settings" on public.user_settings
-  for select to authenticated using ((select auth.uid()) = user_id);
-drop policy if exists "Users insert own settings" on public.user_settings;
-create policy "Users insert own settings" on public.user_settings
-  for insert to authenticated with check ((select auth.uid()) = user_id);
-drop policy if exists "Users update own settings" on public.user_settings;
-create policy "Users update own settings" on public.user_settings
-  for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+-- Created only when missing (no DROP POLICY), so re-running is a no-op.
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'user_settings' and policyname = 'Users read own settings') then
+    create policy "Users read own settings" on public.user_settings
+      for select to authenticated using ((select auth.uid()) = user_id);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'user_settings' and policyname = 'Users insert own settings') then
+    create policy "Users insert own settings" on public.user_settings
+      for insert to authenticated with check ((select auth.uid()) = user_id);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'user_settings' and policyname = 'Users update own settings') then
+    create policy "Users update own settings" on public.user_settings
+      for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+  end if;
+end $$;
 revoke all on public.user_settings from anon;
 
-alter table public.external_sessions add column if not exists region text;
-update public.external_sessions set region = 'austin' where region is null;
+-- The default fills existing rows (all Austin) without an UPDATE; the ingest
+-- always sets region explicitly from the feed.
+alter table public.external_sessions add column if not exists region text not null default 'austin';
 create index if not exists external_sessions_region_starts_at_idx on public.external_sessions (region, starts_at);
 
 create or replace function public.ingest_schelagg_feed()
@@ -117,6 +128,8 @@ begin
     delete from public.external_sessions
     where updated_at < run_at and starts_at >= run_at;
   end if;
+  -- Prune sessions that started more than a week ago so the table doesn't grow forever.
+  delete from public.external_sessions where starts_at < run_at - interval '7 days';
   return n;
 end;
 $$;
