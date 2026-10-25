@@ -8,9 +8,11 @@
 // narrowed to non-null.
 
 import type { Database, Json, Tables, TablesInsert, TablesUpdate } from './database'
-import type { AppDatabase, PendingTableRow } from './database.pending'
 
-export type { AppDatabase, Database, Json, Tables, TablesInsert, TablesUpdate }
+/** The client's database type. Kept as an alias so callers don't care how it's assembled. */
+export type AppDatabase = Database
+
+export type { Database, Json, Tables, TablesInsert, TablesUpdate }
 
 /** RPC return type, e.g. `RpcReturns<'get_my_conversations'>[number]`. */
 export type RpcReturns<F extends keyof AppDatabase['public']['Functions']> = AppDatabase['public']['Functions'][F]['Returns']
@@ -692,7 +694,7 @@ export type GooglePlacePrediction = {
 
 /** Row of `app_config`: minimum supported app version per platform. */
 export type AppConfigRow = Pick<
-  Override<PendingTableRow<'app_config'>, { platform: 'ios' | 'android' | 'web' }>,
+  Override<Tables<'app_config'>, { platform: 'ios' | 'android' | 'web' }>,
   'platform' | 'min_version' | 'store_url' | 'message'
 >
 

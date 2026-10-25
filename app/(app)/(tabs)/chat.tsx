@@ -9,7 +9,7 @@ import { useRouter, Stack } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
 import { invalidate } from '../../../lib/query'
-import { theme, shared, CHAT_TAB_INDEX } from '../../../constants'
+import { theme, shared, CHAT_TAB_INDEX, NETWORK_ERROR_MESSAGE } from '../../../constants'
 import { conversationsKey, useConversations } from '../../../hooks/useConversations'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
 import { useTabsActive, useTabsShell } from '../../../contexts/tabs'
@@ -191,7 +191,7 @@ function ChatScreenSignedIn({ myId }: { myId: string }) {
   async function openDM(otherUserId: string) {
     const { data: convId, error: dmError } = await supabase.rpc('find_or_create_dm', { other_user_id: otherUserId })
     if (dmError || !convId) {
-      chatAlert("Couldn't open chat", 'Check your connection and try again.')
+      chatAlert("Couldn't open chat", NETWORK_ERROR_MESSAGE)
       return
     }
     // A brand-new DM isn't in the list yet.
@@ -288,7 +288,7 @@ function ChatScreenSignedIn({ myId }: { myId: string }) {
                 alignItems: 'center', justifyContent: 'center',
                 paddingHorizontal: 5, flexShrink: 0,
               }}>
-                <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: 11, color: '#fff' }}>
+                <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: 11, color: theme.colors.white }}>
                   {item.unread_count > 99 ? '99+' : item.unread_count}
                 </Text>
               </View>
@@ -325,7 +325,7 @@ function ChatScreenSignedIn({ myId }: { myId: string }) {
               marginBottom: 4,
             }}
           >
-            <Ionicons name="add" size={22} color="#fff" />
+            <Ionicons name="add" size={22} color={theme.colors.white} />
           </TouchableOpacity>
         </View>
 

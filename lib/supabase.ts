@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { createClient } from '@supabase/supabase-js'
-import type { AppDatabase } from '../types/database.pending'
+import type { AppDatabase } from '../types'
 import { AppState, Platform } from 'react-native'
 import 'react-native-url-polyfill/auto'
 

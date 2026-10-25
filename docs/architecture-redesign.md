@@ -1,7 +1,25 @@
 # Architecture redesign (October 2026)
 
-Status: in progress. This document is the plan; CLAUDE.md is the rulebook and is
-updated as each phase lands.
+Status: Phases A, B and C have landed. This document is the plan; CLAUDE.md is
+the rulebook and now matches the code (layout, data layer, routes, UI primitives).
+
+Remaining, none of it blocking:
+
+- **Realtime publication**: add the tables the app subscribes to (messages,
+  reactions, notifications, ...) to the `supabase_realtime` publication in a
+  migration, so channels do not depend on dashboard state.
+- **Capacity trigger**: enforce `max_attendees` in the database (trigger on
+  `event_attendees`) so the "just filled up, waitlisted" path is authoritative
+  rather than a client race.
+- **`app_config`**: move the minimum-version / kill-switch values into an
+  `app_config` table instead of hard-coded constants.
+- **Tournament RPC apply**: the transactional tournament RPCs are written but not
+  yet applied to the live project.
+- **E2E secrets**: set `E2E_USERNAME` / `E2E_PASSWORD` as repository secrets and
+  rotate the password that was committed before the redesign.
+- **Remaining hexes**: about 40 color literals in TSX have no token (avatar
+  frames, Google logo, toast tints, badge greys, chart accents, `#EF4444`
+  reaction red); each needs a deliberate token, not a near match.
 
 ## Verdict
 

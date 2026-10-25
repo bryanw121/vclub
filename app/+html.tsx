@@ -1,4 +1,5 @@
 import { ScrollViewStyleReset } from 'expo-router/html'
+import { theme } from '../constants/theme'
 
 export default function Root({ children }: { children: React.ReactNode }) {
   return (
@@ -15,7 +16,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
           content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
         />
         {/* Tint browser chrome (iOS status bar area, Chrome toolbar) to match the app background */}
-        <meta name="theme-color" content="#13111F" />
+        <meta name="theme-color" content={theme.colors.background} />
         {/* Dark browser UI (scrollbars, form controls, chrome fallbacks) */}
         <meta name="color-scheme" content="dark" />
         {/* PWA / Add to Home Screen */}

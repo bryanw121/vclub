@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_config: {
+        Row: {
+          message: string | null
+          min_version: string
+          platform: string
+          store_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          message?: string | null
+          min_version?: string
+          platform: string
+          store_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          message?: string | null
+          min_version?: string
+          platform?: string
+          store_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_silences: {
         Row: {
           created_at: string
@@ -1895,6 +1919,10 @@ export type Database = {
       }
     }
     Functions: {
+      accept_tournament_invite: {
+        Args: { p_invite_id: string }
+        Returns: string
+      }
       find_or_create_dm: { Args: { other_user_id: string }; Returns: string }
       get_chat_unread_count: { Args: never; Returns: number }
       get_email_by_username: { Args: { p_username: string }; Returns: string }
@@ -1955,6 +1983,10 @@ export type Database = {
           p_user_id: string
         }
         Returns: boolean
+      }
+      replace_tournament_schedule: {
+        Args: { p_matches: Json; p_pools?: Json; p_tournament_id: string }
+        Returns: number
       }
       send_kudos_reminders: { Args: never; Returns: undefined }
     }

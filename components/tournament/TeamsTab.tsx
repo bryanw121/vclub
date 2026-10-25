@@ -1,7 +1,7 @@
 import React from 'react'
 import { ScrollView, Text, View } from 'react-native'
 import { theme } from '../../constants'
-import { SKILL_LABELS } from '../../constants/tournamentCopy'
+import { SKILL_LEVEL_LABELS } from '../../constants/copy'
 import { profileDisplayName } from '../../utils'
 import { Button } from '../Button'
 import type { TournamentTeam, TournamentTeamWithRoster } from '../../types'
@@ -74,7 +74,7 @@ export function TeamsTab({ teams, myTeam, viewerId, isCreator, registrationOpen,
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.text }}>{req.requester ? profileDisplayName(req.requester) : 'Unknown'}</Text>
                 <Text style={{ fontSize: 11, color: theme.colors.subtext }}>
-                  {req.requester?.skill_level ? SKILL_LABELS[req.requester.skill_level] ?? req.requester.skill_level : ''} → {teams.find(t => t.id === req.team_id)?.name ?? '?'}
+                  {req.requester?.skill_level ? SKILL_LEVEL_LABELS[req.requester.skill_level] ?? req.requester.skill_level : ''} → {teams.find(t => t.id === req.team_id)?.name ?? '?'}
                 </Text>
               </View>
               <MiniButton label="Approve" tone="accept" onPress={() => actions.onApproveRequest(req)} />
