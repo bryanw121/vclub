@@ -1,95 +1,45 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { DeviceEventEmitter } from 'react-native'
-import { supabase } from '../lib/supabase'
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { useSession } from '../contexts/session'
-import type { ConversationRow } from '../types'
-
-/** Emitted from `useSilencedUsers` after silence/unsilence so the tab badge updates even without Realtime on `chat_silences`. */
-export const CHAT_SILENCES_CHANGED_EVENT = 'vclub-chat-silences-changed'
+import { unreadTotal } from '../utils/chatUtils'
+import { useConversationsQuery } from './useConversations'
+import { useSilencedUserIds } from './useSilencedUsers'
 
 const ChatUnreadContext = createContext(0)
 
-/**
- * Tab-bar unread total from `get_my_conversations`, excluding DMs with people in
- * `chat_silences`. Read via `useChatUnread()`.
- *
- * Lives in a single provider mounted once at the app root so the realtime
- * subscription + RPC polling run exactly once — the sidebar (web) and the mobile
- * tab bar both read the same value. (Previously this hook was instantiated in two
- * layouts at once, opening duplicate channels and double-polling on every insert.)
- */
 /** Startup delay so the badge query doesn't compete with the Events feed's first load. */
 const INITIAL_DELAY_MS = 1500
 
+/**
+ * Tab-bar unread total, excluding DMs with people the user silenced. Read via
+ * `useChatUnread()`. Mounted once at the app root; the sidebar (web) and the
+ * mobile tab bar both read it.
+ *
+ * It derives from the shared conversations and silences queries (the same
+ * cache entries the Chat list reads), so it never issues its own copy of
+ * `get_my_conversations`, and realtime payloads update list and badge together.
+ * Its own reads switch on (`enabled`) 1.5s after sign-in; until then it shows
+ * whatever the cache already holds (e.g. the Chat tab opened first).
+ */
 export function ChatUnreadProvider({ children }: { children: React.ReactNode }) {
   const { userId } = useSession()
-  const [count, setCount] = useState(0)
-
-  /** `isCurrent` lets a result that lands after sign-out / user switch be dropped. */
-  const recompute = useCallback(async (isCurrent: () => boolean) => {
-    if (!userId || !isCurrent()) return
-
-    const [{ data: convData, error: convErr }, { data: silenceData, error: silenceErr }] = await Promise.all([
-      supabase.rpc('get_my_conversations'),
-      supabase.from('chat_silences').select('silenced_user_id').eq('user_id', userId),
-    ])
-
-    if (convErr) console.error('[useChatUnread] get_my_conversations', JSON.stringify(convErr))
-    if (silenceErr) console.error('[useChatUnread] chat_silences', JSON.stringify(silenceErr))
-
-    const silenced = new Set((silenceData ?? []).map((r: { silenced_user_id: string }) => r.silenced_user_id))
-    const rows = (convData ?? []) as ConversationRow[]
-    let total = 0
-    for (const r of rows) {
-      if (r.type === 'dm' && r.other_user_id && silenced.has(r.other_user_id)) continue
-      total += Number(r.unread_count ?? 0)
-    }
-    if (isCurrent()) setCount(total)
-  }, [userId])
+  const [delayPassed, setDelayPassed] = useState(false)
 
   useEffect(() => {
-    // Guests have no conversations; signing out clears the badge.
-    if (!userId) {
-      setCount(0)
-      return
-    }
-    let cancelled = false
-    const isCurrent = () => !cancelled
-    const initialTimer = setTimeout(() => { void recompute(isCurrent) }, INITIAL_DELAY_MS)
+    setDelayPassed(false)
+    if (!userId) return
+    const t = setTimeout(() => setDelayPassed(true), INITIAL_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [userId])
 
-    let recomputeTimer: ReturnType<typeof setTimeout> | null = null
-    const scheduleRecompute = () => {
-      if (recomputeTimer) clearTimeout(recomputeTimer)
-      recomputeTimer = setTimeout(() => {
-        recomputeTimer = null
-        void recompute(isCurrent)
-      }, 450)
-    }
+  const enabled = !!userId && delayPassed
+  const { data: conversations } = useConversationsQuery(enabled)
+  const { silencedUserIds } = useSilencedUserIds(enabled)
 
-    // One channel multiplexes all three change streams (was two channels).
-    const channel = supabase
-      .channel(`chat-unread-${userId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
-        () => { scheduleRecompute() })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_members' },
-        () => { scheduleRecompute() })
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'chat_silences', filter: `user_id=eq.${userId}` },
-        () => { scheduleRecompute() })
-      .subscribe()
-
-    const silencesSub = DeviceEventEmitter.addListener(CHAT_SILENCES_CHANGED_EVENT, () => {
-      scheduleRecompute()
-    })
-
-    return () => {
-      cancelled = true
-      clearTimeout(initialTimer)
-      silencesSub.remove()
-      if (recomputeTimer) clearTimeout(recomputeTimer)
-      void supabase.removeChannel(channel)
-    }
-  }, [userId, recompute])
+  // Guests have no conversations; signing out switches the keys to null → 0.
+  const count = useMemo(
+    () => (userId && conversations ? unreadTotal(conversations, silencedUserIds) : 0),
+    [userId, conversations, silencedUserIds],
+  )
 
   return <ChatUnreadContext.Provider value={count}>{children}</ChatUnreadContext.Provider>
 }

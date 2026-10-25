@@ -5,19 +5,21 @@ import {
 } from 'react-native'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
-import { useRouter, useFocusEffect, Stack } from 'expo-router'
+import { useRouter, Stack } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
-import { getSessionUser } from '../../../lib/sessionUser'
-import { theme, shared } from '../../../constants'
-import { useConversations } from '../../../hooks/useConversations'
+import { invalidate } from '../../../lib/query'
+import { theme, shared, CHAT_TAB_INDEX } from '../../../constants'
+import { conversationsKey, useConversations } from '../../../hooks/useConversations'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
 import { useTabsActive, useTabsShell } from '../../../contexts/tabs'
-import { timeAgo, lastMessagePreview } from '../../../utils/chatUtils'
+import { timeAgo, lastMessagePreview, chatAlert } from '../../../utils/chatUtils'
 import { profileAvatarSmallUri, buildMemberSearchFilter, profileDisplayName, confirmDestructive } from '../../../utils'
+import { routes } from '../../../utils/routes'
 import type { ConversationRow, Profile } from '../../../types'
 import { useSession } from '../../../contexts/session'
 import { SignInPrompt } from '../../../components/SignInPrompt'
+import { ScreenState } from '../../../components/ui'
 
 function conversationTitle(row: ConversationRow): string {
   if (row.type === 'club') return row.club_name ?? 'Club Chat'
@@ -29,11 +31,12 @@ function conversationTitle(row: ConversationRow): string {
 }
 
 // ── User search for starting a new DM ─────────────────────────────────────────
-function NewDMModal({ visible, onDismiss, onSelect, silencedUserIds }: {
+function NewDMModal({ visible, onDismiss, onSelect, silencedUserIds, myId }: {
   visible: boolean
   onDismiss: () => void
   onSelect: (userId: string) => void
   silencedUserIds: Set<string>
+  myId: string
 }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Profile[]>([])
@@ -45,18 +48,18 @@ function NewDMModal({ visible, onDismiss, onSelect, silencedUserIds }: {
     if (!searchFilter) { setResults([]); return }
     const t = setTimeout(async () => {
       setSearching(true)
-      const user = await getSessionUser()
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('id, username, first_name, last_name, avatar_url')
         .or(searchFilter)
-        .neq('id', user?.id ?? '')
+        .neq('id', myId)
         .limit(20)
+      if (error) console.error('[NewDMModal] search', error.message)
       setResults((data ?? []) as Profile[])
       setSearching(false)
     }, 300)
     return () => clearTimeout(t)
-  }, [query])
+  }, [query, myId])
 
   function handleDismiss() {
     setQuery('')
@@ -148,15 +151,16 @@ function NewDMModal({ visible, onDismiss, onSelect, silencedUserIds }: {
 }
 
 // ── Chat list screen ───────────────────────────────────────────────────────────
-function ChatScreenSignedIn() {
+function ChatScreenSignedIn({ myId }: { myId: string }) {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { tabBarHeight } = useTabsShell()
   const { activeTabIndex } = useTabsActive()
-  const chatActive = activeTabIndex === 2
-  const { conversations, loading, refetch, clearUnread } = useConversations(chatActive)
+  // Mobile / narrow web keep this screen mounted in the pager while another tab
+  // is showing; it then only reads the shared cache (no fetch, no channel).
+  const chatActive = activeTabIndex === CHAT_TAB_INDEX
+  const { conversations, hasData, loading, error, refetch, clearUnread } = useConversations(chatActive)
   const { silencedUserIds, silenceUser } = useSilencedUsers()
-  const [myId, setMyId] = useState<string | null>(null)
   const [newDMVisible, setNewDMVisible] = useState(false)
   const [listRefreshing, setListRefreshing] = useState(false)
 
@@ -184,22 +188,20 @@ function ChatScreenSignedIn() {
     })
   }, [conversations, silencedUserIds])
 
-  useEffect(() => {
-    getSessionUser().then((user) => setMyId(user?.id ?? null))
-  }, [])
-
-  useFocusEffect(useCallback(() => {
-    void refetch()
-  }, [refetch]))
-
   async function openDM(otherUserId: string) {
-    const { data: convId } = await supabase.rpc('find_or_create_dm', { other_user_id: otherUserId })
-    if (convId) router.push(`/chat/${convId}` as any)
+    const { data: convId, error: dmError } = await supabase.rpc('find_or_create_dm', { other_user_id: otherUserId })
+    if (dmError || !convId) {
+      chatAlert("Couldn't open chat", 'Check your connection and try again.')
+      return
+    }
+    // A brand-new DM isn't in the list yet.
+    if (!conversations.some(c => c.conversation_id === convId)) invalidate(conversationsKey(myId))
+    router.push(routes.conversation(String(convId)))
   }
 
   function openConversation(row: ConversationRow) {
     clearUnread(row.conversation_id)
-    router.push(`/chat/${row.conversation_id}` as any)
+    router.push(routes.conversation(row.conversation_id))
   }
 
   function confirmSilenceFromList(otherUserId: string, label: string) {
@@ -213,13 +215,13 @@ function ChatScreenSignedIn() {
 
   function renderRow({ item }: { item: ConversationRow }) {
     const title = conversationTitle(item)
-    const preview = myId ? lastMessagePreview(item, myId, silencedUserIds) : ''
+    const preview = lastMessagePreview(item, myId, silencedUserIds)
     const time = timeAgo(item.last_message_at)
     const hasUnread = (item.unread_count ?? 0) > 0
     const avatarUrl = profileAvatarSmallUri(item.type === 'dm' ? item.other_user_avatar_url : item.club_avatar_url, 120)
     const isClub = item.type === 'club'
 
-    const canSilenceDm = item.type === 'dm' && item.other_user_id && myId && item.other_user_id !== myId
+    const canSilenceDm = item.type === 'dm' && item.other_user_id && item.other_user_id !== myId
 
     return (
       <Pressable
@@ -344,11 +346,12 @@ function ChatScreenSignedIn() {
         </TouchableOpacity>
       </View>
 
-      {loading ? (
-        <View style={shared.centered}>
-          <ActivityIndicator color={theme.colors.primary} />
-        </View>
-      ) : (
+      <ScreenState
+        loading={loading}
+        ready={hasData}
+        error={error ? "Couldn't load your chats. Check your connection and try again." : null}
+        onRetry={() => void handleChatListRefresh()}
+      >
         <FlatList
           data={visibleConversations}
           keyExtractor={r => r.conversation_id}
@@ -372,13 +375,14 @@ function ChatScreenSignedIn() {
             </View>
           ) : null}
         />
-      )}
+      </ScreenState>
 
       <NewDMModal
         visible={newDMVisible}
         onDismiss={() => setNewDMVisible(false)}
         onSelect={openDM}
         silencedUserIds={silencedUserIds}
+        myId={myId}
       />
     </View>
   )
@@ -397,5 +401,5 @@ export default function ChatScreen() {
       />
     )
   }
-  return <ChatScreenSignedIn />
+  return <ChatScreenSignedIn myId={userId} />
 }

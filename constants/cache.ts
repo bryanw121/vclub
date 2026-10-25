@@ -16,4 +16,6 @@ export const STALE = {
   profile: 60_000,
   /** Event tags (host form, feed filters): a near-static lookup table. */
   tags: 10 * 60_000,
+  /** get_my_conversations (Chat list, chat tab badge, chat room header); realtime patches it in between. */
+  conversations: 30_000,
 } as const

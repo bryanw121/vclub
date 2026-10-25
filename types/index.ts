@@ -618,6 +618,8 @@ export type MessageWithDetails = Message & {
   }) | null
   /** UI-only: true while the message is being inserted, not persisted to DB */
   _sending?: boolean
+  /** UI-only: the insert failed; the bubble offers "Tap to retry" (never persisted) */
+  _failed?: boolean
 }
 
 // ─── Badge Types ──────────────────────────────────────────────────────────────
