@@ -237,6 +237,10 @@ function AppLayoutInner() {
             {pathname === routes.events() && (
               <TouchableOpacity
                 onPress={fabOpen ? closeFab : openFab}
+                accessibilityRole="button"
+                accessibilityLabel={fabOpen ? 'Close create menu' : 'Create'}
+                accessibilityState={{ expanded: fabOpen }}
+                testID="create-menu-button"
                 style={{
                   position: 'absolute',
                   bottom: 32,

@@ -283,6 +283,10 @@ export default function TabsLayout() {
                   <TouchableOpacity
                     key="create"
                     onPress={fabOpen ? closeFab : openFab}
+                    accessibilityRole="button"
+                    accessibilityLabel={fabOpen ? 'Close create menu' : 'Create'}
+                    accessibilityState={{ expanded: fabOpen }}
+                    testID="create-menu-button"
                     style={{
                       width: 46, height: 46, borderRadius: 15,
                       backgroundColor: fabOpen ? theme.colors.accent + 'CC' : theme.colors.accent,
