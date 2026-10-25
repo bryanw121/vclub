@@ -64,6 +64,21 @@ test.describe('Events', () => {
     await expect(page.getByTestId('filter-tournament').first()).toBeVisible()
   })
 
+  // Players should never misread what time they're signing up for: the start
+  // time is its own high-contrast pill on the feed card and the event page. Not
+  // anchored: the clock icon renders as a private-use glyph in the same text.
+  test('the start time is its own pill on the feed card and the event page', async ({ page }) => {
+    const cardTime = page.getByTestId('events-feed').getByTestId('event-card-time').first()
+    await expect(cardTime).toBeVisible({ timeout: 20000 })
+    await expect(cardTime).toHaveText(/\d{1,2}:\d{2}\s(AM|PM)/)
+
+    await page.getByText(OPEN_PLAY_EVENT).first().click()
+    await page.waitForURL(/\/event\//, { timeout: 20000 })
+    const heroTime = page.getByTestId('event-hero-time')
+    await expect(heroTime).toBeVisible({ timeout: 20000 })
+    await expect(heroTime).toHaveText(/\d{1,2}:\d{2}\s(AM|PM)/)
+  })
+
   // Filter chips are clicked by testID, never by visible text: an event card's
   // type tag renders the exact same strings ("Tournament", "Open Play"), so a
   // text locator's .first() can resolve to the tag instead of the chip — and

@@ -17,7 +17,8 @@ import { NextUpCard } from '../../../../components/events/NextUpCard'
 import { IconButton } from '../../../../components/ui'
 import { myStatusFor, useMyUpcomingEvents } from '../../../../hooks/useMyUpcomingEvents'
 import { NotificationPopup } from '../../../../components/NotificationPopup'
-import { BANNERS, BREAKPOINTS, FEED_STALE_NOTICE, shared, theme } from '../../../../constants'
+import { BANNERS, BREAKPOINTS, FEED_STALE_NOTICE, TOUR_TARGETS, shared, theme } from '../../../../constants'
+import { TourTarget } from '../../../../components/tour/TourTarget'
 import { OneTimeBanner } from '../../../../components/ui'
 import { useFeedRegion } from '../../../../hooks/useUserSettings'
 import type { EventWithDetails, FeedFilter, FeedFilterChip, Notification, StoredFeedFilters, SurfaceFilter as SurfaceFilterValue } from '../../../../types'
@@ -356,14 +357,16 @@ export default function EventsScreen() {
   const filterChips = (
     <>
       <OneTimeBanner banner={BANNERS.austinPilot} style={isMobile ? shared.feedStaleNoticeMobile : undefined} />
-      <FilterChips
-        chips={visibleChips}
-        active={activeFilter}
-        onSelect={selectFilter}
-        mineCount={myUpcoming.length}
-        wide={!isMobile}
-      />
-      <SurfaceFilter active={surfaceFilter} onSelect={selectSurface} wide={!isMobile} />
+      <TourTarget id={TOUR_TARGETS.feedFilters}>
+        <FilterChips
+          chips={visibleChips}
+          active={activeFilter}
+          onSelect={selectFilter}
+          mineCount={myUpcoming.length}
+          wide={!isMobile}
+        />
+        <SurfaceFilter active={surfaceFilter} onSelect={selectSurface} wide={!isMobile} />
+      </TourTarget>
       {staleNotice}
     </>
   )
@@ -490,7 +493,7 @@ export default function EventsScreen() {
           >
             {/* Mini calendar */}
             <Text style={feedStyles.railLabel}>This week</Text>
-            <View style={{ backgroundColor: theme.colors.background, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 20, overflow: 'hidden' }}>
+            <TourTarget id={TOUR_TARGETS.calendar} style={{ backgroundColor: theme.colors.background, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 20, overflow: 'hidden' }}>
               <MonthGridContent
                 month={monthForIdx(curMonthPage)}
                 selectedDate={selectedDate}
@@ -499,7 +502,7 @@ export default function EventsScreen() {
                 onPrevMonth={goPrevMonth}
                 onNextMonth={goNextMonth}
               />
-            </View>
+            </TourTarget>
 
             {/* Your next event */}
             {nextClubEvent && (
@@ -532,7 +535,7 @@ export default function EventsScreen() {
         <EventsHeader wide={false} right={headerRight} />
 
         {/* Calendar strip */}
-        <View>
+        <TourTarget id={TOUR_TARGETS.calendar}>
           <WeekPager
             curWeekPage={curWeekPage}
             selectedDate={selectedDate}
@@ -541,7 +544,7 @@ export default function EventsScreen() {
             onPrevWeek={goPrevWeek}
             onNextWeek={goNextWeek}
           />
-        </View>
+        </TourTarget>
 
         {filterChips}
       </View>

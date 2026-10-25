@@ -12,9 +12,15 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# CI builds and tests against the "vteam beta" Supabase project, never the live
+# one: e2e signs in, writes fixtures and opens realtime channels, and suites on
+# the live project once exhausted its disk IO and timed out real sign-ins.
+# Beta is a schema copy of live with only seeded test users (e2ebot, e2ebuddy)
+# and reference tables. The anon key is public by design (it ships in every
+# client bundle), so it lives here rather than in a secret.
 env:
-  EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
-  EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+  EXPO_PUBLIC_SUPABASE_URL: https://uifolvbwtrbcmfrvelnl.supabase.co
+  EXPO_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpZm9sdmJ3dHJiY21mcnZlbG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5NTY2OTUsImV4cCI6MjEwODUzMjY5NX0.8CcvfSOI3LNZ8KQ9OadOyN2dVy8lYiBeSVFzfC5ihh8
 
 jobs:
   docs:
@@ -69,6 +75,15 @@ jobs:
     # squash of a PR that already passed. Skipping the post-merge rerun halves
     # the load on the project's disk IO budget.
     if: github.event_name == 'pull_request'
+    # One e2e suite at a time across ALL PRs: each shard shares a repo-wide
+    # group with the same shard of every other PR's run. Runs share the e2e
+    # account and its seed conversation on the beta project, and overlapping
+    # suites from five PRs once exhausted the (then shared, live) project's disk
+    # IO. GitHub keeps one pending job per group, so with three or more PRs
+    # queued the middle one's shard is cancelled: re-run its failed jobs.
+    concurrency:
+      group: e2e-beta-supabase-${{ matrix.shard }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [build-web]
@@ -82,7 +97,7 @@ jobs:
           - shard: events
             specs: e2e/events.spec.ts
           - shard: other
-            specs: e2e/guest.spec.ts e2e/profile.spec.ts e2e/book.guest.spec.ts e2e/book.spec.ts
+            specs: e2e/guest.spec.ts e2e/tour.guest.spec.ts e2e/metrics.guest.spec.ts e2e/profile.spec.ts e2e/book.guest.spec.ts e2e/book.spec.ts
     # Credentials of the dedicated e2e account (repository secrets). Required:
     # e2e/env.ts fails fast with a clear message when they are missing, which is
     # also what happens on PRs from forks (secrets are not exposed to them).

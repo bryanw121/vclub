@@ -11,6 +11,9 @@ import { ChatUnreadProvider, useChatUnread } from '../../hooks/useChatUnread'
 import { useIsNarrowWeb } from '../../hooks/useIsNarrowWeb'
 import { useRequireSignIn } from '../../hooks/useRequireSignIn'
 import { routes } from '../../utils/routes'
+import { TourProvider } from '../../contexts/tour'
+import { TourTarget } from '../../components/tour/TourTarget'
+import { TOUR_TARGETS } from '../../constants'
 
 // Collect every badge image URL defined in code and prefetch them so the
 // badges screen renders instantly without a network loading flash.
@@ -40,7 +43,10 @@ export default function AppLayout() {
   // the sidebar (web) and the mobile tab bar (both read it via useChatUnread).
   return (
     <ChatUnreadProvider>
-      <AppLayoutInner />
+      {/* Tours draw their overlay above the sidebar and every screen. */}
+      <TourProvider>
+        <AppLayoutInner />
+      </TourProvider>
     </ChatUnreadProvider>
   )
 }
@@ -135,8 +141,8 @@ function AppLayoutInner() {
               const active = sidebarActive === i
               const badge = tab.key === 'chat' && chatUnread > 0 ? chatUnread : 0
               return (
+                <TourTarget key={tab.key} id={TOUR_TARGETS.tab(tab.key)}>
                 <TouchableOpacity
-                  key={tab.key}
                   onPress={() => goToTab(i)}
                   style={{
                     flexDirection: 'row',
@@ -182,6 +188,7 @@ function AppLayoutInner() {
                     </Text>
                   )}
                 </TouchableOpacity>
+                </TourTarget>
               )
             })}
           </View>
@@ -235,6 +242,7 @@ function AppLayoutInner() {
             {/* FAB button. Wide web shows it on Events only; the mobile tab bar shows its
                 create button on every tab. Long-standing difference, kept as is. */}
             {pathname === routes.events() && (
+              <TourTarget id={TOUR_TARGETS.create} style={{ position: 'absolute', bottom: 32, right: 32 }}>
               <TouchableOpacity
                 onPress={fabOpen ? closeFab : openFab}
                 accessibilityRole="button"
@@ -242,9 +250,6 @@ function AppLayoutInner() {
                 accessibilityState={{ expanded: fabOpen }}
                 testID="create-menu-button"
                 style={{
-                  position: 'absolute',
-                  bottom: 32,
-                  right: 32,
                   width: 52,
                   height: 52,
                   borderRadius: 26,
@@ -261,6 +266,7 @@ function AppLayoutInner() {
                   <Ionicons name="add" size={28} color={theme.colors.white} />
                 </Animated.View>
               </TouchableOpacity>
+              </TourTarget>
             )}
           </View>
 

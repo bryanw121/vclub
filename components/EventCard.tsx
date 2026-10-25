@@ -4,6 +4,7 @@ import { Image } from 'expo-image'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useRouter, usePathname } from 'expo-router'
 import { theme, eventAttendeeDisplayCount, SURFACE_LABELS } from '../constants'
+import { TimePill } from './ui'
 import { routes } from '../utils/routes'
 import { profileAvatarSmallUri, profileDisplayName, surfaceOf } from '../utils'
 import type { EventCardRsvpHandler, EventWithDetails, Tag } from '../types'
@@ -61,8 +62,8 @@ function parseEventDate(dateString: string): { day: string; date: number; time: 
   const hours = d.getHours()
   const minutes = d.getMinutes()
   const h12 = hours % 12 || 12
-  const ampm = hours < 12 ? 'am' : 'pm'
-  const time = `${h12}:${String(minutes).padStart(2, '0')}${ampm}`
+  const ampm = hours < 12 ? 'AM' : 'PM'
+  const time = `${h12}:${String(minutes).padStart(2, '0')} ${ampm}`
   return { day, date, time }
 }
 
@@ -138,11 +139,12 @@ function EventCardInner({
         </View>
       )}
       <View>
-        {/* Top chips: date/time + type + skill */}
-        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        {/* Top chips: time + day + type + skill */}
+        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+          <TimePill label={time} testID="event-card-time" />
           <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, backgroundColor: theme.colors.accent }}>
             <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.accentInk }}>
-              {day} · {time}
+              {day}
             </Text>
           </View>
           {typeTags.map(tag => (
@@ -377,11 +379,13 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
       }}>
         <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, fontWeight: '700', letterSpacing: 1, color: accentColor }}>{day}</Text>
         <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 28, lineHeight: 30, color: accentColor, letterSpacing: -1.2 }}>{date}</Text>
-        <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', letterSpacing: 0.6, color: accentColor, opacity: 0.7, marginTop: 2 }}>{time}</Text>
       </View>
 
       {/* Content */}
       <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={{ marginBottom: 6 }}>
+          <TimePill label={time} testID="event-card-time" />
+        </View>
         {/* Chips */}
         <View style={{ flexDirection: 'row', gap: 5, marginBottom: 6, flexWrap: 'wrap' }}>
           {typeTags.slice(0, 1).map(tag => (
