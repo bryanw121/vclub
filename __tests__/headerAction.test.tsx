@@ -8,7 +8,7 @@ import { EventHeaderActions } from '../components/event/EventHeaderActions'
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 20, bottom: 34, left: 0, right: 0 }),
 }))
-jest.mock('expo-linking', () => ({ createURL: (p: string) => `vclub://${p}` }))
+jest.mock('expo-linking', () => ({ createURL: (p: string) => `vteam://${p}` }))
 
 const flat = (el: { props: { style?: unknown } }) => StyleSheet.flatten(el.props.style as never) ?? {}
 
