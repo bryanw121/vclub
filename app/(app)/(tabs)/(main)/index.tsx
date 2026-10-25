@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useCallback, memo, useEffect, useLayoutEffect } from 'react'
 import { useRouter } from 'expo-router'
 import { Dimensions, Platform, View, ScrollView, SectionList, Text, RefreshControl, TouchableOpacity, PanResponder, Animated, ActivityIndicator, StyleSheet } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { useFeedRsvp, useMonthEvents } from '../../../../hooks/useMonthEvents'
 import { useNotifications } from '../../../../hooks/useNotifications'
 import { useIsNarrowWeb } from '../../../../hooks/useIsNarrowWeb'

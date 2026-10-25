@@ -1,7 +1,7 @@
 import React from 'react'
 import { View, Text } from 'react-native'
 import Svg, { Circle, Line, Polygon, Text as SvgText } from 'react-native-svg'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { theme, CHEER_TYPES } from '../constants'
 import type { CheerCounts, CheerType, IoniconName } from '../types'
 

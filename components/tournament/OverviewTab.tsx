@@ -1,7 +1,7 @@
 import React from 'react'
 import { ActivityIndicator, Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import * as Linking from 'expo-linking'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { theme } from '../../constants'
 import { FORMAT_LABELS } from '../../constants/tournamentCopy'
 import { formatCommentTime, profileDisplayName } from '../../utils'

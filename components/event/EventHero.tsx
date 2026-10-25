@@ -1,6 +1,6 @@
 import React from 'react'
 import { Platform, Text, View } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { theme, LOCATIONS } from '../../constants'
 import type { EventWithDetails } from '../../types'

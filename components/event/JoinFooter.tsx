@@ -1,6 +1,6 @@
 import React from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { Button } from '../Button'
 import { APPROVAL_REQUIRED_NOTE, shared, theme } from '../../constants'
 import { resolveJoinAction } from '../../hooks/event/derive'

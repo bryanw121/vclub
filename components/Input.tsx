@@ -1,6 +1,6 @@
 import { forwardRef, useState, ReactNode } from 'react'
 import { TextInput, Text, View, TouchableOpacity, TextInputProps, StyleProp, ViewStyle, TextStyle, Platform } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { shared, theme } from '../constants'
 
 type Props = {

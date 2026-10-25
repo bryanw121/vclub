@@ -3,9 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react-native'
 import { NotificationPopup } from '../components/NotificationPopup'
 import type { Notification } from '../types'
 
-jest.mock('@expo/vector-icons', () => ({
-  Ionicons: () => null,
-}))
+jest.mock('@expo/vector-icons/Ionicons', () => () => null)
 
 function makeNotification(overrides: Partial<Notification> = {}): Notification {
   return {

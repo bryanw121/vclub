@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import type { PressableStateCallbackType } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { shared, theme } from '../../constants'
 import { BottomSheet } from '../ui'
 import type { IoniconName, RosterAction, RosterMenu } from '../../types'

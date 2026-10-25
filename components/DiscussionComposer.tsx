@@ -7,7 +7,7 @@ import {
   ActivityIndicator, Platform, ScrollView, Switch, Text,
   TouchableOpacity, View,
 } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { Input } from './Input'
 import { theme } from '../constants'
 import type { MentionUser } from '../types'

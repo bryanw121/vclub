@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native'
 import { Stack, useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { useNotifications } from '../../hooks/useNotifications'
 import { shared, theme } from '../../constants'
 import { routes, isAppPath, toRoute } from '../../utils/routes'

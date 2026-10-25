@@ -13,7 +13,7 @@ import {
   Pressable,
   KeyboardAvoidingView,
 } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'
 import { shared, theme, CLUB_POST_COMMENT_MAX, CLUB_POST_BODY_MAX } from '../constants'

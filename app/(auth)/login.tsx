@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, TextInput, Animated, Modal, ActivityIndic
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import * as Linking from 'expo-linking'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { supabase } from '../../lib/supabase'
 import { signInWithGoogle, signInWithApple, sendEmailOtp, verifyEmailOtp } from '../../lib/socialAuth'
 import { Button } from '../../components/Button'
