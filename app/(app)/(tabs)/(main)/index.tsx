@@ -16,7 +16,7 @@ import { NextUpCard } from '../../../../components/events/NextUpCard'
 import { IconButton } from '../../../../components/ui'
 import { myStatusFor, useMyUpcomingEvents } from '../../../../hooks/useMyUpcomingEvents'
 import { NotificationPopup } from '../../../../components/NotificationPopup'
-import { BREAKPOINTS, shared, theme } from '../../../../constants'
+import { BREAKPOINTS, FEED_STALE_NOTICE, shared, theme } from '../../../../constants'
 import type { EventWithDetails, FeedFilter, FeedFilterChip, Notification } from '../../../../types'
 import { useTabsShell } from '../../../../contexts/tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -309,14 +309,30 @@ export default function EventsScreen() {
     />
   )
 
+  // A refresh failed while older events are on screen (cache or last visit's
+  // saved feed): say so rather than silently showing what may be out of date.
+  const staleNotice = error && events.length > 0 ? (
+    <TouchableOpacity
+      onPress={() => void refresh()}
+      accessibilityRole="button"
+      accessibilityLabel={FEED_STALE_NOTICE}
+      style={shared.feedStaleNotice}
+    >
+      <Text style={shared.feedStaleNoticeText}>{FEED_STALE_NOTICE}</Text>
+    </TouchableOpacity>
+  ) : null
+
   const filterChips = (
-    <FilterChips
-      chips={visibleChips}
-      active={activeFilter}
-      onSelect={setActiveFilter}
-      mineCount={myUpcoming.length}
-      wide={!isMobile}
-    />
+    <>
+      <FilterChips
+        chips={visibleChips}
+        active={activeFilter}
+        onSelect={setActiveFilter}
+        mineCount={myUpcoming.length}
+        wide={!isMobile}
+      />
+      {staleNotice}
+    </>
   )
 
   // Shown in place of the cards when the (filtered) feed is empty. An error

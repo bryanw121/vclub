@@ -10,6 +10,8 @@ export const EVENT_JUST_FILLED_BODY =
 
 /** Alert body for a failed write that is almost certainly a connectivity problem. */
 export const NETWORK_ERROR_MESSAGE = 'Check your connection and try again.'
+/** Events feed: a refresh failed while older (cached or saved) events are on screen. */
+export const FEED_STALE_NOTICE = "Couldn't refresh. These may be out of date. Tap to retry."
 
 /** Display label per skill tier, lowest to highest (insertion order is the display order). `open` is tournament-only. */
 export const SKILL_LEVEL_LABELS: Record<string, string> = {
