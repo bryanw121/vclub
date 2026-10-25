@@ -1,3 +1,4 @@
+import type { Surface } from '../types'
 // ─── Venues ───────────────────────────────────────────────────────────────────
 // Add new locations here — the form picker reads from this array automatically.
 
@@ -89,6 +90,15 @@ export type RecurrenceCadence = 'weekly' | 'biweekly' | 'monthly'
 
 export const DAY_LABELS_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const
 
+/** Court surfaces, in display order. Values match events.surface and external_sessions.surface. */
+export const SURFACE_OPTIONS: { id: Surface; label: string }[] = [
+  { id: 'indoor', label: 'Indoor' },
+  { id: 'sand',   label: 'Sand'   },
+  { id: 'grass',  label: 'Grass'  },
+]
+
+export const SURFACE_LABELS: Record<Surface, string> = { indoor: 'Indoor', sand: 'Sand', grass: 'Grass' }
+
 // ─── Supabase list queries (EventCard / feeds) ─────────────────────────────────
 /**
  * Core `events` columns for cards — omits `description` to shrink rows and JSON payload.
@@ -96,7 +106,7 @@ export const DAY_LABELS_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as co
  * event whose host approves each request.
  */
 export const EVENT_LIST_EVENT_COLUMNS =
-  'id, created_by, club_id, title, location, event_date, duration_minutes, max_attendees, created_at, price, requires_approval'
+  'id, created_by, club_id, title, location, event_date, duration_minutes, max_attendees, created_at, price, requires_approval, surface'
 
 /**
  * Main Events tab + club upcoming: host, RSVP count, tags, club badge.

@@ -630,6 +630,7 @@ export type Database = {
           price: number | null
           requires_approval: boolean
           skill_levels: string[]
+          surface: string | null
           title: string
           venmo_handle: string | null
         }
@@ -649,6 +650,7 @@ export type Database = {
           price?: number | null
           requires_approval?: boolean
           skill_levels?: string[]
+          surface?: string | null
           title: string
           venmo_handle?: string | null
         }
@@ -668,6 +670,7 @@ export type Database = {
           price?: number | null
           requires_approval?: boolean
           skill_levels?: string[]
+          surface?: string | null
           title?: string
           venmo_handle?: string | null
         }

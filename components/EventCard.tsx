@@ -3,9 +3,9 @@ import { TouchableOpacity, Text, View, ActivityIndicator } from 'react-native'
 import { Image } from 'expo-image'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useRouter, usePathname } from 'expo-router'
-import { theme, eventAttendeeDisplayCount } from '../constants'
+import { theme, eventAttendeeDisplayCount, SURFACE_LABELS } from '../constants'
 import { routes } from '../utils/routes'
-import { profileAvatarSmallUri, profileDisplayName } from '../utils'
+import { profileAvatarSmallUri, profileDisplayName, surfaceOf } from '../utils'
 import type { EventCardRsvpHandler, EventWithDetails, Tag } from '../types'
 
 // ─── Attendance helpers ───────────────────────────────────────────────────────
@@ -87,6 +87,8 @@ function EventCardInner({
   const pathname = usePathname()
   const [rsvpTapped, setRsvpTapped] = useState(false)
   const rsvpLoading = rsvpTapped || rsvpPending
+  const surface = surfaceOf(event)
+  const surfaceLabel = surface ? SURFACE_LABELS[surface] : null
 
   const isAttending = !!currentUserId && (
     event.my_attendance != null
@@ -179,7 +181,7 @@ function EventCardInner({
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
             <Ionicons name="location-outline" size={12} color="rgba(255,255,255,0.6)" />
             <Text style={{ fontFamily: theme.fonts.body, fontSize: 12, color: 'rgba(255,255,255,0.6)' }} numberOfLines={1}>
-              {event.location}
+              {event.location}{surfaceLabel ? ` · ${surfaceLabel}` : ''}
             </Text>
           </View>
         )}
@@ -310,6 +312,8 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
   const pathname = usePathname()
   const [rsvpTapped, setRsvpTapped] = useState(false)
   const rsvpLoading = rsvpTapped || rsvpPending
+  const surface = surfaceOf(event)
+  const surfaceLabel = surface ? SURFACE_LABELS[surface] : null
 
   const isAttending = !!currentUserId && (
     event.my_attendance != null
@@ -410,7 +414,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
             <Ionicons name="location-outline" size={11} color={theme.colors.subtext} />
             <Text numberOfLines={1} style={{ fontFamily: theme.fonts.body, fontSize: 11.5, color: theme.colors.subtext }}>
-              {event.location}
+              {event.location}{surfaceLabel ? ` · ${surfaceLabel}` : ''}
             </Text>
           </View>
         )}
