@@ -4,7 +4,7 @@
  * permanent pilot-visible seed events.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { E2E_PASSWORD, E2E_USERNAME, SUPABASE_ANON_KEY, SUPABASE_URL } from './env'
+import { e2eCredentials, SUPABASE_ANON_KEY, SUPABASE_URL } from './env'
 
 export const OPEN_PLAY_EVENT = '[e2e] Open Play'
 export const TOURNAMENT_EVENT = '[e2e] Tournament'
@@ -24,16 +24,17 @@ function daysFromNow(days: number, hour = 19): string {
 
 async function signInE2eClient(): Promise<{ supabase: SupabaseClient; userId: string }> {
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  const { username, password } = e2eCredentials()
   const { data: email, error: rpcError } = await supabase.rpc('get_email_by_username', {
-    p_username: E2E_USERNAME,
+    p_username: username,
   })
   if (rpcError || !email) {
-    throw new Error(`Could not resolve email for ${E2E_USERNAME}: ${rpcError?.message ?? 'not found'}`)
+    throw new Error(`Could not resolve email for ${username}: ${rpcError?.message ?? 'not found'}`)
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email: email as string,
-    password: E2E_PASSWORD,
+    password,
   })
   if (error || !data.user) {
     throw new Error(`E2E sign-in failed: ${error?.message ?? 'no user'}`)

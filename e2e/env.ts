@@ -51,9 +51,16 @@ function required(name: string, hint: string): string {
 
 export const E2E_BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:8081'
 
-/** Credentials of the dedicated e2e account. Required, never defaulted. */
-export const E2E_USERNAME = required('E2E_USERNAME', 'username of the e2e test account')
-export const E2E_PASSWORD = required('E2E_PASSWORD', 'password of the e2e test account')
+/**
+ * Credentials of the dedicated e2e account. Required, never defaulted — but read
+ * lazily, so the guest suite (which never signs in) runs without them.
+ */
+export function e2eCredentials(): { username: string; password: string } {
+  return {
+    username: required('E2E_USERNAME', 'username of the e2e test account'),
+    password: required('E2E_PASSWORD', 'password of the e2e test account'),
+  }
+}
 
 export const SUPABASE_URL = required('EXPO_PUBLIC_SUPABASE_URL', 'the same value the web build uses')
 export const SUPABASE_ANON_KEY = required('EXPO_PUBLIC_SUPABASE_ANON_KEY', 'the same value the web build uses')

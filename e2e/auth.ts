@@ -1,6 +1,6 @@
 import { expect, type Page, type Request, type Response } from '@playwright/test'
 
-import { E2E_BASE_URL as BASE_URL, E2E_PASSWORD, E2E_USERNAME } from './env'
+import { E2E_BASE_URL as BASE_URL, e2eCredentials } from './env'
 
 const MAX_LOGIN_ATTEMPTS = 3
 
@@ -50,8 +50,9 @@ export async function loginForE2E(page: Page): Promise<void> {
           const identifier = page.getByPlaceholder('you@example.com or yourname')
           const password = page.getByPlaceholder('••••••••')
           await expect(identifier).toBeVisible({ timeout: 15_000 })
-          await identifier.fill(E2E_USERNAME)
-          await password.fill(E2E_PASSWORD)
+          const creds = e2eCredentials()
+          await identifier.fill(creds.username)
+          await password.fill(creds.password)
           // React Native Web's TouchableOpacity does not consistently expose a
           // button role in the static export, so key this action on its exact
           // visible label (the same contract the existing suites used).
