@@ -1,23 +1,30 @@
 import React, { useState, useRef, useMemo, useCallback, memo, useEffect, useLayoutEffect } from 'react'
-import { useFocusEffect, useRouter } from 'expo-router'
-import { Platform, View, ScrollView, SectionList, Text, RefreshControl, TouchableOpacity, Pressable, PanResponder, Animated, useWindowDimensions, ActivityIndicator, Modal, StyleSheet } from 'react-native'
+import { useRouter } from 'expo-router'
+import { Dimensions, Platform, View, ScrollView, SectionList, Text, RefreshControl, TouchableOpacity, PanResponder, Animated, ActivityIndicator, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { useMonthEvents } from '../../../../hooks/useMonthEvents'
+import { useFeedRsvp, useMonthEvents } from '../../../../hooks/useMonthEvents'
 import { useNotifications } from '../../../../hooks/useNotifications'
-import { EventCard, RowEventCard, type EventCardRsvpHandler } from '../../../../components/EventCard'
+import { useIsNarrowWeb } from '../../../../hooks/useIsNarrowWeb'
+import { EventCard, RowEventCard } from '../../../../components/EventCard'
+import type { EventCardRsvpHandler } from '../../../../types'
 import { MyEventsRail } from '../../../../components/MyEventsRail'
 import { ExternalSessionCard } from '../../../../components/ExternalSessionCard'
+import { EventsHeader } from '../../../../components/events/EventsHeader'
+import { FilterChips } from '../../../../components/events/FilterChips'
+import { FeedEmpty } from '../../../../components/events/FeedEmpty'
+import { NextUpCard } from '../../../../components/events/NextUpCard'
+import { IconButton } from '../../../../components/ui'
 import { myStatusFor, useMyUpcomingEvents } from '../../../../hooks/useMyUpcomingEvents'
 import { NotificationPopup } from '../../../../components/NotificationPopup'
-import { shared, theme } from '../../../../constants'
-import { EventWithDetails, type Notification } from '../../../../types'
+import { BREAKPOINTS, shared, theme } from '../../../../constants'
+import type { EventWithDetails, FeedFilter, FeedFilterChip, Notification } from '../../../../types'
 import { useTabsShell } from '../../../../contexts/tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { supabase } from '../../../../lib/supabase'
 import { useSession } from '../../../../contexts/session'
 import { useRequireSignIn } from '../../../../hooks/useRequireSignIn'
 import { SignInButton } from '../../../../components/SignInButton'
-import { addMonths as addMonthKey } from '../../../../utils/monthKeys'
+import { addMonths } from '../../../../utils/monthKeys'
+import { routes, isAppPath, toRoute } from '../../../../utils/routes'
 import { eventLocalDateKey, localDateKey } from '../../../../utils'
 
 const _now = new Date()
@@ -44,12 +51,10 @@ function idxForMonth(month: string): number {
   return MONTH_CENTER + (y - ry) * 12 + (m - rm)
 }
 
-type FilterChip = 'mine' | 'all' | 'open_play' | 'tournament' | 'not_full' | 'austin'
-
 // "Mine" leads the row but is deliberately NOT the default filter — opening the
 // Events tab on an empty screen is the worst possible first run for a new member,
 // and it hides the rest of the club from everyone else.
-const FILTER_CHIPS: { id: FilterChip; label: string }[] = [
+const FILTER_CHIPS: FeedFilterChip[] = [
   { id: 'mine',       label: 'Mine'       },
   { id: 'all',        label: 'All'        },
   { id: 'open_play',  label: 'Open Play'  },
@@ -62,7 +67,8 @@ const FILTER_CHIPS: { id: FilterChip; label: string }[] = [
 type DateSection = { date: string; data: EventWithDetails[] }
 export default function EventsScreen() {
   const router = useRouter()
-  const { events, loading, loadMonth, loadMonthSpan, invalidateAll, loadedMonths, reachedEnd } = useMonthEvents()
+  const { events, loading, error, loadMonth, loadMonthSpan, refresh, loadedMonths, reachedEnd } = useMonthEvents()
+  const { rsvp, isPending: isRsvpPending } = useFeedRsvp()
   const {
     notifications: notifItems,
     unreadCount,
@@ -72,13 +78,13 @@ export default function EventsScreen() {
     loading: notifLoading,
   } = useNotifications({ fetchListOnMount: false })
   const { pagerBlocked, setTabBarHidden, tabBarHeight, eventsRefreshTick, docScrollActive } = useTabsShell()
-  const { width: windowWidth } = useWindowDimensions()
-  const isMobile = Platform.OS !== 'web' || windowWidth < 768
+  // Native is always the mobile layout; web flips at the sidebar breakpoint.
+  const narrowWeb = useIsNarrowWeb(BREAKPOINTS.sidebar)
+  const isMobile = Platform.OS !== 'web' || narrowWeb
   const insets = useSafeAreaInsets()
 
   const [selectedDate, setSelectedDate] = useState<string>(TODAY)
-  const [mode, setMode] = useState<'week' | 'month'>('week')
-  const [activeFilter, setActiveFilter] = useState<FilterChip>('all')
+  const [activeFilter, setActiveFilter] = useState<FeedFilter>('all')
   const [notifOpen, setNotifOpen] = useState(false)
   const [curWeekPage, setCurWeekPage] = useState(WEEK_CENTER)
   const [curMonthPage, setCurMonthPage] = useState(MONTH_CENTER)
@@ -88,91 +94,60 @@ export default function EventsScreen() {
 
   const handleRsvp: EventCardRsvpHandler = useCallback(async (eventId, action) => {
     if (!currentUserId) {
-      requireSignIn(`/event/${eventId}`)
+      requireSignIn(routes.event(eventId))
       return
     }
-    if (action === 'join') {
-      await supabase.from('event_attendees').insert({ event_id: eventId, user_id: currentUserId })
-    } else {
-      await supabase.from('event_attendees').delete().eq('event_id', eventId).eq('user_id', currentUserId)
-    }
-    void invalidateAll()
-  }, [currentUserId, invalidateAll, requireSignIn])
+    await rsvp({ eventId, action, userId: currentUserId })
+  }, [currentUserId, rsvp, requireSignIn])
 
-  // Derive which month(s) the calendar is currently showing
+  // The month(s) the week strip is showing: a week can straddle two months.
   const visibleMonths = useMemo((): string[] => {
-    if (mode === 'month') return [monthForIdx(curMonthPage)]
-    // Week mode: a week can straddle two months — load both
     const weekStart = weekForIdx(curWeekPage)
     const weekEnd   = new Date(weekStart.getTime() + 6 * 86_400_000)
-    const m1 = weekStart.toISOString().substring(0, 7)
-    const m2 = weekEnd.toISOString().substring(0, 7)
+    const m1 = localDateKey(weekStart).substring(0, 7)
+    const m2 = localDateKey(weekEnd).substring(0, 7)
     return m1 === m2 ? [m1] : [m1, m2]
-  }, [mode, curWeekPage, curMonthPage])
+  }, [curWeekPage])
 
   // Load months as the user navigates the calendar
   useEffect(() => {
-    visibleMonths.forEach(m => { void loadMonth(m) })
+    visibleMonths.forEach(m => { loadMonth(m) })
   }, [visibleMonths, loadMonth])
 
-  // On desktop, one range query for the current month plus the next 3 so the
-  // grid isn't sparse. Microtask-batched with the visible-month load above.
+  // On desktop, the current month plus the next 3 so the grid isn't sparse.
+  // One range query: the hook batches months requested in the same tick.
   useEffect(() => {
     if (isMobile) return
     const current = TODAY.substring(0, 7)
-    void loadMonthSpan(current, addMonthKey(current, 3))
+    loadMonthSpan(current, addMonths(current, 3))
   }, [isMobile, loadMonthSpan])
 
-  // Force-reload visible months after create/edit (no cache clear — avoids flash)
+  // Force-reload visible months after create/edit (cached data stays on screen meanwhile).
+  // Focus/foreground refetch-when-stale and the signed-in-user change live in the hook.
   useEffect(() => {
     if (eventsRefreshTick > 0) {
-      visibleMonths.forEach(m => { void loadMonth(m, true) })
+      visibleMonths.forEach(m => { loadMonth(m, true) })
     }
   }, [eventsRefreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // RSVP state in the cached months belongs to whoever was signed in when they
-  // were fetched; reload when that changes (sign out, or another account).
-  const feedUserRef = useRef(currentUserId)
-  useEffect(() => {
-    if (feedUserRef.current === currentUserId) return
-    feedUserRef.current = currentUserId
-    invalidateAll()
-    visibleMonths.forEach(m => { void loadMonth(m, true) })
-  }, [currentUserId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Re-check staleness when the tab regains focus
-  const webFocusCount = useRef(0)
-  const visibleMonthsRef = useRef(visibleMonths)
-  visibleMonthsRef.current = visibleMonths
-  useFocusEffect(useCallback(() => {
-    webFocusCount.current += 1
-    if (webFocusCount.current > 1) {
-      visibleMonthsRef.current.forEach(m => { void loadMonth(m) })
-    }
-  }, [loadMonth]))
-
   // The month immediately after the last loaded month — what to fetch on scroll-to-bottom
-  const nextScrollMonth = useMemo(() => {
-    const last = loadedMonths[loadedMonths.length - 1] ?? TODAY.substring(0, 7)
-    const [y, m] = last.split('-').map(Number)
-    return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
-  }, [loadedMonths])
+  const nextScrollMonth = useMemo(
+    () => addMonths(loadedMonths[loadedMonths.length - 1] ?? TODAY.substring(0, 7), 1),
+    [loadedMonths],
+  )
 
   const handleScrollNearBottom = useCallback(() => {
-    if (!loading && !reachedEnd) void loadMonth(nextScrollMonth)
+    if (!loading && !reachedEnd) loadMonth(nextScrollMonth)
   }, [loading, reachedEnd, loadMonth, nextScrollMonth])
 
   const handleEventsPullRefresh = useCallback(async () => {
     setEventsPullRefreshing(true)
-    const months = [...new Set([...visibleMonths, ...loadedMonths])]
     try {
-      invalidateAll()
-      await Promise.all(months.map(m => loadMonth(m, true)))
-      await refetchNotifs(true)
+      await Promise.all([refresh(), refetchNotifs(true)])
     } finally {
       setEventsPullRefreshing(false)
     }
-  }, [visibleMonths, loadedMonths, invalidateAll, loadMonth, refetchNotifs])
+  }, [refresh, refetchNotifs])
 
   const blockPager   = useCallback(() => { pagerBlocked.current = true  }, [pagerBlocked])
   const unblockPager = useCallback(() => { pagerBlocked.current = false }, [pagerBlocked])
@@ -241,7 +216,7 @@ export default function EventsScreen() {
   const railNode = (
     <MyEventsRail
       items={myUpcoming}
-      onPressEvent={eventId => router.push(`/event/${eventId}` as any)}
+      onPressEvent={eventId => router.push(routes.event(eventId))}
       // "See all" switches the feed to Mine rather than growing the rail — one
       // place to look for the long list, and the rail stays above the fold.
       onSeeAll={() => setActiveFilter('mine')}
@@ -295,12 +270,12 @@ export default function EventsScreen() {
         /* ignore */
       }
       const path = item.data?.deep_link
-      if (path) {
-        router.push(path as any)
+      if (isAppPath(path)) {
+        router.push(toRoute(path))
         return
       }
       if (item.data?.event_id) {
-        router.push(`/event/${item.data.event_id}` as any)
+        router.push(routes.event(item.data.event_id))
       }
     },
     [markRead, router],
@@ -324,6 +299,61 @@ export default function EventsScreen() {
   // "Next up" links to an event page, so it skips sessions at other venues.
   const nextClubEvent = useMemo(() => allEvents.find(e => !e._external), [allEvents])
 
+  const headerRight = isGuest ? <SignInButton /> : (
+    <IconButton
+      icon={notifOpen ? 'notifications' : 'notifications-outline'}
+      label="Notifications"
+      active={notifOpen}
+      badge={unreadCount > 0}
+      onPress={toggleNotifPanel}
+    />
+  )
+
+  const filterChips = (
+    <FilterChips
+      chips={visibleChips}
+      active={activeFilter}
+      onSelect={setActiveFilter}
+      mineCount={myUpcoming.length}
+      wide={!isMobile}
+    />
+  )
+
+  // Shown in place of the cards when the (filtered) feed is empty. An error
+  // only counts when there's nothing loaded at all: with data cached, a failed
+  // refetch keeps it on screen.
+  const feedEmpty = (
+    <FeedEmpty
+      loading={loading}
+      error={events.length === 0 ? error : null}
+      onRetry={() => void refresh()}
+      filterActive={activeFilter !== 'all'}
+      isGuest={isGuest}
+      onClearFilter={() => setActiveFilter('all')}
+    />
+  )
+
+  const refreshControl = (
+    <RefreshControl refreshing={eventsPullRefreshing} onRefresh={() => void handleEventsPullRefresh()} tintColor={theme.colors.primary} />
+  )
+
+  const notificationPopup = (
+    <NotificationPopup
+      visible={notifOpen}
+      items={notifItems}
+      loading={notifLoading}
+      unreadCount={unreadCount}
+      insetTop={insets.top}
+      // Read at render (the popup only matters while open) instead of
+      // subscribing the whole screen to every resize.
+      windowWidth={Dimensions.get('window').width}
+      onDismiss={() => setNotifOpen(false)}
+      onOpenItem={openNotifItem}
+      onMarkAllRead={() => void markAllRead()}
+      onSeeAll={() => { setNotifOpen(false); router.push(routes.notifications()) }}
+    />
+  )
+
   // ── Desktop layout ────────────────────────────────────────────────────────
   if (!isMobile) {
 
@@ -341,74 +371,18 @@ export default function EventsScreen() {
               handleScrollNearBottom()
             }
           }}
-          refreshControl={<RefreshControl refreshing={eventsPullRefreshing} onRefresh={() => void handleEventsPullRefresh()} tintColor={theme.colors.primary} />}
+          refreshControl={refreshControl}
         >
-          {/* Header */}
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16 }}>
-            <View>
-              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, fontWeight: '700', letterSpacing: 1.3, color: theme.colors.subtext, textTransform: 'uppercase' }}>
-                {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              </Text>
-              <Text style={{ fontFamily: theme.fonts.display, fontSize: 44, lineHeight: 46, letterSpacing: -1.6, color: theme.colors.text, marginTop: 2 }}>
-                {"Events"}<Text style={{ color: theme.colors.primary }}>.</Text>
-              </Text>
-            </View>
-            {isGuest ? <SignInButton /> : (
-            <TouchableOpacity
-              onPress={toggleNotifPanel}
-              hitSlop={8}
-              style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center', justifyContent: 'center' }}
-            >
-              <View>
-                <Ionicons name={notifOpen ? 'notifications' : 'notifications-outline'} size={18} color={notifOpen ? theme.colors.primary : theme.colors.text} />
-                {unreadCount > 0 && (
-                  <View style={{ position: 'absolute', top: -2, right: -3, width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.hot, borderWidth: 1.5, borderColor: theme.colors.card }} />
-                )}
-              </View>
-            </TouchableOpacity>
-            )}
-          </View>
+          <EventsHeader wide right={headerRight} />
 
-          {/* Filter chips */}
-          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 18, flexWrap: 'wrap' }}>
-            {visibleChips.map(chip => {
-              const active = activeFilter === chip.id
-              const badge = chip.id === 'mine' && myUpcoming.length > 0 ? myUpcoming.length : null
-              return (
-                <TouchableOpacity
-                  key={chip.id}
-                  testID={`filter-${chip.id}`}
-                  onPress={() => setActiveFilter(chip.id)}
-                  style={[feedStyles.chip, active && feedStyles.chipActive]}
-                >
-                  <Text style={[feedStyles.chipLabel, active && feedStyles.chipLabelActive]}>
-                    {badge !== null ? `${chip.label} ${badge}` : chip.label}
-                  </Text>
-                </TouchableOpacity>
-              )
-            })}
-          </View>
+          {filterChips}
 
           {railNode}
 
           {/* Tagged so e2e can scope feed assertions: the rail deliberately
               ignores the active filter, so a page-wide text count would see it. */}
           <View testID="events-feed">
-          {loading && allEvents.length === 0 ? (
-            <ActivityIndicator style={{ marginTop: theme.spacing.xl }} color={theme.colors.primary} />
-          ) : allEvents.length === 0 ? (
-            <View style={{ alignItems: 'center', paddingTop: theme.spacing.xxl, gap: theme.spacing.sm }}>
-              <Ionicons name="calendar-outline" size={36} color={theme.colors.border} />
-              <Text style={shared.caption}>
-                {activeFilter !== 'all' ? 'No events match this filter' : isGuest ? 'No upcoming events yet' : 'No upcoming events — create one!'}
-              </Text>
-              {activeFilter !== 'all' && (
-                <TouchableOpacity onPress={() => setActiveFilter('all')}>
-                  <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>Clear filter</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ) : (
+          {allEvents.length === 0 ? feedEmpty : (
             <>
               {Object.entries(
                 sections.reduce<Record<string, EventWithDetails[]>>((acc, section) => {
@@ -435,6 +409,7 @@ export default function EventsScreen() {
                             event={item}
                             currentUserId={currentUserId}
                             onRsvp={item._isTournament ? undefined : handleRsvp}
+                            rsvpPending={isRsvpPending(item.id)}
                           />}
                         </View>
                       ))}
@@ -462,12 +437,10 @@ export default function EventsScreen() {
           <ScrollView
             contentContainerStyle={{ padding: 20 }}
             showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={eventsPullRefreshing} onRefresh={() => void handleEventsPullRefresh()} tintColor={theme.colors.primary} />}
+            refreshControl={refreshControl}
           >
             {/* Mini calendar */}
-            <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, fontWeight: '700', letterSpacing: 1, color: theme.colors.subtext, textTransform: 'uppercase', marginBottom: 10 }}>
-              This week
-            </Text>
+            <Text style={feedStyles.railLabel}>This week</Text>
             <View style={{ backgroundColor: theme.colors.background, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 20, overflow: 'hidden' }}>
               <MonthGridContent
                 month={monthForIdx(curMonthPage)}
@@ -482,46 +455,18 @@ export default function EventsScreen() {
             {/* Your next event */}
             {nextClubEvent && (
               <>
-                <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, fontWeight: '700', letterSpacing: 1, color: theme.colors.subtext, textTransform: 'uppercase', marginBottom: 10 }}>
-                  Next up
-                </Text>
-                <TouchableOpacity
-                  onPress={() => router.push(`/event/${nextClubEvent.id}` as any)}
-                  activeOpacity={0.85}
-                  style={{ backgroundColor: theme.colors.primary, borderRadius: 16, padding: 14, marginBottom: 6 }}
-                >
-                  <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-                    <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.full, backgroundColor: theme.colors.accent }}>
-                      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 10, color: theme.colors.accentInk }}>TONIGHT</Text>
-                    </View>
-                  </View>
-                  <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 17, letterSpacing: -0.3, color: '#fff', marginBottom: 4 }} numberOfLines={1}>
-                    {nextClubEvent.title}
-                  </Text>
-                  {nextClubEvent.location && (
-                    <Text style={{ fontFamily: theme.fonts.body, fontSize: 11.5, color: 'rgba(255,255,255,0.7)' }} numberOfLines={1}>
-                      {nextClubEvent.location}
-                    </Text>
-                  )}
-                </TouchableOpacity>
+                <Text style={feedStyles.railLabel}>Next up</Text>
+                <NextUpCard
+                  event={nextClubEvent}
+                  onPress={() => router.push(nextClubEvent._isTournament ? routes.tournament(nextClubEvent.id) : routes.event(nextClubEvent.id))}
+                />
               </>
             )}
 
           </ScrollView>
         </View>
 
-        <NotificationPopup
-          visible={notifOpen}
-          items={notifItems}
-          loading={notifLoading}
-          unreadCount={unreadCount}
-          insetTop={insets.top}
-          windowWidth={windowWidth}
-          onDismiss={() => setNotifOpen(false)}
-          onOpenItem={openNotifItem}
-          onMarkAllRead={() => void markAllRead()}
-          onSeeAll={() => { setNotifOpen(false); router.push('/notifications' as any) }}
-        />
+        {notificationPopup}
       </View>
     )
   }
@@ -535,45 +480,7 @@ export default function EventsScreen() {
         onTouchEnd={unblockPager}
         onTouchCancel={unblockPager}
       >
-        {/* Header */}
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md + 4, paddingBottom: theme.spacing.sm }}>
-          <View>
-            <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, fontWeight: theme.font.weight.semibold, letterSpacing: 1.2, color: theme.colors.subtext, textTransform: 'uppercase' }}>
-              {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-            </Text>
-            <Text style={{ fontFamily: theme.fonts.display, fontSize: 34, lineHeight: 34, letterSpacing: -1.2, color: theme.colors.text, marginTop: 2 }}>
-              {'Events'}
-              <Text style={{ color: theme.colors.primary }}>.</Text>
-            </Text>
-          </View>
-          <View style={{ flexDirection: 'row', gap: 8, paddingBottom: 4 }}>
-            {isGuest ? <SignInButton /> : (
-            <TouchableOpacity
-              onPress={toggleNotifPanel}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Notifications"
-              style={{
-                width: 38, height: 38, borderRadius: 12,
-                backgroundColor: theme.colors.card,
-                borderWidth: 1, borderColor: theme.colors.border,
-                alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <View>
-                <Ionicons
-                  name={notifOpen ? 'notifications' : 'notifications-outline'}
-                  size={18}
-                  color={notifOpen ? theme.colors.primary : theme.colors.text}
-                />
-                {unreadCount > 0 && (
-                  <View style={{ position: 'absolute', top: -2, right: -3, width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.hot, borderWidth: 1.5, borderColor: theme.colors.card }} />
-                )}
-              </View>
-            </TouchableOpacity>
-            )}
-          </View>
-        </View>
+        <EventsHeader wide={false} right={headerRight} />
 
         {/* Calendar strip */}
         <View>
@@ -587,50 +494,11 @@ export default function EventsScreen() {
           />
         </View>
 
-        {/* Filter chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.xs, paddingBottom: theme.spacing.sm, gap: theme.spacing.xs }}
-          style={{ flexGrow: 0 }}
-        >
-          {visibleChips.map(chip => {
-            const active = activeFilter === chip.id
-            const badge = chip.id === 'mine' && myUpcoming.length > 0 ? myUpcoming.length : null
-            return (
-              <TouchableOpacity
-                key={chip.id}
-                testID={`filter-${chip.id}`}
-                onPress={() => setActiveFilter(chip.id)}
-                style={[feedStyles.chip, active && feedStyles.chipActive]}
-              >
-                <Text style={[feedStyles.chipLabel, active && feedStyles.chipLabelActive]}>
-                  {badge !== null ? `${chip.label} ${badge}` : chip.label}
-                </Text>
-              </TouchableOpacity>
-            )
-          })}
-        </ScrollView>
+        {filterChips}
       </View>
 
       {(() => {
-        const emptyOrLoading = loading && sections.length === 0 ? (
-          <ActivityIndicator style={{ marginTop: theme.spacing.xl }} color={theme.colors.primary} />
-        ) : sections.length === 0 ? (
-          <View style={{ alignItems: 'center', paddingTop: theme.spacing.xxl, gap: theme.spacing.sm }}>
-            <Ionicons name="calendar-outline" size={36} color={theme.colors.border} />
-            <Text style={shared.caption}>
-              {activeFilter !== 'all' ? 'No events match this filter' : isGuest ? 'No upcoming events yet' : 'No upcoming events — create one!'}
-            </Text>
-            {activeFilter !== 'all' && (
-              <TouchableOpacity onPress={() => setActiveFilter('all')}>
-                <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, fontWeight: theme.font.weight.medium }}>
-                  Clear filter
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        ) : null
+        const emptyOrLoading = sections.length === 0 ? feedEmpty : null
 
         const renderSectionHeader = (section: DateSection) => (
           <View
@@ -651,6 +519,7 @@ export default function EventsScreen() {
                 event={item}
                 currentUserId={currentUserId}
                 onRsvp={item._isTournament ? undefined : handleRsvp}
+                rsvpPending={isRsvpPending(item.id)}
               />
             )}
           </View>
@@ -685,7 +554,7 @@ export default function EventsScreen() {
             <ScrollView
               style={{ flex: 1 }}
               contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
-              refreshControl={<RefreshControl refreshing={eventsPullRefreshing} onRefresh={() => void handleEventsPullRefresh()} tintColor={theme.colors.primary} />}
+              refreshControl={refreshControl}
             >
               {/* The rail is derived from all loaded events, so it can be
                   non-empty even when the active filter matches nothing. */}
@@ -733,23 +602,12 @@ export default function EventsScreen() {
                 ? <ActivityIndicator style={{ marginVertical: theme.spacing.lg }} color={theme.colors.primary} />
                 : null
             }
-            refreshControl={<RefreshControl refreshing={eventsPullRefreshing} onRefresh={() => void handleEventsPullRefresh()} tintColor={theme.colors.primary} />}
+            refreshControl={refreshControl}
           />
         )
       })()}
 
-      <NotificationPopup
-        visible={notifOpen}
-        items={notifItems}
-        loading={notifLoading}
-        unreadCount={unreadCount}
-        insetTop={insets.top}
-        windowWidth={windowWidth}
-        onDismiss={() => setNotifOpen(false)}
-        onOpenItem={openNotifItem}
-        onMarkAllRead={() => void markAllRead()}
-        onSeeAll={() => { setNotifOpen(false); router.push('/notifications' as any) }}
-      />
+      {notificationPopup}
     </View>
   )
 }
@@ -1028,65 +886,6 @@ function WeekPager({ curWeekPage, selectedDate, markedDates, onSelectDate, onPre
   )
 }
 
-// ─── Month Pager ─────────────────────────────────────────────────────────────
-
-type MonthPagerProps = {
-  curMonthPage: number
-  selectedDate: string
-  markedDates: Record<string, any>
-  onSelectDate: (date: string) => void
-  onPrevMonth: () => void
-  onNextMonth: () => void
-}
-
-function MonthPager({ curMonthPage, selectedDate, markedDates, onSelectDate, onPrevMonth, onNextMonth }: MonthPagerProps) {
-  const [width, setWidth] = useState(0)
-  const widthRef = useRef(0)
-  const translateX = useRef(new Animated.Value(0)).current
-  const onPrevRef = useRef(onPrevMonth)
-  const onNextRef = useRef(onNextMonth)
-  onPrevRef.current = onPrevMonth
-  onNextRef.current = onNextMonth
-
-  const { panResponder, snapToPrev, snapToNext, internalNavRef } = usePager(widthRef, translateX, onPrevRef, onNextRef)
-
-  useLayoutEffect(() => {
-    const fromSwipe = internalNavRef.current
-    internalNavRef.current = false
-    if (!fromSwipe) translateX.stopAnimation()
-    if (widthRef.current > 0) translateX.setValue(-widthRef.current)
-  }, [curMonthPage])
-
-  return (
-    <View
-      style={{ overflow: 'hidden' }}
-      onLayout={e => {
-        const w = e.nativeEvent.layout.width
-        widthRef.current = w
-        if (w !== width) { setWidth(w); translateX.setValue(-w) }
-      }}
-      {...panResponder.panHandlers}
-    >
-      {width > 0 && (
-        <Animated.View style={{ flexDirection: 'row', width: width * 3, transform: [{ translateX }] }}>
-          {([-1, 0, 1] as const).map(offset => (
-            <View key={offset} style={{ width }}>
-              <MonthGridContent
-                month={monthForIdx(curMonthPage + offset)}
-                selectedDate={selectedDate}
-                markedDates={markedDates}
-                onSelectDate={onSelectDate}
-                onPrevMonth={snapToPrev}
-                onNextMonth={snapToNext}
-              />
-            </View>
-          ))}
-        </Animated.View>
-      )}
-    </View>
-  )
-}
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getWeekStart(date: Date): Date {
@@ -1110,14 +909,6 @@ function offsetDate(date: Date, days: number): Date {
   return d
 }
 
-function addMonths(month: string, n: number): string {
-  const [y, m] = month.split('-').map(Number)
-  const total = (m - 1) + n
-  const newY = y + Math.floor(total / 12)
-  const newM = ((total % 12) + 12) % 12 + 1
-  return `${newY}-${String(newM).padStart(2, '0')}`
-}
-
 function buildMarkedDates(events: EventWithDetails[], selectedDate: string) {
   const marks: Record<string, { marked?: boolean; dotColor?: string; selected?: boolean; selectedColor?: string; selectedDotColor?: string }> = {}
   for (const event of events) {
@@ -1136,27 +927,6 @@ function buildMarkedDates(events: EventWithDetails[], selectedDate: string) {
 }
 
 const feedStyles = StyleSheet.create({
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: theme.radius.full,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.card,
-  },
-  chipActive: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
-  },
-  chipLabel: {
-    fontFamily: theme.fonts.bodySemiBold,
-    fontSize: 12.5,
-    fontWeight: theme.font.weight.semibold,
-    color: theme.colors.subtext,
-  },
-  chipLabelActive: {
-    color: theme.colors.white,
-  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'baseline',
@@ -1171,14 +941,21 @@ const feedStyles = StyleSheet.create({
     color: theme.colors.text,
     letterSpacing: -0.3,
   },
-  sectionCount: {
-    // count shown as plain subtext inline
-  },
   sectionCountText: {
     fontFamily: theme.fonts.body,
     fontSize: 12,
     fontWeight: theme.font.weight.semibold,
     color: theme.colors.subtext,
+  },
+  /** Desktop right-rail section labels ("This week", "Next up"). */
+  railLabel: {
+    fontFamily: theme.fonts.body,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: theme.colors.subtext,
+    textTransform: 'uppercase',
+    marginBottom: 10,
   },
 })
 

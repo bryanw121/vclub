@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { EventWithDetails } from '../types'
+import type { EventCardPreviews, EventWithDetails } from '../types'
 
 type PreviewRow = {
   event_id: string
@@ -9,8 +9,6 @@ type PreviewRow = {
   last_name: string | null
   avatar_url: string | null
 }
-
-export type EventCardPreviews = Map<string, EventWithDetails['attendee_previews']>
 
 /**
  * Up to 3 attendee avatar previews per event via RPC (avoids unbounded

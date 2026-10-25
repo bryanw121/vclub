@@ -1,5 +1,6 @@
 import type { Profile, VolleyballPosition, VolleyballSkillLevel, EventAttendee, EventAttendeeCountEmbed, GooglePlacePrediction } from '../types'
 import { AVATARS_BUCKET, CLUB_AVATARS_BUCKET } from '../constants/storage'
+import { SKILL_LEVEL_LABELS } from '../constants/copy'
 
 export { confirmDestructive } from './confirm'
 
@@ -374,17 +375,8 @@ export function normalizeVolleyballSkillLevel(raw: unknown): VolleyballSkillLeve
   return null
 }
 
-const SKILL_LEVEL_LABELS: Record<VolleyballSkillLevel, string> = {
-  d:       'D',
-  c:       'C',
-  b:       'B',
-  bb:      'BB',
-  a:       'A',
-  aa_plus: 'AA+',
-}
-
 export function volleyballSkillLevelLabel(level: VolleyballSkillLevel): string {
-  return SKILL_LEVEL_LABELS[level]
+  return SKILL_LEVEL_LABELS[level] ?? level
 }
 
 /** `profiles.avatar_url` may hold a legacy full HTTP URL or a storage object path. */

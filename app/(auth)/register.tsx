@@ -8,6 +8,7 @@ import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
 import { GoogleLogo } from '../../components/GoogleLogo'
 import { shared, theme } from '../../constants'
+import { routes, toRoute } from '../../utils/routes'
 import { takeGuestReturnPath } from '../../utils/authGate'
 
 export default function Register() {
@@ -76,7 +77,7 @@ export default function Register() {
 
       if (error) {
         const msg = error.message.toLowerCase()
-        if (msg.includes('already') || msg.includes('registered') || (error as any).code === 'user_already_exists') {
+        if (msg.includes('already') || msg.includes('registered') || error.code === 'user_already_exists') {
           setErrors({ email: 'An account with this email already exists' })
         } else {
           setErrors({ password: error.message })
@@ -99,19 +100,19 @@ export default function Register() {
       }
 
       Alert.alert('Success', 'Account created!')
-      router.replace('/(auth)/login')
+      router.replace(routes.login())
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <LinearGradient colors={['#4FC3F7', '#7C4DFF', '#E040FB']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={shared.authBackground}>
+    <LinearGradient colors={theme.gradients.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={shared.authBackground}>
       <View style={shared.authCard}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <Text style={shared.authTitle}>vclub</Text>
           <View style={{ backgroundColor: 'rgba(124,77,255,0.15)', borderWidth: 1, borderColor: 'rgba(124,77,255,0.4)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 2 }}>
-            <Text style={{ fontSize: 10, fontWeight: '700', color: '#7C4DFF', letterSpacing: 1 }}>BETA</Text>
+            <Text style={{ fontSize: 10, fontWeight: '700', color: theme.colors.primary, letterSpacing: 1 }}>BETA</Text>
           </View>
         </View>
         <Text style={shared.authSubtitle}>create your account</Text>
@@ -217,10 +218,10 @@ export default function Register() {
         />
 
         <Button label="Create account" onPress={handleRegister} loading={loading} disabled={!firstName || !lastName || !username || !email || !password} />
-        <TouchableOpacity style={shared.authLink} onPress={() => router.push('/(auth)/login')}>
+        <TouchableOpacity style={shared.authLink} onPress={() => router.push(routes.login())}>
           <Text style={shared.authLinkText}>already have an account? sign in</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={shared.authLink} onPress={() => router.replace(takeGuestReturnPath() as any)} testID="continue-as-guest">
+        <TouchableOpacity style={shared.authLink} onPress={() => router.replace(toRoute(takeGuestReturnPath()))} testID="continue-as-guest">
           <Text style={shared.authLinkSubtle}>Keep browsing without an account</Text>
         </TouchableOpacity>
       </View>

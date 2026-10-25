@@ -86,60 +86,85 @@ A volleyball club app. Members find and join open play sessions and tournaments,
 
 ## Project Layout
 ```
-app/
-  _layout.tsx              # Root: auth redirect logic
-  (auth)/                  # login.tsx, register.tsx
+app/                         # Expo Router routes (screens compose hooks + components)
+  _layout.tsx                # Root: providers, auth redirect (guest gate via utils/authGate)
+  +html.tsx                  # Web document shell
+  (auth)/                    # login, register, reset-password
   (app)/
-    _layout.tsx            # Stack navigator
+    _layout.tsx              # Stack + desktop-web sidebar (derives from constants/navigation)
     (tabs)/
-      _layout.tsx          # Custom tab bar + Pager
-      index.tsx            # Events screen (calendar + list)
-      create.tsx           # Create event form
-      profile/index.tsx    # User profile + sign out
-    event/[id].tsx         # Event detail, join/leave/delete
-components/                # Reusable UI (Button, Input, EventCard, Pager, DatePickerField)
-contexts/tabs.ts           # TabsContext — exposes goToTab()
-hooks/                     # useMonthEvents, useNotifications, useRequireSignIn, ...
-contexts/session.tsx       # SessionProvider / useSession() — the one auth listener
-lib/supabase.ts            # Supabase client
-types/index.ts             # All TypeScript types (single source of truth)
-constants/                 # theme.ts (design tokens), styles.ts (shared StyleSheet)
-utils/index.ts             # Date helpers (cleanDate, formatEventDate)
+      _layout.tsx            # Mobile bottom tab bar + create menu
+      (main)/
+        _layout.tsx          # Pager hosting the four tabs (swipe on native + web)
+        index.tsx            # Events tab (calendar + feed)
+        profile/index.tsx    # Profile tab
+      clubs.tsx              # Clubs tab
+      chat.tsx               # Chat tab (conversation list)
+      settings/              # account, hosted, history, cheers, silenced, notifications, feedback, badges
+    event/[id].tsx           # Event detail
+    club/[id].tsx, club/create.tsx
+    chat/[id].tsx            # Conversation
+    profile/[id].tsx         # Another user's profile
+    tournament/[id].tsx, tournament/create.tsx
+    host.tsx                 # Create / edit event, templates
+    notifications.tsx
+components/
+  ui/                        # Design-system primitives (see "UI primitives")
+  event/ events/ host/ profile/ tournament/   # Feature components for those screens
+  (top level)                # Shared widgets: Button, Input, EventCard, Pager, Toast, MessageBubble, ...
+hooks/
+  event/                     # useEventData, useEventAttendance, useEventComments, ... (keys.ts, derive.ts)
+  tournament/                # api.ts + useTournamentData / useTournamentActions
+  (top level)                # One hook per concern: useMyProfile, useMonthEvents, useConversations, useMessages, ...
+lib/
+  query.ts                   # useQuery / useMutation / invalidate / setQueryData (module-level cache)
+  realtime.ts                # useRealtimeChannel (ref-counted channel registry)
+  supabase.ts                # createClient (the only client)
+  env.ts, sentry.ts, sessionUser.ts, ...
+contexts/                    # session.tsx (the one auth listener), tabs.ts (pager/shell state), webNav.ts
+constants/
+  theme.ts                   # Design tokens (colors, gradients, spacing, font, radius, shadow)
+  styles.ts                  # Shared StyleSheet (`shared.*`)
+  navigation.ts              # TABS, CREATE_MENU, tab helpers: the only definition of the tab bar
+  layout.ts                  # BREAKPOINTS
+  cache.ts                   # STALE windows
+  selects.ts                 # PostgREST select fragments
+  copy.ts, tournamentCopy.ts # User-facing strings and labels
+  index.ts                   # Barrel: import { theme, shared, STALE, ... } from constants
+types/
+  database.ts                # GENERATED from the live schema: do not edit by hand
+  index.ts                   # App types derived from it
+utils/
+  routes.ts                  # routes.* builders, isAppPath, toRoute
+  authGate.ts                # Which paths need an account; post-sign-in redirect
+  index.ts                   # Date and formatting helpers (cleanDate, formatEventDate, ...)
+e2e/, __tests__/, supabase/ (functions + migrations), scripts/, docs/
 ```
 
 ## Database Schema
-Three tables currently in Supabase:
+The schema lives in Supabase; `types/database.ts` is generated from it
+(`supabase gen types`) and is the source of truth for tables, columns, views and RPC
+signatures. Regenerate it after every schema change; never hand-edit it. Key domain tables:
 
-**profiles** — auto-created by DB trigger on auth signup
-- `id` UUID PK (matches auth.users.id)
-- `username` text unique
-- `avatar_url` text | null
-- `created_at` timestamp
+- **profiles**: one row per user (auto-created on signup); public columns are in `PROFILE_BRIEF_SELECT`
+- **events** / **event_attendees** (and the `event_attendees_attending` / `_waitlisted` views) / **event_guests** / **event_cohosts** / **event_comments** / **event_tags** + **tags**
+- **user_event_templates**: saved host templates
+- **external_sessions**: sessions from other Austin venues (read-only here)
+- **clubs** / **club_members** / **club_posts** (+ comments, likes)
+- **conversations** / **conversation_members** / **messages** / **message_reactions** / **chat_silences**
+- **tournaments** and its children (`tournament_teams`, `_team_members`, `_matches`, `_pools`, `_rules`, `_prizes`, invitations, join requests, comments)
+- **cheers**, **user_badges**, **notifications**, **push_tokens**, **feedback_submissions**
 
-**events**
-- `id` UUID PK
-- `created_by` UUID → profiles.id
-- `title`, `description`, `location` text
-- `event_date` timestamp
-- `max_attendees` int | null (null = unlimited)
-- `created_at` timestamp
-
-**event_attendees** (join table)
-- `event_id` UUID → events.id
-- `user_id` UUID → profiles.id
-- `joined_at` timestamp
-
-**Custom RPC**: `get_email_by_user_id(user_id UUID)` — used for username-based login.
-
-*Upcoming tables to add: `teams`, `team_members`, `kudos`, `trophies`, `tournament_brackets`, `notifications`, `feedback_submissions`*
+Custom RPCs include `get_email_by_username` (username login), `get_my_conversations`,
+`get_event_card_attendee_previews`, `mark_conversation_read`, `mark_notification_read`.
 
 ## Key Architectural Decisions
 
 ### No third-party state management
-Only React hooks (`useState`, `useRef`, `useContext`). Global state lives in context (`SessionProvider` for auth, `TabsContext`) and hooks (`useMonthEvents`).
+Only React hooks (`useState`, `useRef`, `useContext`). Server state lives in `lib/query` (module-level cache behind `useQuery`/`useMutation`); global UI state lives in context (`SessionProvider` for auth, `TabsShellContext`/`TabsActiveContext` for the pager).
 
 ### Custom tab navigation
-`(tabs)/_layout.tsx` does NOT use Expo Router's built-in `<Tabs>`. Instead: custom `<Pager>` component + custom bottom bar. This enables swipe animations that work on web too. `TabsContext` lets child screens call `goToTab(index)` without circular imports.
+The app does NOT use Expo Router's built-in `<Tabs>`. Instead: a custom `<Pager>` (`(tabs)/(main)/_layout.tsx`) + a custom bottom bar (`(tabs)/_layout.tsx`) on mobile and a sidebar (`(app)/_layout.tsx`) on wide web. This enables swipe animations that work on web too. All three derive from `TABS` / `CREATE_MENU` in `constants/navigation.ts`: add, reorder or rename a tab there and nowhere else. `useTabsShell()` (`contexts/tabs.ts`) lets child screens call `goToTab(index)` without circular imports; use `useTabsActive()` only where the active index is needed (it re-renders on every switch).
 
 ### Cross-platform components use `.web.tsx`
 `DatePickerField.tsx` = native (`@react-native-community/datetimepicker`).
@@ -160,16 +185,17 @@ Nobody has to sign in to look around. Guests see Events, Clubs, event pages, clu
 `external_sessions` holds sessions other venues and groups run (Volleyworld, ACES, ATX Beach, Reclub meets...). The Volley ATX repo (`bryanw121/volleyball-atx`, `scripts/sync-vclub.mjs`) upserts it after each nightly scrape with the service role; vclub only reads it (anon SELECT policy). `useMonthEvents` fetches it with events/tournaments and `utils/feedItems.ts` normalizes rows into `EventWithDetails` with `_external` set; the feed renders those with `ExternalSessionCard`, which links out to the venue's sign-up (no RSVP). They show under All and the "Around Austin" chip, never under Mine or Not Full.
 
 ### Login accepts email or username
-If the login field doesn't look like an email, `login.tsx` queries `profiles` for that username, calls the `get_email_by_user_id` RPC, then signs in with the resolved email.
+If the login field doesn't look like an email, `login.tsx` calls the `get_email_by_username` RPC, then signs in with the resolved email.
 
 ## Code Conventions
 
 - **Functional components only**, explicitly typed `type Props = { ... }`
-- **Types all live in `types/index.ts`** — add new types there, never inline in components
+- **Types live in `types/`**, never inline in components. `types/database.ts` is generated; app-level types are derived from it in `types/index.ts` (or a sibling file there)
 - **Shared styles in `constants/styles.ts`** via a single `StyleSheet.create` — reference as `shared.xyz`. Add new shared styles there rather than inline
 - **Design tokens in `constants/theme.ts`** (`theme.colors`, `theme.spacing`, `theme.font`, `theme.radius`) — never hardcode colors or font sizes
 - **File names**: components PascalCase, hooks/utils camelCase, routes lowercase
-- **One hook per concern**: `useSession` for the signed-in user, `useMonthEvents` for the event feed. If a screen needs more fetching, do it locally in the component
+- **One hook per concern**, built on `lib/query`: `useSession` for the signed-in user, `useMyProfile`, `useMonthEvents` for the event feed, `hooks/event/*` for event detail. A new read gets a hook (or a `useQuery` in the screen if it is used once); new code never calls `supabase.from()` for reads inside effects (older settings/history, settings/hosted and profile/[id] still do; migrate them when you touch them)
+- **Values come from constants**: colors/gradients from `theme` (including `theme.colors.white` / `black`, `medal*`, `theme.gradients.brand`), breakpoints from `BREAKPOINTS`, route strings from `routes.*`, user-facing strings shared by 2+ places from `constants/copy.ts` (`GENERIC_ERROR_MESSAGE`, `NETWORK_ERROR_MESSAGE`, `SKILL_LEVEL_LABELS`)
 - **Dates**: always use `cleanDate(date: Date)` from `utils/` to convert to ISO string before inserting into Supabase
 - **Keep it simple**: don't abstract until there are at least 3 real use cases. Prefer a few extra lines of clear code over a premature helper
 
@@ -186,24 +212,46 @@ npx expo start          # opens Expo dev tools
 npx expo start --web    # test web experience directly
 ```
 
+## UI primitives
+Use `components/ui` (import from `components/ui`) before hand-rolling UI:
+- `ScreenHeader` for page headers and back rows (no hand-built headers)
+- `Chip` for pill filters (`solid` or `tint` variant)
+- `IconButton` for square icon buttons (38pt default, 44 where touch targets matter)
+- `ScreenState` decides loading / error / empty / content for a data screen; `EmptyState` is the empty block
+- `ConfirmDialog` for confirm/cancel prompts; `BottomSheet` for slide-up sheets (no inline `Modal`s)
+- `ScreenContainer` centers content on wide desktop web
+
+## Routes
+Always navigate with `routes.*` from `utils/routes.ts`: `router.push(routes.event(id))`, `routes.profileOf(id)`, `routes.eventFrom(id, from)`, `routes.host({ edit })`, `routes.settings('account')`, `routes.app()`. Never build `/event/${id}` strings or cast to `any` in screens. A path that arrives at runtime (notification deep link, `?from=`, post-sign-in redirect) must pass `isAppPath(path)` before `router.push(toRoute(path))`. Add a new route as a builder in `routes.ts` (and, if account-only, in `utils/authGate.ts`; if dynamic, in `public/serve.json`).
+
 ## Common Patterns
 
 ### Fetching data in a component
 ```typescript
-const [data, setData] = useState<Foo | null>(null)
-const [loading, setLoading] = useState(true)
-useEffect(() => { fetchData() }, [])
-async function fetchData() { ... setLoading(false) }
+const { data, isLoading, error, refetch } = useQuery(
+  queryKey('foo', id),
+  async () => {
+    const { data, error } = await supabase.from('foos').select(FOO_SELECT).eq('id', id).single()
+    if (error) throw error
+    return data
+  },
+  { staleMs: STALE.detail },
+)
+// <ScreenState loading={isLoading} error={error ? "Could not load foo." : null} ready={!!data} onRetry={() => void refetch({ force: true })}> ... </ScreenState>
 ```
+Cached by key across unmounts; a failed refetch keeps `data` and sets `error`. See "Database / Data Fetching" for mutations and realtime.
 
 ### Navigating tabs programmatically
 ```typescript
-const { goToTab } = useTabsContext()
-goToTab(0) // 0=Events, 1=Create, 2=Profile
+import { TABS, tabIndexOf } from '../constants/navigation'
+router.replace(TABS[tabIndexOf('clubs')].path)      // route-level
+const { goToTab } = useTabsShell()
+goToTab(tabIndexOf('chat'))                          // inside the pager
 ```
+Never hard-code tab indexes; use `TABS`, `tabIndexOf`, or the `*_TAB_INDEX` constants.
 
 ### Adding a new screen
-Drop a file in `app/(app)/` — Expo Router picks it up automatically. Use `useRouter().push('/path')` or `<Link href="/path">` to navigate.
+Drop a file in `app/(app)/` (Expo Router picks it up), add a `routes.*` builder, and navigate with `router.push(routes.thing())` or `<Link href={routes.thing()}>`.
 
 ### Adding a new shared style
 Add to `constants/styles.ts` inside the existing `StyleSheet.create({})` call, then reference as `shared.newStyle`.
@@ -226,7 +274,6 @@ Test each surface mentally when building. If a component behaves differently acr
   - Reads: `useQuery(queryKey('event', id), fetcher, { staleMs: STALE.x })` (`STALE` windows live in `constants/cache.ts`) — module-level cache, deduped, survives unmount; a failed refetch keeps `data` and sets `error`. Add `useFocusRefetch(key)` to refetch on focus/foreground only when stale. `refetch({ force: true })` only for explicit user actions (pull-to-refresh).
   - Writes: `useMutation(fn, { onMutate, invalidates })` — `fn` must throw on a Supabase `{ error }`; optimistic changes go through `setQueryData` and return a rollback from `onMutate`. Outside a mutation, call `invalidate(prefix)` after a write.
   - Realtime: `useRealtimeChannel(topic, bindings, { onReconnect })`, never `supabase.channel()` directly. Subscribers sharing a topic must pass identical bindings; otherwise use a distinct topic.
-  - `lib/dataVersion` is a deprecated shim (`bumpVersion` → `invalidate`) until Phase B migrates its readers.
 - **Fetch on demand**: don't pre-fetch data for tabs or screens the user hasn't opened yet. Fetch when the tab becomes active (`useFocusEffect` or an `activeTab` effect).
 - **Avoid N+1 patterns**: if you're iterating over a list and fetching per-item, restructure to a single `IN (...)` query or an embedded join instead.
 - **Count with PostgREST**: use `select('id', { count: 'exact', head: true })` for counts — don't fetch full rows just to call `.length`.
@@ -245,6 +292,8 @@ Test each surface mentally when building. If a component behaves differently acr
 ### Schema migrations
 Schema changes are usually applied directly via the Supabase MCP (`apply_migration`). Note: the migration files in `supabase/migrations/` are NOT in sync with the applied migration history — if a separate prod project is ever created, baseline it from `supabase db dump` of the live schema rather than replaying the migration files.
 
+`types/database.ts` is generated from the live schema: after any schema change, regenerate it with `npx supabase gen types typescript --project-id rmelsdqgrpfjzqisycdl > types/database.ts` (or the Supabase MCP `generate_typescript_types`) and commit it with the change. Never hand-edit it; row types in `types/index.ts` derive from it.
+
 ### Not captured by migrations (manual setup if replicating the project)
 - Storage bucket creation
 - Auth settings (email templates, OAuth providers)
@@ -252,8 +301,9 @@ Schema changes are usually applied directly via the Supabase MCP (`apply_migrati
 
 ## Things to Avoid
 - Don't use `react-native-pager-view` — it's native-only. The custom `Pager` component is the cross-platform replacement.
-- Don't hardcode colors/spacing — always use `theme.*`
+- Don't hardcode colors/spacing — always use `theme.*` (no hex or `rgba(...)` literals for colors that have a token)
+- Don't write route strings or `router.push(... as any)` — use `routes.*`
 - Don't put types inline in component files — add them to `types/index.ts`
 - Don't use capture-phase PanResponder (`onMoveShouldSetPanResponderCapture`) for inner gesture handlers inside the tab Pager — use bubble phase so inner handlers win
-- Don't add navigation logic inside reusable components — pass callbacks as props or use `useTabsContext`
+- Don't add navigation logic inside reusable components — pass callbacks as props or use `useTabsShell`
 - Don't hardcode the feedback email address — store it in a config constant

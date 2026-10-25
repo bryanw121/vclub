@@ -30,7 +30,7 @@ export function ScreenState({
       <View style={shared.screenStateCenter} testID="screen-state-error">
         <Ionicons name="cloud-offline-outline" size={36} color={theme.colors.border} />
         <Text style={[shared.caption, shared.emptyStateBody]}>{typeof error === 'string' ? error : GENERIC_ERROR}</Text>
-        {onRetry && <Button label="Retry" variant="secondary" size="sm" fullWidth={false} onPress={onRetry} />}
+        {onRetry && <Button label="Retry" variant="secondary" size="sm" fullWidth={false} style={{ alignSelf: 'center' }} onPress={onRetry} />}
       </View>
     )
   }

@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { getSessionUser } from '../lib/sessionUser'
 import { useSession } from '../contexts/session'
+import { STALE } from '../constants'
 import type { Notification } from '../types'
-
-const STALE_MS = 45_000
 
 const NOTIFICATION_SELECT =
   'id, user_id, notification_type, title, body, data, read_at, created_at'
@@ -23,10 +21,12 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
   const lastFetchedAt = useRef(0)
   // Refetch when the signed-in user changes (guest → signed in, or sign out).
   const { userId } = useSession()
+  // Callbacks read the latest id without changing identity on every sign-in.
+  const userIdRef = useRef(userId)
+  userIdRef.current = userId
 
   const fetchUnreadCount = useCallback(async () => {
-    const user = await getSessionUser()
-    if (!user) {
+    if (!userIdRef.current) {
       setUnreadCount(0)
       return
     }
@@ -39,9 +39,8 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
   }, [])
 
   const fetchList = useCallback(async (force = false) => {
-    if (!force && Date.now() - lastFetchedAt.current < STALE_MS) return
-    const user = await getSessionUser()
-    if (!user) {
+    if (!force && Date.now() - lastFetchedAt.current < STALE.notifications) return
+    if (!userIdRef.current) {
       setNotifications([])
       setUnreadCount(0)
       setLoading(false)

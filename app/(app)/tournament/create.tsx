@@ -1,15 +1,17 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native'
 import { useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
-import { getSessionUser } from '../../../lib/sessionUser'
-import { theme, shared } from '../../../constants'
+import { useSession } from '../../../contexts/session'
+import { theme, shared, SKILL_LEVEL_LABELS } from '../../../constants'
+import { routes } from '../../../utils/routes'
 import { DatePickerField } from '../../../components/DatePickerField'
+import { notifyError, notifyInfo } from '../../../utils/notify'
 import type { TournamentDraft, TournamentFormat, TournamentBracketType, Club } from '../../../types'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -66,7 +68,7 @@ function StepIndicator({ current }: { current: number }) {
               }}>
                 {done
                   ? <Ionicons name="checkmark" size={14} color={theme.colors.primary} />
-                  : <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: active ? '#fff' : theme.colors.subtext }}>{i + 1}</Text>
+                  : <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: active ? theme.colors.onPrimary : theme.colors.subtext }}>{i + 1}</Text>
                 }
               </View>
               <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, color: active ? theme.colors.primary : theme.colors.subtext, letterSpacing: 0.3 }}>
@@ -177,7 +179,7 @@ function Toggle({ value, onChange, label, sub }: { value: boolean; onChange: (v:
         justifyContent: 'center', paddingHorizontal: 3,
       }}>
         <View style={{
-          width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff',
+          width: 20, height: 20, borderRadius: 10, backgroundColor: theme.colors.white,
           transform: [{ translateX: value ? 18 : 0 }],
         }} />
       </View>
@@ -233,15 +235,7 @@ function StepBasicInfo({ draft, update, clubs }: {
 
       <SectionLabel icon="stats-chart-outline" label="Skill Level" />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-        {([
-          { id: 'd',      label: 'D'    },
-          { id: 'c',      label: 'C'    },
-          { id: 'b',      label: 'B'    },
-          { id: 'bb',     label: 'BB'   },
-          { id: 'a',      label: 'A'    },
-          { id: 'aa_plus',label: 'AA+'  },
-          { id: 'open',   label: 'Open' },
-        ] as const).map(opt => {
+        {Object.entries(SKILL_LEVEL_LABELS).map(([id, label]) => ({ id: id as (typeof draft.skillLevels)[number], label })).map(opt => {
           const active = draft.skillLevels.includes(opt.id)
           return (
             <TouchableOpacity
@@ -580,7 +574,7 @@ function StepPreview({ draft, clubs, onSaveDraft, onPublish, saving }: {
             </Text>
           </View>
         </View>
-        <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 24, letterSpacing: -0.6, color: '#fff', lineHeight: 28 }}>
+        <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 24, letterSpacing: -0.6, color: theme.colors.onPrimary, lineHeight: 28 }}>
           {draft.title || 'Untitled Tournament'}
         </Text>
         {draft.location ? (
@@ -631,8 +625,8 @@ function StepPreview({ draft, clubs, onSaveDraft, onPublish, saving }: {
           style={{ backgroundColor: theme.colors.primary, borderRadius: 14, padding: 16, alignItems: 'center' }}
         >
           {saving
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 15, color: '#fff' }}>Publish Tournament</Text>
+            ? <ActivityIndicator color={theme.colors.onPrimary} />
+            : <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 15, color: theme.colors.onPrimary }}>Publish Tournament</Text>
           }
         </TouchableOpacity>
         <TouchableOpacity
@@ -666,15 +660,12 @@ function validateStep(step: number, draft: TournamentDraft): string | null {
 
 // ─── Save helpers ─────────────────────────────────────────────────────────────
 
-async function saveTournament(draft: TournamentDraft, status: 'draft' | 'published'): Promise<string> {
-  const user = await getSessionUser()
-  if (!user) throw new Error('Not authenticated')
-
+async function saveTournament(draft: TournamentDraft, status: 'draft' | 'published', userId: string): Promise<string> {
   const { data: t, error: tErr } = await supabase
     .from('tournaments')
     .insert({
       club_id:                draft.clubId,
-      created_by:             user.id,
+      created_by:             userId,
       title:                  draft.title.trim(),
       description:            draft.description.trim() || null,
       location:               draft.location.trim() || null,
@@ -710,7 +701,11 @@ async function saveTournament(draft: TournamentDraft, status: 'draft' | 'publish
       sets_to_win:         draft.setsToWin,
     })
 
-  if (rErr) throw rErr
+  if (rErr) {
+    // A tournament without rules renders a half-empty page; undo the insert (best effort) and report the real error.
+    await supabase.from('tournaments').delete().eq('id', t.id)
+    throw rErr
+  }
   return t.id
 }
 
@@ -719,6 +714,7 @@ async function saveTournament(draft: TournamentDraft, status: 'draft' | 'publish
 export default function TournamentCreateScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const { userId } = useSession()
 
   const [step, setStep]     = useState(0)
   const [draft, setDraft]   = useState<TournamentDraft>(DEFAULT_DRAFT)
@@ -731,39 +727,40 @@ export default function TournamentCreateScreen() {
 
   useEffect(() => {
     async function loadClubs() {
-      const user = await getSessionUser()
-      if (!user) return
-      const { data } = await supabase
+      if (!userId) return
+      const { data, error } = await supabase
         .from('club_members')
         .select('clubs (id, name, description, membership_type, created_by, avatar_url, cover_url, major_city_id, created_at)')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
+      if (error) { notifyInfo('Could not load your clubs', error.message); return }
       const fetched = (data ?? []).map((r: any) => r.clubs).filter(Boolean) as Club[]
       setClubs(fetched)
       if (fetched.length === 1) update({ clubId: fetched[0].id })
     }
     void loadClubs()
-  }, [update])
+  }, [update, userId])
 
   function goNext() {
     const err = validateStep(step, draft)
-    if (err) { Alert.alert('Missing info', err); return }
+    if (err) { notifyInfo('Missing info', err); return }
     setStep(s => Math.min(s + 1, TOTAL_STEPS - 1))
   }
 
   function goBack() {
-    if (step === 0) { router.canGoBack() ? router.back() : router.replace('/(app)' as any); return }
+    if (step === 0) { router.canGoBack() ? router.back() : router.replace(routes.app()); return }
     setStep(s => s - 1)
   }
 
   async function handleSave(status: 'draft' | 'published') {
     const err = validateStep(step, draft)
-    if (err) { Alert.alert('Missing info', err); return }
+    if (err) { notifyInfo('Missing info', err); return }
+    if (!userId) { notifyInfo('Sign in required', 'Sign in to create a tournament.'); return }
     setSaving(true)
     try {
-      const id = await saveTournament(draft, status)
-      router.replace(`/tournament/${id}` as any)
+      const id = await saveTournament(draft, status, userId)
+      router.replace(routes.tournament(id))
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Something went wrong. Please try again.')
+      notifyError('Could not save tournament', e)
     } finally {
       setSaving(false)
     }
@@ -831,7 +828,7 @@ export default function TournamentCreateScreen() {
             onPress={goNext}
             style={{ flex: 2, padding: 14, borderRadius: 14, backgroundColor: theme.colors.primary, alignItems: 'center' }}
           >
-            <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 15, color: '#fff' }}>Continue</Text>
+            <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 15, color: theme.colors.onPrimary }}>Continue</Text>
           </TouchableOpacity>
         </View>
       )}

@@ -185,28 +185,24 @@ function constrainedValues() {
     .join('\n')
 }
 
-function fingerprint(files) {
-  const hash = createHash('sha256')
-  for (const path of files.sort()) {
-    hash.update(path)
-    hash.update('\0')
-    hash.update(readFileSync(join(ROOT, path)))
-    hash.update('\0')
-  }
-  return hash.digest('hex').slice(0, 12)
+/**
+ * Line numbers in source links shift on almost every edit and say nothing about
+ * the contract, so they are ignored when fingerprinting and when checking.
+ */
+function withoutLineNumbers(text) {
+  return text.replace(/#L\d+/g, '#L').replace(/(\.(?:tsx?|sql)):\d+`/g, '$1`')
+}
+
+const FINGERPRINT_LINE = /^> Inventory fingerprint: `[0-9a-f]*`$/m
+
+/** Hash of the rendered inventory (tables, RPCs, buckets, enums, ...), not of the source files behind it. */
+function fingerprint(renderedBody) {
+  return createHash('sha256').update(withoutLineNumbers(renderedBody)).digest('hex').slice(0, 12)
 }
 
 function buildGeneratedSection() {
   const callFiles = [...new Set(CALL_DIRS.flatMap(walk))].filter(path => /\.(?:ts|tsx)$/.test(path)).sort()
   const sqlFiles = walk('supabase/migrations')
-  const contractFiles = [
-    ...new Set([
-      ...CONTRACT_DIRS.flatMap(walk),
-      ...['app.json', 'eas.json', 'package.json', 'vercel.json'].filter(path => existsSync(join(ROOT, path))),
-      'scripts/generate-architecture-doc.mjs',
-    ]),
-  ].sort()
-
   const tables = collect(/\.from\(\s*(['"])([^'"]+)\1\s*\)/g, callFiles)
   const rpcs = collect(/\.rpc\(\s*(['"])([^'"]+)\1/g, callFiles)
   const edgeFunctions = collect(/\.functions\.invoke\(\s*(['"])([^'"]+)\1/g, callFiles)
@@ -219,13 +215,13 @@ function buildGeneratedSection() {
     definitions.has(name) ? displaySites(definitions.get(name)) : 'Not checked in',
   ]
 
-  return `${BEGIN}
+  const body = `
 ## Generated code inventory
 
 > Do not edit this section by hand. Run \`npm run docs:update\` and commit the
 > result. CI runs \`npm run docs:check\` and blocks a merge if it is stale.
 >
-> Contract source fingerprint: \`${fingerprint(contractFiles)}\`
+> Inventory fingerprint: \`\`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -275,7 +271,9 @@ TypeScript \`enum\` keyword.
 | Type or field | Values | Source |
 |---|---|---|
 ${constrainedValues()}
-${END}`
+`
+
+  return `${BEGIN}${body.replace(FINGERPRINT_LINE, `> Inventory fingerprint: \`${fingerprint(body)}\``)}${END}`
 }
 
 const current = readFileSync(DOC_PATH, 'utf8')
@@ -290,7 +288,8 @@ const generated = buildGeneratedSection()
 const expected = `${current.slice(0, start)}${generated}${current.slice(finish + END.length)}`
 
 if (process.argv.includes('--check')) {
-  if (expected !== current) {
+  // Compare the rendered inventory, ignoring source line numbers, so unrelated edits do not fail CI.
+  if (withoutLineNumbers(expected) !== withoutLineNumbers(current)) {
     console.error('Architecture documentation is stale. Run: npm run docs:update')
     process.exit(1)
   }

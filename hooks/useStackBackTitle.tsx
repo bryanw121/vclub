@@ -2,6 +2,7 @@ import React, { useLayoutEffect } from 'react'
 import { HeaderBackButton, type HeaderBackButtonProps } from '@react-navigation/elements'
 import { useNavigation, useRouter } from 'expo-router'
 import { theme } from '../constants/theme'
+import { routes } from '../utils/routes'
 
 /**
  * Settings routes render under `settings/_layout` → `<Slot />`, which uses an inner
@@ -31,7 +32,7 @@ export function useStackBackTitle(screenTitle: string) {
             if (router.canGoBack()) {
               router.back()
             } else {
-              router.replace('/profile')
+              router.replace(routes.profile())
             }
           }}
         />

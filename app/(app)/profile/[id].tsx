@@ -10,10 +10,11 @@ import { BadgeIcon } from '../../../components/BadgeIcon'
 import { ProfileAvatar } from '../../../components/ProfileAvatar'
 import { Toast } from '../../../components/Toast'
 import { BADGE_DEFINITIONS } from '../../../constants/badges'
+import { normalizeProfileRow, PROFILE_BRIEF_SELECT } from '../../../hooks/useMyProfile'
+import { routes } from '../../../utils/routes'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
 import {
   resolveProfileAvatarUriWithError,
-  normalizeVolleyballSkillLevel,
   volleyballSkillLevelLabel,
   profileFullName,
   confirmDestructive,
@@ -49,7 +50,7 @@ export default function UserProfileDetail() {
     if (!opts?.silent) setLoading(true)
     try {
       const [profileRes, cheersRes, badgesRes] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', id).single(),
+        supabase.from('profiles').select(PROFILE_BRIEF_SELECT).eq('id', id).single(),
         supabase.from('cheers').select('id', { count: 'exact', head: true }).eq('receiver_id', id),
         supabase.from('user_badges')
           .select('id, user_id, badge_type, tier, awarded_at, display_order, display_tier')
@@ -59,8 +60,7 @@ export default function UserProfileDetail() {
       ])
 
       if (!profileRes.error && profileRes.data) {
-        const raw = profileRes.data as Profile
-        const p = { ...raw, skill_level: normalizeVolleyballSkillLevel((raw as any).skill_level) }
+        const p = normalizeProfileRow(profileRes.data as Partial<Profile>)
         setProfile(p)
         if (p.avatar_url) {
           const { uri } = await resolveProfileAvatarUriWithError(p.avatar_url)
@@ -95,7 +95,7 @@ export default function UserProfileDetail() {
 
   function goBack() {
     if (router.canGoBack()) router.back()
-    else router.replace('/(app)/(tabs)')
+    else router.replace(routes.events())
   }
 
   function showToast(message: string, variant: 'error' | 'success' | 'info' = 'info') {
@@ -104,7 +104,7 @@ export default function UserProfileDetail() {
 
   async function openDM() {
     const { data: convId } = await supabase.rpc('find_or_create_dm', { other_user_id: id })
-    if (convId) router.push(`/chat/${convId}` as any)
+    if (convId) router.push(routes.conversation(convId))
   }
 
   const isSilenced = silencedUserIds.has(id)
@@ -218,7 +218,7 @@ export default function UserProfileDetail() {
                 <Text style={{
                   fontFamily: theme.fonts.display,
                   fontSize: 22, letterSpacing: -0.5,
-                  color: '#FFFFFF', lineHeight: 24,
+                  color: theme.colors.white, lineHeight: 24,
                 }}>
                   {displayName}
                 </Text>
@@ -267,11 +267,11 @@ export default function UserProfileDetail() {
                 <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>Skill</Text>
               </View>
               <View style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center' }}>
-                <Text style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: '#FFFFFF' }}>{totalCheers}</Text>
+                <Text style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: theme.colors.white }}>{totalCheers}</Text>
                 <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>Cheers</Text>
               </View>
               <View style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center' }}>
-                <Text style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: '#FFFFFF' }}>0</Text>
+                <Text style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -1, color: theme.colors.white }}>0</Text>
                 <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 1 }}>Trophies</Text>
               </View>
             </View>
@@ -301,9 +301,9 @@ export default function UserProfileDetail() {
             }}>Trophy case</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {([
-                { place: '1', color: '#FFD54F', label: '1st place' },
-                { place: '2', color: '#B0BEC5', label: '2nd place' },
-                { place: '3', color: '#D7A86E', label: '3rd place' },
+                { place: '1', color: theme.colors.medalGold, label: '1st place' },
+                { place: '2', color: theme.colors.medalSilver, label: '2nd place' },
+                { place: '3', color: theme.colors.medalBronze, label: '3rd place' },
               ] as const).map(t => (
                 <View key={t.place} style={{
                   flex: 1, backgroundColor: theme.colors.card,
@@ -316,7 +316,7 @@ export default function UserProfileDetail() {
                     backgroundColor: t.color,
                     alignItems: 'center', justifyContent: 'center', marginBottom: 6,
                   }}>
-                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 18, color: '#1A1A1A' }}>{t.place}</Text>
+                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 18, color: theme.colors.background }}>{t.place}</Text>
                   </View>
                   <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: 10.5, color: theme.colors.text, letterSpacing: 0.2 }}>{t.label}</Text>
                   <Text style={{ fontFamily: theme.fonts.body, fontSize: 9.5, color: theme.colors.subtext, marginTop: 1 }}>—</Text>

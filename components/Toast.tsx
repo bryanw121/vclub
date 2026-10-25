@@ -69,7 +69,7 @@ export function Toast({ message, variant = 'error', visible, onHide, duration = 
         paddingVertical: theme.spacing.sm + 2,
         ...Platform.select({
           ios: {
-            shadowColor: '#000',
+            shadowColor: theme.colors.black,
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.1,
             shadowRadius: 12,

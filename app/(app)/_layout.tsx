@@ -163,7 +163,7 @@ function AppLayoutInner() {
                         alignItems: 'center', justifyContent: 'center',
                         paddingHorizontal: 3,
                       }}>
-                        <Text style={{ fontSize: 8, fontWeight: '800', color: '#fff', lineHeight: 11 }}>
+                        <Text style={{ fontSize: 8, fontWeight: '800', color: theme.colors.white, lineHeight: 11 }}>
                           {badge > 99 ? '99+' : badge}
                         </Text>
                       </View>
@@ -236,7 +236,7 @@ function AppLayoutInner() {
                       paddingHorizontal: theme.spacing.lg,
                       borderWidth: 1,
                       borderColor: theme.colors.border,
-                      shadowColor: '#000',
+                      shadowColor: theme.colors.black,
                       shadowOffset: { width: 0, height: 2 },
                       shadowOpacity: 0.12,
                       shadowRadius: 4,
@@ -265,7 +265,7 @@ function AppLayoutInner() {
                   backgroundColor: theme.colors.primary,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  shadowColor: '#000',
+                  shadowColor: theme.colors.black,
                   shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.2,
                   shadowRadius: 6,
