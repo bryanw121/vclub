@@ -23,7 +23,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="vclub" />
+        <meta name="apple-mobile-web-app-title" content="vteam" />
         <ScrollViewStyleReset />
         {/* Space Grotesk + Inter — loaded via Google Fonts for web */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

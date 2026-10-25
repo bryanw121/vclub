@@ -127,7 +127,7 @@ export default function UserProfileDetail() {
   }
 
   function handleReportPlayer() {
-    showToast(`${displayName || 'Player'} has been reported to the Vclub team.`, 'success')
+    showToast(`${displayName || 'Player'} has been reported to vteam.`, 'success')
   }
 
   const displayName = profile ? profileFullName(profile) : ''
@@ -373,7 +373,7 @@ export default function UserProfileDetail() {
                     Report player
                   </Text>
                   <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext }}>
-                    Send a moderation report to the Vclub team.
+                    Send a moderation report to vteam.
                   </Text>
                 </View>
               </TouchableOpacity>

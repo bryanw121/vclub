@@ -65,7 +65,7 @@ export function normalizeExternalSessions(rows: ExternalSession[] | null): Event
     created_at:       s.starts_at,
     price:            null,
     cancelled_at:     null,
-    // No vclub host: cards for these never read the profile.
+    // No vteam host: cards for these never read the profile.
     profiles:         null as unknown as EventWithDetails['profiles'],
     clubs:            null,
     event_tags:       externalTypeTag(s.session_type),

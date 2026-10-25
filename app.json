@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "vclub",
+    "name": "vteam",
     "slug": "vclub",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
@@ -31,9 +31,9 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/vclub.png",
-      "name": "vclub",
-      "shortName": "vclub",
+      "favicon": "./assets/vteam.png",
+      "name": "vteam",
+      "shortName": "vteam",
       "themeColor": "#7C4DFF",
       "backgroundColor": "#13111F",
       "display": "standalone",
@@ -46,13 +46,13 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow vclub to access your photos to set your profile picture."
+          "photosPermission": "Allow vteam to access your photos to set your profile picture."
         }
       ],
       [
         "expo-calendar",
         {
-          "calendarPermission": "Allow vclub to add events to your calendar."
+          "calendarPermission": "Allow vteam to add events to your calendar."
         }
       ],
       "expo-web-browser",

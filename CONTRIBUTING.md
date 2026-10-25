@@ -211,7 +211,7 @@ network or a real `.env`. Unit tests must never hit the network.
 
 ## Working on a live app
 
-vclub has real users on a single production Supabase project. There is no
+vteam has real users on a single production Supabase project. There is no
 staging environment to catch a mistake, so:
 
 - **Backwards compatibility is the default.** Widen before you narrow: add a

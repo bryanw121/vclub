@@ -63,7 +63,7 @@ function AppSplash({ opacity }: { opacity: Animated.Value }) {
         end={{ x: 1, y: 1 }}
         style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 }}
       >
-        <Text style={{ fontSize: 48, fontWeight: '800', color: theme.colors.white, letterSpacing: -1 }}>vclub</Text>
+        <Text style={{ fontSize: 48, fontWeight: '800', color: theme.colors.white, letterSpacing: -1 }}>vteam</Text>
         <View style={{ backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
           <Text style={{ fontSize: 11, fontWeight: '700', color: theme.colors.white, letterSpacing: 1.5 }}>BETA</Text>
         </View>

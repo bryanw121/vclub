@@ -19,12 +19,12 @@ export function UpdateRequiredScreen({ requirement }: Props) {
 
   return (
     <View style={shared.updateRequiredContainer}>
-      <Text style={shared.updateRequiredTitle}>Update vclub</Text>
+      <Text style={shared.updateRequiredTitle}>Update vteam</Text>
       <Text style={shared.updateRequiredBody}>
         {requirement.message ??
           (isWeb
-            ? 'A new version of vclub is available. Reload to get it.'
-            : 'This version of vclub is no longer supported. Update to keep joining games.')}
+            ? 'A new version of vteam is available. Reload to get it.'
+            : 'This version of vteam is no longer supported. Update to keep joining games.')}
       </Text>
       <Text style={shared.updateRequiredVersion}>
         You have {requirement.current} · minimum {requirement.minimum}

@@ -17,7 +17,7 @@ const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
 const HOURS12 = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
 const css = `
-  .vclub-field-wrap {
+  .vteam-field-wrap {
     display: flex;
     align-items: center;
     gap: ${theme.spacing.sm}px;
@@ -28,14 +28,14 @@ const css = `
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
     cursor: pointer;
   }
-  .vclub-field-wrap:hover {
+  .vteam-field-wrap:hover {
     border-color: ${theme.colors.primary}80;
   }
-  .vclub-field-wrap:focus-within {
+  .vteam-field-wrap:focus-within {
     border-color: ${theme.colors.primary};
     box-shadow: 0 0 0 3px ${theme.colors.primary}28;
   }
-  .vclub-date-input {
+  .vteam-date-input {
     flex: 1;
     min-width: 0;
     background: transparent;
@@ -47,15 +47,15 @@ const css = `
     font-weight: ${theme.font.weight.medium} !important;
     color: ${theme.colors.text} !important;
   }
-  .vclub-date-input::-webkit-calendar-picker-indicator {
+  .vteam-date-input::-webkit-calendar-picker-indicator {
     cursor: pointer;
     opacity: 0.45;
     transition: opacity 0.15s;
   }
-  .vclub-date-input::-webkit-calendar-picker-indicator:hover {
+  .vteam-date-input::-webkit-calendar-picker-indicator:hover {
     opacity: 1;
   }
-  .vclub-time-select {
+  .vteam-time-select {
     background: transparent;
     border: none;
     outline: none;
@@ -69,7 +69,7 @@ const css = `
     -webkit-appearance: none;
     text-align: center;
   }
-  .vclub-time-sep {
+  .vteam-time-sep {
     font-size: ${theme.font.size.md}px;
     font-weight: ${theme.font.weight.medium};
     color: ${theme.colors.subtext};
@@ -129,12 +129,12 @@ export function DatePickerField({ value: date, onChange, placeholder }: Props) {
       {/* @ts-ignore */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.sm }}>
         {/* @ts-ignore */}
-        <div className="vclub-field-wrap">
+        <div className="vteam-field-wrap">
           <Ionicons name="calendar-outline" size={16} color={date ? theme.colors.text : theme.colors.subtext} />
           {/* @ts-ignore */}
           <input
             type="date"
-            className="vclub-date-input"
+            className="vteam-date-input"
             min={toDateInputValue(new Date())}
             value={date ? toDateInputValue(effective) : ''}
             placeholder={placeholder ?? 'Pick a date'}
@@ -145,26 +145,26 @@ export function DatePickerField({ value: date, onChange, placeholder }: Props) {
         {/* Only show time pickers once a date is chosen */}
         {date && (
           /* @ts-ignore */
-          <div className="vclub-field-wrap" style={{ gap: 2 }}>
+          <div className="vteam-field-wrap" style={{ gap: 2 }}>
             <Ionicons name="time-outline" size={16} color={theme.colors.subtext} />
             {/* @ts-ignore */}
-            <select className="vclub-time-select" value={hours12} onChange={handleHourChange}>
+            <select className="vteam-time-select" value={hours12} onChange={handleHourChange}>
               {HOURS12.map(h => (
                 // @ts-ignore
                 <option key={h} value={h}>{h}</option>
               ))}
             </select>
             {/* @ts-ignore */}
-            <span className="vclub-time-sep">:</span>
+            <span className="vteam-time-sep">:</span>
             {/* @ts-ignore */}
-            <select className="vclub-time-select" value={minutes} onChange={handleMinuteChange}>
+            <select className="vteam-time-select" value={minutes} onChange={handleMinuteChange}>
               {MINUTES.map(m => (
                 // @ts-ignore
                 <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
               ))}
             </select>
             {/* @ts-ignore */}
-            <select className="vclub-time-select" value={period} onChange={handlePeriodChange}>
+            <select className="vteam-time-select" value={period} onChange={handlePeriodChange}>
               {/* @ts-ignore */}
               <option value="AM">AM</option>
               {/* @ts-ignore */}
