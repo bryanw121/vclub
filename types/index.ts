@@ -1242,3 +1242,133 @@ export type StoredFeedFilters = {
 }
 
 export type TournamentTabName = (typeof import('../constants/tournamentCopy').TOURNAMENT_TABS)[number]
+
+// ─── Schelagg court availability and session checks (lib/schelagg, utils/courts) ─
+
+/** "HH:MM" Austin local time; "24:00" is midnight at the end of the day. */
+export type HHMM = string
+
+/** [start, end] as "HH:MM" strings, Austin local time. */
+export type HHMMRange = [HHMM, HHMM]
+
+/** [startMin, endMin], minutes after Austin midnight (0–1440). */
+export type MinuteRange = [number, number]
+
+export type CourtsCourt = {
+  name: string
+  /** Booked blocks per YYYY-MM-DD (Austin). A date with no entry has no bookings. */
+  days: Record<string, HHMMRange[]>
+}
+
+export type CourtsFacility = {
+  id: string
+  name: string
+  /** Free text; may carry a price after " · " (e.g. "Leander · $50/hr"). */
+  city: string
+  surface: Surface
+  courts: CourtsCourt[]
+}
+
+export type CourtsVenue = {
+  id: string
+  /** The venue's public booking page. */
+  calendar: string
+  /** Opening hours per weekday, 0 = Sunday; null = closed that day. */
+  hours: (HHMMRange | null)[]
+  facilities: CourtsFacility[]
+  /** The live load failed; this is the last good copy. */
+  stale?: boolean
+}
+
+export type CourtsError = { venue?: string; calendar?: string; message?: string }
+
+/** GET {SCHELAGG_API_BASE}/api/courts and {SCHELAGG_SITE_BASE}/data/courts.json. */
+export type CourtsResponse = {
+  fetchedAt: string
+  /** First date covered, YYYY-MM-DD (Austin). */
+  from: string
+  days: number
+  venues: CourtsVenue[]
+  errors: CourtsError[]
+}
+
+/** What useCourtAvailability returns: the response plus where it came from. */
+export type CourtsData = CourtsResponse & { source: 'live' | 'static' }
+
+/** "Now" in Austin, whatever the device's time zone. */
+export type AustinNow = { iso: string; minutes: number }
+
+export type CourtLane = {
+  name: string
+  /** Short label for the grid ("Court 1" for "HP Court 1"). */
+  label: string
+  booked: MinuteRange[]
+  free: MinuteRange[]
+}
+
+/** One facility on one day, ready to draw (utils/courts.facilityDay). */
+export type FacilityDay = {
+  key: string
+  facility: CourtsFacility
+  venue: CourtsVenue
+  /** City without the price part. */
+  city: string
+  /** Price pulled out of the city text, e.g. "$50/hr"; null when unknown. */
+  price: string | null
+  /** False when the venue is closed that weekday. */
+  open: boolean
+  openMin: number
+  closeMin: number
+  /** False when the data does not cover this date. */
+  covered: boolean
+  lanes: CourtLane[]
+  /** Union of every court's free time (≥ COURT_MIN_FREE_MIN), clipped to now on today. */
+  freeSummary: MinuteRange[]
+}
+
+export type DayOption = { iso: string; dow: number; isToday: boolean }
+
+export type SessionCheckStatus = 'scheduled' | 'canceled' | 'changed' | 'gone' | 'unknown'
+
+/** 200 body of GET {SCHELAGG_API_BASE}/api/check?session=<id>. */
+export type SessionCheckResult = {
+  id: string
+  status: SessionCheckStatus
+  /** With status "changed": the fields that differ from what was published (e.g. ["start", "end"]). */
+  changes?: string[]
+  /** The session as the source has it now (Schelagg schema v2), when found. Times are local to `timezone`. */
+  session?: {
+    id?: string
+    date?: string
+    start?: string
+    end?: string | null
+    timezone?: string
+    canceled?: boolean
+    signup?: { url?: string | null } | null
+  } | null
+  /** The same, shaped like an occurrences.json row (absolute instants); may be null. */
+  occurrence?: { starts_at?: string; ends_at?: string | null; canceled?: boolean; signup_url?: string | null } | null
+  checkedAt?: string
+}
+
+/** What to do with a tap on an outside session's sign-up link. */
+export type SessionLinkDecision =
+  | { action: 'open' }
+  | { action: 'confirm'; kind: 'canceled' | 'gone' }
+  | {
+      action: 'confirm'
+      kind: 'changed'
+      /** ISO instants of the new time, when known. */
+      startsAt: string | null
+      endsAt: string | null
+      changes: string[]
+      /** The source's sign-up link for the moved session (a moved Volleyworld class has a new one); null = keep the old. */
+      signupUrl: string | null
+    }
+
+/** The dialog an outside session card shows after a check, or when the browser blocked the new tab. */
+export type SessionLinkNotice =
+  | Exclude<SessionLinkDecision, { action: 'open' }>
+  | { action: 'confirm'; kind: 'blocked' }
+
+export type CreateMenuSectionKey = 'vteam' | 'venue'

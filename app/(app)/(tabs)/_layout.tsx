@@ -7,13 +7,14 @@ import { Slot } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TabsActiveContext, TabsContext, TabsShellContext } from "../../../contexts/tabs";
 import { useWebNav } from "../../../contexts/webNav";
-import { theme, BREAKPOINTS, TABS, CREATE_MENU, tabIndexFromPath } from "../../../constants";
+import { theme, BREAKPOINTS, TABS, tabIndexFromPath } from "../../../constants";
+import type { CreateMenuOption } from "../../../constants";
+import { CreateMenuList } from "../../../components/CreateMenuList";
 import { useChatUnread } from "../../../hooks/useChatUnread";
 import { useDocScrollMode } from "../../../hooks/useDocScrollMode";
 import { useIsNarrowWeb } from "../../../hooks/useIsNarrowWeb";
 import { shouldRefreshEventsOnFocus } from "../../../utils/monthKeys";
 import { useRequireSignIn } from "../../../hooks/useRequireSignIn";
-import type { RouteString } from "../../../utils/routes";
 
 // The bottom bar renders TABS (constants/navigation.ts) in pager order, with the
 // create button inserted before the Chat tab.
@@ -96,13 +97,13 @@ export default function TabsLayout() {
   }, [fabAnim]);
 
   const requireSignIn = useRequireSignIn();
+  // Anyone may open the menu: "Book a court" is public. Creating on vteam asks
+  // guests to sign in when they pick it (goCreate).
   const openFab = useCallback(() => {
-    // Hosting needs an account; guests go to sign-in and come back here.
-    if (!requireSignIn()) return;
     fabOpenRef.current = true;
     setFabOpen(true);
     Animated.spring(fabAnim, { toValue: 1, useNativeDriver: true, tension: 120, friction: 8 }).start();
-  }, [fabAnim, requireSignIn]);
+  }, [fabAnim]);
 
   const goToTab = useCallback((index: number) => {
     setActiveTabIndex(index);
@@ -118,9 +119,11 @@ export default function TabsLayout() {
     goToTab(tabIndex);
   }
 
-  function goHost(path: RouteString) {
+  function goCreate(option: CreateMenuOption) {
     closeFab();
-    setTimeout(() => router.push(path), 160);
+    // Creating on vteam needs an account; guests go to sign-in and come back here.
+    if (option.requiresAuth && !requireSignIn()) return;
+    setTimeout(() => router.push(option.path), 160);
   }
 
   const tabsShellValue = useMemo(() => ({
@@ -231,35 +234,12 @@ export default function TabsLayout() {
               position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as any,
               bottom: tabBarHeight + theme.spacing.sm,
               right: theme.spacing.lg,
-              gap: theme.spacing.sm,
               alignItems: "flex-end",
               opacity: fabAnim,
               transform: [{ translateY: fabAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
             }}
           >
-            {CREATE_MENU.map(opt => (
-              <TouchableOpacity
-                key={opt.label}
-                onPress={() => goHost(opt.path)}
-                style={{
-                  backgroundColor: theme.colors.fabMenuChip,
-                  borderRadius: theme.radius.full,
-                  paddingVertical: theme.spacing.sm,
-                  paddingHorizontal: theme.spacing.lg,
-                  borderWidth: 1,
-                  borderColor: theme.colors.fabMenuChipBorder,
-                  shadowColor: theme.colors.black,
-                  shadowOffset: { width: 0, height: 3 },
-                  shadowOpacity: 0.22,
-                  shadowRadius: 8,
-                  elevation: 6,
-                }}
-              >
-                <Text style={{ fontFamily: theme.fonts.bodyMedium, fontSize: theme.font.size.md, color: theme.colors.text }}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            <CreateMenuList variant="overlay" onSelect={goCreate} />
           </Animated.View>
         )}
 
@@ -303,6 +283,10 @@ export default function TabsLayout() {
                   <TouchableOpacity
                     key="create"
                     onPress={fabOpen ? closeFab : openFab}
+                    accessibilityRole="button"
+                    accessibilityLabel={fabOpen ? 'Close create menu' : 'Create'}
+                    accessibilityState={{ expanded: fabOpen }}
+                    testID="create-menu-button"
                     style={{
                       width: 46, height: 46, borderRadius: 15,
                       backgroundColor: fabOpen ? theme.colors.accent + 'CC' : theme.colors.accent,

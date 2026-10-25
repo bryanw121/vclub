@@ -1,4 +1,5 @@
 import type { Href } from 'expo-router'
+import type { Surface } from '../types'
 
 /**
  * Typed route builders — the one place route strings are written and the one
@@ -47,6 +48,10 @@ export type HostRouteOptions = {
   maxAttendees?: number
   /** Open the host screen on the template picker. */
   mode?: 'templates'
+  /** Prefill the location (e.g. a venue name from Book a court). */
+  location?: string
+  /** Prefill the surface. */
+  surface?: Surface
 }
 
 export const routes = {
@@ -73,8 +78,13 @@ export const routes = {
     if (opts.edit !== undefined) query.push(`edit=${encodeURIComponent(opts.edit)}`)
     if (opts.maxAttendees !== undefined) query.push(`maxAttendees=${opts.maxAttendees}`)
     if (opts.mode !== undefined) query.push(`mode=${opts.mode}`)
+    if (opts.location) query.push(`location=${encodeURIComponent(opts.location)}`)
+    if (opts.surface !== undefined) query.push(`surface=${opts.surface}`)
     return href(query.length ? `/host?${query.join('&')}` : '/host')
   },
+
+  /** Court availability at venues that rent by the hour; booking itself happens on the venue's site. Public. */
+  book: () => href('/book'),
 
   notifications: () => href('/notifications'),
   settings: (section?: SettingsSection) => href(section ? `/settings/${section}` : '/settings'),

@@ -26,7 +26,7 @@ export {
   CHAT_TAB_INDEX,
   PROFILE_TAB_INDEX,
 } from './navigation'
-export type { Tab, TabKey, CreateMenuOption } from './navigation'
+export type { Tab, TabKey, CreateMenuOption, CreateMenuSection } from './navigation'
 export { formatEventDate, eventAttendeeDisplayCount } from '../utils'
 export {
   LOCATIONS,
@@ -47,6 +47,7 @@ export {
   CHEERS_MAX_PER_EVENT,
   TEAM_COLORS,
   TEAM_COLOR_NAMES,
+  SURFACE_ACCENTS,
 } from './events'
 export type { VenueLocation, EventTemplate, RecurrenceCadence, CheerTypeConfig } from './events'
 export {
@@ -66,3 +67,7 @@ export {
 export type { BadgeDef, BadgeTierDef, BadgeStat, ProfileBorderType, ProfileBorderDef, CardBgDef } from './badges'
 export { CLUB_POST_BODY_MAX, CLUB_POST_COMMENT_MAX } from './clubFeed'
 export { BANNERS, DEFAULT_FEED_REGION } from './banners'
+export {
+  SCHELAGG_API_BASE, SCHELAGG_SITE_BASE, COURTS_DAYS, COURTS_OLD_AFTER_MS, COURTS_API_TIMEOUT_MS,
+  SESSION_CHECK_TIMEOUT_MS, COURT_GRID_START_MIN, COURT_MIN_FREE_MIN,
+} from './schelagg'
