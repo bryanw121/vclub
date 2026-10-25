@@ -293,7 +293,7 @@ export type EventWithDetails = Event & {
   _external?: ExternalSession
 }
 
-/** Row of `external_sessions`: a session another Austin venue or group runs, synced hourly by Schelagg. */
+/** Row of `external_sessions`: a session another Austin venue or group runs, pulled hourly from the Schelagg feed (ingest_schelagg_feed). */
 export type ExternalSession = Pick<
   Override<Tables<'external_sessions'>, { surface: 'indoor' | 'sand' | 'grass' | null }>,
   | 'id' | 'source_id' | 'title' | 'venue' | 'city' | 'surface' | 'session_type' | 'level' | 'price'

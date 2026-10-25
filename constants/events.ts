@@ -136,11 +136,11 @@ export const EXTERNAL_SESSION_SELECT =
   'id, source_id, title, venue, city, surface, session_type, level, price, starts_at, ends_at, signup_url, signup_label, note, verified_at'
 
 /**
- * Hide external sessions the Schelagg sync hasn't refreshed for this long.
- * Each sync rewrites every upcoming row's `updated_at` and deletes sessions the
- * venue cancelled, so rows older than this mean the sync has stopped: show no
+ * Hide external sessions the hourly Schelagg feed ingest hasn't refreshed for this long.
+ * Each ingest rewrites every upcoming row's `updated_at` and deletes sessions the
+ * venue cancelled, so rows older than this mean ingestion has stopped: show no
  * outside sessions rather than possibly-cancelled ones. Comfortably longer than
- * the longest gap between scheduled syncs.
+ * the hourly ingest interval.
  */
 export const EXTERNAL_SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000
 
