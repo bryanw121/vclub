@@ -16,8 +16,15 @@ const CONVO_URL = `${BASE_URL}/chat/${CONVO_ID}`
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Close the Expo dev-server error overlay (its button reads exactly "Dismiss").
+ * Must be an exact match: a substring match also hits app content — e.g. the
+ * chat list preview "You: e2e-reply-dismiss-<ts>" left by the reply-banner test
+ * below — and clicking that row opened the conversation, leaving the list as a
+ * hidden stack screen underneath (chatHeader then resolved to its hidden title).
+ */
 async function dismissErrorOverlays(page: Page) {
-  const dismissBtns = await page.getByText('Dismiss').all()
+  const dismissBtns = await page.getByText('Dismiss', { exact: true }).all()
   for (const btn of dismissBtns) {
     try { await btn.click({ timeout: 500 }) } catch {}
   }

@@ -17,14 +17,18 @@ import {
   loadDmBadWordPromptAt,
   saveDmBadWordPromptAt,
 } from '../../../constants/dmBadWords'
-import { useAuth } from '../../../hooks/useAuth'
+import { useSession } from '../../../contexts/session'
 import { useMessages } from '../../../hooks/useMessages'
+import { useConversationRow } from '../../../hooks/useConversations'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
 import { AnchorOptionsMenu, type AnchorRect } from '../../../components/AnchorOptionsMenu'
 import { MessageBubble } from '../../../components/MessageBubble'
 import { ReactionPicker } from '../../../components/ReactionPicker'
-import type { ConversationRow, MessageWithDetails, MentionUser } from '../../../types'
+import { ScreenState } from '../../../components/ui'
+import type { MessageWithDetails, MentionUser } from '../../../types'
 import { profileAvatarSmallUri, profileDisplayName, confirmDestructive } from '../../../utils'
+import { chatAlert } from '../../../utils/chatUtils'
+import { routes } from '../../../utils/routes'
 
 const AVATAR_SIZE = 36
 
@@ -44,9 +48,9 @@ export default function ChatRoomScreen() {
   const inputRef = useRef<import('react-native').TextInput>(null)
 
 
-  const { session } = useAuth()
-  const myId = session?.user?.id ?? null
-  const [convRow, setConvRow] = useState<ConversationRow | null>(null)
+  const { userId: myId } = useSession()
+  // Header data comes from the shared conversations store (no request once the list has loaded).
+  const { row: convRow, refresh: refreshConvRow } = useConversationRow(id)
   const [text, setText] = useState('')
   const [imageUri, setImageUri] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
@@ -77,8 +81,8 @@ export default function ChatRoomScreen() {
   const [badWordPromptCooldownReady, setBadWordPromptCooldownReady] = useState(false)
 
   const {
-    messages, loading, hasMore, loadMore, refresh,
-    sendMessage, deleteMessage, editMessage, toggleReaction, uploadImage, markRead,
+    messages, loading, error: messagesError, hasMore, loadMore, refresh,
+    sendMessage, retryMessage, deleteMessage, editMessage, toggleReaction, uploadImage,
   } = useMessages(id)
   const [listRefreshing, setListRefreshing] = useState(false)
   const { silencedUserIds, silenceUser } = useSilencedUsers()
@@ -102,16 +106,6 @@ export default function ChatRoomScreen() {
     void loadMembers()
   }, [convRow?.club_id, myId])
 
-  // Load conversation metadata for the header
-  useEffect(() => {
-    async function loadConv() {
-      const { data } = await supabase.rpc('get_my_conversations')
-      const rows = (data ?? []) as ConversationRow[]
-      setConvRow(rows.find(r => r.conversation_id === id) ?? null)
-    }
-    void loadConv()
-  }, [id])
-
   useEffect(() => {
     setHeaderMenuVisible(false)
     setHeaderMenuAnchor(null)
@@ -131,20 +125,18 @@ export default function ChatRoomScreen() {
   const handleChatRoomRefresh = useCallback(async () => {
     setListRefreshing(true)
     try {
+      refreshConvRow()
       await refresh()
-      const { data } = await supabase.rpc('get_my_conversations')
-      const rows = (data ?? []) as ConversationRow[]
-      setConvRow(rows.find(r => r.conversation_id === id) ?? null)
     } finally {
       setListRefreshing(false)
     }
-  }, [id, refresh])
+  }, [refresh, refreshConvRow])
 
   // Silenced DMs are hidden from the list; kick out if opened via deep link or stale route.
   useEffect(() => {
     if (!convRow || convRow.type !== 'dm' || !convRow.other_user_id) return
     if (!silencedUserIds.has(convRow.other_user_id)) return
-    router.replace('/(app)/(tabs)/chat' as any)
+    router.replace(routes.chat())
   }, [convRow, silencedUserIds, router])
 
   // Focus input after reaction picker fully closes
@@ -155,10 +147,8 @@ export default function ChatRoomScreen() {
     }
   }, [pickerVisible])
 
-  // Mark read when screen opens and whenever new messages arrive
-  useEffect(() => {
-    if (messages.length > 0) void markRead()
-  }, [messages.length, markRead])
+  // markRead lives in useMessages: debounced, on first open and on new incoming
+  // messages only (not on pagination or our own sends).
 
   const headerTitle = convRow
     ? (convRow.type === 'club'
@@ -221,7 +211,12 @@ export default function ChatRoomScreen() {
       setText('')
       inputRef.current?.clear()
       setEditingMessage(null)
-      await editMessage(editing.id, trimmed)
+      const ok = await editMessage(editing.id, trimmed)
+      if (!ok) {
+        // The bubble was rolled back; put the edit back in the composer.
+        setEditingMessage(editing)
+        setText(cur => cur || trimmed)
+      }
       return
     }
     if (!trimmed && !imageUri) return
@@ -232,6 +227,8 @@ export default function ChatRoomScreen() {
             .filter((mid): mid is string => Boolean(mid)),
         )]
       : []
+    const pickedImage = imageUri
+    const replyingTo = replyTo
     setText('')
     inputRef.current?.clear()
     setImageUri(null)
@@ -240,13 +237,24 @@ export default function ChatRoomScreen() {
     setSending(true)
     try {
       let uploadedUrl: string | null = null
-      if (imageUri) {
+      if (pickedImage) {
         setUploadingImage(true)
-        uploadedUrl = await uploadImage(imageUri)
+        uploadedUrl = await uploadImage(pickedImage)
         setUploadingImage(false)
+        if (!uploadedUrl) {
+          // Never send the text alone when the picture didn't make it: restore the draft.
+          setText(cur => cur || trimmed)
+          setImageUri(cur => cur ?? pickedImage)
+          setReplyTo(cur => cur ?? replyingTo)
+          chatAlert("Couldn't upload image", 'Your message was not sent. Check your connection and try again.')
+          return
+        }
       }
-      await sendMessage(trimmed || null, uploadedUrl, replyTo, mentionIds)
+      const ok = await sendMessage(trimmed || null, uploadedUrl, replyingTo, mentionIds)
+      // The failed bubble stays in the list ("Tap to retry"); the draft comes back too.
+      if (!ok) setText(cur => cur || trimmed)
     } finally {
+      setUploadingImage(false)
       setSending(false)
     }
   }
@@ -311,7 +319,7 @@ export default function ChatRoomScreen() {
     if (!convRow || convRow.type !== 'dm' || !convRow.other_user_id || !myId || convRow.other_user_id === myId) return []
     const oid = convRow.other_user_id
     return [
-      { key: 'profile', label: 'View profile', onPress: () => router.push(`/profile/${oid}` as any) },
+      { key: 'profile', label: 'View profile', onPress: () => router.push(routes.profileOf(oid)) },
       { key: 'report', label: 'Report player', destructive: true, onPress: confirmReportDmUser },
       { key: 'silence', label: 'Silence user', destructive: true, onPress: () => confirmSilenceUser(oid) },
     ]
@@ -360,14 +368,15 @@ export default function ChatRoomScreen() {
         showAvatar={isClub || false}
         contentSuppressed={senderSilenced}
         replyContentSuppressed={replySilenced}
-        onViewPeerProfilePress={isClub ? (uid => router.push(`/profile/${uid}` as any)) : undefined}
+        onViewPeerProfilePress={isClub ? (uid => router.push(routes.profileOf(uid))) : undefined}
         onSilencePeerPress={isClub ? confirmSilenceUser : undefined}
         onLongPress={handleLongPress}
         onReplyPress={msg => setReplyTo(msg)}
         onImagePress={setViewingImage}
+        onRetryPress={msg => void retryMessage(msg.id)}
       />
     )
-  }, [myId, messages, isClub, silencedUserIds, router, confirmSilenceUser])
+  }, [myId, messages, isClub, silencedUserIds, router, confirmSilenceUser, retryMessage])
 
   // Web messages in ascending order (oldest → newest top → bottom)
   const ascendingMessages = useMemo(() => [...messages].reverse(), [messages])
@@ -398,7 +407,7 @@ export default function ChatRoomScreen() {
         backgroundColor: theme.colors.background,
         gap: theme.spacing.sm,
       }}>
-        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(app)/(tabs)/chat' as any)} style={{ padding: 4 }} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace(routes.chat())} style={{ padding: 4 }} hitSlop={8}>
           <Ionicons name="chevron-back" size={24} color={theme.colors.primary} />
         </TouchableOpacity>
 
@@ -440,10 +449,12 @@ export default function ChatRoomScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
         keyboardVerticalOffset={0}
       >
-        {loading ? (
-          <View style={shared.centered}>
-            <ActivityIndicator color={theme.colors.primary} />
-          </View>
+        {loading || (messagesError && messages.length === 0) ? (
+          <ScreenState
+            loading={loading}
+            error={messagesError ? "Couldn't load messages. Check your connection and try again." : null}
+            onRetry={() => void handleChatRoomRefresh()}
+          />
         ) : isWeb ? (
           // Web: plain ScrollView — all items in DOM so useLayoutEffect scrollToEnd works before paint
           <ScrollView
@@ -485,11 +496,12 @@ export default function ChatRoomScreen() {
                   showAvatar={isClub || false}
                   contentSuppressed={senderSilenced}
                   replyContentSuppressed={replySilenced}
-                  onViewPeerProfilePress={isClub ? (uid => router.push(`/profile/${uid}` as any)) : undefined}
+                  onViewPeerProfilePress={isClub ? (uid => router.push(routes.profileOf(uid))) : undefined}
                   onSilencePeerPress={isClub ? confirmSilenceUser : undefined}
                   onLongPress={handleLongPress}
                   onReplyPress={msg => setReplyTo(msg)}
                   onImagePress={setViewingImage}
+                  onRetryPress={msg => void retryMessage(msg.id)}
                 />
               )
             })}

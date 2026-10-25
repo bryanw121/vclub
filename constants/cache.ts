@@ -14,4 +14,6 @@ export const STALE = {
   detail: 30_000,
   /** A user profile (own or someone else's): the `fetchProfile` pattern from CLAUDE.md. */
   profile: 60_000,
+  /** get_my_conversations (Chat list, chat tab badge, chat room header); realtime patches it in between. */
+  conversations: 30_000,
 } as const

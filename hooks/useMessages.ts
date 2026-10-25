@@ -1,12 +1,40 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { getSessionUser } from '../lib/sessionUser'
+import { getQueryData, setQueryData, useMutation } from '../lib/query'
+import { useRealtimeChannel } from '../lib/realtime'
 import { CHAT_IMAGES_BUCKET } from '../constants'
+import { useSession } from '../contexts/session'
+import {
+  applyMessageUpdate,
+  applyReactionChange,
+  buildIncomingMessage,
+  chatAlert,
+  chatTopics,
+  confirmSent,
+  createDebouncedCall,
+  mergeLatestPage,
+  messagesBindings,
+  reactionsBindings,
+  replySnapshotOf,
+  upsertIncoming,
+  type DebouncedCall,
+  type MessageRecord,
+  type ReplySnapshot,
+  type SenderProfile,
+} from '../utils/chatUtils'
+import {
+  applyOwnMessageToConversations,
+  markConversationOpen,
+  markConversationReadLocally,
+  profileBriefKey,
+} from './useConversations'
 import type { MessageWithDetails } from '../types'
+
+const PROFILE_BRIEF = 'id, username, first_name, last_name, avatar_url, selected_border'
 
 const MESSAGE_SELECT = `
   id, conversation_id, sender_id, content, image_url, reply_to_id, created_at, deleted_at, edited_at,
-  profiles!messages_sender_id_fkey (id, username, first_name, last_name, avatar_url, selected_border),
+  profiles!messages_sender_id_fkey (${PROFILE_BRIEF}),
   message_reactions (message_id, user_id, emoji, created_at)
 `
 
@@ -14,285 +42,437 @@ const MESSAGE_SELECT = `
 const REPLY_SELECT = `id, content, image_url, deleted_at, profiles!messages_sender_id_fkey (id, username, first_name, last_name)`
 
 const PAGE_SIZE = 40
+/** markRead runs at most once per second of activity, and only for a first open or a new incoming message. */
+export const MARK_READ_DEBOUNCE_MS = 1_000
+const RECONNECT_REFRESH_DEBOUNCE_MS = 300
 
-/** Fetches reply-to message data for any rows that have reply_to_id set, and attaches it. */
-async function attachReplyTo(rows: MessageWithDetails[]): Promise<MessageWithDetails[]> {
-  const ids = [...new Set(rows.filter(r => r.reply_to_id).map(r => r.reply_to_id!))]
-  if (!ids.length) return rows
-  const { data } = await supabase.from('messages').select(REPLY_SELECT).in('id', ids)
-  if (!data?.length) return rows
-  const map = new Map(data.map(r => [r.id, r as unknown as MessageWithDetails['reply_to']]))
-  return rows.map(m => m.reply_to_id ? { ...m, reply_to: map.get(m.reply_to_id) ?? null } : m)
+// ── Sender profile cache (lib/query `profile:brief:<id>`) ────────────────────
+
+function rememberProfile(p: SenderProfile | null | undefined): void {
+  if (!p?.id) return
+  if (getQueryData<SenderProfile>(profileBriefKey(p.id))) return
+  setQueryData(profileBriefKey(p.id), p)
 }
 
+const profileRequests = new Map<string, Promise<SenderProfile | null>>()
+
+/** The sender's brief profile: cached, or fetched once (concurrent callers share the request). */
+export function ensureSenderProfile(userId: string): Promise<SenderProfile | null> {
+  const cached = getQueryData<SenderProfile>(profileBriefKey(userId))
+  if (cached) return Promise.resolve(cached)
+  const inFlight = profileRequests.get(userId)
+  if (inFlight) return inFlight
+  const req = (async () => {
+    const { data, error } = await supabase.from('profiles').select(PROFILE_BRIEF).eq('id', userId).maybeSingle()
+    profileRequests.delete(userId)
+    if (error || !data) return null
+    const p = data as SenderProfile
+    setQueryData(profileBriefKey(userId), p)
+    return p
+  })()
+  profileRequests.set(userId, req)
+  return req
+}
+
+/** Attach reply quotes: resolved from the page itself where possible, the rest in one `IN` query. */
+async function attachReplyTo(rows: MessageWithDetails[]): Promise<MessageWithDetails[]> {
+  const byId = new Map(rows.map(r => [r.id, r]))
+  const missing = [...new Set(rows.filter(r => r.reply_to_id && !byId.has(r.reply_to_id)).map(r => r.reply_to_id!))]
+  const fetched = new Map<string, ReplySnapshot>()
+  if (missing.length) {
+    const { data } = await supabase.from('messages').select(REPLY_SELECT).in('id', missing)
+    for (const r of data ?? []) fetched.set(r.id, r as unknown as ReplySnapshot)
+  }
+  return rows.map(m => {
+    if (!m.reply_to_id) return m
+    const local = byId.get(m.reply_to_id)
+    return { ...m, reply_to: local ? replySnapshotOf(local) : fetched.get(m.reply_to_id) ?? null }
+  })
+}
+
+async function fetchReply(id: string): Promise<ReplySnapshot | null> {
+  const { data } = await supabase.from('messages').select(REPLY_SELECT).eq('id', id).maybeSingle()
+  return (data as unknown as ReplySnapshot | null) ?? null
+}
+
+async function fetchPage(conversationId: string, before?: string): Promise<MessageWithDetails[]> {
+  let query = supabase
+    .from('messages')
+    .select(MESSAGE_SELECT)
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false })
+    .limit(PAGE_SIZE)
+  if (before) query = query.lt('created_at', before)
+  const { data, error } = await query
+  if (error) throw error
+  const rows = (data ?? []) as unknown as MessageWithDetails[]
+  rows.forEach(r => rememberProfile(r.profiles))
+  // Newest first — the order the inverted native list wants.
+  return attachReplyTo(rows)
+}
+
+type PendingSend = {
+  content: string | null
+  imageUrl: string | null
+  replyTo: ReplySnapshot | null
+  mentions: string[]
+}
+
+type Updater = MessageWithDetails[] | ((prev: MessageWithDetails[]) => MessageWithDetails[])
+
+const GENERIC_RETRY = 'Check your connection and try again.'
+
+let tempSeq = 0
+
+/**
+ * One room's messages: newest page + older pages on demand, kept current from
+ * realtime payloads on `messages:<id>` and `reactions:<id>` (no refetch per
+ * event), refetched only on reconnect / pull to refresh. Sends are optimistic;
+ * a failed send stays in the list with `_failed` until retried.
+ */
 export function useMessages(conversationId: string) {
-  const [messages, setMessages] = useState<MessageWithDetails[]>([])
+  const { userId } = useSession()
+  const [messages, setMessagesState] = useState<MessageWithDetails[]>([])
+  const messagesRef = useRef<MessageWithDetails[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
   const [hasMore, setHasMore] = useState(true)
-  const mountedRef = useRef(true)
   const oldestCreatedAt = useRef<string | null>(null)
+  const loadingMore = useRef(false)
+  /** Bumped per conversation; async results from an older one are dropped. */
+  const generation = useRef(0)
+  const pendingSends = useRef(new Map<string, PendingSend>())
 
-  const fetchMessages = useCallback(async (before?: string) => {
-    let query = supabase
-      .from('messages')
-      .select(MESSAGE_SELECT)
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false })
-      .limit(PAGE_SIZE)
+  const setMessages = useCallback((updater: Updater) => {
+    setMessagesState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      messagesRef.current = next
+      return next
+    })
+  }, [])
 
-    if (before) query = query.lt('created_at', before)
-
-    const { data, error } = await query
-    if (error) console.error('[useMessages] fetch error:', JSON.stringify(error))
-    if (!mountedRef.current) return
-
-    const rows = await attachReplyTo((data ?? []) as unknown as MessageWithDetails[])
-    // data comes from DB in descending order (newest first) — keep that order for inverted FlatList
-    const oldest = (data ?? [])[((data ?? []).length) - 1]?.created_at ?? null
-
-    if (before) {
-      // Older page goes to the END of the array (highest index = visual top of inverted list)
-      setMessages(prev => [...prev, ...rows])
-      if (oldest) oldestCreatedAt.current = oldest
-    } else {
-      setMessages(prev => {
-        const sending = prev.filter(m => m._sending)
-        // Sending (newest) at front (index 0 = visual bottom), fetched rows after
-        return [...sending, ...rows]
+  // ── markRead: debounced, on first open and on new incoming messages only ──
+  const markReadCall = useRef<DebouncedCall | null>(null)
+  useEffect(() => {
+    const call = createDebouncedCall(() => {
+      if (!userId) return
+      markConversationReadLocally(userId, conversationId)
+      void supabase.rpc('mark_conversation_read', { p_conversation_id: conversationId }).then(({ error: e }) => {
+        if (e) console.warn('[useMessages] mark_conversation_read', e.message)
       })
-      oldestCreatedAt.current = oldest
+    }, MARK_READ_DEBOUNCE_MS)
+    markReadCall.current = call
+    return () => {
+      // Leaving within the debounce window still records the read.
+      call.flush()
+      if (markReadCall.current === call) markReadCall.current = null
     }
-    setHasMore(rows.length === PAGE_SIZE)
-    setLoading(false)
-  }, [conversationId])
+  }, [conversationId, userId])
+  const scheduleMarkRead = useCallback(() => markReadCall.current?.schedule(), [])
 
-  const loadMore = useCallback(async () => {
-    if (!hasMore || !oldestCreatedAt.current) return
-    await fetchMessages(oldestCreatedAt.current)
-  }, [fetchMessages, hasMore])
+  // While mounted, new messages here don't bump this conversation's unread count in the list.
+  useEffect(() => markConversationOpen(conversationId), [conversationId])
 
-  /** Reload newest page; keeps optimistic `_sending` rows. Does not toggle initial `loading` (use for pull-to-refresh). */
-  const refresh = useCallback(async () => {
-    if (!mountedRef.current) return
+  // ── Initial page ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    const gen = ++generation.current
+    setMessages([])
+    setLoading(true)
+    setError(null)
     setHasMore(true)
     oldestCreatedAt.current = null
-    setMessages(prev => prev.filter(m => m._sending))
-    await fetchMessages()
-  }, [fetchMessages])
+    pendingSends.current.clear()
+    fetchPage(conversationId)
+      .then(rows => {
+        if (gen !== generation.current) return
+        setMessages(prev => mergeLatestPage(prev, rows))
+        oldestCreatedAt.current = rows[rows.length - 1]?.created_at ?? null
+        setHasMore(rows.length === PAGE_SIZE)
+        setLoading(false)
+        if (rows.length > 0) scheduleMarkRead()
+      })
+      .catch((e: { message?: string }) => {
+        if (gen !== generation.current) return
+        console.error('[useMessages] fetch error:', e?.message)
+        setError(new Error(e?.message ?? 'Failed to load messages'))
+        setLoading(false)
+      })
+  }, [conversationId, setMessages, scheduleMarkRead])
 
-  useEffect(() => {
-    mountedRef.current = true
-    setLoading(true)
-    setMessages([])
-    void fetchMessages()
-
-    const channel = supabase
-      .channel(`messages-${conversationId}`)
-      .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
-        async (payload) => {
-          const { data, error } = await supabase
-            .from('messages')
-            .select(MESSAGE_SELECT)
-            .eq('id', payload.new.id)
-            .single()
-          if (!mountedRef.current) return
-          if (data) {
-            const [incoming] = await attachReplyTo([data as unknown as MessageWithDetails])
-            if (!mountedRef.current) return
-            setMessages(prev => {
-              if (prev.some(m => m.id === incoming.id)) return prev
-              return [incoming, ...prev.filter(m => !m._sending || m.sender_id !== payload.new.sender_id)]
-            })
-          } else if (error) {
-            void fetchMessages()
-          }
-        })
-      .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
-        async (payload) => {
-          if (!mountedRef.current) return
-          const { data } = await supabase
-            .from('messages')
-            .select(MESSAGE_SELECT)
-            .eq('id', payload.new.id)
-            .single()
-          if (!mountedRef.current || !data) return
-          const [updated] = await attachReplyTo([data as unknown as MessageWithDetails])
-          if (!mountedRef.current) return
-          setMessages(prev => prev.map(m =>
-            m.id === updated.id ? updated : m
-          ))
-        })
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'message_reactions' },
-        () => { void fetchMessages() })
-      .subscribe()
-
-    return () => {
-      mountedRef.current = false
-      void supabase.removeChannel(channel)
+  const loadMore = useCallback(async () => {
+    if (!hasMore || !oldestCreatedAt.current || loadingMore.current) return
+    loadingMore.current = true
+    const gen = generation.current
+    try {
+      const rows = await fetchPage(conversationId, oldestCreatedAt.current)
+      if (gen !== generation.current) return
+      // Older page goes to the END of the array (highest index = visual top of inverted list)
+      setMessages(prev => {
+        const ids = new Set(prev.map(m => m.id))
+        return [...prev, ...rows.filter(r => !ids.has(r.id))]
+      })
+      if (rows.length) oldestCreatedAt.current = rows[rows.length - 1].created_at
+      setHasMore(rows.length === PAGE_SIZE)
+    } catch (e) {
+      console.error('[useMessages] loadMore error:', (e as { message?: string })?.message)
+    } finally {
+      loadingMore.current = false
     }
-  }, [conversationId, fetchMessages])
+  }, [conversationId, hasMore, setMessages])
 
+  /** Re-read the newest page and merge it in (older pages and unsent rows stay). Pull to refresh and reconnect. */
+  const refresh = useCallback(async () => {
+    const gen = generation.current
+    try {
+      const rows = await fetchPage(conversationId)
+      if (gen !== generation.current) return
+      setMessages(prev => mergeLatestPage(prev, rows))
+      if (!oldestCreatedAt.current) {
+        oldestCreatedAt.current = rows[rows.length - 1]?.created_at ?? null
+        setHasMore(rows.length === PAGE_SIZE)
+      }
+      setError(null)
+      setLoading(false)
+    } catch (e) {
+      console.error('[useMessages] refresh error:', (e as { message?: string })?.message)
+    }
+  }, [conversationId, setMessages])
+
+  const reconnectRefresh = useRef<DebouncedCall | null>(null)
+  const refreshRef = useRef(refresh)
+  refreshRef.current = refresh
+  if (!reconnectRefresh.current) {
+    reconnectRefresh.current = createDebouncedCall(() => { void refreshRef.current() }, RECONNECT_REFRESH_DEBOUNCE_MS)
+  }
+  useEffect(() => () => reconnectRefresh.current?.cancel(), [])
+  const onReconnect = useCallback(() => reconnectRefresh.current?.schedule(), [])
+
+  // ── Realtime: rows built from payloads ────────────────────────────────────
+  const onInsert = useCallback((payload: { new: MessageRecord }) => {
+    const record = payload.new
+    if (!record?.id || record.conversation_id !== conversationId) return
+    const gen = generation.current
+    const sender = getQueryData<SenderProfile>(profileBriefKey(record.sender_id)) ?? null
+    const row = buildIncomingMessage(record, sender, messagesRef.current)
+    setMessages(prev => upsertIncoming(prev, row))
+
+    if (!sender) {
+      // Unknown sender: one profile fetch, cached for every later message.
+      void ensureSenderProfile(record.sender_id).then(p => {
+        if (!p || gen !== generation.current) return
+        setMessages(prev => prev.map(m => (m.sender_id === p.id && !m.profiles ? { ...m, profiles: p } : m)))
+      })
+    }
+    if (record.reply_to_id && !row.reply_to) {
+      // Quoting a message older than the loaded pages.
+      void fetchReply(record.reply_to_id).then(snap => {
+        if (!snap || gen !== generation.current) return
+        setMessages(prev => prev.map(m => (m.id === record.id ? { ...m, reply_to: snap } : m)))
+      })
+    }
+    if (record.sender_id !== userId) scheduleMarkRead()
+  }, [conversationId, userId, setMessages, scheduleMarkRead])
+
+  const onUpdate = useCallback((payload: { new: MessageRecord }) => {
+    if (!payload.new?.id) return
+    setMessages(prev => applyMessageUpdate(prev, payload.new))
+  }, [setMessages])
+
+  const onReactionChange = useCallback((payload: Parameters<typeof applyReactionChange>[1]) => {
+    setMessages(prev => applyReactionChange(prev, payload))
+  }, [setMessages])
+
+  useRealtimeChannel(chatTopics.messages(conversationId), messagesBindings(conversationId, { onInsert, onUpdate }), { onReconnect })
+  useRealtimeChannel(chatTopics.reactions(conversationId), reactionsBindings({ onChange: onReactionChange }), { onReconnect })
+
+  // ── Send (optimistic, retryable) ──────────────────────────────────────────
+  const insertPending = useCallback(async (tempId: string): Promise<boolean> => {
+    const pending = pendingSends.current.get(tempId)
+    if (!pending || !userId) return false
+    const gen = generation.current
+    setMessages(prev => prev.map(m => (m.id === tempId ? { ...m, _sending: true, _failed: false } : m)))
+
+    const { data, error: sendError } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: conversationId,
+        sender_id: userId,
+        content: pending.content,
+        image_url: pending.imageUrl,
+        reply_to_id: pending.replyTo?.id ?? null,
+        mentions: pending.mentions,
+      })
+      .select(MESSAGE_SELECT)
+      .single()
+
+    if (gen !== generation.current) return !sendError
+    if (sendError || !data) {
+      console.error('[useMessages] send error:', sendError?.message)
+      setMessages(prev => prev.map(m => (m.id === tempId ? { ...m, _sending: false, _failed: true } : m)))
+      return false
+    }
+    pendingSends.current.delete(tempId)
+    const confirmed: MessageWithDetails = { ...(data as unknown as MessageWithDetails), reply_to: pending.replyTo }
+    rememberProfile(confirmed.profiles)
+    setMessages(prev => confirmSent(prev, tempId, confirmed))
+    applyOwnMessageToConversations(userId, confirmed, confirmed.profiles)
+    return true
+  }, [conversationId, userId, setMessages])
+
+  /** Resolves `true` once the server has the message; `false` leaves a "Tap to retry" row. */
   const sendMessage = useCallback(async (
     content: string | null,
     imageUrl: string | null = null,
     replyTo: MessageWithDetails | null = null,
     mentions: string[] = [],
-  ) => {
-    const user = await getSessionUser()
-    if (!user) return
-
-    const tempId = `temp-${Date.now()}`
-    const replyToSnapshot = replyTo ? {
-      id: replyTo.id,
-      content: replyTo.content,
-      image_url: replyTo.image_url,
-      deleted_at: replyTo.deleted_at,
-      profiles: replyTo.profiles ? {
-        id: replyTo.profiles.id,
-        username: replyTo.profiles.username,
-        first_name: replyTo.profiles.first_name,
-        last_name: replyTo.profiles.last_name,
-      } : null,
-    } : null
-
+  ): Promise<boolean> => {
+    if (!userId) return false
+    const tempId = `temp-${Date.now()}-${++tempSeq}`
+    const replySnapshot = replyTo ? replySnapshotOf(replyTo) : null
+    pendingSends.current.set(tempId, { content: content || null, imageUrl, replyTo: replySnapshot, mentions })
     const tempMessage: MessageWithDetails = {
       id: tempId,
       conversation_id: conversationId,
-      sender_id: user.id,
+      sender_id: userId,
       content: content || null,
       image_url: imageUrl,
       reply_to_id: replyTo?.id ?? null,
       created_at: new Date().toISOString(),
       deleted_at: null,
       edited_at: null,
-      profiles: null,
+      profiles: getQueryData<SenderProfile>(profileBriefKey(userId)) ?? null,
       message_reactions: [],
-      reply_to: replyToSnapshot,
+      reply_to: replySnapshot,
       _sending: true,
     }
+    setMessages(prev => [tempMessage, ...prev])
+    return insertPending(tempId)
+  }, [conversationId, userId, setMessages, insertPending])
 
-    if (mountedRef.current) {
-      setMessages(prev => [tempMessage, ...prev])
-    }
+  const retryMessage = useCallback((tempId: string) => insertPending(tempId), [insertPending])
 
-    const { data, error: sendError } = await supabase
-      .from('messages')
-      .insert({
-        conversation_id: conversationId,
-        sender_id: user.id,
-        content: content || null,
-        image_url: imageUrl,
-        reply_to_id: replyTo?.id ?? null,
-        mentions,
-      })
-      .select(MESSAGE_SELECT)
-      .single()
-
-    if (sendError) console.error('[useMessages] send error:', JSON.stringify(sendError))
-
-    if (mountedRef.current) {
-      if (data) {
-        // We already have replyTo data in the closure — attach it directly without an extra fetch
-        const confirmed: MessageWithDetails = { ...(data as unknown as MessageWithDetails), reply_to: replyToSnapshot }
-        setMessages(prev => [confirmed, ...prev.filter(m => m.id !== tempId)]
-          .filter((m, i, arr) => i === arr.findIndex(x => x.id === m.id))
-        )
-      } else {
-        setMessages(prev => prev.filter(m => m.id !== tempId))
-      }
-    }
-
-    void supabase.rpc('mark_conversation_read', { p_conversation_id: conversationId })
-  }, [conversationId])
-
-  const deleteMessage = useCallback(async (messageId: string) => {
-    await supabase
-      .from('messages')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', messageId)
-  }, [])
-
+  // ── Edit / delete (useMutation: rollback + Alert on failure) ──────────────
+  const edit = useMutation(
+    async ({ id, content, editedAt }: { id: string; content: string; editedAt: string }) => {
+      const { data, error: e } = await supabase
+        .from('messages')
+        .update({ content, edited_at: editedAt })
+        .eq('id', id)
+        .select('id')
+      if (e) throw e
+      if (!data?.length) throw new Error('Message not updated')
+    },
+    {
+      onMutate: ({ id, content, editedAt }) => {
+        const before = messagesRef.current.find(m => m.id === id)
+        setMessages(prev => prev.map(m => (m.id === id ? { ...m, content, edited_at: editedAt } : m)))
+        if (!before) return
+        return () => setMessages(prev => prev.map(m => (m.id === id ? { ...m, content: before.content, edited_at: before.edited_at } : m)))
+      },
+      onError: () => chatAlert("Couldn't edit message", GENERIC_RETRY),
+    },
+  )
+  const editMutate = edit.mutate
+  /** Resolves `true` on success; on failure the bubble is rolled back and an Alert shown. */
   const editMessage = useCallback(async (messageId: string, newContent: string) => {
-    const now = new Date().toISOString()
-    setMessages(prev => prev.map(m =>
-      m.id === messageId ? { ...m, content: newContent, edited_at: now } : m
-    ))
-    await supabase
-      .from('messages')
-      .update({ content: newContent, edited_at: now })
-      .eq('id', messageId)
-  }, [])
+    const r = await editMutate({ id: messageId, content: newContent, editedAt: new Date().toISOString() })
+    return r !== undefined
+  }, [editMutate])
 
+  const remove = useMutation(
+    async ({ id, deletedAt }: { id: string; deletedAt: string }) => {
+      const { data, error: e } = await supabase
+        .from('messages')
+        .update({ deleted_at: deletedAt })
+        .eq('id', id)
+        .select('id')
+      if (e) throw e
+      if (!data?.length) throw new Error('Message not deleted')
+    },
+    {
+      onMutate: ({ id, deletedAt }) => {
+        const before = messagesRef.current.find(m => m.id === id)
+        setMessages(prev => prev.map(m => (m.id === id ? { ...m, deleted_at: deletedAt } : m)))
+        if (!before) return
+        return () => setMessages(prev => prev.map(m => (m.id === id ? { ...m, deleted_at: before.deleted_at } : m)))
+      },
+      onError: () => chatAlert("Couldn't delete message", GENERIC_RETRY),
+    },
+  )
+  const removeMutate = remove.mutate
+  const deleteMessage = useCallback(async (messageId: string) => {
+    const r = await removeMutate({ id: messageId, deletedAt: new Date().toISOString() })
+    return r !== undefined
+  }, [removeMutate])
+
+  // ── Reactions (optimistic; not useMutation — taps on different messages must not block each other) ──
   const toggleReaction = useCallback(async (messageId: string, emoji: string) => {
-    const user = await getSessionUser()
-    if (!user) return
-    const existing = messages
+    if (!userId) return
+    const existing = messagesRef.current
       .find(m => m.id === messageId)
-      ?.message_reactions.find(r => r.user_id === user.id && r.emoji === emoji)
-
-    // Optimistic update
-    setMessages(prev => prev.map(m => {
-      if (m.id !== messageId) return m
-      const reactions = existing
-        ? m.message_reactions.filter(r => !(r.user_id === user.id && r.emoji === emoji))
-        : [...m.message_reactions, { message_id: messageId, user_id: user.id, emoji, created_at: new Date().toISOString() }]
-      return { ...m, message_reactions: reactions }
-    }))
+      ?.message_reactions.find(r => r.user_id === userId && r.emoji === emoji)
+    const reaction = { message_id: messageId, user_id: userId, emoji, created_at: new Date().toISOString() }
+    const add = () => setMessages(prev => applyReactionChange(prev, { eventType: 'INSERT', new: reaction }))
+    const drop = () => setMessages(prev => applyReactionChange(prev, { eventType: 'DELETE', old: reaction }))
 
     if (existing) {
-      await supabase
+      drop()
+      const { error: e } = await supabase
         .from('message_reactions')
         .delete()
         .eq('message_id', messageId)
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('emoji', emoji)
+      if (e) {
+        add()
+        chatAlert("Couldn't remove reaction", GENERIC_RETRY)
+      }
     } else {
-      await supabase
+      add()
+      const { error: e } = await supabase
         .from('message_reactions')
-        .insert({ message_id: messageId, user_id: user.id, emoji })
+        .insert({ message_id: messageId, user_id: userId, emoji })
+      // 23505: already reacted (double tap / another device) — the optimistic state is right.
+      if (e && e.code !== '23505') {
+        drop()
+        chatAlert("Couldn't add reaction", GENERIC_RETRY)
+      }
     }
-  }, [messages])
+  }, [userId, setMessages])
 
+  /** Upload a picked image; `null` on failure (the caller must not send without it). */
   const uploadImage = useCallback(async (uri: string): Promise<string | null> => {
-    const user = await getSessionUser()
-    if (!user) return null
+    if (!userId) return null
+    try {
+      const response = await fetch(uri)
+      const blob = await response.blob()
 
-    const response = await fetch(uri)
-    const blob = await response.blob()
+      // Prefer the blob's MIME type (reliable on web blob/data URLs).
+      // Fall back to the file extension for native file:// URIs where blob.type may be empty.
+      const mimeType = blob.type || 'image/jpeg'
+      const extFromMime = mimeType.split('/')[1]?.toLowerCase().replace('jpeg', 'jpg') ?? 'jpg'
+      const VALID_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'])
+      const uriExt = uri.split('?')[0].split('.').pop()?.toLowerCase()
+      const ext = (uriExt && VALID_EXTS.has(uriExt)) ? uriExt : extFromMime
 
-    // Prefer the blob's MIME type (reliable on web blob/data URLs).
-    // Fall back to the file extension for native file:// URIs where blob.type may be empty.
-    const mimeType = blob.type || 'image/jpeg'
-    const extFromMime = mimeType.split('/')[1]?.toLowerCase().replace('jpeg', 'jpg') ?? 'jpg'
-    const VALID_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'])
-    const uriExt = uri.split('?')[0].split('.').pop()?.toLowerCase()
-    const ext = (uriExt && VALID_EXTS.has(uriExt)) ? uriExt : extFromMime
-    const contentType = mimeType
-
-    const path = `${user.id}/${Date.now()}.${ext}`
-
-    const { error } = await supabase.storage
-      .from(CHAT_IMAGES_BUCKET)
-      .upload(path, blob, { contentType })
-
-    if (error) {
-      console.error('[uploadImage] storage upload failed:', JSON.stringify(error))
+      const path = `${userId}/${Date.now()}.${ext}`
+      const { error: e } = await supabase.storage
+        .from(CHAT_IMAGES_BUCKET)
+        .upload(path, blob, { contentType: mimeType })
+      if (e) {
+        console.error('[uploadImage] storage upload failed:', e.message)
+        return null
+      }
+      const { data: { publicUrl } } = supabase.storage.from(CHAT_IMAGES_BUCKET).getPublicUrl(path)
+      return publicUrl
+    } catch (e) {
+      console.error('[uploadImage] failed:', (e as Error)?.message)
       return null
     }
+  }, [userId])
 
-    const { data: { publicUrl } } = supabase.storage
-      .from(CHAT_IMAGES_BUCKET)
-      .getPublicUrl(path)
-
-    return publicUrl
-  }, [])
-
-  const markRead = useCallback(async () => {
-    await supabase.rpc('mark_conversation_read', { p_conversation_id: conversationId })
-  }, [conversationId])
-
-  return { messages, loading, hasMore, loadMore, refresh, sendMessage, deleteMessage, editMessage, toggleReaction, uploadImage, markRead }
+  return {
+    messages, loading, error, hasMore, loadMore, refresh,
+    sendMessage, retryMessage, deleteMessage, editMessage, toggleReaction, uploadImage,
+  }
 }
