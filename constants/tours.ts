@@ -22,7 +22,7 @@ export const TOURS = {
         target: TOUR_TARGETS.feedFilters,
         tab: 'events',
         title: 'Find a game',
-        body: 'The Events feed lists sessions near you; these chips filter it by type and surface.',
+        body: 'The Events feed lists sessions near you. Only want to play indoor? Select the Indoor filter.',
       },
       {
         target: TOUR_TARGETS.calendar,
