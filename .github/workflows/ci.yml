@@ -36,11 +36,31 @@ jobs:
       - run: npm run typecheck
       - run: npm test -- --passWithNoTests
 
+  # The web build runs in parallel with docs/unit, outside the shared e2e lock,
+  # so the serialized e2e job only installs and runs tests.
+  build-web:
+    name: Web build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build:web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: dist/
+          retention-days: 1
+
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [docs, unit]
+    needs: [build-web]
     # Credentials of the dedicated e2e account (repository secrets). Required:
     # e2e/env.ts fails fast with a clear message when they are missing, which is
     # also what happens on PRs from forks (secrets are not exposed to them).
@@ -64,9 +84,25 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - name: Build web
-        run: npm run build:web
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium system deps
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: dist/
       - name: Serve + run Playwright
         run: |
           npx serve dist -p 8081 &
