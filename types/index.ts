@@ -854,3 +854,100 @@ export type SessionState = {
   isGuest: boolean
   loading: boolean
 }
+
+// ─── UI primitives (components/ui) ─────────────────────────────────────────────
+
+export type IoniconName = keyof typeof import('@expo/vector-icons').Ionicons.glyphMap
+
+export type ScreenStateProps = {
+  /** Show the spinner. Ignored once `ready` is true so a background refetch never blanks the screen. */
+  loading?: boolean
+  /** Treat the content as already available (e.g. cached data exists) even while `loading`. Default false. */
+  ready?: boolean
+  /** A message (or true for a generic one) renders the error block with a Retry button. */
+  error?: string | boolean | null
+  onRetry?: () => void
+  /** Render the empty state instead of `children`. */
+  empty?: boolean
+  emptyIcon?: IoniconName
+  emptyTitle?: string
+  emptyBody?: string
+  emptyActionLabel?: string
+  onEmptyAction?: () => void
+  children?: import('react').ReactNode
+}
+
+export type EmptyStateProps = {
+  icon?: IoniconName
+  title: string
+  body?: string
+  actionLabel?: string
+  onAction?: () => void
+  testID?: string
+}
+
+export type ChipVariant = 'solid' | 'tint'
+
+export type ChipProps = {
+  label: string
+  active?: boolean
+  onPress: () => void
+  badge?: number | string
+  variant?: ChipVariant
+  testID?: string
+}
+
+export type IconButtonProps = {
+  icon: IoniconName
+  onPress: () => void
+  /** accessibilityLabel — required: an icon alone tells a screen reader nothing. */
+  label: string
+  size?: 36 | 38 | 44
+  /** Highlights the icon in the primary colour (e.g. notifications panel open). */
+  active?: boolean
+  /** Shows the small unread dot. */
+  badge?: boolean
+  testID?: string
+}
+
+export type ScreenHeaderProps = {
+  /** Small uppercase line above the title. */
+  kicker?: string
+  title: string
+  /** Appends the primary-coloured full stop the Events header uses ("Events."). */
+  titleDot?: boolean
+  /** Rendered bottom-right, e.g. an IconButton or SignInButton. */
+  right?: import('react').ReactNode
+  /** Shows a chevron + `backLabel` row above the title. */
+  onBack?: () => void
+  backLabel?: string
+  /** Add the top safe-area inset to the header's top padding. Default false. */
+  safeTop?: boolean
+}
+
+export type ConfirmDialogProps = {
+  visible: boolean
+  title: string
+  body?: string
+  confirmLabel: string
+  cancelLabel?: string
+  destructive?: boolean
+  onConfirm: () => void
+  onCancel: () => void
+  loading?: boolean
+}
+
+export type BottomSheetProps = {
+  visible: boolean
+  onDismiss: () => void
+  title?: string
+  children?: import('react').ReactNode
+}
+
+export type ScreenContainerProps = {
+  children?: import('react').ReactNode
+  /** Max content width on wide web. Default 960. */
+  maxWidth?: number
+  /** Add the standard screen padding (spacing.lg). */
+  padded?: boolean
+}

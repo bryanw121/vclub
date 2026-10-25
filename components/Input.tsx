@@ -1,4 +1,4 @@
-import { forwardRef, useState } from 'react'
+import { forwardRef, useState, ReactNode } from 'react'
 import { TextInput, Text, View, TouchableOpacity, TextInputProps, StyleProp, ViewStyle, TextStyle, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { shared, theme } from '../constants'
@@ -25,12 +25,17 @@ type Props = {
   onSelectionChange?: TextInputProps['onSelectionChange']
   includeFontPadding?: boolean
   maxLength?: number
+  accessibilityLabel?: string
+  testID?: string
+  /** Trailing adornment (clear button, unit, etc.) pinned inside the field's right edge. */
+  right?: ReactNode
 }
 
 export const Input = forwardRef<TextInput, Props>(function Input(
   { label, value, onChangeText, placeholder, secureTextEntry, showPasswordToggle, multiline, numberOfLines,
     error, returnKeyType, onSubmitEditing, blurOnSubmit, autoCapitalize, keyboardType, autoCorrect,
-    containerStyle, inputStyle, onFocus, onSelectionChange, includeFontPadding, maxLength },
+    containerStyle, inputStyle, onFocus, onSelectionChange, includeFontPadding, maxLength,
+    accessibilityLabel, testID, right },
   ref
 ) {
   const [visible, setVisible] = useState(false)
@@ -46,7 +51,7 @@ export const Input = forwardRef<TextInput, Props>(function Input(
             shared.input,
             multiline && !inputStyle && shared.inputMultiline,
             !!error && shared.inputError,
-            showPasswordToggle && { paddingRight: 44 },
+            (showPasswordToggle || !!right) && { paddingRight: 44 },
             // Prevent iOS Safari auto-zoom (triggered when font-size < 16px)
             Platform.OS === 'web' && { fontSize: 16 },
             inputStyle,
@@ -59,6 +64,8 @@ export const Input = forwardRef<TextInput, Props>(function Input(
           multiline={multiline}
           numberOfLines={numberOfLines}
           maxLength={maxLength}
+          accessibilityLabel={accessibilityLabel}
+          testID={testID}
           returnKeyType={returnKeyType}
           onSubmitEditing={onSubmitEditing}
           blurOnSubmit={blurOnSubmit}
@@ -81,6 +88,11 @@ export const Input = forwardRef<TextInput, Props>(function Input(
               color={theme.colors.subtext}
             />
           </TouchableOpacity>
+        )}
+        {!showPasswordToggle && right && (
+          <View style={{ position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center' }}>
+            {right}
+          </View>
         )}
       </View>
       {error && <Text style={shared.inputErrorText}>{error}</Text>}

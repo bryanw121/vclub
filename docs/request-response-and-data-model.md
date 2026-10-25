@@ -436,7 +436,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Contract source fingerprint: `048c1d6adebb`
+> Contract source fingerprint: `101436e56890`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -552,6 +552,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Tournament Team with roster | [`TournamentTeamWithRoster`](../types/index.ts#L806) |
 | Google Places prediction | [`GooglePlacePrediction`](../types/index.ts#L820), [`AppConfigRow`](../types/index.ts#L832), [`UpdateRequirement`](../types/index.ts#L840) |
 | Session | [`SessionState`](../types/index.ts#L850) |
+| UI primitives (components/ui) | [`IoniconName`](../types/index.ts#L860), [`ScreenStateProps`](../types/index.ts#L862), [`EmptyStateProps`](../types/index.ts#L880), [`ChipVariant`](../types/index.ts#L889), [`ChipProps`](../types/index.ts#L891), [`IconButtonProps`](../types/index.ts#L900), [`ScreenHeaderProps`](../types/index.ts#L913), [`ConfirmDialogProps`](../types/index.ts#L928), [`BottomSheetProps`](../types/index.ts#L940), [`ScreenContainerProps`](../types/index.ts#L947) |
 
 ### Constrained string values
 
@@ -565,6 +566,7 @@ TypeScript `enum` keyword.
 | `BadgeType` | `event_attendee`, `event_host`, `cheers_received`, `cheers_given`, `spike_cheer`, `serve_cheer`, `block_cheer`, `set_cheer`, `dig_pass_cheer`, `communication_cheer`, `beta_tester`, `tournament_director`, `profile_complete`, `vex_spirit` | [`types/index.ts:581`](../types/index.ts#L581) |
 | `CardBgType` | `ember`, `frost`, `aurora` | [`types/index.ts:579`](../types/index.ts#L579) |
 | `CheerType` | `spike`, `block`, `serve`, `dig`, `set`, `pass`, `communication` | [`types/index.ts:121`](../types/index.ts#L121) |
+| `ChipVariant` | `solid`, `tint` | [`types/index.ts:889`](../types/index.ts#L889) |
 | `ClubMember.role` | `owner`, `member` | [`types/index.ts:400`](../types/index.ts#L400) |
 | `ConversationType` | `dm`, `club` | [`types/index.ts:501`](../types/index.ts#L501) |
 | `EventAttendee.status` | `attending`, `waitlisted`, `requested`, `denied` | [`types/index.ts:156`](../types/index.ts#L156) |
