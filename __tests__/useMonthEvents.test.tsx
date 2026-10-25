@@ -29,11 +29,15 @@ jest.mock('../lib/sessionUser', () => ({
   getSessionUser: async () => (mockSession.userId ? { id: mockSession.userId } : null),
 }))
 
-type Result = { data?: unknown; error?: { message: string } | null }
+type Result = { data?: unknown; error?: { message: string; code?: string } | null }
 /** Per-table response; a function is called once per query, so it can change between mockCalls. */
 const mockResponses: Record<string, Result | (() => Result | Promise<Result>)> = {}
 const mockCalls: Array<{ table: string; ops: Array<[string, unknown[]]> }> = []
 let mockRpcImpl: () => Promise<Result> = async () => ({ data: [], error: null })
+/** `get_feed_span`: not deployed by default, so the tests above exercise the three-query fallback. */
+const FEED_RPC_MISSING: Result = { data: null, error: { message: 'Could not find the function public.get_feed_span', code: 'PGRST202' } }
+let mockFeedRpcImpl: (args: Record<string, unknown>) => Promise<Result> = async () => FEED_RPC_MISSING
+const mockRpcCalls: Array<{ name: string; args: Record<string, unknown> }> = []
 
 function mockChain(table: string) {
   const record = { table, ops: [] as Array<[string, unknown[]]> }
@@ -55,7 +59,10 @@ function mockChain(table: string) {
 jest.mock('../lib/supabase', () => ({
   supabase: {
     from: (table: string) => mockChain(table),
-    rpc: () => mockRpcImpl(),
+    rpc: (name: string, args: Record<string, unknown>) => {
+      mockRpcCalls.push({ name, args })
+      return name === 'get_feed_span' ? mockFeedRpcImpl(args) : mockRpcImpl()
+    },
   },
 }))
 
@@ -110,6 +117,8 @@ beforeEach(() => {
   for (const k of Object.keys(mockResponses)) delete mockResponses[k]
   mockCalls.length = 0
   mockRpcImpl = async () => ({ data: [], error: null })
+  mockFeedRpcImpl = async () => FEED_RPC_MISSING
+  mockRpcCalls.length = 0
   mockSession.userId = 'me'
   mockFocusCallback = null
   jest.restoreAllMocks()
@@ -267,6 +276,117 @@ describe('useMonthEvents', () => {
     await flush()
     expect(eventQueries()).toHaveLength(2)
     expect(eventQueries()[1].ops.some(([op, args]) => op === 'eq' && args[0] === 'my_attendance.user_id')).toBe(false)
+  })
+})
+
+// ─── One request per span (get_feed_span) ────────────────────────────────────
+
+describe('useMonthEvents with get_feed_span', () => {
+  const feedRpcCalls = () => mockRpcCalls.filter(c => c.name === 'get_feed_span')
+  const previewRpcCalls = () => mockRpcCalls.filter(c => c.name === 'get_event_card_attendee_previews')
+
+  const tournamentRow = {
+    id: 't1', created_by: 'host', club_id: 'c1', title: 'Fall Cup', location: 'Roots',
+    start_date: `${NEXT_MONTH}-20T15:00:00+00:00`, max_teams: 8, price: 20, skill_levels: [], status: 'published',
+    created_at: '2026-01-01T00:00:00+00:00', profiles: { id: 'host', username: 'host' }, clubs: { id: 'c1', name: 'Club', avatar_url: null },
+  }
+  const externalRow = {
+    id: 'reclub-1', source_id: 'reclub', region: 'austin', title: 'Koi Net', venue: 'Roots', city: null, surface: 'indoor',
+    session_type: 'open play', level: null, price: '$12', starts_at: `${NEXT_MONTH}-10T00:00:00+00:00`, ends_at: null,
+    signup_url: 'https://reclub.co/m/1', signup_label: null, note: null, verified_at: null,
+  }
+  const preview = { event_id: 'a', user_id: 'u1', username: 'kim', first_name: null, last_name: null, avatar_url: null }
+
+  it('loads a span in one request, previews included, with no table queries', async () => {
+    mockFeedRpcImpl = async () => ({
+      data: {
+        events: [eventRow('a'), eventRow('b', addMonths(NEXT_MONTH, 1))],
+        tournaments: [tournamentRow],
+        external: [externalRow],
+        previews: [preview],
+      },
+      error: null,
+    })
+    render(<Probe />)
+    act(() => feed.loadMonthSpan(NEXT_MONTH, addMonths(NEXT_MONTH, 1)))
+    await flush(5)
+
+    expect(feedRpcCalls()).toHaveLength(1)
+    expect(mockCalls).toHaveLength(0)
+    expect(previewRpcCalls()).toHaveLength(0)
+
+    const args = feedRpcCalls()[0].args
+    expect(args.p_start).toBe(new Date(Number(NEXT_MONTH.slice(0, 4)), Number(NEXT_MONTH.slice(5)) - 1, 1).toISOString())
+    expect(typeof args.p_end).toBe('string')
+    expect(Date.parse(args.p_external_updated_since as string)).toBeLessThan(Date.now() - 11 * 60 * 60 * 1000)
+
+    // Same merge as the query path: sorted by date, normalized, bucketed by month.
+    expect(getQueryData<EventWithDetails[]>(feedMonthKey(NEXT_MONTH))?.map(e => e.id)).toEqual(['external:reclub-1', 'a', 't1'])
+    expect(getQueryData<EventWithDetails[]>(feedMonthKey(addMonths(NEXT_MONTH, 1)))?.map(e => e.id)).toEqual(['b'])
+    const a = feed.events.find(e => e.id === 'a')!
+    expect(a.attendee_previews?.map(p => p.user_id)).toEqual(['u1'])
+    expect(feed.events.find(e => e.id === 'b')!.attendee_previews).toEqual([])
+    expect(feed.events.find(e => e.id === 't1')!._isTournament).toBe(true)
+    expect(feed.events.find(e => e.id === 'external:reclub-1')!._external?.id).toBe('reclub-1')
+  })
+
+  it('falls back to the three queries when the function is not deployed, and stops asking', async () => {
+    mockResponses.events = { data: [eventRow('a')], error: null }
+    render(<Probe />)
+    act(() => feed.loadMonth(NEXT_MONTH))
+    await flush(5)
+    expect(feedRpcCalls()).toHaveLength(1)
+    expect(eventQueries()).toHaveLength(1)
+    expect(feed.events.map(e => e.id)).toEqual(['a'])
+    expect(feed.error).toBeNull()
+
+    act(() => invalidate('feed'))
+    await flush(5)
+    expect(feedRpcCalls()).toHaveLength(1)
+    expect(eventQueries()).toHaveLength(2)
+  })
+
+  it('falls back for one fetch on a network error, then tries the RPC again', async () => {
+    mockResponses.events = { data: [eventRow('a')], error: null }
+    mockFeedRpcImpl = async () => ({ data: null, error: { message: 'TypeError: Failed to fetch', code: '' } })
+    render(<Probe />)
+    act(() => feed.loadMonth(NEXT_MONTH))
+    await flush(5)
+    expect(eventQueries()).toHaveLength(1)
+    expect(feed.events.map(e => e.id)).toEqual(['a'])
+
+    mockFeedRpcImpl = async () => ({ data: { events: [eventRow('z')], tournaments: [], external: [], previews: [] }, error: null })
+    act(() => invalidate('feed'))
+    await flush(5)
+    expect(feedRpcCalls()).toHaveLength(2)
+    expect(eventQueries()).toHaveLength(1)
+    expect(feed.events.map(e => e.id)).toEqual(['z'])
+  })
+
+  it('treats an unexpected payload as unavailable', async () => {
+    mockResponses.events = { data: [eventRow('a')], error: null }
+    mockFeedRpcImpl = async () => ({ data: [], error: null })
+    render(<Probe />)
+    act(() => feed.loadMonth(NEXT_MONTH))
+    await flush(5)
+    expect(feed.events.map(e => e.id)).toEqual(['a'])
+
+    act(() => invalidate('feed'))
+    await flush(5)
+    expect(feedRpcCalls()).toHaveLength(1)
+  })
+
+  it('replaces stale previews when nobody is going any more', async () => {
+    mockFeedRpcImpl = async () => ({ data: { events: [eventRow('a')], previews: [preview] }, error: null })
+    render(<Probe />)
+    act(() => feed.loadMonth(NEXT_MONTH))
+    await flush(5)
+    expect(feed.events[0].attendee_previews).toHaveLength(1)
+
+    mockFeedRpcImpl = async () => ({ data: { events: [eventRow('a')], previews: [] }, error: null })
+    act(() => invalidate('feed'))
+    await flush(5)
+    expect(feed.events[0].attendee_previews).toEqual([])
   })
 })
 

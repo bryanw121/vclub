@@ -436,7 +436,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Inventory fingerprint: `336a663e007d`
+> Inventory fingerprint: `d3b6ffa4aad6`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -458,13 +458,13 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `clubs` | [`app/(app)/(tabs)/clubs.tsx:213`](../app/%28app%29/%28tabs%29/clubs.tsx#L213)<br>[`app/(app)/club/[id].tsx:191`](../app/%28app%29/club/%5Bid%5D.tsx#L191)<br>[`app/(app)/club/create.tsx:41`](../app/%28app%29/club/create.tsx#L41)<br>[`hooks/useClub.ts:53`](../hooks/useClub.ts#L53) |
 | `conversation_members` | [`supabase/functions/send-chat-push/index.ts:119`](../supabase/functions/send-chat-push/index.ts#L119) |
 | `conversations` | [`hooks/useConversations.ts:208`](../hooks/useConversations.ts#L208)<br>[`supabase/functions/send-chat-push/index.ts:118`](../supabase/functions/send-chat-push/index.ts#L118) |
-| `event_attendees` | [`app/(app)/host.tsx:338`](../app/%28app%29/host.tsx#L338)<br>[`hooks/event/useEventAttendance.ts:95`](../hooks/event/useEventAttendance.ts#L95)<br>[`hooks/event/useEventTeams.ts:75`](../hooks/event/useEventTeams.ts#L75)<br>[`hooks/useMonthEvents.ts:464`](../hooks/useMonthEvents.ts#L464)<br>[`hooks/useMyUpcomingEvents.ts:100`](../hooks/useMyUpcomingEvents.ts#L100)<br>[`utils/badges.ts:18`](../utils/badges.ts#L18) |
+| `event_attendees` | [`app/(app)/host.tsx:338`](../app/%28app%29/host.tsx#L338)<br>[`hooks/event/useEventAttendance.ts:95`](../hooks/event/useEventAttendance.ts#L95)<br>[`hooks/event/useEventTeams.ts:75`](../hooks/event/useEventTeams.ts#L75)<br>[`hooks/useMonthEvents.ts:549`](../hooks/useMonthEvents.ts#L549)<br>[`hooks/useMyUpcomingEvents.ts:100`](../hooks/useMyUpcomingEvents.ts#L100)<br>[`utils/badges.ts:18`](../utils/badges.ts#L18) |
 | `event_cohosts` | [`hooks/event/useCohosts.ts:61`](../hooks/event/useCohosts.ts#L61)<br>[`hooks/event/useEventData.ts:43`](../hooks/event/useEventData.ts#L43) |
 | `event_comments` | [`hooks/event/useEventComments.ts:41`](../hooks/event/useEventComments.ts#L41)<br>[`hooks/event/useEventData.ts:53`](../hooks/event/useEventData.ts#L53) |
 | `event_guests` | [`hooks/event/useEventAttendance.ts:266`](../hooks/event/useEventAttendance.ts#L266)<br>[`hooks/event/useEventData.ts:33`](../hooks/event/useEventData.ts#L33)<br>[`hooks/event/useEventTeams.ts:86`](../hooks/event/useEventTeams.ts#L86) |
 | `event_tags` | [`app/(app)/host.tsx:302`](../app/%28app%29/host.tsx#L302) |
 | `events` | [`app/(app)/(tabs)/settings/history.tsx:51`](../app/%28app%29/%28tabs%29/settings/history.tsx#L51)<br>[`app/(app)/(tabs)/settings/hosted.tsx:21`](../app/%28app%29/%28tabs%29/settings/hosted.tsx#L21)<br>[`app/(app)/event/[id].tsx:189`](../app/%28app%29/event/%5Bid%5D.tsx#L189)<br>[`app/(app)/host.tsx:134`](../app/%28app%29/host.tsx#L134)<br>[`hooks/event/useEventData.ts:26`](../hooks/event/useEventData.ts#L26)<br>[`hooks/useClub.ts:45`](../hooks/useClub.ts#L45)<br>+2 more files |
-| `external_sessions` | [`hooks/useMonthEvents.ts:178`](../hooks/useMonthEvents.ts#L178) |
+| `external_sessions` | [`hooks/useMonthEvents.ts:238`](../hooks/useMonthEvents.ts#L238) |
 | `feedback_submissions` | [`app/(app)/(tabs)/settings/feedback.tsx:47`](../app/%28app%29/%28tabs%29/settings/feedback.tsx#L47) |
 | `major_cities` | [`components/MajorCityAutocomplete.tsx:27`](../components/MajorCityAutocomplete.tsx#L27) |
 | `message_reactions` | [`hooks/useMessages.ts:434`](../hooks/useMessages.ts#L434) |
@@ -482,7 +482,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `tournament_team_join_requests` | [`hooks/tournament/api.ts:140`](../hooks/tournament/api.ts#L140) |
 | `tournament_team_members` | [`hooks/tournament/api.ts:132`](../hooks/tournament/api.ts#L132) |
 | `tournament_teams` | [`hooks/tournament/api.ts:101`](../hooks/tournament/api.ts#L101) |
-| `tournaments` | [`app/(app)/tournament/create.tsx:665`](../app/%28app%29/tournament/create.tsx#L665)<br>[`hooks/tournament/api.ts:87`](../hooks/tournament/api.ts#L87)<br>[`hooks/useMonthEvents.ts:169`](../hooks/useMonthEvents.ts#L169) |
+| `tournaments` | [`app/(app)/tournament/create.tsx:665`](../app/%28app%29/tournament/create.tsx#L665)<br>[`hooks/tournament/api.ts:87`](../hooks/tournament/api.ts#L87)<br>[`hooks/useMonthEvents.ts:229`](../hooks/useMonthEvents.ts#L229) |
 | `user_badges` | [`app/(app)/profile/[id].tsx:56`](../app/%28app%29/profile/%5Bid%5D.tsx#L56)<br>[`hooks/useBadges.ts:51`](../hooks/useBadges.ts#L51)<br>[`utils/badges.ts:170`](../utils/badges.ts#L170) |
 | `user_event_templates` | [`app/(app)/host.tsx:160`](../app/%28app%29/host.tsx#L160) |
 | `user_settings` | [`hooks/useUserSettings.ts:19`](../hooks/useUserSettings.ts#L19) |
@@ -496,7 +496,8 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `accept_tournament_invite` | [`hooks/tournament/api.ts:198`](../hooks/tournament/api.ts#L198) | [`supabase/migrations/20261025120000_tournament_rpcs.sql:18`](../supabase/migrations/20261025120000_tournament_rpcs.sql#L18) |
 | `find_or_create_dm` | [`hooks/useOpenDm.ts:26`](../hooks/useOpenDm.ts#L26) | Not checked in |
 | `get_email_by_username` | [`app/(auth)/login.tsx:111`](../app/%28auth%29/login.tsx#L111) | Not checked in |
-| `get_event_card_attendee_previews` | [`utils/eventCardPreviews.ts:22`](../utils/eventCardPreviews.ts#L22) | [`supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql:2`](../supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql#L2) |
+| `get_event_card_attendee_previews` | [`utils/eventCardPreviews.ts:35`](../utils/eventCardPreviews.ts#L35) | [`supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql:2`](../supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql#L2) |
+| `get_feed_span` | [`hooks/useMonthEvents.ts:174`](../hooks/useMonthEvents.ts#L174) | [`supabase/migrations/20261025220000_get_feed_span.sql:33`](../supabase/migrations/20261025220000_get_feed_span.sql#L33) |
 | `get_my_conversations` | [`hooks/useConversations.ts:35`](../hooks/useConversations.ts#L35) | Not checked in |
 | `mark_all_notifications_read` | [`hooks/useNotifications.ts:99`](../hooks/useNotifications.ts#L99) | [`supabase/migrations/20260402120000_notifications_inbox.sql:112`](../supabase/migrations/20260402120000_notifications_inbox.sql#L112) |
 | `mark_conversation_read` | [`hooks/useMessages.ts:152`](../hooks/useMessages.ts#L152) | Not checked in |
@@ -564,7 +565,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Profile hooks | [`MyProfile`](../types/index.ts#L1083), [`AvatarUploader`](../types/index.ts#L1104) |
 | Chat hooks / utils | [`SenderProfile`](../types/index.ts#L1121), [`ReplySnapshot`](../types/index.ts#L1122), [`MessageRecord`](../types/index.ts#L1125), [`DebouncedCall`](../types/index.ts#L1127), [`PendingSend`](../types/index.ts#L1137), [`ConversationLookupRow`](../types/index.ts#L1145) |
 | Shared component contracts | [`EventCardRsvpHandler`](../types/index.ts#L1161), [`RowEventCardRsvpHandler`](../types/index.ts#L1162), [`TeamCardActions`](../types/index.ts#L1165), [`CheerCounts`](../types/index.ts#L1178), [`AnchorRect`](../types/index.ts#L1181), [`AnchorMenuOption`](../types/index.ts#L1183), [`LocationValue`](../types/index.ts#L1191) |
-| Badges, previews, tournament tabs | [`BadgeStats`](../types/index.ts#L1199), [`BadgeAwardPlan`](../types/index.ts#L1214), [`EventCardPreviews`](../types/index.ts#L1220), [`TournamentTabName`](../types/index.ts#L1222) |
+| Badges, previews, tournament tabs | [`BadgeStats`](../types/index.ts#L1199), [`BadgeAwardPlan`](../types/index.ts#L1214), [`EventCardPreviews`](../types/index.ts#L1220), [`EventCardPreviewRow`](../types/index.ts#L1223), [`FeedSpanRows`](../types/index.ts#L1231), [`StoredFeedFilters`](../types/index.ts#L1239), [`TournamentTabName`](../types/index.ts#L1244) |
 
 ### Constrained string values
 
