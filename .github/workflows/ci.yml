@@ -64,6 +64,11 @@ jobs:
 
   e2e-shard:
     name: E2E (${{ matrix.shard }})
+    # PRs only: every e2e run signs in, writes fixtures and opens realtime
+    # channels on the one shared Supabase project, and a merge to main is the
+    # squash of a PR that already passed. Skipping the post-merge rerun halves
+    # the load on the project's disk IO budget.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [build-web]
@@ -154,7 +159,7 @@ jobs:
     name: Playwright E2E
     runs-on: ubuntu-latest
     needs: [e2e-shard]
-    if: always()
+    if: always() && github.event_name == 'pull_request'
     steps:
       - name: All shards passed
         run: |
