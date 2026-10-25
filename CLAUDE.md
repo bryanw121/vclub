@@ -287,7 +287,7 @@ Test each surface mentally when building. If a component behaves differently acr
 ### Single mainline (since July 2026)
 - All development happens on `main` — there is no `beta` branch or beta GitHub environment
 - One Supabase project (`rmelsdqgrpfjzqisycdl`) serves as the only environment
-- CI (`.github/workflows/ci.yml`) runs unit tests + Playwright e2e on every push/PR to `main`; secrets are repository-level Actions secrets
+- CI (`.github/workflows/ci.yml`) runs unit tests on every push/PR to `main` and Playwright e2e on pull requests only (e2e load counts against the shared Supabase project's disk IO budget); secrets are repository-level Actions secrets
 
 ### CI e2e specifics
 - The e2e job serves the static export with `npx serve dist` — dynamic routes (`/chat/[id]`, `/event/[id]`, etc.) only resolve because of the rewrite rules in `public/serve.json` (copied into `dist` on export). Add a rewrite there whenever a new dynamic route is created.
