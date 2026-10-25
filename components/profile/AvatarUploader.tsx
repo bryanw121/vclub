@@ -2,7 +2,7 @@ import { Image, Modal, Pressable, Text, View } from 'react-native'
 import { theme } from '../../constants'
 import { ProfileAvatar } from '../ProfileAvatar'
 import type { Profile } from '../../types'
-import type { AvatarUploader as AvatarUploaderState } from './useAvatarUploader'
+import type { AvatarUploader as AvatarUploaderState } from '../../types'
 
 export const AVATAR_SIZE = 88
 const PREVIEW_SIZE = AVATAR_SIZE + 6 + 8

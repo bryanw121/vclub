@@ -4,14 +4,12 @@ import { supabase } from '../../lib/supabase'
 import { useMutation } from '../../lib/query'
 import { useRequireSignIn } from '../useRequireSignIn'
 import { COMMENT_SELECT, GENERIC_ERROR_MESSAGE } from '../../constants'
-import type { EventCommentWithAuthor } from '../../types'
+import type { EventCommentPostVars as PostVars, EventCommentWithAuthor } from '../../types'
 import { eventKeys, patchQuery } from './keys'
 import { reportEventError } from './telemetry'
-import type { EventData } from './useEventData'
+import type { EventData } from '../../types'
 
 export const EVENT_COMMENT_MAX_LEN = 2000
-
-type PostVars = { body: string; isAnnouncement: boolean; mentionIds: string[] }
 
 function upsertComment(id: string, row: EventCommentWithAuthor) {
   patchQuery<EventCommentWithAuthor[]>(eventKeys.comments(id), rows => {
@@ -38,6 +36,7 @@ export function useEventComments(data: EventData, opts: { isHostOrCohost: boolea
 
   const create = useMutation(
     async (vars: PostVars & { parentId: string | null }) => {
+      if (!userId) throw new Error('Sign in to continue.')
       const { data: row, error } = await supabase
         .from('event_comments')
         .insert({
@@ -51,7 +50,7 @@ export function useEventComments(data: EventData, opts: { isHostOrCohost: boolea
         .select(COMMENT_SELECT)
         .single()
       if (error) throw error
-      return row as unknown as EventCommentWithAuthor
+      return row as EventCommentWithAuthor
     },
     {
       onSuccess: row => upsertComment(id, row),
@@ -71,7 +70,7 @@ export function useEventComments(data: EventData, opts: { isHostOrCohost: boolea
         .select(COMMENT_SELECT)
         .single()
       if (error) throw error
-      return row as unknown as EventCommentWithAuthor
+      return row as EventCommentWithAuthor
     },
     {
       onSuccess: row => upsertComment(id, row),
@@ -119,4 +118,3 @@ export function useEventComments(data: EventData, opts: { isHostOrCohost: boolea
   }
 }
 
-export type EventCommentsApi = ReturnType<typeof useEventComments>

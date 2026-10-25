@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { Button } from '../Button'
 import { shared, theme } from '../../constants'
 import type { AttendanceStatus } from '../../types'
-import type { EventAttendanceApi } from '../../hooks/event'
+import type { EventAttendanceApi } from '../../types'
 
 type Props = {
   eventStatus: AttendanceStatus

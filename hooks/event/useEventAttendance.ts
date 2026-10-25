@@ -4,26 +4,14 @@ import { supabase } from '../../lib/supabase'
 import { useMutation } from '../../lib/query'
 import { useRequireSignIn } from '../useRequireSignIn'
 import { ATTENDEE_SELECT, EVENT_JUST_FILLED_BODY, EVENT_JUST_FILLED_TITLE, GENERIC_ERROR_MESSAGE, GUEST_SELECT } from '../../constants'
-import type { EventAttendee, EventAttendeeWithProfile, EventGuest, EventWithDetails, Profile } from '../../types'
+import type {
+  EventAttendee, EventAttendeeWithProfile, EventGuest, EventWithDetails, NotificationType, Profile, RemoveTarget,
+  SelfAttendanceAction, TablesInsert,
+} from '../../types'
 import { eventKeys, patchQuery } from './keys'
 import { attendeeRowsWithProfiles } from './derive'
 import { eventBreadcrumb, reportEventError } from './telemetry'
-import type { EventData } from './useEventData'
-
-/** What the viewer can do to their own RSVP. They share one pending flag (`joining`). */
-export type SelfAttendanceAction =
-  | 'join'
-  | 'leave'
-  | 'joinWaitlist'
-  | 'leaveWaitlist'
-  | 'requestToJoin'
-  | 'cancelRequest'
-  | 'rerequest'
-
-/** Host removing someone from the roster (the X on a card). */
-export type RemoveTarget =
-  | { kind: 'attendee'; userId: string; firstName: string | null; lastName: string | null; username: string }
-  | { kind: 'guest'; guestId: string; firstName: string; lastName: string }
+import type { EventData } from '../../types'
 
 const OPTIMISTIC_STATUS: Partial<Record<SelfAttendanceAction, EventAttendee['status']>> = {
   join: 'attending',
@@ -84,7 +72,7 @@ function patchGuests(id: string, fn: (rows: EventGuest[]) => EventGuest[]) {
   patchQuery<EventGuest[]>(eventKeys.guests(id), fn)
 }
 
-async function notify(row: { user_id: string; notification_type: string; title: string; body: string; data: Record<string, unknown> }) {
+async function notify(row: TablesInsert<'notifications'> & { notification_type: NotificationType }) {
   // Best effort, as before: the RSVP itself already succeeded.
   await supabase.from('notifications').insert(row)
 }
@@ -116,7 +104,7 @@ export function useEventAttendance(data: EventData) {
           .select(ATTENDEE_SELECT)
           .single()
         if (error) throw error
-        return row as unknown as EventAttendeeWithProfile
+        return row as EventAttendeeWithProfile
       }
 
       switch (action) {
@@ -320,6 +308,7 @@ export function useEventAttendance(data: EventData) {
   // ─── +1 guests ─────────────────────────────────────────────────────────────
   const addGuestMutation = useMutation(
     async (name: { firstName: string; lastName: string }) => {
+      if (!userId) throw new Error('Sign in to continue.')
       const attendingCount = roster.attendingRows.length + roster.attendingGuests.length
       const isFull = event?.max_attendees ? attendingCount >= event.max_attendees : false
       const { data: row, error } = await supabase
@@ -335,7 +324,7 @@ export function useEventAttendance(data: EventData) {
         .single()
       if (error) throw error
       // The database may have waitlisted the guest if the event filled up meanwhile.
-      return row as unknown as EventGuest
+      return row as EventGuest
     },
     {
       onSuccess: guest => patchGuests(id, rows => [...rows, guest]),
@@ -379,7 +368,6 @@ export function useEventAttendance(data: EventData) {
   }
 }
 
-export type EventAttendanceApi = ReturnType<typeof useEventAttendance>
 
 /** Profile fields the remove dialog needs from a roster card. */
 export function attendeeRemoveTarget(p: Profile): RemoveTarget {

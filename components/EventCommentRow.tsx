@@ -4,6 +4,7 @@ import * as Linking from 'expo-linking'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { theme, shared } from '../constants'
+import { routes } from '../utils/routes'
 import type { EventCommentWithAuthor } from '../types'
 import { resolveProfileAvatarUriSmall, profileDisplayName, formatCommentTime } from '../utils'
 import { ProfileAvatar } from './ProfileAvatar'
@@ -49,7 +50,7 @@ function CommentBody({
               <Text
                 key={i}
                 style={styles.mention}
-                onPress={() => router.push(`/profile/${profileId}` as any)}
+                onPress={() => router.push(routes.profileOf(profileId))}
                 accessibilityRole="link"
                 accessibilityLabel={`View profile of ${username}`}
               >
@@ -109,7 +110,7 @@ export function EventCommentRow({
   const isDeleted = !!comment.deleted_at
 
   function goProfile() {
-    router.push(`/profile/${comment.user_id}` as any)
+    router.push(routes.profileOf(comment.user_id))
   }
 
   function confirmDelete() {

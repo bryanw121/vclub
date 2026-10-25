@@ -7,11 +7,12 @@ import { Sentry } from '../../lib/sentry'
 import { invalidate, queryKey, useQuery } from '../../lib/query'
 import { DatePickerField } from '../../components/DatePickerField'
 import { LocationPickerField } from '../../components/LocationPickerField'
-import type { LocationValue } from '../../components/LocationPickerField'
+import type { LocationValue } from '../../types'
 import { TemplatesView } from '../../components/host/TemplatesView'
 import { ScreenState } from '../../components/ui'
 import { shared, theme, STALE, DAY_LABELS_SHORT, DURATION_OPTIONS, DEFAULT_DURATION_MINUTES, GENERIC_ERROR_MESSAGE } from '../../constants'
 import type { RecurrenceCadence } from '../../constants'
+import { routes } from '../../utils/routes'
 import { useSession } from '../../contexts/session'
 import { useTags } from '../../hooks/useTags'
 import { cleanDate, diffTagIds, normalizePriceText, parsePrice, sanitizePriceInput } from '../../utils'
@@ -70,7 +71,7 @@ export default function HostEventScreen() {
 
   function goBack() {
     if (router.canGoBack()) router.back()
-    else router.replace('/(app)')
+    else router.replace(routes.app())
   }
   const { mode: modeParam, edit: editId, maxAttendees: maxAttendeesParam } = useLocalSearchParams<{ mode?: string; edit?: string; maxAttendees?: string }>()
   const isEdit = !!editId
@@ -114,7 +115,7 @@ export default function HostEventScreen() {
         .eq('user_id', userId as string)
         .eq('role', 'owner')
       if (error) throw error
-      return ((data ?? []) as unknown as { clubs: OwnedClubOption | null }[])
+      return ((data ?? []) as { clubs: OwnedClubOption | null }[])
         .map(m => m.clubs)
         .filter((c): c is OwnedClubOption => !!c)
     },
@@ -579,7 +580,7 @@ export default function HostEventScreen() {
                       borderColor: theme.colors.border,
                     }}
                   >
-                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 17, letterSpacing: -0.3, color: selected ? '#fff' : theme.colors.text }}>
+                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 17, letterSpacing: -0.3, color: selected ? theme.colors.white : theme.colors.text }}>
                       {tag.name}
                     </Text>
                     {meta.subtitle ? (
@@ -813,7 +814,7 @@ export default function HostEventScreen() {
                       onPress={() => setRecurrence(prev => ({ ...prev, cadence: opt.value }))}
                       style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, backgroundColor: recurrence.cadence === opt.value ? theme.colors.primary : 'transparent' }}
                     >
-                      <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: recurrence.cadence === opt.value ? '#fff' : theme.colors.subtext }}>
+                      <Text style={{ fontSize: theme.font.size.sm, fontWeight: theme.font.weight.medium, color: recurrence.cadence === opt.value ? theme.colors.white : theme.colors.subtext }}>
                         {opt.label}
                       </Text>
                     </TouchableOpacity>
@@ -837,7 +838,7 @@ export default function HostEventScreen() {
                               alignItems: 'center', justifyContent: 'center',
                             }}
                           >
-                            <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: active ? '#fff' : theme.colors.subtext }}>
+                            <Text style={{ fontSize: theme.font.size.xs, fontWeight: theme.font.weight.semibold, color: active ? theme.colors.white : theme.colors.subtext }}>
                               {label}
                             </Text>
                           </TouchableOpacity>
@@ -876,7 +877,7 @@ export default function HostEventScreen() {
                       backgroundColor: active ? theme.colors.primary : theme.colors.border,
                     }}
                   >
-                    <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: active ? '#fff' : theme.colors.text }}>
+                    <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: active ? theme.colors.white : theme.colors.text }}>
                       {club.name}
                     </Text>
                   </TouchableOpacity>

@@ -1,13 +1,10 @@
 import { supabase } from '../../lib/supabase'
 import { queryKey } from '../../lib/query'
 import type {
-  Tournament, TournamentComment, TournamentRules, TournamentTeam, TournamentTeamWithRoster,
-  TournamentPrize, TournamentCommentWithAuthor,
+  GeneratedSchedule, MyRegistration, PendingInvite, TablesInsert, Tournament, TournamentCommentWithAuthor,
+  TournamentCore, TournamentInviteCandidate, TournamentJoinRequestWithRequester, TournamentMatchRow,
+  TournamentPrize, TournamentRules, TournamentTeam, TournamentTeamWithRoster, TournamentViewer,
 } from '../../types'
-import type {
-  GeneratedSchedule, MyRegistration, PendingInvite, TournamentCore,
-  TournamentJoinRequestWithRequester, TournamentMatchRow, TournamentViewer,
-} from '../../types/tournamentScreen'
 
 /**
  * Every Supabase call the tournament detail screen makes. Reads return data and
@@ -92,9 +89,10 @@ export async function fetchTournamentCore(id: string): Promise<TournamentCore> {
     ok(supabase.from('tournament_prizes').select(PRIZE_COLUMNS).eq('tournament_id', id).order('display_order')),
   ])
   return {
-    tournament: tournament as unknown as Tournament | null,
-    rules: rules as unknown as TournamentRules | null,
-    prizes: (prizes ?? []) as unknown as TournamentPrize[],
+    // `status`/`format`/… come back as `string`; the DB CHECK constraints guarantee the unions.
+    tournament: tournament as Tournament | null,
+    rules: rules satisfies TournamentRules | null,
+    prizes: (prizes ?? []) satisfies TournamentPrize[],
   }
 }
 
@@ -102,9 +100,9 @@ export async function fetchTeams(id: string): Promise<TournamentTeamWithRoster[]
   const data = await ok(
     supabase.from('tournament_teams').select(TEAMS_WITH_ROSTER_SELECT).eq('tournament_id', id).order('created_at'),
   )
-  return ((data ?? []) as any[]).map(team => ({
+  return (data ?? []).map(({ tournament_team_members, ...team }) => ({
     ...team,
-    members: team.tournament_team_members ?? [],
+    members: tournament_team_members ?? [],
   })) as TournamentTeamWithRoster[]
 }
 
@@ -112,14 +110,14 @@ export async function fetchComments(id: string): Promise<TournamentCommentWithAu
   const data = await ok(
     supabase.from('tournament_comments').select(COMMENT_SELECT).eq('tournament_id', id).order('created_at', { ascending: true }),
   )
-  return (data ?? []) as unknown as TournamentCommentWithAuthor[]
+  return (data ?? []) as TournamentCommentWithAuthor[]
 }
 
 export async function fetchMatches(id: string): Promise<TournamentMatchRow[]> {
   const data = await ok(
     supabase.from('tournament_matches').select(MATCH_COLUMNS).eq('tournament_id', id).order('round').order('match_number'),
   )
-  return (data ?? []) as unknown as TournamentMatchRow[]
+  return (data ?? []) as TournamentMatchRow[]
 }
 
 /**
@@ -145,29 +143,31 @@ export async function fetchMyRegistration(id: string, userId: string): Promise<M
   ])
 
   // Normally one row; if a user ended up on two teams, a real team beats a free-agent entry.
-  const teams = ((memberships ?? []) as any[]).map(m => m.tournament_teams as TournamentTeam).filter(Boolean)
+  const teams = (memberships ?? []).map(m => m.tournament_teams as TournamentTeam).filter(Boolean)
   const team = teams.find(t => t.status !== 'free_agent') ?? teams[0] ?? null
 
   return {
     profile: (profile ?? null) as TournamentViewer | null,
     team,
-    invites: ((invites ?? []) as any[]).map(inv => ({
+    invites: (invites ?? []).map(inv => ({
       id: inv.id, tournament_id: inv.tournament_id, team_id: inv.team_id, inviter_id: inv.inviter_id,
       invitee_id: inv.invitee_id, status: inv.status, created_at: inv.created_at,
       team_name: inv.tournament_teams?.name ?? 'Unknown Team',
     })) as PendingInvite[],
-    joinRequests: ((requests ?? []) as any[]).map(r => ({
+    joinRequests: (requests ?? []).map(r => ({
       id: r.id, tournament_id: r.tournament_id, team_id: r.team_id, requester_id: r.requester_id,
       status: r.status, created_at: r.created_at, requester: r.profiles ?? null,
     })) as TournamentJoinRequestWithRequester[],
   }
 }
 
-export async function searchProfiles(filter: string, excludeUserId: string | null) {
-  return ok(
+export async function searchProfiles(filter: string, excludeUserId: string | null): Promise<TournamentInviteCandidate[]> {
+  const rows = await ok(
     supabase.from('profiles').select('id, username, first_name, last_name, avatar_url')
       .or(filter).neq('id', excludeUserId ?? '').limit(20),
   )
+  // `username` is nullable in the schema but always set by the signup trigger.
+  return (rows ?? []) as TournamentInviteCandidate[]
 }
 
 // ─── Registration & teams ─────────────────────────────────────────────────────
@@ -226,9 +226,9 @@ export async function approveJoinRequest(args: { tournamentId: string; requestId
     supabase.from('tournament_team_members').select('team_id, tournament_teams!inner(status)')
       .eq('user_id', requesterId).eq('tournament_teams.tournament_id', tournamentId),
   )
-  const freeAgentTeamIds = ((existing ?? []) as any[])
+  const freeAgentTeamIds = (existing ?? [])
     .filter(r => r.tournament_teams?.status === 'free_agent' && r.team_id !== teamId)
-    .map(r => r.team_id as string)
+    .map(r => r.team_id)
 
   await ok(supabase.from('tournament_team_members')
     .upsert({ team_id: teamId, user_id: requesterId, is_captain: false }, { onConflict: 'team_id,user_id', ignoreDuplicates: true }))
@@ -315,7 +315,7 @@ export async function insertComment(args: {
   tournamentId: string; userId: string; body: string
   isAnnouncement: boolean; mentions: string[]; parentId: string | null
 }): Promise<void> {
-  const row: Partial<TournamentComment> & { tournament_id: string; user_id: string; body: string } = {
+  const row: TablesInsert<'tournament_comments'> = {
     tournament_id: args.tournamentId,
     user_id: args.userId,
     body: args.body,

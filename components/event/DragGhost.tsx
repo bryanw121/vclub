@@ -4,7 +4,7 @@ import Animated from 'react-native-reanimated'
 import { shared, theme, TEAM_COLORS } from '../../constants'
 import type { Profile, TeamAssignment } from '../../types'
 import { profileDisplayName, profileInitial } from '../../utils'
-import type { TeamDragApi } from '../../hooks/event'
+import type { TeamDragApi } from '../../types'
 
 type Props = {
   drag: TeamDragApi
@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.sm,
     gap: theme.spacing.xs,
-    shadowColor: '#000',
+    shadowColor: theme.colors.black,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.18,
     shadowRadius: 12,

@@ -11,10 +11,8 @@ import {
   chatTopics,
   conversationsBindings,
   sortConversations,
-  type MessageRecord,
-  type SenderProfile,
 } from '../utils/chatUtils'
-import type { ConversationRow } from '../types'
+import type { ConversationLookupRow, ConversationRow, MessageRecord, SenderProfile } from '../types'
 import { profileBriefKey } from './useMyProfile'
 
 /**
@@ -202,19 +200,6 @@ const EMPTY: ConversationRow[] = []
 
 // ── One conversation (chat room header) ─────────────────────────────────────
 
-type ConversationLookupRow = {
-  id: string
-  type: ConversationRow['type']
-  club_id: string | null
-  created_at: string
-  clubs: { name: string | null; avatar_url: string | null } | { name: string | null; avatar_url: string | null }[] | null
-  conversation_members: {
-    user_id: string
-    last_read_at: string | null
-    profiles: SenderProfile | SenderProfile[] | null
-  }[]
-}
-
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? v[0] ?? null : v ?? null)
 
 /** One header row, for a room opened before (or without) the list: one request, no message aggregates. */
@@ -233,7 +218,7 @@ export async function fetchConversationRow(conversationId: string, myId: string)
     .maybeSingle()
   if (error) throw error
   if (!data) return null
-  const row = data as unknown as ConversationLookupRow
+  const row = data as ConversationLookupRow
   const club = one(row.clubs)
   const me = row.conversation_members.find(m => m.user_id === myId)
   const other = row.type === 'dm' ? row.conversation_members.find(m => m.user_id !== myId) : undefined

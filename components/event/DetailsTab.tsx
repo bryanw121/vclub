@@ -8,7 +8,7 @@ import { DocScrollView } from '../DocScrollView'
 import { LinkedText } from '../LinkedText'
 import { shared, theme, LOCATIONS } from '../../constants'
 import type { EventWithDetails, Profile, AttendanceStatus } from '../../types'
-import type { EventData } from '../../hooks/event'
+import type { EventData } from '../../types'
 import { profileDisplayName, profileInitial, formatDuration, formatPrice, formatPriceAmount, resolveProfileAvatarUriSmall } from '../../utils'
 
 function formatEndTime(startIso: string, durationMinutes: number): string {
@@ -426,7 +426,7 @@ export function DetailsTab({
               }}
             >
               <Text style={{ fontSize: 18 }}>💸</Text>
-              <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: '#fff' }}>
+              <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.white }}>
                 Pay ${amount} via Venmo
               </Text>
             </TouchableOpacity>

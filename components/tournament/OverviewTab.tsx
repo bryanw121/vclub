@@ -9,7 +9,7 @@ import { Button } from '../Button'
 import type {
   Tournament, TournamentCommentWithAuthor, TournamentPrize, TournamentRules, TournamentTeam, TournamentTeamWithRoster,
 } from '../../types'
-import type { PendingInvite, TournamentViewer } from '../../types/tournamentScreen'
+import type { PendingInvite, TournamentViewer } from '../../types'
 import { MiniButton } from './TournamentBits'
 import { ts, VENMO_BLUE } from './tournamentStyles'
 

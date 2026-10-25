@@ -23,10 +23,6 @@ export const TOURNAMENT_ERROR_TITLE = {
   announcement: 'Could not post announcement',
 } as const
 
-export const SKILL_LABELS: Record<string, string> = {
-  d: 'D', c: 'C', b: 'B', bb: 'BB', a: 'A', aa_plus: 'AA+', open: 'Open',
-}
-
 export const FORMAT_LABELS: Record<string, string> = {
   pool_bracket: 'Pool Play + Bracket',
   bracket:      'Bracket Only',
@@ -35,7 +31,6 @@ export const FORMAT_LABELS: Record<string, string> = {
 }
 
 export const TOURNAMENT_TABS = ['Overview', 'Teams', 'Schedule', 'Discussion'] as const
-export type TournamentTabName = typeof TOURNAMENT_TABS[number]
 
 /** Choices offered by the schedule generator form. */
 export const SCHEDULE_OPTIONS = {

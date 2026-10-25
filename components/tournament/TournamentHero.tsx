@@ -3,7 +3,8 @@ import { Text, TouchableOpacity, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { theme } from '../../constants'
-import { FORMAT_LABELS, SKILL_LABELS } from '../../constants/tournamentCopy'
+import { FORMAT_LABELS } from '../../constants/tournamentCopy'
+import { SKILL_LEVEL_LABELS } from '../../constants/copy'
 import type { Tournament } from '../../types'
 import { HeroPill, TourneyStatusBadge } from './TournamentBits'
 
@@ -104,7 +105,7 @@ export function TournamentHero({ tournament, registeredTeamCount, onBack }: Prop
           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
             {(tournament.skill_levels ?? []).map(s => (
               <View key={s} style={{ paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, backgroundColor: theme.colors.primary + '30' }}>
-                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.primary }}>{SKILL_LABELS[s] ?? s}</Text>
+                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.primary }}>{SKILL_LEVEL_LABELS[s] ?? s}</Text>
               </View>
             ))}
           </View>

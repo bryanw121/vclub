@@ -1,7 +1,7 @@
-import type { NotificationType } from '../types'
+import type { NotificationPrefType } from '../types'
 
 /** User-facing labels for notification preferences (and optional inbox grouping). */
-export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
+export const NOTIFICATION_TYPE_LABELS: Record<NotificationPrefType, string> = {
   event_announcement: 'Event announcements',
   cheers_received: 'Cheers',
   event_material_change: 'Event updates',

@@ -163,7 +163,7 @@ function notify(key: string, entry: Entry): void {
   Array.from(globalListeners).forEach(l => l(key))
 }
 
-/** Listen to every cache change (any key). Used by the `lib/dataVersion` shim and diagnostics. */
+/** Listen to every cache change (any key). Used by the event feed and diagnostics. */
 export function subscribeQueryCache(listener: (key: string) => void): () => void {
   globalListeners.add(listener)
   return () => {

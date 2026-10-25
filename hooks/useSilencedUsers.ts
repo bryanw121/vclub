@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { getQueryData, queryKey, setQueryData, useMutation, useQuery } from '../lib/query'
 import { useRealtimeChannel } from '../lib/realtime'
 import { STALE } from '../constants/cache'
+import { NETWORK_ERROR_MESSAGE } from '../constants/copy'
 import { useSession } from '../contexts/session'
 import { chatAlert, chatTopics, silencesBindings } from '../utils/chatUtils'
 import { scheduleInvalidate } from './useConversations'
@@ -71,6 +72,7 @@ export function useSilencedUsers() {
 
   const silence = useMutation(
     async (silencedUserId: string) => {
+      if (!userId) throw new Error('Sign in to continue.')
       const { error } = await supabase
         .from('chat_silences')
         .insert({ user_id: userId, silenced_user_id: silencedUserId })
@@ -87,13 +89,14 @@ export function useSilencedUsers() {
         ])
         return () => setQueryData(key, prev)
       },
-      onError: () => chatAlert("Couldn't silence", 'Check your connection and try again.'),
+      onError: () => chatAlert("Couldn't silence", NETWORK_ERROR_MESSAGE),
       invalidates: key ? [key] : [],
     },
   )
 
   const unsilence = useMutation(
     async (silencedUserId: string) => {
+      if (!userId) throw new Error('Sign in to continue.')
       const { error } = await supabase
         .from('chat_silences')
         .delete()
@@ -108,7 +111,7 @@ export function useSilencedUsers() {
         setQueryData<ChatSilenceWithProfile[]>(key, prev.filter(e => e.silenced_user_id !== silencedUserId))
         return () => setQueryData(key, prev)
       },
-      onError: () => chatAlert("Couldn't unsilence", 'Check your connection and try again.'),
+      onError: () => chatAlert("Couldn't unsilence", NETWORK_ERROR_MESSAGE),
       invalidates: key ? [key] : [],
     },
   )

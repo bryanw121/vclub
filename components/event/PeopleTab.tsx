@@ -9,7 +9,7 @@ import { DocScrollView } from '../DocScrollView'
 import { shared, theme, TEAM_COLORS, TEAM_COLOR_NAMES } from '../../constants'
 import type { EventWithDetails, Profile, AttendanceStatus, EventGuest, TeamAssignment } from '../../types'
 import { profileDisplayName, resolveProfileAvatarUriSmall, hostRosterSkillAndPositionsLine } from '../../utils'
-import type { EventAttendanceApi, EventData, EventTeamsApi, TeamDragApi } from '../../hooks/event'
+import type { EventAttendanceApi, EventData, EventTeamsApi, TeamDragApi } from '../../types'
 
 // ─── Draggable cards (People tab only) ───────────────────────────────────────
 

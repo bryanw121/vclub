@@ -6,7 +6,7 @@ import { Sentry } from '../../lib/sentry'
 import { AVATARS_BUCKET, AVATAR_MAX_FILE_BYTES } from '../../constants'
 import { useSession } from '../../contexts/session'
 import { resolveProfileAvatarUriWithError } from '../../utils'
-import type { Profile, ProfilePatch } from '../../types'
+import type { AvatarUploader, Profile, ProfilePatch } from '../../types'
 
 const TOO_BIG = 'Photo must be smaller than 3 MB. Please try again.'
 
@@ -16,21 +16,6 @@ type Options = {
   /** Called with the profile as saved after a new photo lands (badge checks hang off this). */
   onSaved: (updated: Profile) => void
   onToast: (message: string) => void
-}
-
-export type AvatarUploader = {
-  /** The picture to render; null while loading or when there is none. */
-  uri: string | null
-  /** An upload, removal or URL lookup is in flight. */
-  busy: boolean
-  /** Why the stored picture could not be displayed, if it could not. */
-  uriError: string | null
-  /** A picked photo awaiting the user's "Use Photo" confirmation. */
-  pending: ImagePicker.ImagePickerAsset | null
-  pick: () => Promise<void>
-  confirm: () => Promise<void>
-  cancel: () => void
-  remove: () => Promise<void>
 }
 
 /** Pick → preview → upload → save for the signed-in user's profile picture. */

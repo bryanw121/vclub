@@ -6,7 +6,7 @@ import type { QueryResult } from '../lib/query'
 import { STALE } from '../constants/cache'
 import { useSession } from '../contexts/session'
 import { normalizeVolleyballPositions, normalizeVolleyballSkillLevel } from '../utils'
-import type { Profile, ProfileBrief, ProfilePatch } from '../types'
+import type { MyProfile, Profile, ProfileBrief, ProfilePatch } from '../types'
 
 /**
  * The columns every screen needs from a profile (own or someone else's): the
@@ -64,26 +64,6 @@ export function normalizeProfileRow(row: Partial<Profile>): Profile {
     bio: row.bio ?? null,
     notification_prefs: row.notification_prefs ?? null,
   }
-}
-
-export type MyProfile = {
-  profile: Profile | undefined
-  error: Error | null
-  /** No profile to show yet and a fetch is pending. */
-  isLoading: boolean
-  isFetching: boolean
-  isStale: boolean
-  refetch: QueryResult<Profile>['refetch']
-  /**
-   * Optimistically applies `patch` to the cached profile, then writes it.
-   * Resolves to `true` when saved; on failure the cache is rolled back and it
-   * resolves to `false` (`saveError` holds the reason). A call made while a
-   * save is in flight is applied at once and queued (merged with any other
-   * queued patch, latest value per field wins), then sent when that save settles.
-   */
-  updateProfile: (patch: ProfilePatch) => Promise<boolean>
-  isSaving: boolean
-  saveError: Error | null
 }
 
 /**

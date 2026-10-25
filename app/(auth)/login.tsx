@@ -10,6 +10,7 @@ import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
 import { GoogleLogo } from '../../components/GoogleLogo'
 import { shared, theme } from '../../constants'
+import { routes, toRoute } from '../../utils/routes'
 import { takeGuestReturnPath } from '../../utils/authGate'
 
 function obfuscateEmail(email: string): string {
@@ -180,7 +181,7 @@ export default function Login() {
   }
 
   return (
-    <LinearGradient colors={['#4FC3F7', '#7C4DFF', '#E040FB']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={shared.authBackground}>
+    <LinearGradient colors={theme.gradients.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={shared.authBackground}>
       {/* Minigame balls — behind the card */}
       {balls.map((ball, i) => (
         <TouchableOpacity
@@ -206,7 +207,7 @@ export default function Login() {
         >
           <View style={{ backgroundColor: theme.colors.card, borderRadius: 24, padding: 32, alignItems: 'center', gap: 12, maxWidth: 300 }}>
             <Text style={{ fontSize: 48 }}>🏐🏆🏐</Text>
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#7C4DFF', textAlign: 'center' }}>You're a natural!</Text>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: theme.colors.primary, textAlign: 'center' }}>You're a natural!</Text>
             <Text style={{ fontSize: 15, color: '#666', textAlign: 'center' }}>10 spikes. The team needs you. Now go sign in.</Text>
             <Text style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>tap to dismiss</Text>
           </View>
@@ -217,7 +218,7 @@ export default function Login() {
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <Text style={shared.authTitle}>vclub</Text>
           <View style={{ backgroundColor: 'rgba(124,77,255,0.15)', borderWidth: 1, borderColor: 'rgba(124,77,255,0.4)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 2 }}>
-            <Text style={{ fontSize: 10, fontWeight: '700', color: '#7C4DFF', letterSpacing: 1 }}>BETA</Text>
+            <Text style={{ fontSize: 10, fontWeight: '700', color: theme.colors.primary, letterSpacing: 1 }}>BETA</Text>
           </View>
         </View>
 
@@ -384,10 +385,10 @@ export default function Login() {
             <TouchableOpacity style={shared.authLink} onPress={() => { setForgotMode(true); setResetEmail(identifier.includes('@') ? identifier : '') }}>
               <Text style={shared.authLinkText}>Forgot password?</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={shared.authLink} onPress={() => router.push('/(auth)/register')}>
+            <TouchableOpacity style={shared.authLink} onPress={() => router.push(routes.register())}>
               <Text style={shared.authLinkText}>Don't have an account? Sign up</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={shared.authLink} onPress={() => router.replace(takeGuestReturnPath() as any)} testID="continue-as-guest">
+            <TouchableOpacity style={shared.authLink} onPress={() => router.replace(toRoute(takeGuestReturnPath()))} testID="continue-as-guest">
               <Text style={shared.authLinkSubtle}>Keep browsing without an account</Text>
             </TouchableOpacity>
           </>

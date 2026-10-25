@@ -248,7 +248,7 @@ export default function TabsLayout() {
                   paddingHorizontal: theme.spacing.lg,
                   borderWidth: 1,
                   borderColor: theme.colors.fabMenuChipBorder,
-                  shadowColor: "#000",
+                  shadowColor: theme.colors.black,
                   shadowOffset: { width: 0, height: 3 },
                   shadowOpacity: 0.22,
                   shadowRadius: 8,
@@ -288,7 +288,7 @@ export default function TabsLayout() {
               paddingVertical: 10,
               paddingHorizontal: 10,
               alignItems: 'center',
-              shadowColor: '#000',
+              shadowColor: theme.colors.black,
               shadowOffset: { width: 0, height: 8 },
               shadowOpacity: 0.25,
               shadowRadius: 20,
@@ -335,7 +335,7 @@ export default function TabsLayout() {
                         <Ionicons
                           name={tab.icon}
                           size={20}
-                          color={active ? '#FFFFFF' : 'rgba(255,255,255,0.5)'}
+                          color={active ? theme.colors.white : 'rgba(255,255,255,0.5)'}
                         />
                         {badge > 0 && (
                           <View style={{
@@ -345,7 +345,7 @@ export default function TabsLayout() {
                             alignItems: "center", justifyContent: "center",
                             paddingHorizontal: 2,
                           }}>
-                            <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: 8, color: '#fff', lineHeight: 10 }}>
+                            <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: 8, color: theme.colors.white, lineHeight: 10 }}>
                               {badge > 99 ? "99+" : badge}
                             </Text>
                           </View>
@@ -354,7 +354,7 @@ export default function TabsLayout() {
                       <Text style={{
                         fontSize: 9,
                         fontFamily: active ? theme.fonts.bodySemiBold : theme.fonts.body,
-                        color: active ? '#FFFFFF' : 'rgba(255,255,255,0.5)',
+                        color: active ? theme.colors.white : 'rgba(255,255,255,0.5)',
                         letterSpacing: 0.3,
                       }}>
                         {tab.mobileLabel}

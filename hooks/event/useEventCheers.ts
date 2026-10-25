@@ -3,11 +3,10 @@ import { Alert } from 'react-native'
 import { supabase } from '../../lib/supabase'
 import { getQueryData, setQueryData, useMutation, useQuery } from '../../lib/query'
 import { CHEER_SELECT, CHEERS_MAX_PER_EVENT, STALE } from '../../constants'
-import type { Cheer, CheerType } from '../../types'
+import type { Cheer, CheerType, PendingCheer } from '../../types'
 import { eventKeys } from './keys'
 import { reportEventError } from './telemetry'
 
-type PendingCheer = { receiverId: string; cheerType: CheerType }
 
 const NO_CHEERS: Cheer[] = []
 const same = (k: Cheer, receiverId: string, cheerType: CheerType) =>
@@ -66,6 +65,7 @@ export function useEventCheers(eventId: string, userId: string | null, enabled: 
 
   const submit = useMutation(
     async (rows: PendingCheer[]) => {
+      if (!userId) throw new Error('Sign in to continue.')
       const { data, error } = await supabase
         .from('cheers')
         .insert(rows.map(p => ({ event_id: eventId, giver_id: userId, receiver_id: p.receiverId, cheer_type: p.cheerType })))
@@ -149,4 +149,3 @@ export function useEventCheers(eventId: string, userId: string | null, enabled: 
   }
 }
 
-export type EventCheersApi = ReturnType<typeof useEventCheers>

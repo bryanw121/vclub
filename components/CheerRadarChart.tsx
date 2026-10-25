@@ -3,9 +3,7 @@ import { View, Text } from 'react-native'
 import Svg, { Circle, Line, Polygon, Text as SvgText } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
 import { theme, CHEER_TYPES } from '../constants'
-import type { CheerType } from '../types'
-
-export type CheerCounts = Partial<Record<CheerType, number>>
+import type { CheerCounts, CheerType, IoniconName } from '../types'
 
 const CHART_SIZE = 280
 const CX = CHART_SIZE / 2
@@ -105,7 +103,7 @@ export function CheerRadarChart({ counts }: Props) {
               borderWidth: 1,
               borderColor: theme.colors.primary + '40',
             }}>
-              <Ionicons name={kt.icon as any} size={12} color={theme.colors.primary} />
+              <Ionicons name={kt.icon as IoniconName} size={12} color={theme.colors.primary} />
               <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext }}>
                 {kt.label}
               </Text>

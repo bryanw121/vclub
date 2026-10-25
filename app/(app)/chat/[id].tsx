@@ -21,7 +21,8 @@ import { useSession } from '../../../contexts/session'
 import { useMessages } from '../../../hooks/useMessages'
 import { useConversationRow } from '../../../hooks/useConversations'
 import { useSilencedUsers } from '../../../hooks/useSilencedUsers'
-import { AnchorOptionsMenu, type AnchorRect } from '../../../components/AnchorOptionsMenu'
+import { AnchorOptionsMenu } from '../../../components/AnchorOptionsMenu'
+import type { AnchorRect } from '../../../types'
 import { MessageBubble } from '../../../components/MessageBubble'
 import { ReactionPicker } from '../../../components/ReactionPicker'
 import { ScreenState } from '../../../components/ui'
@@ -595,7 +596,7 @@ export default function ChatRoomScreen() {
             <Image source={{ uri: imageUri }} style={{ width: 60, height: 60, borderRadius: 8 }} resizeMode="cover" />
             <TouchableOpacity onPress={() => setImageUri(null)} hitSlop={8} style={{ position: 'absolute', top: 4, left: 56 }}>
               <View style={{ backgroundColor: theme.colors.subtext, borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="close" size={12} color="#fff" />
+                <Ionicons name="close" size={12} color={theme.colors.white} />
               </View>
             </TouchableOpacity>
           </View>
@@ -706,9 +707,9 @@ export default function ChatRoomScreen() {
               }}
             >
               {sending || uploadingImage ? (
-                <ActivityIndicator size="small" color={canSend ? '#fff' : theme.colors.subtext} />
+                <ActivityIndicator size="small" color={canSend ? theme.colors.white : theme.colors.subtext} />
               ) : (
-                <Ionicons name="send" size={16} color={canSend ? '#fff' : theme.colors.subtext} />
+                <Ionicons name="send" size={16} color={canSend ? theme.colors.white : theme.colors.subtext} />
               )}
             </TouchableOpacity>
           </View>
@@ -750,7 +751,7 @@ export default function ChatRoomScreen() {
       {viewingImage && (
         <Modal visible animationType="fade" onRequestClose={() => setViewingImage(null)}>
           <Pressable
-            style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}
+            style={{ flex: 1, backgroundColor: theme.colors.black, alignItems: 'center', justifyContent: 'center' }}
             onPress={() => setViewingImage(null)}
           >
             <Image source={{ uri: viewingImage }} style={{ width: '100%', height: '80%' }} resizeMode="contain" />

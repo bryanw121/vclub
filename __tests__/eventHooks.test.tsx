@@ -1,11 +1,12 @@
 import React from 'react'
 import { Alert } from 'react-native'
 import { act, render } from '@testing-library/react-native'
-import { __resetQueryCache } from '../lib/query'
-import { bumpVersion, eventKey, __resetDataVersions } from '../lib/dataVersion'
-import { useEventData, type EventData } from '../hooks/event/useEventData'
-import { useEventAttendance, type EventAttendanceApi } from '../hooks/event/useEventAttendance'
-import { useEventComments, type EventCommentsApi } from '../hooks/event/useEventComments'
+import { __resetQueryCache, invalidate } from '../lib/query'
+import { eventKeys } from '../hooks/event/keys'
+import { useEventData } from '../hooks/event/useEventData'
+import { useEventAttendance } from '../hooks/event/useEventAttendance'
+import { useEventComments } from '../hooks/event/useEventComments'
+import type { EventAttendanceApi, EventCommentsApi, EventData } from '../types'
 import { computeEventStatus, mergeAssignments, randomizeAssignments } from '../hooks/event/derive'
 import { ATTENDEE_SELECT, COMMENT_SELECT, GENERIC_ERROR_MESSAGE } from '../constants'
 
@@ -132,7 +133,6 @@ const status = () => computeEventStatus({
 let alertSpy: jest.SpyInstance
 beforeEach(() => {
   __resetQueryCache()
-  __resetDataVersions()
   mockCalls.length = 0
   mockUserId = 'me'
   mockRespond = router()
@@ -179,13 +179,13 @@ describe('useEventData', () => {
     expect(mockCalls.map(c => c.table).sort()).toEqual(['event_cohosts', 'event_comments', 'event_guests', 'events'])
   })
 
-  it('an edit elsewhere (bumpVersion → invalidate) refetches every piece in place, without a spinner', async () => {
+  it('an edit elsewhere (invalidate of the event root) refetches every piece in place, without a spinner', async () => {
     render(<Harness />)
     await settle()
     mockCalls.length = 0
     mockRespond = router({ 'events:select': () => ({ data: { ...eventRow(), title: 'Renamed' }, error: null }) })
 
-    act(() => bumpVersion(eventKey('e1')))
+    act(() => invalidate(eventKeys.root('e1')))
     expect(api.data.isLoading).toBe(false) // old data stays on screen
     await settle()
     expect(mockCalls.map(c => c.table).sort()).toEqual(['event_cohosts', 'event_comments', 'event_guests', 'events'])

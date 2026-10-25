@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Platform, View } from 'react-native'
 import { useAnimatedStyle, useSharedValue } from 'react-native-reanimated'
-
-type ZoneLayout = { top: number; bottom: number }
+import type { ZoneLayout } from '../../types'
 
 /**
  * Drag-a-player-onto-a-team for the People tab. The card's pan gesture reports
@@ -108,4 +107,3 @@ export function useTeamDrag(onDrop: (playerId: string, team: number | null) => v
   }
 }
 
-export type TeamDragApi = ReturnType<typeof useTeamDrag>

@@ -60,7 +60,7 @@ export default function UserProfileDetail() {
       ])
 
       if (!profileRes.error && profileRes.data) {
-        const p = normalizeProfileRow(profileRes.data as unknown as Partial<Profile>)
+        const p = normalizeProfileRow(profileRes.data as Partial<Profile>)
         setProfile(p)
         if (p.avatar_url) {
           const { uri } = await resolveProfileAvatarUriWithError(p.avatar_url)

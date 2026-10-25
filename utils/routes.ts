@@ -16,6 +16,20 @@ export type RouteString = Href & string
 
 const href = (path: string) => path as RouteString
 
+/**
+ * Whether `path` is safe to hand to the router: an in-app absolute path. Rejects
+ * protocol-relative (`//host`), absolute URLs (`https://`, `javascript:`) and any
+ * backslash (browsers read `/\host` as `//host`).
+ * Use before pushing a path that came from outside the app (notification
+ * deep links, `?from=` params).
+ */
+export function isAppPath(path: unknown): path is string {
+  return typeof path === 'string' && path.startsWith('/') && !path.startsWith('//') && !path.includes('://') && !path.includes('\\')
+}
+
+/** Wrap a runtime path (post-sign-in redirect, `?from=`, tab path) for the router. Validate untrusted input with `isAppPath` first. */
+export const toRoute = href
+
 export type SettingsSection =
   | 'account'
   | 'hosted'

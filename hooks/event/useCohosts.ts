@@ -7,7 +7,7 @@ import type { EventCohostWithProfile, Profile } from '../../types'
 import { buildMemberSearchFilter } from '../../utils'
 import { eventKeys, patchQuery } from './keys'
 import { reportEventError } from './telemetry'
-import type { EventData } from './useEventData'
+import type { EventData } from '../../types'
 
 export const MAX_COHOSTS = 3
 
@@ -42,7 +42,7 @@ export function useCohosts(data: EventData) {
       .limit(10)
     if (seq !== searchSeq.current) return
     const existing = new Set(cohosts.map(c => c.user_id))
-    setResults(((rows ?? []) as unknown as Profile[]).filter(p => !existing.has(p.id)))
+    setResults(((rows ?? []) as Profile[]).filter(p => !existing.has(p.id)))
     setSearching(false)
   }
 
@@ -56,13 +56,14 @@ export function useCohosts(data: EventData) {
 
   const add = useMutation(
     async (candidate: Profile) => {
+      if (!userId) throw new Error('Sign in to continue.')
       const { data: row, error } = await supabase
         .from('event_cohosts')
         .insert({ event_id: id, user_id: candidate.id, added_by: userId })
         .select(COHOST_SELECT)
         .single()
       if (error) throw error
-      return row as unknown as EventCohostWithProfile
+      return row as EventCohostWithProfile
     },
     {
       onSuccess: (row, candidate) => {
@@ -122,4 +123,3 @@ export function useCohosts(data: EventData) {
   }
 }
 
-export type CohostsApi = ReturnType<typeof useCohosts>

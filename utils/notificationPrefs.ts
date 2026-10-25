@@ -1,4 +1,4 @@
-import { NOTIFICATION_TYPES, type NotificationPrefs, type NotificationType } from '../types'
+import { NOTIFICATION_PREF_TYPES, type NotificationPrefs, type NotificationPrefType, type NotificationType } from '../types'
 
 /** Merged view: explicit false in stored prefs turns a type off; missing keys count as enabled. */
 export function isNotificationTypeEnabled(
@@ -37,11 +37,11 @@ export function patchNotificationPrefs(
 
 /** All types with resolved enabled flag for settings UI. */
 export function listNotificationPrefsResolved(prefs: NotificationPrefs | null | undefined): {
-  type: NotificationType
+  type: NotificationPrefType
   in_app: boolean
   push: boolean
 }[] {
-  return NOTIFICATION_TYPES.map(type => ({
+  return NOTIFICATION_PREF_TYPES.map(type => ({
     type,
     in_app: isNotificationTypeEnabled(prefs, 'in_app', type),
     push: isNotificationTypeEnabled(prefs, 'push', type),

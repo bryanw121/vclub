@@ -13,7 +13,6 @@ import {
   type QueryResult,
   type MutationResult,
 } from '../lib/query'
-import { bumpVersion, eventKey, __resetDataVersions } from '../lib/dataVersion'
 
 // expo-router's real useFocusEffect needs a navigator; nothing here focuses.
 jest.mock('expo-router', () => ({ useFocusEffect: () => {} }))
@@ -59,7 +58,6 @@ function Reader({
 
 beforeEach(() => {
   __resetQueryCache()
-  __resetDataVersions()
   latest = {}
   jest.useRealTimers()
 })
@@ -71,9 +69,6 @@ describe('queryKey', () => {
     expect(queryKey('t', '2026-10-24T10:00')).toBe('t:2026-10-24T10%3A00')
   })
 
-  it('matches the legacy eventKey format so the dataVersion shim lines up', () => {
-    expect(queryKey('event', 'abc')).toBe(eventKey('abc'))
-  })
 })
 
 describe('useQuery', () => {
@@ -277,14 +272,6 @@ describe('invalidate', () => {
     expect(screen.getByTestId('a').props.children).toBe('seeded')
   })
 
-  it('bumpVersion (legacy shim) invalidates the matching query', async () => {
-    const fetcher = jest.fn(async () => 'x')
-    render(<Reader id="a" qkey={queryKey('event', 'e1')} fetcher={fetcher} />)
-    await flush()
-    act(() => bumpVersion(eventKey('e1')))
-    await flush()
-    expect(fetcher).toHaveBeenCalledTimes(2)
-  })
 })
 
 describe('setQueryData / getQueryData / removeQueries', () => {

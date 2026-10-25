@@ -5,6 +5,7 @@ import type {
   EventWithDetails,
   Profile,
   TeamAssignment,
+  RandomizeResult, TeamSource,
 } from '../../types'
 import { eventAttendeeRows, normalizeVolleyballPositions, normalizeVolleyballSkillLevel } from '../../utils'
 
@@ -68,8 +69,6 @@ export function deriveRoster(event: EventWithDetails | undefined, allGuests: Eve
   }
 }
 
-export type TeamSource = { team_number?: number | null; team_pinned?: boolean | null }
-
 /** Saved team assignments keyed by user id (attendees) or guest id. */
 export function deriveAssignments(
   attendingRows: Array<TeamSource & { user_id: string }>,
@@ -107,10 +106,6 @@ export function mergeAssignments(
   }
   return next
 }
-
-export type RandomizeResult =
-  | { ok: true; assignments: Record<string, TeamAssignment> }
-  | { ok: false; title: string; message: string }
 
 /** Shuffle unpinned players into equal teams around the pinned ones. */
 export function randomizeAssignments(

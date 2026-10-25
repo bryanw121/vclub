@@ -57,7 +57,8 @@ export async function fetchClubDetail(clubId: string, userId: string | null): Pr
   if (clubRes.error) throw clubRes.error
   if (eventsRes.error) throw eventsRes.error
 
-  const club = (clubRes.data ?? null) as unknown as ClubWithDetails | null
+  const club = (clubRes.data ?? null) as ClubWithDetails | null
+  // The events select is chosen at runtime (with/without my_attendance), so PostgREST inference gives up.
   const upcomingEvents = club
     ? await attachEventCardPreviews((eventsRes.data ?? []) as unknown as EventWithDetails[])
     : []
@@ -75,7 +76,7 @@ export async function fetchClubPosts(clubId: string, userId: string): Promise<Cl
     .order('created_at', { foreignTable: 'club_post_comments', ascending: true })
   if (error) throw error
 
-  const rows = (data ?? []) as unknown as (ClubPostWithFeed & { my_likes?: { club_post_id: string }[] })[]
+  const rows = (data ?? []) as (ClubPostWithFeed & { my_likes?: { club_post_id: string }[] })[]
   const likedPostIds: string[] = []
   const posts = rows.map(({ my_likes, ...post }) => {
     if (my_likes && my_likes.length > 0) likedPostIds.push(post.id)

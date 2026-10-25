@@ -1,4 +1,4 @@
-import type { BadgeType, CardBgType } from '../types'
+import type { BadgeType, CardBgType, ProfileBorder } from '../types'
 
 // ─── Category gradients (Discord-style: each badge type has its own palette) ──
 // Top color is used for glow; bottom for the gradient fill.
@@ -232,7 +232,8 @@ export const BADGE_DEFINITIONS: BadgeDef[] = [
 ]
 
 // ─── Profile borders ──────────────────────────────────────────────────────────
-export type ProfileBorderType = 'bronze' | 'gold' | 'gradient'
+/** Same as `ProfileBorder` in types (the `profiles.selected_border` values). */
+export type ProfileBorderType = ProfileBorder
 
 export type ProfileBorderDef = {
   type: ProfileBorderType

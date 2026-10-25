@@ -2,7 +2,8 @@ import React, { useMemo, useRef, useState } from 'react'
 import { View, Text, Image, Pressable, TouchableOpacity, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { theme } from '../constants/theme'
-import { AnchorOptionsMenu, type AnchorRect } from './AnchorOptionsMenu'
+import { AnchorOptionsMenu } from './AnchorOptionsMenu'
+import type { AnchorRect } from '../types'
 import type { MessageWithDetails } from '../types'
 import { profileAvatarSmallUri } from '../utils'
 
@@ -62,7 +63,7 @@ export function MessageBubble({
   const reactions = Object.entries(reactionGroups)
 
   const bubbleBg = isOwn ? theme.colors.primary : theme.colors.card
-  const bubbleText = isOwn ? '#fff' : theme.colors.text
+  const bubbleText = isOwn ? theme.colors.white : theme.colors.text
 
   const peerUserId = message.profiles?.id
   const peerMenuOptions = useMemo(() => {
@@ -229,7 +230,7 @@ export function MessageBubble({
                 borderRadius: theme.radius.full,
                 paddingHorizontal: 6, paddingVertical: 3,
                 borderWidth: 1, borderColor: theme.colors.border,
-                shadowColor: '#000',
+                shadowColor: theme.colors.black,
                 shadowOffset: { width: 0, height: 1 },
                 shadowOpacity: 0.12,
                 shadowRadius: 2,

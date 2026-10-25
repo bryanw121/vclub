@@ -43,7 +43,7 @@ import { RemoveParticipantDialog } from '../../../components/event/RemovePartici
 import { theme } from '../../../constants'
 import type { MentionUser, Profile } from '../../../types'
 import { profileDisplayName } from '../../../utils'
-import { routes, type RouteString } from '../../../utils/routes'
+import { routes, isAppPath, toRoute } from '../../../utils/routes'
 
 const DETAILS_TAB = 0
 const PEOPLE_TAB = 1
@@ -173,8 +173,10 @@ export default function EventDetail() {
     // back() first — it cleanly pops the event screen, so a stale screen can't make a
     // later push load the wrong event. replace() only for direct URL loads (no history).
     if (router.canGoBack()) router.back()
-    else if (from) router.replace(decodeURIComponent(from) as RouteString)
-    else router.replace(routes.events())
+    else {
+      const back = from ? decodeURIComponent(from) : null
+      router.replace(isAppPath(back) ? toRoute(back) : routes.events())
+    }
   }
 
   const deleteEvent = useMutation(

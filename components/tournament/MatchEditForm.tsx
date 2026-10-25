@@ -4,7 +4,7 @@ import { theme } from '../../constants'
 import { Button } from '../Button'
 import { Input } from '../Input'
 import type { TournamentTeamWithRoster } from '../../types'
-import type { TournamentMatchRow } from '../../types/tournamentScreen'
+import type { TournamentMatchRow } from '../../types'
 
 type Props = {
   match: TournamentMatchRow

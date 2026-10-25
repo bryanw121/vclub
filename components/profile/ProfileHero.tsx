@@ -5,7 +5,7 @@ import { profileFullName, volleyballSkillLevelLabel } from '../../utils'
 import { BadgeIcon } from '../BadgeIcon'
 import { AvatarUploader } from './AvatarUploader'
 import { shortPositionLabel } from './options'
-import type { AvatarUploader as AvatarUploaderState } from './useAvatarUploader'
+import type { AvatarUploader as AvatarUploaderState } from '../../types'
 import type { Profile, UserBadge } from '../../types'
 
 type Props = {

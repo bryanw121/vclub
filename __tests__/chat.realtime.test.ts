@@ -16,9 +16,8 @@ import {
   silencesBindings,
   unreadTotal,
   upsertIncoming,
-  type MessageRecord,
 } from '../utils/chatUtils'
-import type { ConversationRow, MessageWithDetails } from '../types'
+import type { ConversationRow, MessageRecord, MessageWithDetails } from '../types'
 
 const noop = () => {}
 const spec = (bs: { event: string; table: string; filter?: string; schema?: string }[]) =>

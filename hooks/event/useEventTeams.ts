@@ -6,7 +6,7 @@ import type { EventGuest, EventWithDetails, TeamAssignment } from '../../types'
 import { eventKeys, patchQuery } from './keys'
 import { attendeeRowsWithProfiles, deriveAssignments, mergeAssignments, randomizeAssignments } from './derive'
 import { reportEventError } from './telemetry'
-import type { EventData } from './useEventData'
+import type { EventData } from '../../types'
 
 /**
  * Team builder state for the People/Cheers tabs. `assignments` is the host's
@@ -126,4 +126,3 @@ export function useEventTeams(data: EventData, isHostOrCohost: boolean) {
   }
 }
 
-export type EventTeamsApi = ReturnType<typeof useEventTeams>

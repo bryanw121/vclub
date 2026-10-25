@@ -24,7 +24,7 @@ export default function ProfileHostedEventsScreen() {
       .gte('event_date', now)
       .order('event_date', { ascending: true })
 
-    if (!error) setEvents((data ?? []) as unknown as EventWithDetails[])
+    if (!error) setEvents((data ?? []) as EventWithDetails[])
   }, [])
 
   useEffect(() => {

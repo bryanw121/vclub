@@ -1,4 +1,18 @@
-import { routes } from '../utils/routes'
+import { routes, isAppPath } from '../utils/routes'
+
+describe('isAppPath', () => {
+  it('accepts in-app absolute paths', () => {
+    for (const p of ['/', '/event/abc', '/event/abc?from=%2Fclubs', '/(app)', '/host?mode=templates']) {
+      expect(isAppPath(p)).toBe(true)
+    }
+  })
+
+  it('rejects external, protocol-relative and non-string values', () => {
+    for (const p of ['//evil.com', 'https://evil.com', '/redirect?to=https://evil.com', 'javascript:alert(1)', 'event/abc', '', null, undefined, 5]) {
+      expect(isAppPath(p)).toBe(false)
+    }
+  })
+})
 
 describe('routes', () => {
   it('builds the tab routes', () => {
@@ -47,5 +61,12 @@ describe('routes', () => {
     expect(routes.login()).toBe('/(auth)/login')
     expect(routes.register()).toBe('/(auth)/register')
     expect(routes.app()).toBe('/(app)')
+  })
+})
+
+describe('isAppPath backslash', () => {
+  it('rejects paths browsers would treat as protocol-relative', () => {
+    expect(isAppPath('/\\evil.com')).toBe(false)
+    expect(isAppPath('/event/1\\x')).toBe(false)
   })
 })

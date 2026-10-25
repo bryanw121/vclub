@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { PanResponder } from 'react-native'
 import { router } from 'expo-router'
+import { toRoute } from '../utils/routes'
 
 /**
  * Returns PanResponder handlers that trigger tab navigation on fast horizontal swipes.
@@ -28,8 +29,8 @@ export function useTabSwipe(prevTab?: string, nextTab?: string) {
       if (now - lastSwipe.current < 400) return // debounce rapid swipes
       lastSwipe.current = now
       const { prevTab, nextTab } = routes.current
-      if (vx < -0.9 && nextTab) router.navigate(nextTab as any)
-      else if (vx > 0.9 && prevTab) router.navigate(prevTab as any)
+      if (vx < -0.9 && nextTab) router.navigate(toRoute(nextTab))
+      else if (vx > 0.9 && prevTab) router.navigate(toRoute(prevTab))
     },
   })).current.panHandlers
 }
