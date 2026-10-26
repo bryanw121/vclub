@@ -1003,7 +1003,7 @@ const hostStyles = StyleSheet.create({
   },
   fieldLabel: {
     fontFamily: theme.fonts.bodySemiBold,
-    fontSize: 10.5,
+    fontSize: theme.font.size.xs,
     fontWeight: '700',
     color: theme.colors.subtext,
     letterSpacing: 0.8,

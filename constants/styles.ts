@@ -252,7 +252,7 @@ export const shared = StyleSheet.create({
   },
   externalDay: {
     fontFamily: theme.fonts.bodySemiBold,
-    fontSize: 10,
+    fontSize: font.size.xs,
     letterSpacing: 1,
   },
   externalDate: {

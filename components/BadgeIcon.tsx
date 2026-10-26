@@ -82,12 +82,12 @@ export function BadgeIcon({ def, tier, size = 'sm', showLabel = false, slotNumbe
         {slotNumber != null && earned && (
           <View style={{
             position: 'absolute', top: -2, right: -2,
-            width: 17, height: 17, borderRadius: 9,
+            width: 19, height: 19, borderRadius: 10,
             backgroundColor: theme.colors.primary,
             alignItems: 'center', justifyContent: 'center',
             borderWidth: 2, borderColor: theme.colors.card,
           }}>
-            <Text style={{ fontSize: 9, fontWeight: '800', color: theme.colors.white, lineHeight: 12 }}>
+            <Text style={{ fontSize: theme.font.size.xs, fontWeight: '800', color: theme.colors.white, lineHeight: 13 }}>
               {slotNumber}
             </Text>
           </View>

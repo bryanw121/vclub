@@ -34,8 +34,8 @@ export function TrophyCase() {
             <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: t.color, alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
               <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 18, color: theme.colors.background }}>{t.place}</Text>
             </View>
-            <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '700', color: theme.colors.subtext, textAlign: 'center' }}>{t.label}</Text>
-            <Text style={{ fontFamily: theme.fonts.body, fontSize: 9.5, color: theme.colors.subtext, marginTop: 2, opacity: 0.6 }}>—</Text>
+            <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: theme.colors.subtext, textAlign: 'center' }}>{t.label}</Text>
+            <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext, marginTop: 2, opacity: 0.6 }}>—</Text>
           </View>
         ))}
       </View>

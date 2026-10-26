@@ -92,7 +92,7 @@ export function CourtGrid({ day, span, nowMin }: Props) {
                 key={t}
                 x={Math.min(Math.max(x(t), 2), width - 2)}
                 y={12}
-                fontSize={theme.font.size.xxs}
+                fontSize={theme.font.size.xs}
                 fontFamily={theme.fonts.body}
                 fill={theme.colors.subtext}
                 textAnchor={t === start ? 'start' : t === end ? 'end' : 'middle'}

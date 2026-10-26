@@ -75,7 +75,7 @@ export function CheerRadarChart({ counts }: Props) {
           const anchor = cos > 0.15 ? 'start' : cos < -0.15 ? 'end' : 'middle'
           return (
             <SvgText key={kt.type} x={x} y={y} textAnchor={anchor} alignmentBaseline="middle"
-              fontSize={10} fontWeight="600" fill={theme.colors.subtext}>
+              fontSize={theme.font.size.xs} fontWeight="600" fill={theme.colors.subtext}>
               {CHART_LABEL_OVERRIDES[kt.label] ?? kt.label}
             </SvgText>
           )

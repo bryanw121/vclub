@@ -213,7 +213,7 @@ function EventCardInner({
                     }}>
                       {uri
                         ? <Image source={{ uri }} style={{ width: 24, height: 24 }} contentFit="cover" transition={150} />
-                        : <Text style={{ fontFamily: theme.fonts.display, fontSize: 8, color: theme.colors.primary }}>{initials}</Text>
+                        : <Text style={{ fontFamily: theme.fonts.display, fontSize: theme.font.size.xs, color: theme.colors.primary }}>{initials}</Text>
                       }
                     </View>
                   )
@@ -225,7 +225,7 @@ function EventCardInner({
                     borderWidth: 1.5, borderColor: theme.colors.card,
                     marginLeft: -8, alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <Text style={{ fontFamily: theme.fonts.body, fontSize: 8, fontWeight: '700', color: 'rgba(255,255,255,0.7)' }}>+{overflow}</Text>
+                    <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: 'rgba(255,255,255,0.7)' }}>+{overflow}</Text>
                   </View>
                 )}
               </View>
@@ -237,7 +237,7 @@ function EventCardInner({
                   ? <Text style={{ opacity: 0.4, fontSize: 13 }}>/{event.max_attendees}</Text>
                   : null}
               </Text>
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 9.5, color: 'rgba(255,255,255,0.5)', fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' }}>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: 'rgba(255,255,255,0.5)', fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' }}>
                 {isFull ? 'Full' : `${spotsLeft ?? '∞'} spot${spotsLeft !== 1 ? 's' : ''} left`}
               </Text>
             </View>
@@ -380,7 +380,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
         alignItems: 'center', justifyContent: 'center',
         paddingVertical: 10,
       }}>
-        <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 10, fontWeight: '700', letterSpacing: 1, color: accentColor }}>{day}</Text>
+        <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, fontWeight: '700', letterSpacing: 1, color: accentColor }}>{day}</Text>
         <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 28, lineHeight: 30, color: accentColor, letterSpacing: -1.2 }}>{date}</Text>
       </View>
 
@@ -444,7 +444,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
                   }}>
                     {uri
                       ? <Image source={{ uri }} style={{ width: 22, height: 22 }} contentFit="cover" transition={150} />
-                      : <Text style={{ fontFamily: theme.fonts.display, fontSize: 7, color: theme.colors.primary }}>{initials}</Text>
+                      : <Text style={{ fontFamily: theme.fonts.display, fontSize: theme.font.size.xs, color: theme.colors.primary }}>{initials}</Text>
                     }
                   </View>
                 )
@@ -456,7 +456,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
                   borderWidth: 1.5, borderColor: theme.colors.card,
                   marginLeft: -7, alignItems: 'center', justifyContent: 'center',
                 }}>
-                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 7, fontWeight: '700', color: theme.colors.subtext }}>+{rowOverflow}</Text>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: theme.colors.subtext }}>+{rowOverflow}</Text>
                 </View>
               )}
             </View>
@@ -466,8 +466,8 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
               <View style={{ width: `${Math.round(fillRatio * 100)}%` as any, height: '100%', backgroundColor: accentColor, borderRadius: 2 }} />
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 }}>
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '600', color: theme.colors.subtext }}>{attendeeCount} going</Text>
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '600', color: theme.colors.subtext }}>{spotsLeft != null ? `${spotsLeft} left` : '∞'}</Text>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '600', color: theme.colors.subtext }}>{attendeeCount} going</Text>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '600', color: theme.colors.subtext }}>{spotsLeft != null ? `${spotsLeft} left` : '∞'}</Text>
             </View>
           </View>
           {onRsvp && currentUserId && awaiting && (

@@ -37,7 +37,7 @@ export function EventTabBar({ activeTab, peopleCount, onSelect }: Props) {
             </Text>
             {badge > 0 && (
               <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: active ? theme.colors.primary : theme.colors.border }}>
-                <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: 9, color: active ? theme.colors.white : theme.colors.subtext }}>{badge}</Text>
+                <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: theme.font.size.xs, color: active ? theme.colors.white : theme.colors.subtext }}>{badge}</Text>
               </View>
             )}
             {active && (

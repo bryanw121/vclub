@@ -204,7 +204,7 @@ export function MessageBubble({
                 }}>
                   {message.content}
                   {message.edited_at && !unsent
-                    ? <Text style={{ fontSize: 10, color: isOwn ? 'rgba(255,255,255,0.6)' : theme.colors.subtext, fontStyle: 'italic' }}>{' (edited)'}</Text>
+                    ? <Text style={{ fontSize: theme.font.size.xs, color: isOwn ? 'rgba(255,255,255,0.6)' : theme.colors.subtext, fontStyle: 'italic' }}>{' (edited)'}</Text>
                     : null}
                 </Text>
               )}

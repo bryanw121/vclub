@@ -73,7 +73,7 @@ export const theme = {
   },
   font: {
     size: {
-      xxs: 10,
+      // xs is the floor: nothing in the app renders below 11 (iOS Caption 2, Material Label Small)
       xs:  11,
       sm:  12,
       smd: 13,
