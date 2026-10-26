@@ -111,16 +111,27 @@ test.describe('/book (guest)', () => {
     await page.getByTestId('book-surface-any').click()
     for (const f of notGrass) await expect(facility(page, f.id)).toBeVisible()
 
-    // "Book at …" opens the venue's calendar in a new page (stubbed, never reached).
+    // "Book at …" opens the venue's calendar on the day being viewed (tomorrow, picked
+    // above) in a new page (stubbed, never reached).
     const target = FIXTURE_FACILITIES[0]
     const card = facility(page, target.id)
+    const onDay = `${target.calendar}?viewdate=${tomorrow}`
     await expect(card.getByText(`Book at ${target.name}`, { exact: true })).toBeVisible()
+    await expect(card.getByTestId('book-facility-note')).toContainText(`Opens ${new URL(target.calendar).host} on ${dayLong(tomorrow)}.`)
     const [popup] = await Promise.all([
       page.waitForEvent('popup'),
       card.getByTestId('book-facility-book').click(),
     ])
-    await expect.poll(() => popup.url()).toBe(target.calendar)
-    expect(outside).toContain(target.calendar)
+    await expect.poll(() => popup.url()).toBe(onDay)
+    expect(outside).toContain(onDay)
+
+    // Back on today, the same button opens today's page.
+    await page.getByTestId(`book-day-${today}`).click()
+    const [popupToday] = await Promise.all([
+      page.waitForEvent('popup'),
+      card.getByTestId('book-facility-book').click(),
+    ])
+    await expect.poll(() => popupToday.url()).toBe(`${target.calendar}?viewdate=${today}`)
   })
 
   test('"Already booked?" sends a guest to login', async ({ page }) => {

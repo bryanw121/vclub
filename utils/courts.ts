@@ -109,6 +109,24 @@ export function dayParts(iso: string): { dow: string; day: number; long: string 
   return { dow, day: d, long: `${dow}, ${MONTH_SHORT[m - 1]} ${d}` }
 }
 
+/**
+ * The venue's booking page opened on `iso` (YYYY-MM-DD) when Schelagg publishes a
+ * per-day link for it (`calendarDay`), else its plain booking page. The day link
+ * must stay on the calendar's own https host; anything else falls back.
+ */
+export function venueCalendarUrl(venue: Pick<CourtsVenue, 'calendar' | 'calendarDay'>, iso: string): string {
+  if (!venue.calendarDay || !/^\d{4}-\d{2}-\d{2}$/.test(iso) || !venue.calendarDay.includes('{date}')) return venue.calendar
+  const url = venue.calendarDay.split('{date}').join(iso)
+  try {
+    const day = new URL(url)
+    const base = new URL(venue.calendar)
+    if (day.protocol !== 'https:' || day.host !== base.host) return venue.calendar
+  } catch {
+    return venue.calendar
+  }
+  return url
+}
+
 /** Opening hours as minutes. A close of "00:00" or before the open means midnight. */
 export function openingMinutes(hours: HHMMRange | null | undefined): MinuteRange | null {
   if (!hours) return null

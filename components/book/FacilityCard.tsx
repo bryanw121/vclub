@@ -3,7 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons'
 import { shared, theme, SURFACE_ACCENTS, SURFACE_LABELS } from '../../constants'
 import { Button } from '../Button'
 import { CourtGrid } from './CourtGrid'
-import { formatFreeSummary, formatRange } from '../../utils/courts'
+import { dayParts, formatFreeSummary, formatRange } from '../../utils/courts'
 import { signupHost } from '../../utils/feedItems'
 import type { FacilityDay, MinuteRange } from '../../types'
 
@@ -12,6 +12,8 @@ type Props = {
   span: MinuteRange
   /** Minute of the day in Austin when `day` is today; null otherwise. */
   nowMin: number | null
+  /** The day being viewed (YYYY-MM-DD); "Book at" opens the venue's calendar on it when it can. */
+  dayIso: string
   onBook: (day: FacilityDay) => void
   onCreateEvent: (day: FacilityDay) => void
 }
@@ -21,10 +23,13 @@ type Props = {
  * when it is free in one line, the court-by-court hour grid, and the way out
  * to the venue's own booking page. Booking never happens in vteam.
  */
-export function FacilityCard({ day, span, nowMin, onBook, onCreateEvent }: Props) {
+export function FacilityCard({ day, span, nowMin, dayIso, onBook, onCreateEvent }: Props) {
   const { facility, venue } = day
   const accent = SURFACE_ACCENTS[facility.surface] ?? theme.colors.subtext
   const host = signupHost(venue.calendar)
+  // Whether the venue's calendar opens straight on this day (Schelagg publishes a per-day link).
+  const opensOnDay = !!venue.calendarDay
+  const dayLong = dayParts(dayIso).long
   const showGrid = day.open && day.covered && day.lanes.length > 0
   const summary = !day.covered
     ? 'No court data for this day yet'
@@ -68,11 +73,11 @@ export function FacilityCard({ day, span, nowMin, onBook, onCreateEvent }: Props
           size="touch"
           fullWidth={false}
           onPress={() => onBook(day)}
-          accessibilityLabel={`Book at ${facility.name} on ${host} (opens in your browser)`}
+          accessibilityLabel={`Book at ${facility.name} on ${host}${opensOnDay ? `, ${dayLong}` : ''} (opens in your browser)`}
           testID="book-facility-book"
         />
-        <Text style={shared.bookNote}>
-          Booking happens on {host}. Some venues only rent to members or teams, or approve requests first.
+        <Text style={shared.bookNote} testID="book-facility-note">
+          {opensOnDay ? `Opens ${host} on ${dayLong}.` : `Booking happens on ${host}.`} Some venues only rent to members or teams, or approve requests first.
         </Text>
         <TouchableOpacity
           onPress={() => onCreateEvent(day)}
