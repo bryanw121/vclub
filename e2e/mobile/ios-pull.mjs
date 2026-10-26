@@ -18,6 +18,9 @@ const browser = await remote({
   hostname: '127.0.0.1',
   port: 4723,
   logLevel: 'warn',
+  // A cold simulator plus a WebDriverAgent build can take several minutes to open a session.
+  connectionRetryTimeout: 900_000,
+  connectionRetryCount: 0,
   capabilities: {
     platformName: 'iOS',
     browserName: 'Safari',
