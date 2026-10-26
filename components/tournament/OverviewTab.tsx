@@ -154,7 +154,7 @@ export function OverviewTab(p: Props) {
             p.announcements.slice().reverse().map((ann, i) => (
               <View key={ann.id} style={{ paddingTop: i > 0 ? 10 : 0, marginTop: i > 0 ? 10 : 0, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: theme.colors.border }}>
                 <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.text, lineHeight: 20 }}>{ann.body}</Text>
-                <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, color: theme.colors.subtext, marginTop: 3 }}>{formatCommentTime(ann.created_at)}</Text>
+                <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext, marginTop: 3 }}>{formatCommentTime(ann.created_at)}</Text>
               </View>
             ))
           )}
@@ -190,7 +190,7 @@ export function OverviewTab(p: Props) {
                       <Text style={{ fontSize: 20 }}>{MEDALS[displayIdx]}</Text>
                     </View>
                     <View style={{ width: '100%', paddingVertical: 5, backgroundColor: theme.colors.borderSoft, borderBottomLeftRadius: 6, borderBottomRightRadius: 6, alignItems: 'center' }}>
-                      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 10.5, color: theme.colors.text }}>{prize.place_label}</Text>
+                      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, color: theme.colors.text }}>{prize.place_label}</Text>
                     </View>
                     {isCreator && (
                       <TouchableOpacity hitSlop={8} accessibilityLabel="Delete prize" onPress={() => p.onDeletePrize(prize.id)} style={{ marginTop: 4 }}>
@@ -232,7 +232,7 @@ export function OverviewTab(p: Props) {
             { label: 'Refs',      value: tournament.has_refs ? 'Yes' : 'No' },
           ].filter(r => !r.hide).map((row, i, arr) => (
             <View key={row.label} style={{ width: '50%', paddingVertical: 9, paddingHorizontal: 4, borderBottomWidth: i < arr.length - (arr.length % 2 === 0 ? 2 : 1) ? 1 : 0, borderBottomColor: theme.colors.borderSoft }}>
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 10, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>{row.label}</Text>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>{row.label}</Text>
               <Text style={{ fontFamily: theme.fonts.display, fontSize: 14, color: theme.colors.text }}>{row.value}</Text>
             </View>
           ))}

@@ -83,7 +83,7 @@ export function BorderSwatch({ label, borderDef, selected, unlocked, onPress, si
         {label}
       </Text>
       {!unlocked && description ? (
-        <Text style={{ fontSize: 9, color: theme.colors.subtext, textAlign: 'center', maxWidth: 72, opacity: 0.7 }} numberOfLines={2}>
+        <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, textAlign: 'center', maxWidth: 72, opacity: 0.7 }} numberOfLines={2}>
           {description}
         </Text>
       ) : null}

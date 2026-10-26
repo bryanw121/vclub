@@ -71,7 +71,7 @@ function StepIndicator({ current }: { current: number }) {
                   : <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: active ? theme.colors.onPrimary : theme.colors.subtext }}>{i + 1}</Text>
                 }
               </View>
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, color: active ? theme.colors.primary : theme.colors.subtext, letterSpacing: 0.3 }}>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: active ? theme.colors.primary : theme.colors.subtext, letterSpacing: 0.3 }}>
                 {label}
               </Text>
             </View>
@@ -88,7 +88,7 @@ function SectionLabel({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; l
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, marginTop: 6 }}>
       <Ionicons name={icon} size={13} color={theme.colors.subtext} />
-      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 10.5, letterSpacing: 1, textTransform: 'uppercase', color: theme.colors.subtext }}>
+      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, letterSpacing: 1, textTransform: 'uppercase', color: theme.colors.subtext }}>
         {label}
       </Text>
     </View>

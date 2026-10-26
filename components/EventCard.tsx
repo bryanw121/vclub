@@ -4,7 +4,9 @@ import { Image } from 'expo-image'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useRouter, usePathname } from 'expo-router'
 import { theme, eventAttendeeDisplayCount, SURFACE_LABELS } from '../constants'
+import { TimePill } from './ui'
 import { routes } from '../utils/routes'
+import { rememberEventCard } from '../hooks/event/seed'
 import { profileAvatarSmallUri, profileDisplayName, surfaceOf } from '../utils'
 import type { EventCardRsvpHandler, EventWithDetails, Tag } from '../types'
 
@@ -61,8 +63,8 @@ function parseEventDate(dateString: string): { day: string; date: number; time: 
   const hours = d.getHours()
   const minutes = d.getMinutes()
   const h12 = hours % 12 || 12
-  const ampm = hours < 12 ? 'am' : 'pm'
-  const time = `${h12}:${String(minutes).padStart(2, '0')}${ampm}`
+  const ampm = hours < 12 ? 'AM' : 'PM'
+  const time = `${h12}:${String(minutes).padStart(2, '0')} ${ampm}`
   return { day, date, time }
 }
 
@@ -115,6 +117,7 @@ function EventCardInner({
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={() => {
+        if (!event._isTournament) rememberEventCard(event)
         router.push(
           event._isTournament
             ? routes.tournament(event.id)
@@ -138,11 +141,12 @@ function EventCardInner({
         </View>
       )}
       <View>
-        {/* Top chips: date/time + type + skill */}
-        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        {/* Top chips: time + day + type + skill */}
+        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+          <TimePill label={time} testID="event-card-time" />
           <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, backgroundColor: theme.colors.accent }}>
             <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.accentInk }}>
-              {day} · {time}
+              {day}
             </Text>
           </View>
           {typeTags.map(tag => (
@@ -209,7 +213,7 @@ function EventCardInner({
                     }}>
                       {uri
                         ? <Image source={{ uri }} style={{ width: 24, height: 24 }} contentFit="cover" transition={150} />
-                        : <Text style={{ fontFamily: theme.fonts.display, fontSize: 8, color: theme.colors.primary }}>{initials}</Text>
+                        : <Text style={{ fontFamily: theme.fonts.display, fontSize: theme.font.size.xs, color: theme.colors.primary }}>{initials}</Text>
                       }
                     </View>
                   )
@@ -221,7 +225,7 @@ function EventCardInner({
                     borderWidth: 1.5, borderColor: theme.colors.card,
                     marginLeft: -8, alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <Text style={{ fontFamily: theme.fonts.body, fontSize: 8, fontWeight: '700', color: 'rgba(255,255,255,0.7)' }}>+{overflow}</Text>
+                    <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: 'rgba(255,255,255,0.7)' }}>+{overflow}</Text>
                   </View>
                 )}
               </View>
@@ -233,7 +237,7 @@ function EventCardInner({
                   ? <Text style={{ opacity: 0.4, fontSize: 13 }}>/{event.max_attendees}</Text>
                   : null}
               </Text>
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 9.5, color: 'rgba(255,255,255,0.5)', fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' }}>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: 'rgba(255,255,255,0.5)', fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' }}>
                 {isFull ? 'Full' : `${spotsLeft ?? '∞'} spot${spotsLeft !== 1 ? 's' : ''} left`}
               </Text>
             </View>
@@ -340,6 +344,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={() => {
+        if (!event._isTournament) rememberEventCard(event)
         router.push(
           event._isTournament
             ? routes.tournament(event.id)
@@ -375,13 +380,15 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
         alignItems: 'center', justifyContent: 'center',
         paddingVertical: 10,
       }}>
-        <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 10, fontWeight: '700', letterSpacing: 1, color: accentColor }}>{day}</Text>
+        <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, fontWeight: '700', letterSpacing: 1, color: accentColor }}>{day}</Text>
         <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 28, lineHeight: 30, color: accentColor, letterSpacing: -1.2 }}>{date}</Text>
-        <Text style={{ fontFamily: theme.fonts.body, fontSize: 9, fontWeight: '700', letterSpacing: 0.6, color: accentColor, opacity: 0.7, marginTop: 2 }}>{time}</Text>
       </View>
 
       {/* Content */}
       <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={{ marginBottom: 6 }}>
+          <TimePill label={time} testID="event-card-time" />
+        </View>
         {/* Chips */}
         <View style={{ flexDirection: 'row', gap: 5, marginBottom: 6, flexWrap: 'wrap' }}>
           {typeTags.slice(0, 1).map(tag => (
@@ -437,7 +444,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
                   }}>
                     {uri
                       ? <Image source={{ uri }} style={{ width: 22, height: 22 }} contentFit="cover" transition={150} />
-                      : <Text style={{ fontFamily: theme.fonts.display, fontSize: 7, color: theme.colors.primary }}>{initials}</Text>
+                      : <Text style={{ fontFamily: theme.fonts.display, fontSize: theme.font.size.xs, color: theme.colors.primary }}>{initials}</Text>
                     }
                   </View>
                 )
@@ -449,7 +456,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
                   borderWidth: 1.5, borderColor: theme.colors.card,
                   marginLeft: -7, alignItems: 'center', justifyContent: 'center',
                 }}>
-                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 7, fontWeight: '700', color: theme.colors.subtext }}>+{rowOverflow}</Text>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: theme.colors.subtext }}>+{rowOverflow}</Text>
                 </View>
               )}
             </View>
@@ -459,8 +466,8 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
               <View style={{ width: `${Math.round(fillRatio * 100)}%` as any, height: '100%', backgroundColor: accentColor, borderRadius: 2 }} />
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 }}>
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '600', color: theme.colors.subtext }}>{attendeeCount} going</Text>
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 10.5, fontWeight: '600', color: theme.colors.subtext }}>{spotsLeft != null ? `${spotsLeft} left` : '∞'}</Text>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '600', color: theme.colors.subtext }}>{attendeeCount} going</Text>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '600', color: theme.colors.subtext }}>{spotsLeft != null ? `${spotsLeft} left` : '∞'}</Text>
             </View>
           </View>
           {onRsvp && currentUserId && awaiting && (

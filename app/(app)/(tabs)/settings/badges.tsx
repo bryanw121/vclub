@@ -338,7 +338,7 @@ function BadgeDetailPanel({ def, badge, onClose, bottomInset, animStyle }: Badge
                   )}
                 </View>
                 {earned && earnedTier === t.tier && (
-                  <Text style={{ fontSize: 10, color: topColor, fontWeight: theme.font.weight.semibold }}>
+                  <Text style={{ fontSize: theme.font.size.xs, color: topColor, fontWeight: theme.font.weight.semibold }}>
                     Current
                   </Text>
                 )}

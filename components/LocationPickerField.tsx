@@ -88,7 +88,7 @@ function SectionHeader({ label }: { label: string }) {
   return (
     <Text style={{
       fontFamily: theme.fonts.bodySemiBold,
-      fontSize: 10.5,
+      fontSize: theme.font.size.xs,
       color: theme.colors.subtext,
       letterSpacing: 0.8,
       textTransform: 'uppercase',

@@ -75,20 +75,20 @@ export function ScheduleTab(p: Props) {
           {isLive && (
             <View style={{ position: 'absolute', top: 9, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: theme.colors.hot }} />
-              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 9.5, color: theme.colors.hot, letterSpacing: 0.5 }}>LIVE</Text>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, color: theme.colors.hot, letterSpacing: 0.5 }}>LIVE</Text>
             </View>
           )}
           {!isEditing && (
             <>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                 <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, backgroundColor: theme.colors.border }}>
-                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 10, color: theme.colors.subtext, textTransform: 'capitalize' }}>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext, textTransform: 'capitalize' }}>
                     {match.stage === 'pool_play' ? `Pool${match.pool_id ? '' : ' Play'}` : match.stage.replace('_', ' ')}
                     {match.bracket_round_name ? ` · ${match.bracket_round_name}` : ''}
                   </Text>
                 </View>
                 {match.court && (
-                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 10, color: theme.colors.subtext }}>{match.court}</Text>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext }}>{match.court}</Text>
                 )}
                 {isCreator && (
                   <TouchableOpacity hitSlop={8} accessibilityLabel="Edit match" onPress={() => setEditingMatchId(match.id)} style={{ marginLeft: 'auto' }}>

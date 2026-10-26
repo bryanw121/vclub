@@ -343,19 +343,19 @@ export default function TabsLayout() {
                         {badge > 0 && (
                           <View style={{
                             position: "absolute", top: -4, right: -7,
-                            minWidth: 15, height: 15, borderRadius: 8,
+                            minWidth: 18, height: 18, borderRadius: 9,
                             backgroundColor: theme.colors.hot,
                             alignItems: "center", justifyContent: "center",
                             paddingHorizontal: 2,
                           }}>
-                            <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: 8, color: theme.colors.white, lineHeight: 10 }}>
+                            <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: theme.font.size.xs, color: theme.colors.white, lineHeight: 13 }}>
                               {badge > 99 ? "99+" : badge}
                             </Text>
                           </View>
                         )}
                       </View>
                       <Text style={{
-                        fontSize: 9,
+                        fontSize: theme.font.size.xs,
                         fontFamily: active ? theme.fonts.bodySemiBold : theme.fonts.body,
                         color: active ? theme.colors.white : 'rgba(255,255,255,0.5)',
                         letterSpacing: 0.3,

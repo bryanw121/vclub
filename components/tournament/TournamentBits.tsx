@@ -37,7 +37,7 @@ export function HeroPill({ label, value, accent }: { label: string; value: strin
   return (
     <View style={{ flex: 1, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: accent ? theme.colors.accent : 'rgba(255,255,255,0.1)', alignItems: 'center' }}>
       <Text style={{ fontFamily: theme.fonts.display, fontSize: 15, color: accent ? theme.colors.accentInk : theme.colors.text, letterSpacing: -0.3 }}>{value}</Text>
-      <Text style={{ fontFamily: theme.fonts.body, fontSize: 9.5, color: accent ? theme.colors.accentInk : 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 1 }}>{label}</Text>
+      <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: accent ? theme.colors.accentInk : 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 1 }}>{label}</Text>
     </View>
   )
 }
@@ -47,7 +47,7 @@ export function TeamSectionLabel({ title, count }: { title: string; count: numbe
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, marginTop: 4, paddingHorizontal: 2 }}>
       <Text style={ts.sectionTitle}>{title}</Text>
       <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: theme.colors.border }}>
-        <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 10, color: theme.colors.subtext }}>{count}</Text>
+        <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, color: theme.colors.subtext }}>{count}</Text>
       </View>
     </View>
   )
@@ -65,7 +65,7 @@ export function ScheduleSectionLabel({ title, count }: { title: string; count: n
 export function StatusPill({ label, color }: { label: string; color: string }) {
   return (
     <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 99, backgroundColor: color + '22', borderWidth: 1, borderColor: color + '44' }}>
-      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 10.5, color }}>{label}</Text>
+      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, color }}>{label}</Text>
     </View>
   )
 }
