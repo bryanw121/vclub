@@ -16,6 +16,7 @@ on:
     branches: [main]
     paths:
       - components/RefreshControl*.tsx
+      - components/DocScrollView.tsx
       - lib/pullGesture.ts
       - e2e/mobile/**
       - .github/workflows/mobile-browsers.yml
@@ -130,7 +131,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Install Appium + XCUITest driver
         run: |
-          npm install -g appium@2
+          npm install -g appium@3
           appium driver install xcuitest
           npm install --no-save webdriverio@9
       - name: Pull-to-refresh on real Mobile Safari

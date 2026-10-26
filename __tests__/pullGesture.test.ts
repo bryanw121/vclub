@@ -70,3 +70,23 @@ describe('RefreshControl import guard', () => {
     expect(offenders).toEqual([])
   })
 })
+
+describe('doc-scroll wiring (narrow mobile web, where the body scrolls)', () => {
+  const read = (p: string) => readFileSync(resolve(__dirname, '..', p), 'utf8')
+
+  it('DocScrollView hands its refreshControl to DocPullToRefresh instead of dropping it', () => {
+    expect(read('components/DocScrollView.tsx')).toMatch(/\{pull && <DocPullToRefresh \{\.\.\.pull\} \/>\}/)
+  })
+
+  it("the Events feed's hand-rolled doc-scroll branch mounts DocPullToRefresh", () => {
+    const feed = read('app/(app)/(tabs)/(main)/index.tsx')
+    const branch = feed.slice(feed.indexOf('if (docScrollActive) {'), feed.indexOf('if (emptyOrLoading) {'))
+    expect(branch).toMatch(/<DocPullToRefresh \{\.\.\.refreshControl\.props\} \/>/)
+  })
+
+  it('the Clubs doc-scroll list passes a refreshControl', () => {
+    const clubs = read('app/(app)/(tabs)/clubs.tsx')
+    const branch = clubs.slice(clubs.indexOf('<DocScrollView'), clubs.indexOf('</DocScrollView>'))
+    expect(branch).toMatch(/refreshControl=\{<RefreshControl/)
+  })
+})

@@ -487,6 +487,9 @@ export const shared = StyleSheet.create({
   skeletonTab: { width: 56, height: 10, borderRadius: 5, backgroundColor: theme.colors.card },
   // RefreshControl.web: pull-to-refresh wrapper and its spinner
   pullWrapper: { position: 'relative' },
+  // DocPullToRefresh: zero-size in-flow anchor; its indicator is pinned to the viewport
+  pullAnchor: { height: 0, overflow: 'visible' },
+  pullIndicatorFixed: { position: 'fixed' as 'absolute', top: 0, left: '50%', marginLeft: -18, alignSelf: undefined },
   pullIndicator: {
     position: 'absolute', top: 0, alignSelf: 'center', zIndex: 10,
     width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',

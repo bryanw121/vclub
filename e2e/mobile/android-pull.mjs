@@ -29,7 +29,9 @@ const [, w, h] = (await device.shell('wm size')).toString().match(/(\d+)x(\d+)/)
 const swipeDown = (from, to) => device.input.swipe({ x: w / 2, y: h * from }, [{ x: w / 2, y: h * to }], 40)
 
 const context = await device.launchBrowser()
-const page = await context.newPage()
+// context.newPage() is unreliable on Android (Playwright's support is experimental);
+// drive the tab Chrome opens on launch instead.
+const page = context.pages()[0] ?? await context.waitForEvent('page')
 let failed = false
 const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${what}`); if (!ok) failed = true }
 try {
