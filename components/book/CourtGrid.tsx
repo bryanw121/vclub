@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ScrollView, Text, View } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
-import Svg, { Defs, Line, Pattern, Rect, Text as SvgText } from 'react-native-svg'
+import Svg, { Line, Rect, Text as SvgText } from 'react-native-svg'
 import { shared, theme } from '../../constants'
 import { describeLane, formatClock, gridTicks } from '../../utils/courts'
 import type { FacilityDay, MinuteRange } from '../../types'
@@ -22,7 +22,7 @@ const MIN_PX_PER_HOUR = 40
 
 /**
  * One facility's courts as horizontal hour bars: free time clear (a light
- * wash), booked blocks hatched, closed hours shaded, a line at "now" on today.
+ * wash), booked blocks solid red, closed hours shaded, a line at "now" on today.
  * Court labels sit outside the horizontal scroller, so they stay put while
  * the hours scroll on a phone.
  */
@@ -35,7 +35,6 @@ export function CourtGrid({ day, span, nowMin }: Props) {
   const x = (min: number) => ((Math.min(Math.max(min, start), end) - start) / (end - start)) * width
   const height = AXIS_H + day.lanes.length * (LANE_H + LANE_GAP)
   const laneY = (i: number) => AXIS_H + i * (LANE_H + LANE_GAP)
-  const hatchId = `hatch-${day.key.replace(/[^a-zA-Z0-9_-]/g, '-')}`
   const showNow = nowMin !== null && nowMin > start && nowMin < end
 
   // On a phone, start scrolled to "now" (today), else an hour before the first
@@ -80,13 +79,6 @@ export function CourtGrid({ day, span, nowMin }: Props) {
       >
         {viewport > 0 && (
           <Svg width={width} height={height}>
-            <Defs>
-              <Pattern id={hatchId} patternUnits="userSpaceOnUse" width={6} height={6} patternTransform="rotate(45)">
-                <Rect x={0} y={0} width={6} height={6} fill={theme.colors.border} />
-                <Line x1={0} y1={0} x2={0} y2={6} stroke={theme.colors.subtext} strokeOpacity={0.55} strokeWidth={2} />
-              </Pattern>
-            </Defs>
-
             {gridTicks(span).map(t => (
               <SvgText
                 key={t}
@@ -128,7 +120,8 @@ export function CourtGrid({ day, span, nowMin }: Props) {
                 y={laneY(i)}
                 width={Math.max(1, x(b) - x(a))}
                 height={LANE_H}
-                fill={`url(#${hatchId})`}
+                fill={theme.colors.error}
+                fillOpacity={0.85}
               />
             )))}
             {/* Closing time: a firm edge so "free until close" reads clearly. */}
@@ -136,7 +129,7 @@ export function CourtGrid({ day, span, nowMin }: Props) {
               <Line x1={x(day.closeMin)} y1={AXIS_H} x2={x(day.closeMin)} y2={height - LANE_GAP} stroke={theme.colors.subtext} strokeWidth={1} />
             )}
             {showNow && (
-              <Line x1={x(nowMin)} y1={AXIS_H - 4} x2={x(nowMin)} y2={height - LANE_GAP} stroke={theme.colors.hot} strokeWidth={2} />
+              <Line x1={x(nowMin)} y1={AXIS_H - 4} x2={x(nowMin)} y2={height - LANE_GAP} stroke={theme.colors.text} strokeWidth={2} />
             )}
           </Svg>
         )}

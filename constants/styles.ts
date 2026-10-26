@@ -748,7 +748,7 @@ export const shared = StyleSheet.create({
   bookLegendItem: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs },
   bookLegendSwatch: { width: 14, height: 10, borderRadius: 3 },
   bookLegendFree: { backgroundColor: theme.colors.cool + '33' },
-  bookLegendBooked: { backgroundColor: theme.colors.border, borderWidth: 1, borderColor: theme.colors.subtext },
+  bookLegendBooked: { backgroundColor: theme.colors.error },
   bookLegendClosed: { backgroundColor: theme.colors.borderSoft },
   bookLegendNow: { width: 2, height: 12, backgroundColor: theme.colors.hot },
   bookLegendText: { fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext },
