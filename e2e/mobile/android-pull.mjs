@@ -57,12 +57,28 @@ try {
   // 3. Mid-scroll: scrolls, never refreshes.
   await page.evaluate(() => { document.body.style.minHeight = '6000px'; window.scrollTo(0, 800) })
   await new Promise(r => setTimeout(r, 500))
+  // Diagnostics: does anything cancel touchmove, and does a plain scroll work here at all?
+  await page.evaluate(() => {
+    window.__tm = { moves: 0, prevented: 0, cancelable: 0 }
+    window.addEventListener('touchmove', e => {
+      window.__tm.moves++
+      if (e.cancelable) window.__tm.cancelable++
+      if (e.defaultPrevented) window.__tm.prevented++
+    })
+  })
+  const y0 = await page.evaluate(() => window.scrollY)
+  await swipeDown(0.7, 0.4) // finger up: page should scroll down
+  await new Promise(r => setTimeout(r, 1500))
+  const y1 = await page.evaluate(() => window.scrollY)
+  console.log(`control swipe up: scrollY ${y0} -> ${y1}; touchmove ${JSON.stringify(await page.evaluate(() => window.__tm))}`)
+  await page.evaluate(() => { window.scrollTo(0, 800); window.__tm = { moves: 0, prevented: 0, cancelable: 0 } })
+  await new Promise(r => setTimeout(r, 500))
   const yBefore = await page.evaluate(() => window.scrollY)
   before = await restCalls(page)
   await swipeDown(0.35, 0.8)
   await new Promise(r => setTimeout(r, 2500))
   const yAfter = await page.evaluate(() => window.scrollY)
-  console.log(`mid-scroll: scrollY ${yBefore} -> ${yAfter}`)
+  console.log(`mid-scroll: scrollY ${yBefore} -> ${yAfter}; touchmove ${JSON.stringify(await page.evaluate(() => window.__tm))}`)
   check(yBefore > 0, 'the page was scrolled before the mid-scroll pull')
   check((await restCalls(page)) === before, 'pull mid-scroll does not refetch')
   check(yAfter < yBefore, 'pull mid-scroll scrolled the page up instead')
