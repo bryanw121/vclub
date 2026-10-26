@@ -225,6 +225,7 @@ export const shared = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.full,
     backgroundColor: theme.colors.time,
+    borderWidth: 1, borderColor: theme.colors.timeBorder,
   },
   timePillLabel: {
     fontFamily: theme.fonts.bodySemiBold, fontWeight: '800', fontSize: 15,

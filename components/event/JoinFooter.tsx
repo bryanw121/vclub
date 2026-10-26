@@ -43,7 +43,7 @@ export function JoinFooter({ eventDate, eventStatus, requiresApproval, attendanc
     >
       {signingUp && (
         <View testID="join-footer-time" style={styles.signupTime}>
-          <Ionicons name="time" size={16} color={theme.colors.time} />
+          <Ionicons name="time" size={16} color={theme.colors.timeText} />
           <Text style={styles.signupTimeLabel}>You're signing up for {startLabel}</Text>
         </View>
       )}
@@ -98,7 +98,7 @@ export function JoinFooter({ eventDate, eventStatus, requiresApproval, attendanc
 
 const styles = StyleSheet.create({
   signupTime: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: theme.spacing.sm },
-  signupTimeLabel: { fontFamily: theme.fonts.bodySemiBold, fontWeight: '700', fontSize: 15, color: theme.colors.time },
+  signupTimeLabel: { fontFamily: theme.fonts.bodySemiBold, fontWeight: '700', fontSize: 15, color: theme.colors.timeText },
   footer: {
     bottom: 0,
     left: 0,
