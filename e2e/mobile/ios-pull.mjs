@@ -14,7 +14,7 @@ const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081'
 const OUT = 'test-results/mobile'
 mkdirSync(OUT, { recursive: true })
 
-const browser = await remote({
+const options = {
   hostname: '127.0.0.1',
   port: 4723,
   logLevel: 'warn',
@@ -33,7 +33,20 @@ const browser = await remote({
     'appium:wdaLaunchTimeout': 300_000,
     'appium:newCommandTimeout': 300,
   },
-})
+}
+
+// The first session on a cold runner builds and launches WebDriverAgent, which
+// can outlast the HTTP client's socket (~5 min). By then WDA is built, so one
+// retry is fast; a second failure is real.
+async function openSession() {
+  try {
+    return await remote(options)
+  } catch (e) {
+    console.log(`session attempt 1 failed (${e.message.split('\n')[0]}); retrying once`)
+    return remote(options)
+  }
+}
+const browser = await openSession()
 
 const restCalls = () => browser.execute(() =>
   performance.getEntriesByType('resource').filter(e => e.name.includes('/rest/v1/')).length)
