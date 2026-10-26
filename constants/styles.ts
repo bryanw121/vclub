@@ -474,6 +474,17 @@ export const shared = StyleSheet.create({
   emptyState:       { alignItems: 'center', paddingTop: spacing.xxl, paddingHorizontal: spacing.lg, gap: spacing.sm },
   emptyStateBody:   { textAlign: 'center', maxWidth: 320 },
   emptyStateAction: { fontSize: font.size.sm, color: colors.primary, fontWeight: font.weight.medium },
+  // EventDetailSkeleton: placeholders in the event page's final layout
+  skeletonBlock: { backgroundColor: theme.colors.card, borderRadius: 16 },
+  skeletonHero: {
+    marginHorizontal: theme.spacing.md, marginTop: theme.spacing.xs, marginBottom: theme.spacing.sm,
+    height: 128, borderRadius: 22, backgroundColor: theme.colors.card,
+  },
+  skeletonTabs: {
+    flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center',
+    height: 44, borderBottomWidth: 1, borderBottomColor: theme.colors.border,
+  },
+  skeletonTab: { width: 56, height: 10, borderRadius: 5, backgroundColor: theme.colors.card },
   screenStateCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.sm },
   screenStateSpinner: { marginTop: spacing.xl },
 

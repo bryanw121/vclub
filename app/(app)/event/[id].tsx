@@ -11,6 +11,7 @@ import { useSilencedUserIds } from '../../../hooks/useSilencedUsers'
 import {
   attendeeRemoveTarget,
   computeEventStatus,
+  eventCardSeed,
   forgetDeletedEvent,
   guestRemoveTarget,
   isEventOver,
@@ -33,6 +34,7 @@ import { DiscussionTab } from '../../../components/event/DiscussionTab'
 import { PeopleTab } from '../../../components/event/PeopleTab'
 import { EventHeaderActions } from '../../../components/event/EventHeaderActions'
 import { EventHero } from '../../../components/event/EventHero'
+import { EventDetailSkeleton } from '../../../components/event/EventDetailSkeleton'
 import { EventTabBar, EVENT_TABS } from '../../../components/event/EventTabBar'
 import { JoinFooter } from '../../../components/event/JoinFooter'
 import { DragGhost } from '../../../components/event/DragGhost'
@@ -242,6 +244,9 @@ export default function EventDetail() {
       {/* Web: in-flow header row (back + actions; the banner shows the title) */}
       {Platform.OS === 'web' && headerActions}
 
+      {data.isLoading && !loadError ? (
+        <EventDetailSkeleton seed={event ?? eventCardSeed(id)} topInset={insets.top} />
+      ) : (
       <ScreenState loading={data.isLoading} ready={!!event && !data.isLoading && !loadError} error={loadError} onRetry={() => { void data.retry() }}>
         {event && (
           <>
@@ -338,6 +343,7 @@ export default function EventDetail() {
           </>
         )}
       </ScreenState>
+      )}
 
       <AddGuestDialog
         visible={guestDialogOpen}
