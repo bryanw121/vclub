@@ -7,13 +7,13 @@ import React, { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
-  RefreshControl,
   Text,
   TextInput,
   TouchableOpacity,
   View,
   Alert,
 } from 'react-native'
+import { RefreshControl } from '../../../components/RefreshControl'
 import { Image } from 'expo-image'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -400,6 +400,7 @@ export default function ClubsScreen() {
           docScroll
           style={shared.screen}
           contentContainerStyle={{ paddingBottom: tabBarHeight + 32 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} tintColor={theme.colors.primary} />}
         >
           {listHeader}
           {visibleClubs.length === 0

@@ -1,5 +1,6 @@
 import React from 'react'
-import { View, Text, ScrollView, ActivityIndicator, RefreshControl } from 'react-native'
+import { View, Text, ScrollView, ActivityIndicator } from 'react-native'
+import { RefreshControl } from '../RefreshControl'
 import { shared, theme } from '../../constants'
 import type { MentionUser } from '../../types'
 import type { EventCommentsApi, EventData } from '../../types'

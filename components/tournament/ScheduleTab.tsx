@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import type { RefreshControlProps } from 'react-native'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { shared, theme } from '../../constants'
 import { Button } from '../Button'
@@ -11,6 +12,8 @@ import { ScheduleSectionLabel } from './TournamentBits'
 import { ts } from './tournamentStyles'
 
 type Props = {
+  /** Pull-to-refresh for the whole tournament page. */
+  refreshControl?: React.ReactElement<RefreshControlProps>
   tournament: Tournament
   teams: TournamentTeamWithRoster[]
   matches: TournamentMatchRow[]
@@ -155,7 +158,7 @@ export function ScheduleTab(p: Props) {
   // ── Not generated yet ──
   if (!tournament.schedule_generated_at) {
     return (
-      <ScrollView contentContainerStyle={ts.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={ts.scrollContent} showsVerticalScrollIndicator={false} refreshControl={p.refreshControl}>
         {isCreator ? (
           <View style={[shared.card, { gap: 16 }]}>
             <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 16, color: theme.colors.text }}>Generate Schedule</Text>
@@ -181,7 +184,7 @@ export function ScheduleTab(p: Props) {
 
   // ── Generated ──
   return (
-    <ScrollView contentContainerStyle={ts.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView contentContainerStyle={ts.scrollContent} showsVerticalScrollIndicator={false} refreshControl={p.refreshControl}>
       {isCreator && !tournament.schedule_published && (
         editingConfig ? (
           <View style={[shared.card, { gap: 16, marginBottom: 16 }]}>

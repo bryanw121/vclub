@@ -1,4 +1,5 @@
-import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native'
+import { Alert, ScrollView, Text, View } from 'react-native'
+import { RefreshControl } from '../../../../components/RefreshControl'
 import { useCallback, useState } from 'react'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'

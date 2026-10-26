@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native'
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native'
+import { RefreshControl } from '../../../components/RefreshControl'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo, useCallback, memo, useEffect, useLayoutEffect } from 'react'
 import { useRouter } from 'expo-router'
-import { Dimensions, Platform, View, ScrollView, SectionList, Text, RefreshControl, TouchableOpacity, PanResponder, Animated, ActivityIndicator, StyleSheet } from 'react-native'
+import { Dimensions, Platform, View, ScrollView, SectionList, Text, TouchableOpacity, PanResponder, Animated, ActivityIndicator, StyleSheet } from 'react-native'
+import { DocPullToRefresh, RefreshControl } from '../../../../components/RefreshControl'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useFeedRsvp, useMonthEvents } from '../../../../hooks/useMonthEvents'
 import { useNotifications } from '../../../../hooks/useNotifications'
@@ -583,6 +584,7 @@ export default function EventsScreen() {
         if (docScrollActive) {
           return (
             <View ref={feedContentRef} style={{ paddingBottom: tabBarHeight + 32 }}>
+              <DocPullToRefresh {...refreshControl.props} />
               <View style={{ paddingHorizontal: theme.spacing.lg }}>{railNode}</View>
               <View testID="events-feed">
               {emptyOrLoading ?? sections.map(section => (

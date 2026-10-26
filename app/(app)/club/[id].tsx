@@ -12,8 +12,8 @@ import {
   Platform,
   TextInput,
   StyleSheet,
-  RefreshControl,
 } from 'react-native'
+import { RefreshControl } from '../../../components/RefreshControl'
 import { LinearGradient } from 'expo-linear-gradient'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
