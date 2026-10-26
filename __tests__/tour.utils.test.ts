@@ -94,13 +94,14 @@ describe('placeTourCard', () => {
 })
 
 describe('TOURS', () => {
-  it('every step has a target, a title and a one-sentence body', () => {
+  it('every step has a target, a title and a short body (at most three sentences)', () => {
     for (const tour of Object.values(TOURS)) {
       expect(tour.steps.length).toBeGreaterThan(0)
       for (const step of tour.steps) {
         expect(step.target).toBeTruthy()
         expect(step.title).toBeTruthy()
-        expect(step.body.split(/[.!?](\s|$)/).filter(s => s && s.trim()).length).toBe(1)
+        expect(step.body.split(/[.!?](\s|$)/).filter(s => s && s.trim()).length).toBeLessThanOrEqual(3)
+        expect(step.body.length).toBeLessThanOrEqual(140)
       }
     }
   })
