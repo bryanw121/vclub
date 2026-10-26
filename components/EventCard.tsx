@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'expo-router'
 import { theme, eventAttendeeDisplayCount, SURFACE_LABELS } from '../constants'
 import { TimePill } from './ui'
 import { routes } from '../utils/routes'
+import { rememberEventCard } from '../hooks/event/seed'
 import { profileAvatarSmallUri, profileDisplayName, surfaceOf } from '../utils'
 import type { EventCardRsvpHandler, EventWithDetails, Tag } from '../types'
 
@@ -116,6 +117,7 @@ function EventCardInner({
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={() => {
+        if (!event._isTournament) rememberEventCard(event)
         router.push(
           event._isTournament
             ? routes.tournament(event.id)
@@ -342,6 +344,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={() => {
+        if (!event._isTournament) rememberEventCard(event)
         router.push(
           event._isTournament
             ? routes.tournament(event.id)
