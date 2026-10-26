@@ -12,7 +12,7 @@ import { useCourtAvailability } from '../../hooks/useCourtAvailability'
 import { useRequireSignIn } from '../../hooks/useRequireSignIn'
 import { openExternalUrl } from '../../lib/openExternalUrl'
 import {
-  austinNow, courtsAgeMs, dayOptions, dayParts, facilityDays, formatAge, gridSpan, isCourtsOld, pickDay,
+  austinNow, courtsAgeMs, dayOptions, dayParts, facilityDays, formatAge, gridSpan, isCourtsOld, pickDay, venueCalendarUrl,
 } from '../../utils/courts'
 import { signupHost } from '../../utils/feedItems'
 import { routes } from '../../utils/routes'
@@ -72,7 +72,8 @@ export default function BookCourtScreen() {
   }
 
   function book(day: FacilityDay) {
-    void openExternalUrl(day.venue.calendar)
+    // Open the venue's calendar on the day being viewed when its platform supports it.
+    void openExternalUrl(venueCalendarUrl(day.venue, dayIso))
   }
 
   function createEvent(day: FacilityDay) {
@@ -197,6 +198,7 @@ export default function BookCourtScreen() {
                 day={day}
                 span={span}
                 nowMin={isToday ? now.minutes : null}
+                dayIso={dayIso}
                 onBook={book}
                 onCreateEvent={createEvent}
               />

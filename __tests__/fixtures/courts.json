@@ -6,6 +6,7 @@
   {
    "id": "velocity",
    "calendar": "https://austinvelocity.skedda.com/booking",
+   "calendarDay": "https://austinvelocity.skedda.com/booking?viewdate={date}",
    "hours": [
     [
      "08:00",
@@ -431,6 +432,7 @@
   {
    "id": "treehouse",
    "calendar": "https://treehousegym.skedda.com/booking",
+   "calendarDay": "https://treehousegym.skedda.com/booking?viewdate={date}",
    "hours": [
     [
      "09:00",

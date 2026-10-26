@@ -42,9 +42,12 @@ export const theme = {
     medalGold:    '#FFD54F',
     medalSilver:  '#B0BEC5',
     medalBronze:  '#D7A86E',
-    // Event start time: its own colour so nobody misreads when they're signing up for
-    time:         '#FFD84D',
-    timeInk:      '#2B2200',
+    // Event start time (TimePill, join bar): a soft lavender pill, distinct from the
+    // cyan day chip and on-brand without shouting.
+    time:         '#2A1F6B',   // pill background
+    timeBorder:   '#3E2F94',   // pill outline
+    timeInk:      '#D6C9FF',   // pill icon + label
+    timeText:     '#C4B2FF',   // time stated as text on a card ("You're signing up for …")
     // Misc
     announcementHighlight: '#2A1F6B',
   },
