@@ -262,6 +262,7 @@ npx expo start --web    # test web experience directly
 Use `components/ui` (import from `components/ui`) before hand-rolling UI:
 - `ScreenHeader` for page headers and back rows (no hand-built headers)
 - `Chip` for pill filters (`solid` or `tint` variant)
+- `TimePill` for an event's start time (yellow `theme.colors.time`); use it wherever a player decides whether to join
 - `IconButton` for square icon buttons (38pt default, 44 where touch targets matter)
 - `ScreenState` decides loading / error / empty / content for a data screen; `EmptyState` is the empty block
 - `ConfirmDialog` for confirm/cancel prompts; `BottomSheet` for slide-up sheets (no inline `Modal`s)

@@ -42,6 +42,9 @@ export const theme = {
     medalGold:    '#FFD54F',
     medalSilver:  '#B0BEC5',
     medalBronze:  '#D7A86E',
+    // Event start time: its own colour so nobody misreads when they're signing up for
+    time:         '#FFD84D',
+    timeInk:      '#2B2200',
     // Misc
     announcementHighlight: '#2A1F6B',
   },
