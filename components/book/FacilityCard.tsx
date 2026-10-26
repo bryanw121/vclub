@@ -76,8 +76,8 @@ export function FacilityCard({ day, span, nowMin, dayIso, onBook, onCreateEvent 
           accessibilityLabel={`Book at ${facility.name} on ${host}${opensOnDay ? `, ${dayLong}` : ''} (opens in your browser)`}
           testID="book-facility-book"
         />
-        <Text style={shared.bookNote} testID="book-facility-note">
-          {opensOnDay ? `Opens ${host} on ${dayLong}.` : `Booking happens on ${host}.`} Some venues only rent to members or teams, or approve requests first.
+        <Text style={shared.bookNote}>
+          Booking happens on {host}. Some venues only rent to members or teams, or approve requests first.
         </Text>
         <TouchableOpacity
           onPress={() => onCreateEvent(day)}

@@ -117,7 +117,6 @@ test.describe('/book (guest)', () => {
     const card = facility(page, target.id)
     const onDay = `${target.calendar}?viewdate=${tomorrow}`
     await expect(card.getByText(`Book at ${target.name}`, { exact: true })).toBeVisible()
-    await expect(card.getByTestId('book-facility-note')).toContainText(`Opens ${new URL(target.calendar).host} on ${dayLong(tomorrow)}.`)
     const [popup] = await Promise.all([
       page.waitForEvent('popup'),
       card.getByTestId('book-facility-book').click(),
