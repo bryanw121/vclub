@@ -1,5 +1,6 @@
 import React from 'react'
 import { ScrollView, Text, View } from 'react-native'
+import type { RefreshControlProps } from 'react-native'
 import { theme } from '../../constants'
 import { SKILL_LEVEL_LABELS } from '../../constants/copy'
 import { profileDisplayName } from '../../utils'
@@ -12,6 +13,8 @@ import { MiniButton, TeamSectionLabel } from './TournamentBits'
 import { ts } from './tournamentStyles'
 
 type Props = {
+  /** Pull-to-refresh for the whole tournament page. */
+  refreshControl?: React.ReactElement<RefreshControlProps>
   teams: TournamentTeamWithRoster[]
   myTeam: TournamentTeam | null
   viewerId: string | null
@@ -21,7 +24,7 @@ type Props = {
   actions: TeamCardActions
 }
 
-export function TeamsTab({ teams, myTeam, viewerId, isCreator, registrationOpen, joinRequests, actions }: Props) {
+export function TeamsTab({ teams, myTeam, viewerId, isCreator, registrationOpen, joinRequests, actions, refreshControl }: Props) {
   const approved = teams.filter(t => t.status === 'registered' && t.is_approved)
   const pending = teams.filter(t => t.status === 'registered' && !t.is_approved)
   const freeAgents = teams.filter(t => t.status === 'free_agent')
@@ -40,7 +43,7 @@ export function TeamsTab({ teams, myTeam, viewerId, isCreator, registrationOpen,
   )
 
   return (
-    <ScrollView contentContainerStyle={ts.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView contentContainerStyle={ts.scrollContent} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
       {/* Captain action strip */}
       {myTeam && !isCreator && myTeam.captain_user_id === viewerId && (
         <View style={{ marginBottom: 14 }}>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Text, TouchableOpacity, View } from 'react-native'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { theme } from '../../../constants'
@@ -9,6 +9,7 @@ import { useRequireSignIn } from '../../../hooks/useRequireSignIn'
 import { notifyInfo } from '../../../utils/notify'
 import { useTournamentActions } from '../../../hooks/tournament/useTournamentActions'
 import { useTournamentData } from '../../../hooks/tournament/useTournamentData'
+import { RefreshControl } from '../../../components/RefreshControl'
 import { generateSchedule } from '../../../lib/tournamentSchedule'
 import { profileDisplayName } from '../../../utils'
 import { routes } from '../../../utils/routes'
@@ -43,6 +44,18 @@ export default function TournamentDetailScreen() {
     id, userId, { loadMatches: scheduleOpened || activeTab === 'Schedule' },
   )
   const actions = useTournamentActions(id, userId)
+
+  // Pull-to-refresh on every tab: one parallel round (disabled queries are no-ops).
+  const [refreshing, setRefreshing] = useState(false)
+  const refreshAll = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([core, teamsQ, commentsQ, mine, matchesQ].map(q => q.refetch({ force: true })))
+    } finally {
+      setRefreshing(false)
+    }
+  }, [core, teamsQ, commentsQ, mine, matchesQ])
+  const refreshControl = <RefreshControl refreshing={refreshing} onRefresh={() => { void refreshAll() }} tintColor={theme.colors.primary} />
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [showRegister, setShowRegister] = useState(false)
@@ -220,6 +233,7 @@ export default function TournamentDetailScreen() {
 
             {activeTab === 'Overview' && (
               <OverviewTab
+                refreshControl={refreshControl}
                 tournament={tournament}
                 rules={rules}
                 prizes={prizes}
@@ -247,6 +261,7 @@ export default function TournamentDetailScreen() {
 
             {activeTab === 'Teams' && (
               <TeamsTab
+                refreshControl={refreshControl}
                 teams={teams}
                 myTeam={myTeam}
                 viewerId={userId}
@@ -259,6 +274,7 @@ export default function TournamentDetailScreen() {
 
             {activeTab === 'Schedule' && (
               <ScheduleTab
+                refreshControl={refreshControl}
                 tournament={tournament}
                 teams={teams}
                 matches={matchesQ.data ?? []}
@@ -281,6 +297,7 @@ export default function TournamentDetailScreen() {
 
             {activeTab === 'Discussion' && (
               <DiscussionTab
+                refreshControl={refreshControl}
                 comments={comments}
                 loading={commentsQ.isLoading}
                 error={!!commentsQ.error}

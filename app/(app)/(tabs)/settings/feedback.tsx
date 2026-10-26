@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react'
-import { Alert, Modal, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { Alert, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { RefreshControl } from '../../../../components/RefreshControl'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
 import { getSessionUser } from '../../../../lib/sessionUser'

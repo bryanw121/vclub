@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { Platform, View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, RefreshControl } from 'react-native'
+import { Platform, View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
+import { RefreshControl } from '../RefreshControl'
 import { GestureDetector, Gesture, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated'
 import Ionicons from '@expo/vector-icons/Ionicons'

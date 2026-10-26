@@ -485,6 +485,13 @@ export const shared = StyleSheet.create({
     height: 44, borderBottomWidth: 1, borderBottomColor: theme.colors.border,
   },
   skeletonTab: { width: 56, height: 10, borderRadius: 5, backgroundColor: theme.colors.card },
+  // RefreshControl.web: pull-to-refresh wrapper and its spinner
+  pullWrapper: { position: 'relative' },
+  pullIndicator: {
+    position: 'absolute', top: 0, alignSelf: 'center', zIndex: 10,
+    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border,
+  },
   screenStateCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.sm },
   screenStateSpinner: { marginTop: spacing.xl },
 

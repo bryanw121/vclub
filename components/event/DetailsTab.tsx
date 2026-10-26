@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { Platform, View, Text, TouchableOpacity, Alert, RefreshControl } from 'react-native'
+import { Platform, View, Text, TouchableOpacity, Alert } from 'react-native'
+import { RefreshControl } from '../RefreshControl'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import * as Linking from 'expo-linking'
 import * as Calendar from 'expo-calendar'

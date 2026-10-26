@@ -3,11 +3,11 @@ import {
   ActivityIndicator,
   Image,
   Pressable,
-  RefreshControl,
   ScrollView,
   Text,
   View,
 } from 'react-native'
+import { RefreshControl } from '../../../../components/RefreshControl'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useFocusEffect } from 'expo-router'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'

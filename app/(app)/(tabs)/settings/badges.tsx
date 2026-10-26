@@ -2,13 +2,13 @@ import React, { useState } from 'react'
 import {
   Modal,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native'
+import { RefreshControl } from '../../../../components/RefreshControl'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,

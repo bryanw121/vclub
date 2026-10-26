@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Platform, Pressable, RefreshControl, View } from 'react-native'
+import { Alert, Platform, Pressable, View } from 'react-native'
+import { RefreshControl } from '../../../../../components/RefreshControl'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useRouter } from 'expo-router'
 import { DocScrollView } from '../../../../../components/DocScrollView'

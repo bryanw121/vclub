@@ -3,11 +3,11 @@ import { useFocusEffect } from 'expo-router'
 import {
   ActivityIndicator,
   FlatList,
-  RefreshControl,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native'
+import { RefreshControl } from '../../components/RefreshControl'
 import { Stack, useRouter } from 'expo-router'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useNotifications } from '../../hooks/useNotifications'

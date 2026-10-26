@@ -1,5 +1,6 @@
 import React from 'react'
 import { ActivityIndicator, Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import type { RefreshControlProps } from 'react-native'
 import * as Linking from 'expo-linking'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { theme } from '../../constants'
@@ -14,6 +15,8 @@ import { MiniButton } from './TournamentBits'
 import { ts, VENMO_BLUE } from './tournamentStyles'
 
 type Props = {
+  /** Pull-to-refresh for the whole tournament page. */
+  refreshControl?: React.ReactElement<RefreshControlProps>
   tournament: Tournament
   rules: TournamentRules | null
   prizes: TournamentPrize[]
@@ -76,7 +79,7 @@ function VenmoButton({ tournament, myProfile }: { tournament: Tournament; myProf
 export function OverviewTab(p: Props) {
   const { tournament, rules, prizes, myTeam, isCreator } = p
   return (
-    <ScrollView contentContainerStyle={ts.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView contentContainerStyle={ts.scrollContent} showsVerticalScrollIndicator={false} refreshControl={p.refreshControl}>
 
       {/* My team CTA card */}
       {!isCreator && myTeam && (

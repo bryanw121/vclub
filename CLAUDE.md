@@ -364,6 +364,7 @@ Schema changes are usually applied directly via the Supabase MCP (`apply_migrati
 
 ## Things to Avoid
 - Don't use `react-native-pager-view` — it's native-only. The custom `Pager` component is the cross-platform replacement.
+- Don't import `RefreshControl` from `react-native`: on web it is a no-op stub. Import it from `components/RefreshControl` (web pull-to-refresh lives in `RefreshControl.web.tsx` + `lib/pullGesture.ts`; a unit test enforces this). Real phone browsers are checked by `.github/workflows/mobile-browsers.yml` (Android emulator Chrome + iOS Simulator Safari, nightly)
 - Don't hardcode colors/spacing — always use `theme.*` (no hex or `rgba(...)` literals for colors that have a token)
 - Don't write route strings or `router.push(... as any)` — use `routes.*`
 - Don't put types inline in component files — add them to `types/index.ts`

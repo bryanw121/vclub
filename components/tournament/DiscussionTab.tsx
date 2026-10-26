@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native'
+import type { RefreshControlProps } from 'react-native'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { shared, theme } from '../../constants'
@@ -10,6 +11,8 @@ import type { MentionUser, TournamentCommentWithAuthor } from '../../types'
 import { CommentRow } from './CommentRow'
 
 type Props = {
+  /** Pull-to-refresh for the whole tournament page. */
+  refreshControl?: React.ReactElement<RefreshControlProps>
   comments: TournamentCommentWithAuthor[]
   loading: boolean
   error: boolean
@@ -22,7 +25,7 @@ type Props = {
   onRequestDelete: (commentId: string) => void
 }
 
-export function DiscussionTab({ comments, loading, error, onRetry, viewerId, isCreator, mentionableUsers, onPost, onRequestDelete }: Props) {
+export function DiscussionTab({ comments, loading, error, onRetry, viewerId, isCreator, mentionableUsers, onPost, onRequestDelete, refreshControl }: Props) {
   const insets = useSafeAreaInsets()
   const scrollRef = useRef<ScrollView>(null)
   const [replyTo, setReplyTo] = useState<TournamentCommentWithAuthor | null>(null)
@@ -66,6 +69,7 @@ export function DiscussionTab({ comments, loading, error, onRetry, viewerId, isC
           contentContainerStyle={{ padding: 16, paddingBottom: 8, gap: 4 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={refreshControl}
         >
           {topLevel.length === 0 && (
             <View style={{ alignItems: 'center', paddingVertical: 48 }}>

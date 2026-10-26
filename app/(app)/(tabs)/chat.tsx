@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
-  ActivityIndicator, Modal, Pressable, Platform, RefreshControl,
+  ActivityIndicator, Modal, Pressable, Platform,
 } from 'react-native'
+import { RefreshControl } from '../../../components/RefreshControl'
 import { Image } from 'expo-image'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useRouter, Stack } from 'expo-router'
