@@ -13,7 +13,8 @@
     "test:timezones": "for tz in America/Chicago America/Denver Europe/Berlin Asia/Tokyo UTC; do echo \"── TZ=$tz ──\"; TZ=$tz jest __tests__/calendarDates.test.ts || exit 1; done",
     "e2e:sweep": "node e2e/sweep.mjs",
     "docs:update": "node scripts/generate-architecture-doc.mjs",
-    "docs:check": "node scripts/generate-architecture-doc.mjs --check"
+    "docs:check": "node scripts/generate-architecture-doc.mjs --check",
+    "db:drift": "node scripts/schema-drift.mjs"
   },
   "jest": {
     "preset": "jest-expo",
