@@ -1339,6 +1339,12 @@ export type CourtsVenue = {
   id: string
   /** The venue's public booking page. */
   calendar: string
+  /**
+   * The booking page opened on one day: a template with `{date}` (YYYY-MM-DD),
+   * e.g. Skedda's `…/booking?viewdate={date}`. Absent when the platform has no
+   * per-day link; use `calendar` then (utils/courts.venueCalendarUrl).
+   */
+  calendarDay?: string
   /** Opening hours per weekday, 0 = Sunday; null = closed that day. */
   hours: (HHMMRange | null)[]
   facilities: CourtsFacility[]

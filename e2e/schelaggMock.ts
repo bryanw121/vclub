@@ -62,6 +62,7 @@ type CourtsFixture = {
   venues: {
     id: string
     calendar: string
+    calendarDay?: string
     facilities: { id: string; name: string; surface: string; courts: { name: string; days: Record<string, unknown> }[] }[]
   }[]
   errors: unknown[]

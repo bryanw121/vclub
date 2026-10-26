@@ -2,7 +2,7 @@ import fixture from './fixtures/courts.json'
 import {
   addDays, austinNow, bookedMinutes, clipFrom, courtLabel, coversDate, dayOptions, dowOf, facilityDays,
   formatAge, formatClock, formatFreeSummary, formatRange, freeWindows, gridSpan, gridTicks, isCourtsOld,
-  openingMinutes, pickDay, splitCityPrice, toMin, unionRanges, zonedToIso,
+  openingMinutes, pickDay, splitCityPrice, toMin, unionRanges, venueCalendarUrl, zonedToIso,
 } from '../utils/courts'
 import type { CourtsData } from '../types'
 
@@ -158,5 +158,31 @@ describe('facilityDays', () => {
   it('spans the grid from 6am (or earlier opening) to midnight', () => {
     expect(gridSpan(facilityDays(data, '2026-10-26', sunday))).toEqual([360, 1440])
     expect(gridTicks([360, 1440])).toEqual([360, 540, 720, 900, 1080, 1260, 1440])
+  })
+})
+
+describe('venueCalendarUrl', () => {
+  const skedda = { calendar: 'https://austinvelocity.skedda.com/booking', calendarDay: 'https://austinvelocity.skedda.com/booking?viewdate={date}' }
+
+  it('opens the booking calendar on the chosen day', () => {
+    expect(venueCalendarUrl(skedda, '2026-10-27')).toBe('https://austinvelocity.skedda.com/booking?viewdate=2026-10-27')
+  })
+
+  it('falls back to the plain calendar without a per-day link or a valid date', () => {
+    expect(venueCalendarUrl({ calendar: skedda.calendar }, '2026-10-27')).toBe(skedda.calendar)
+    expect(venueCalendarUrl(skedda, 'tomorrow')).toBe(skedda.calendar)
+    expect(venueCalendarUrl({ ...skedda, calendarDay: 'https://austinvelocity.skedda.com/booking' }, '2026-10-27')).toBe(skedda.calendar)
+  })
+
+  it('never leaves the calendar host or https', () => {
+    expect(venueCalendarUrl({ ...skedda, calendarDay: 'https://evil.example/?d={date}' }, '2026-10-27')).toBe(skedda.calendar)
+    expect(venueCalendarUrl({ ...skedda, calendarDay: 'http://austinvelocity.skedda.com/booking?viewdate={date}' }, '2026-10-27')).toBe(skedda.calendar)
+    expect(venueCalendarUrl({ ...skedda, calendarDay: 'javascript:alert({date})' }, '2026-10-27')).toBe(skedda.calendar)
+  })
+
+  it('is set for every venue in the court data fixture', () => {
+    for (const v of (fixture as unknown as CourtsData).venues) {
+      expect(venueCalendarUrl(v, '2026-10-27')).toBe(`${v.calendar}?viewdate=2026-10-27`)
+    }
   })
 })
