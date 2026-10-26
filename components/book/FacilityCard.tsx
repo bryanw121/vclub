@@ -19,6 +19,16 @@ type Props = {
 }
 
 /**
+ * What may stand between someone and a booking on the venue's site. Skedda
+ * venues usually make new people request access first.
+ */
+function bookingCaveat(calendar: string): string {
+  return /(^|\.)skedda\.com$/i.test(signupHost(calendar))
+    ? 'You may need to request access on Skedda before you can book.'
+    : 'Some venues only rent to members or teams, or approve requests first.'
+}
+
+/**
  * One facility on the chosen day: what it is (surface, city, price, hours),
  * when it is free in one line, the court-by-court hour grid, and the way out
  * to the venue's own booking page. Booking never happens in vteam.
@@ -76,8 +86,8 @@ export function FacilityCard({ day, span, nowMin, dayIso, onBook, onCreateEvent 
           accessibilityLabel={`Book at ${facility.name} on ${host}${opensOnDay ? `, ${dayLong}` : ''} (opens in your browser)`}
           testID="book-facility-book"
         />
-        <Text style={shared.bookNote}>
-          Booking happens on {host}. Some venues only rent to members or teams, or approve requests first.
+        <Text style={shared.bookNote} testID="book-facility-note">
+          Booking happens on {host}. {bookingCaveat(venue.calendar)}
         </Text>
         <TouchableOpacity
           onPress={() => onCreateEvent(day)}

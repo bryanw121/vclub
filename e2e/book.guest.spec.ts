@@ -117,6 +117,7 @@ test.describe('/book (guest)', () => {
     const card = facility(page, target.id)
     const onDay = `${target.calendar}?viewdate=${tomorrow}`
     await expect(card.getByText(`Book at ${target.name}`, { exact: true })).toBeVisible()
+    await expect(card.getByTestId('book-facility-note')).toContainText('You may need to request access on Skedda before you can book.')
     const [popup] = await Promise.all([
       page.waitForEvent('popup'),
       card.getByTestId('book-facility-book').click(),
