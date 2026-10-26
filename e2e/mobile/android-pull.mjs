@@ -26,7 +26,10 @@ const [device] = await android.devices()
 if (!device) throw new Error('no Android device/emulator visible to adb')
 console.log(`device ${device.model()} (${device.serial()})`)
 const [, w, h] = (await device.shell('wm size')).toString().match(/(\d+)x(\d+)/).map(Number)
-const swipeDown = (from, to) => device.input.swipe({ x: w / 2, y: h * from }, [{ x: w / 2, y: h * to }], 40)
+// Swipe in the left gutter (page padding), away from cards and links: a short
+// swipe that lands on a link can register as a tap and open another tab.
+const GUTTER_X = Math.round(w * 0.025)
+const swipeDown = (from, to) => device.input.swipe({ x: GUTTER_X, y: h * from }, [{ x: GUTTER_X, y: h * to }], 40)
 
 const context = await device.launchBrowser()
 // context.newPage() is unreliable on Android (Playwright's support is experimental);
@@ -83,7 +86,9 @@ try {
   check((await restCalls(page)) === before, 'pull mid-scroll does not refetch')
   check(yAfter < yBefore, 'pull mid-scroll scrolled the page up instead')
 } finally {
-  await page.screenshot({ path: `${OUT}/android-final.png` }).catch(() => {})
+  // The whole device screen, so a dialog, infobar or stray tab is visible too.
+  await device.screenshot({ path: `${OUT}/android-final-device.png` }).catch(e => console.log(`device screenshot failed: ${e.message}`))
+  console.log(`pages open: ${context.pages().length}; url: ${page.url()}`)
   await context.close()
   await device.close()
 }
