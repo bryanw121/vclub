@@ -1,5 +1,5 @@
 // Real Chrome for Android (emulator or device over ADB) pull-to-refresh check, #35.
-// The swipe goes through Android's input system (device.input.swipe), not
+// The swipe goes through Android's input system (`adb shell input swipe`), not
 // synthetic DOM events, so Chrome's own scrolling and overscroll handling run.
 //
 //   adb reverse tcp:8081 tcp:8081 && node e2e/mobile/android-pull.mjs
@@ -29,7 +29,12 @@ const [, w, h] = (await device.shell('wm size')).toString().match(/(\d+)x(\d+)/)
 // Swipe in the left gutter (page padding), away from cards and links: a short
 // swipe that lands on a link can register as a tap and open another tab.
 const GUTTER_X = Math.round(w * 0.025)
-const swipeDown = (from, to) => device.input.swipe({ x: GUTTER_X, y: h * from }, [{ x: GUTTER_X, y: h * to }], 40)
+// `adb shell input swipe` injects at the OS input layer. Playwright's
+// device.input.swipe (its experimental driver APK) stopped delivering touches
+// after a few swipes on the CI emulator, so it isn't used.
+const swipeDown = async (from, to) => {
+  await device.shell(`input swipe ${GUTTER_X} ${Math.round(h * from)} ${GUTTER_X} ${Math.round(h * to)} 400`)
+}
 
 const context = await device.launchBrowser()
 // context.newPage() is unreliable on Android (Playwright's support is experimental);
