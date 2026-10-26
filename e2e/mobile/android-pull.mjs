@@ -56,11 +56,16 @@ try {
 
   // 3. Mid-scroll: scrolls, never refreshes.
   await page.evaluate(() => { document.body.style.minHeight = '6000px'; window.scrollTo(0, 800) })
+  await new Promise(r => setTimeout(r, 500))
+  const yBefore = await page.evaluate(() => window.scrollY)
   before = await restCalls(page)
   await swipeDown(0.35, 0.8)
   await new Promise(r => setTimeout(r, 2500))
+  const yAfter = await page.evaluate(() => window.scrollY)
+  console.log(`mid-scroll: scrollY ${yBefore} -> ${yAfter}`)
+  check(yBefore > 0, 'the page was scrolled before the mid-scroll pull')
   check((await restCalls(page)) === before, 'pull mid-scroll does not refetch')
-  check(await page.evaluate(() => window.scrollY < 800), 'pull mid-scroll scrolled the page up instead')
+  check(yAfter < yBefore, 'pull mid-scroll scrolled the page up instead')
 } finally {
   await page.screenshot({ path: `${OUT}/android-final.png` }).catch(() => {})
   await context.close()

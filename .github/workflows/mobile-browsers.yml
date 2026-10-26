@@ -130,6 +130,7 @@ jobs:
           echo "Using $name (iOS $version) $udid"
           xcrun simctl boot "$udid" || true
           xcrun simctl bootstatus "$udid" -b
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
           echo "device=$name" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Install Appium + XCUITest driver
@@ -145,6 +146,7 @@ jobs:
         env:
           IOS_DEVICE: ${{ steps.sim.outputs.device }}
           IOS_VERSION: ${{ steps.sim.outputs.version }}
+          IOS_UDID: ${{ steps.sim.outputs.udid }}
         run: |
           appium --log appium.log &
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:4723/status > /dev/null && break; sleep 1; done

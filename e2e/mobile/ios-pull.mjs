@@ -27,6 +27,9 @@ const browser = await remote({
     'appium:automationName': 'XCUITest',
     'appium:deviceName': process.env.IOS_DEVICE || 'iPhone 16',
     ...(process.env.IOS_VERSION ? { 'appium:platformVersion': process.env.IOS_VERSION } : {}),
+    // The exact simulator the workflow booted: runners carry several with the same name.
+    ...(process.env.IOS_UDID ? { 'appium:udid': process.env.IOS_UDID } : {}),
+    'appium:simulatorStartupTimeout': 600_000,
     'appium:wdaLaunchTimeout': 300_000,
     'appium:newCommandTimeout': 300,
   },
@@ -77,11 +80,16 @@ try {
   check((await restCalls()) === before, 'short pull below the threshold does not refetch')
 
   await browser.execute(() => { document.body.style.minHeight = '6000px'; window.scrollTo(0, 800) })
+  await new Promise(r => setTimeout(r, 500))
+  const yBefore = await browser.execute(() => window.scrollY)
   before = await restCalls()
   await swipeDown(0.35, 0.8)
   await new Promise(r => setTimeout(r, 2500))
+  const yAfter = await browser.execute(() => window.scrollY)
+  console.log(`mid-scroll: scrollY ${yBefore} -> ${yAfter}`)
+  check(yBefore > 0, 'the page was scrolled before the mid-scroll pull')
   check((await restCalls()) === before, 'pull mid-scroll does not refetch')
-  check(await browser.execute(() => window.scrollY < 800), 'pull mid-scroll scrolled the page up instead')
+  check(yAfter < yBefore, 'pull mid-scroll scrolled the page up instead')
 } finally {
   await shot('ios-final').catch(() => {})
   await browser.deleteSession()
