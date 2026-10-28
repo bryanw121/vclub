@@ -4,6 +4,7 @@ import { RefreshControl } from '../../../../components/RefreshControl'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { supabase } from '../../../../lib/supabase'
 import { getSessionUser } from '../../../../lib/sessionUser'
+import { emailFeedback } from '../../../../lib/feedback'
 import { Button } from '../../../../components/Button'
 import { Input } from '../../../../components/Input'
 import { shared, theme } from '../../../../constants'
@@ -45,14 +46,17 @@ export default function FeedbackScreen() {
         ? `${bugMeta}\n\n${description.trim()}`
         : description.trim()
 
-      const { error } = await supabase.from('feedback_submissions').insert({
+      const { data: row, error } = await supabase.from('feedback_submissions').insert({
         user_id: user.id,
         kind,
         priority,
         title: title.trim(),
         description: fullDescription,
-      })
+      }).select('id').single()
       if (error) throw error
+      // Saved: that's what the person sees as success. Emailing it to the team
+      // happens server-side and never blocks or fails the form.
+      emailFeedback(row.id)
 
       setKind('feature')
       setPriority('medium')
@@ -75,7 +79,7 @@ export default function FeedbackScreen() {
           <View style={shared.modalCard}>
             <Text style={shared.modalEmoji}>🏐</Text>
             <Text style={shared.modalTitle}>Thanks for making vteam better!</Text>
-            <Text style={shared.modalBody}>Your feedback has been saved and the team will review it.</Text>
+            <Text style={shared.modalBody}>Your feedback reached the team. We read every one.</Text>
             <TouchableOpacity style={shared.modalButton} onPress={() => setFeedbackSubmitted(false)}>
               <Text style={shared.modalButtonText}>Done</Text>
             </TouchableOpacity>
@@ -165,7 +169,7 @@ export default function FeedbackScreen() {
 
           <View style={shared.mt_sm} />
           <Text style={shared.caption}>
-            Your submission is saved to the club database so the team can triage it.
+            Your submission is saved and emailed to the vteam team.
           </Text>
         </View>
       </ScrollView>

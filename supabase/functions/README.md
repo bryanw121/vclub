@@ -5,6 +5,7 @@
 | `send-chat-push` | Database Webhook on `messages` INSERT | service-role bearer or `x-webhook-secret` | `false` |
 | `check-push-receipts` | pg_cron every 30 min (migration `20261024120500_push_receipts.sql`) | service-role bearer or `x-webhook-secret` | `false` |
 | `places-proxy` | the app, via `supabase.functions.invoke('places-proxy')` | user JWT checked by the gateway | `true` |
+| `send-feedback-email` | the app, after inserting `feedback_submissions` (`lib/feedback.ts`) | user JWT checked by the gateway; the function emails only a fresh row the caller owns | `true` |
 
 `verify_jwt` is declared in [`../config.toml`](../config.toml) and applied on deploy.
 Shared code lives in `_shared/` (`supabase.ts`: service-role client, Expo constants;
@@ -49,6 +50,41 @@ list of browser origins allowed by CORS (for example
 `https://app.example.com,http://localhost:8081`). Unset means `*`. Native apps send no
 `Origin` header and are unaffected.
 
+## `send-feedback-email`
+
+Emails a stored feedback / bug submission to the team (#9). The app saves the row
+first, then calls the function with only `{ id }`; the function loads the row with the
+service role, checks the caller owns it, that it is under 15 minutes old and that the
+caller has made at most 5 submissions in the last hour, and sends it through Resend.
+Without `RESEND_API_KEY` it answers `503 email not configured` and the submission is
+still saved; the app shows success either way.
+
+| Secret | Required | Default |
+| --- | --- | --- |
+| `RESEND_API_KEY` | yes, to send | none (503 until set) |
+| `FEEDBACK_EMAIL` | no | `DEFAULT_FEEDBACK_EMAIL` in `_shared/feedback.ts`, pinned by a unit test to `FEEDBACK_EMAIL` in `constants/feedback.ts` |
+| `FEEDBACK_FROM` | no | `vteam <feedback@vteamvolleyball.com>` |
+| `ALLOWED_ORIGINS` | no | `*` (same as places-proxy) |
+
+The destination lives in `constants/feedback.ts`. To change it, edit that constant and
+the function default (the test fails until both match) and redeploy, or set the
+`FEEDBACK_EMAIL` secret, which takes effect without a release.
+
+Resend setup: create an API key (Sending access), add the sending domain
+(`vteamvolleyball.com`) under Domains, add the DNS records Resend shows (an MX and a TXT
+SPF record on the `send` subdomain, and the DKIM TXT record `resend._domainkey`; a DMARC
+TXT on `_dmarc` is recommended), wait for "Verified", then:
+
+```bash
+supabase secrets set RESEND_API_KEY=re_xxx
+# optional
+supabase secrets set FEEDBACK_EMAIL=bryan.wu.121@gmail.com FEEDBACK_FROM="vteam <feedback@vteamvolleyball.com>"
+```
+
+Until the domain is verified, Resend only accepts `onboarding@resend.dev` as the sender
+and only delivers to the Resend account's own address, so `FEEDBACK_FROM="vteam <onboarding@resend.dev>"`
+works for a first test if that account uses the destination address.
+
 ## Deploying
 
 From the repo root, logged in with `supabase login` and linked with
@@ -58,6 +94,7 @@ From the repo root, logged in with `supabase login` and linked with
 supabase functions deploy send-chat-push
 supabase functions deploy check-push-receipts
 supabase functions deploy places-proxy
+supabase functions deploy send-feedback-email
 # or all at once:
 supabase functions deploy
 ```

@@ -436,7 +436,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Inventory fingerprint: `d479c4d531a9`
+> Inventory fingerprint: `610268766de6`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -466,12 +466,12 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `event_tags` | [`app/(app)/host.tsx:361`](../app/%28app%29/host.tsx#L361) |
 | `events` | [`app/(app)/(tabs)/settings/history.tsx:52`](../app/%28app%29/%28tabs%29/settings/history.tsx#L52)<br>[`app/(app)/(tabs)/settings/hosted.tsx:22`](../app/%28app%29/%28tabs%29/settings/hosted.tsx#L22)<br>[`app/(app)/event/[id].tsx:193`](../app/%28app%29/event/%5Bid%5D.tsx#L193)<br>[`app/(app)/host.tsx:179`](../app/%28app%29/host.tsx#L179)<br>[`hooks/event/useEventData.ts:28`](../hooks/event/useEventData.ts#L28)<br>[`hooks/useClub.ts:45`](../hooks/useClub.ts#L45)<br>+2 more files |
 | `external_sessions` | [`hooks/useMonthEvents.ts:238`](../hooks/useMonthEvents.ts#L238) |
-| `feedback_submissions` | [`app/(app)/(tabs)/settings/feedback.tsx:48`](../app/%28app%29/%28tabs%29/settings/feedback.tsx#L48) |
+| `feedback_submissions` | [`app/(app)/(tabs)/settings/feedback.tsx:49`](../app/%28app%29/%28tabs%29/settings/feedback.tsx#L49)<br>[`supabase/functions/send-feedback-email/index.ts:83`](../supabase/functions/send-feedback-email/index.ts#L83) |
 | `major_cities` | [`components/MajorCityAutocomplete.tsx:27`](../components/MajorCityAutocomplete.tsx#L27) |
 | `message_reactions` | [`hooks/useMessages.ts:434`](../hooks/useMessages.ts#L434) |
 | `messages` | [`hooks/useMessages.ts:85`](../hooks/useMessages.ts#L85) |
 | `notifications` | [`hooks/event/useCohosts.ts:73`](../hooks/event/useCohosts.ts#L73)<br>[`hooks/event/useEventAttendance.ts:77`](../hooks/event/useEventAttendance.ts#L77)<br>[`hooks/useNotifications.ts:34`](../hooks/useNotifications.ts#L34)<br>[`utils/badges.ts:217`](../utils/badges.ts#L217) |
-| `profiles` | [`app/_layout.tsx:43`](../app/_layout.tsx#L43)<br>[`app/(app)/(tabs)/chat.tsx:53`](../app/%28app%29/%28tabs%29/chat.tsx#L53)<br>[`app/(app)/profile/[id].tsx:55`](../app/%28app%29/profile/%5Bid%5D.tsx#L55)<br>[`app/(auth)/register.tsx:64`](../app/%28auth%29/register.tsx#L64)<br>[`hooks/event/useCohosts.ts:37`](../hooks/event/useCohosts.ts#L37)<br>[`hooks/event/useEventData.ts:93`](../hooks/event/useEventData.ts#L93)<br>+4 more files |
+| `profiles` | [`app/_layout.tsx:43`](../app/_layout.tsx#L43)<br>[`app/(app)/(tabs)/chat.tsx:53`](../app/%28app%29/%28tabs%29/chat.tsx#L53)<br>[`app/(app)/profile/[id].tsx:55`](../app/%28app%29/profile/%5Bid%5D.tsx#L55)<br>[`app/(auth)/register.tsx:64`](../app/%28auth%29/register.tsx#L64)<br>[`hooks/event/useCohosts.ts:37`](../hooks/event/useCohosts.ts#L37)<br>[`hooks/event/useEventData.ts:93`](../hooks/event/useEventData.ts#L93)<br>+5 more files |
 | `push_receipts` | [`supabase/functions/check-push-receipts/index.ts:37`](../supabase/functions/check-push-receipts/index.ts#L37)<br>[`supabase/functions/send-chat-push/index.ts:199`](../supabase/functions/send-chat-push/index.ts#L199) |
 | `push_tokens` | [`supabase/functions/check-push-receipts/index.ts:82`](../supabase/functions/check-push-receipts/index.ts#L82)<br>[`supabase/functions/send-chat-push/index.ts:144`](../supabase/functions/send-chat-push/index.ts#L144)<br>[`utils/pushNotifications.ts:47`](../utils/pushNotifications.ts#L47) |
 | `tags` | [`hooks/useTags.ts:14`](../hooks/useTags.ts#L14) |
@@ -536,6 +536,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Storage bucket | `chat-images` | [`hooks/useMessages.ts:472`](../hooks/useMessages.ts#L472) |
 | Storage bucket | `club-avatars` | [`app/(app)/club/[id].tsx:209`](../app/%28app%29/club/%5Bid%5D.tsx#L209) |
 | Edge Function | `places-proxy` | [`components/LocationPickerField.tsx:63`](../components/LocationPickerField.tsx#L63) |
+| Edge Function | `send-feedback-email` | [`lib/feedback.ts:15`](../lib/feedback.ts#L15) |
 
 </details>
 
