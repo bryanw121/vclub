@@ -19,6 +19,7 @@ import type {
   ProfileBrief,
 } from '../../types'
 import { eventKeys } from './keys'
+import { COMMENTS_PAGE, keepLoadedOlder, mergeComments, missingParentIds, pageFromNewestFirst, withOlderPage } from '../../utils/commentPages'
 import { deriveRoster } from './derive'
 
 // ─── Fetchers (throw on a Supabase error so lib/query records it) ─────────────
@@ -50,18 +51,7 @@ export async function fetchEventCohosts(id: string): Promise<EventCohostWithProf
 }
 
 /** Newest comments fetched per page; older ones load on "Load earlier". */
-export const EVENT_COMMENTS_PAGE = 100
-
-function byCreatedAt(a: EventCommentWithAuthor, b: EventCommentWithAuthor): number {
-  return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0
-}
-
-/** Union by id (later wins), oldest first. */
-export function mergeComments(...lists: EventCommentWithAuthor[][]): EventCommentWithAuthor[] {
-  const byId = new Map<string, EventCommentWithAuthor>()
-  lists.forEach(list => list.forEach(c => byId.set(c.id, c)))
-  return Array.from(byId.values()).sort(byCreatedAt)
-}
+export const EVENT_COMMENTS_PAGE = COMMENTS_PAGE
 
 /**
  * One page of comments, newest first from the server, returned oldest first.
@@ -76,23 +66,17 @@ export async function fetchEventCommentsPage(id: string, before?: string): Promi
     .select(COMMENT_SELECT)
     .eq('event_id', id)
     .order('created_at', { ascending: false })
-    .limit(EVENT_COMMENTS_PAGE + 1)
+    .limit(COMMENTS_PAGE + 1)
   if (before) query = query.lt('created_at', before)
   const { data, error } = await query
   if (error) throw error
-  const newestFirst = (data ?? []) as EventCommentWithAuthor[]
-  const hasEarlier = newestFirst.length > EVENT_COMMENTS_PAGE
-  const rows = newestFirst.slice(0, EVENT_COMMENTS_PAGE)
+  const page = pageFromNewestFirst((data ?? []) as EventCommentWithAuthor[])
 
-  const have = new Set(rows.map(c => c.id))
-  const missing = Array.from(new Set(rows.filter(c => c.parent_id && !have.has(c.parent_id)).map(c => c.parent_id as string)))
-  let parents: EventCommentWithAuthor[] = []
-  if (missing.length) {
-    const res = await supabase.from('event_comments').select(COMMENT_SELECT).in('id', missing)
-    if (res.error) throw res.error
-    parents = (res.data ?? []) as EventCommentWithAuthor[]
-  }
-  return { rows: mergeComments(parents, rows), hasEarlier, cursor: rows[rows.length - 1]?.created_at ?? null }
+  const missing = missingParentIds(page.rows)
+  if (missing.length === 0) return page
+  const res = await supabase.from('event_comments').select(COMMENT_SELECT).in('id', missing)
+  if (res.error) throw res.error
+  return { ...page, rows: mergeComments((res.data ?? []) as EventCommentWithAuthor[], page.rows) }
 }
 
 /**
@@ -101,12 +85,7 @@ export async function fetchEventCommentsPage(id: string, before?: string): Promi
  */
 export async function fetchEventComments(id: string): Promise<EventCommentsPage> {
   const latest = await fetchEventCommentsPage(id)
-  const prev = getQueryData<EventCommentsPage>(eventKeys.comments(id))
-  const windowStart = latest.cursor
-  // Nothing older was paged in, or the new page already reaches the start of the thread.
-  if (!prev?.cursor || !latest.hasEarlier || !windowStart || prev.cursor >= windowStart) return latest
-  const older = prev.rows.filter(c => c.created_at < windowStart)
-  return { rows: mergeComments(older, latest.rows), hasEarlier: prev.hasEarlier, cursor: prev.cursor }
+  return keepLoadedOlder(getQueryData<EventCommentsPage>(eventKeys.comments(id)), latest)
 }
 
 /** Same key and shape (`ProfileBrief`) chat caches sender profiles under. */
@@ -163,11 +142,7 @@ export function useEventData(id: string) {
     setLoadingEarlier(true)
     try {
       const older = await fetchEventCommentsPage(id, page.cursor)
-      setQueryData<EventCommentsPage>(eventKeys.comments(id), prev => {
-        const base = prev ?? page
-        const cursor = older.cursor && (!base.cursor || older.cursor < base.cursor) ? older.cursor : base.cursor
-        return { rows: mergeComments(older.rows, base.rows), hasEarlier: older.hasEarlier, cursor }
-      })
+      setQueryData<EventCommentsPage>(eventKeys.comments(id), prev => withOlderPage(prev ?? page, older))
     } catch (e) {
       console.warn('[useEventData] load earlier comments', (e as { message?: string })?.message)
     } finally {

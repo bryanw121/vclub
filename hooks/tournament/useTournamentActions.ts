@@ -1,7 +1,8 @@
 import { useCallback } from 'react'
 import { TOURNAMENT_ERROR_TITLE as T } from '../../constants/tournamentCopy'
-import { invalidate, useMutation, type MutationOptions } from '../../lib/query'
-import type { GeneratedSchedule } from '../../types'
+import { getQueryData, invalidate, setQueryData, useMutation, type MutationOptions } from '../../lib/query'
+import { patchCommentRow } from '../../utils/commentPages'
+import type { GeneratedSchedule, TournamentCommentWithAuthor, TournamentCommentsPage } from '../../types'
 import * as api from './api'
 import { tournamentKeys } from './api'
 import { notifyError, notifyInfo } from '../../utils/notify'
@@ -10,6 +11,17 @@ import { notifyError, notifyInfo } from '../../utils/notify'
  * `useMutation` that resolves to `true` on success, so callers can tell success from
  * failure (both would otherwise be `undefined` for a void write).
  */
+/**
+ * Apply an edit / soft delete to the cached row before the refetch: the
+ * refetch only re-reads the newest page and keeps older loaded pages as they
+ * were, so an edit to an older comment would otherwise not show.
+ */
+function patchCachedComment(tournamentId: string, commentId: string, patch: Partial<TournamentCommentWithAuthor>): void {
+  const key = tournamentKeys.comments(tournamentId)
+  const page = getQueryData<TournamentCommentsPage>(key)
+  if (page) setQueryData<TournamentCommentsPage>(key, patchCommentRow(page, commentId, patch))
+}
+
 function useAction<V>(fn: (v: V) => Promise<unknown>, opts?: MutationOptions<V, true>) {
   return useMutation<V, true>(async v => { await fn(v); return true }, opts)
 }
@@ -128,7 +140,10 @@ export function useTournamentActions(id: string, userId: string | null) {
   )
 
   const deleteComment = useAction(
-    (commentId: string) => api.deleteComment(commentId),
+    async (commentId: string) => {
+      await api.deleteComment(commentId)
+      patchCachedComment(id, commentId, { deleted_at: new Date().toISOString() })
+    },
     { invalidates: [tournamentKeys.comments(id)], onError: e => notifyError(T.comment, e) },
   )
 
@@ -149,8 +164,10 @@ export function useTournamentActions(id: string, userId: string | null) {
   }): Promise<void> => {
     if (!userId) return
     try {
-      if (v.editingId) await api.editComment(v.editingId, v.body)
-      else await api.insertComment({
+      if (v.editingId) {
+        await api.editComment(v.editingId, v.body)
+        patchCachedComment(id, v.editingId, { body: v.body, edited_at: new Date().toISOString() })
+      } else await api.insertComment({
         tournamentId: id, userId, body: v.body,
         isAnnouncement: v.isAnnouncement, mentions: v.mentionIds, parentId: v.replyToId,
       })

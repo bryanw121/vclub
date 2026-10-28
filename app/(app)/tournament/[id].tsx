@@ -25,7 +25,9 @@ import {
   AnnouncementSheet, JoinRequestSheet, PickTeamSheet, PrizeSheet, RegisterSheet,
 } from '../../../components/tournament/TournamentSheets'
 import type { TournamentTeamWithRoster } from '../../../types'
-import type { ScheduleConfig, TournamentConfirm } from '../../../types'
+import type { ScheduleConfig, TournamentCommentWithAuthor, TournamentConfirm } from '../../../types'
+
+const EMPTY_COMMENTS: TournamentCommentWithAuthor[] = []
 
 type MovingPlayer = { userId: string; fromTeamId: string; playerName: string }
 
@@ -40,7 +42,10 @@ export default function TournamentDetailScreen() {
   const [scheduleOpened, setScheduleOpened] = useState(false)
   useEffect(() => { if (activeTab === 'Schedule') setScheduleOpened(true) }, [activeTab])
 
-  const { core, teams: teamsQ, comments: commentsQ, mine, matches: matchesQ, mentionableUsers } = useTournamentData(
+  const {
+    core, teams: teamsQ, comments: commentsQ, mine, matches: matchesQ, mentionableUsers,
+    loadEarlierComments, loadingEarlierComments,
+  } = useTournamentData(
     id, userId, { loadMatches: scheduleOpened || activeTab === 'Schedule' },
   )
   const actions = useTournamentActions(id, userId)
@@ -75,7 +80,7 @@ export default function TournamentDetailScreen() {
   const rules = core.data?.rules ?? null
   const prizes = core.data?.prizes ?? []
   const teams = teamsQ.data ?? []
-  const comments = commentsQ.data ?? []
+  const comments = commentsQ.data?.rows ?? EMPTY_COMMENTS
   const myTeam = mine.data?.team ?? null
   const isCreator = !!(userId && tournament?.created_by === userId)
   const registrationOpen = !!tournament
@@ -299,6 +304,9 @@ export default function TournamentDetailScreen() {
               <DiscussionTab
                 refreshControl={refreshControl}
                 comments={comments}
+                hasEarlier={commentsQ.data?.hasEarlier ?? false}
+                loadingEarlier={loadingEarlierComments}
+                onLoadEarlier={() => { void loadEarlierComments() }}
                 loading={commentsQ.isLoading}
                 error={!!commentsQ.error}
                 onRetry={() => { void commentsQ.refetch({ force: true }) }}

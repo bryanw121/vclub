@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { Platform, View, Text, TouchableOpacity, Alert } from 'react-native'
 import { RefreshControl } from '../RefreshControl'
 import Ionicons from '@expo/vector-icons/Ionicons'
@@ -10,7 +10,7 @@ import { LinkedText } from '../LinkedText'
 import { shared, theme, LOCATIONS } from '../../constants'
 import type { EventWithDetails, Profile, AttendanceStatus } from '../../types'
 import type { EventData } from '../../types'
-import { profileDisplayName, profileInitial, formatDuration, formatPrice, formatPriceAmount, resolveProfileAvatarUriSmall } from '../../utils'
+import { profileDisplayName, profileInitial, formatDuration, formatPrice, formatPriceAmount, profileAvatarSmallUri } from '../../utils'
 
 function formatEndTime(startIso: string, durationMinutes: number): string {
   const normalized = /[Z+]/.test(startIso) ? startIso : startIso + 'Z'
@@ -81,13 +81,7 @@ function HostRow({
   border?: Profile['selected_border']; label: string; isMe: boolean
   onMessage: () => void; onPress: () => void
 }) {
-  const [avatarUri, setAvatarUri] = useState<string | null>(null)
-  useEffect(() => {
-    if (!avatarUrl) return
-    let cancelled = false
-    resolveProfileAvatarUriSmall(avatarUrl).then(({ uri }) => { if (!cancelled) setAvatarUri(uri) })
-    return () => { cancelled = true }
-  }, [avatarUrl])
+  const avatarUri = profileAvatarSmallUri(avatarUrl)
   return (
     <TouchableOpacity
       activeOpacity={isMe ? 1 : 0.75}

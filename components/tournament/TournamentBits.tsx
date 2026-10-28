@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { Text, TouchableOpacity, View } from 'react-native'
 import { theme } from '../../constants'
-import { resolveProfileAvatarUriSmall } from '../../utils'
+import { profileAvatarSmallUri } from '../../utils'
 import { ProfileAvatar } from '../ProfileAvatar'
 import type { Profile } from '../../types'
 import { ts } from './tournamentStyles'
@@ -9,13 +9,8 @@ import { ts } from './tournamentStyles'
 /** Small presentational pieces shared by the tournament components. */
 
 export function AutoAvatar({ avatarUrl, border, size }: { avatarUrl?: string | null; border?: Profile['selected_border']; size: number }) {
-  const [uri, setUri] = useState<string | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    resolveProfileAvatarUriSmall(avatarUrl).then(r => { if (!cancelled) setUri(r.uri) })
-    return () => { cancelled = true }
-  }, [avatarUrl])
-  return <ProfileAvatar uri={uri} border={border ?? null} size={size} />
+  // Public bucket: built synchronously, so rosters paint avatars on the first render.
+  return <ProfileAvatar uri={profileAvatarSmallUri(avatarUrl)} border={border ?? null} size={size} />
 }
 
 export function TourneyStatusBadge({ status }: { status: string }) {
