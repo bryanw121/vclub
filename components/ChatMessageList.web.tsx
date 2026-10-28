@@ -141,8 +141,17 @@ export function ChatMessageList({
     scrollerRef.current = el instanceof HTMLElement ? el : null
   }, [])
   useEffect(() => {
-    const el = scrollerRef.current
-    if (atTop && hasMore && el && el.scrollTop <= AT_TOP_PX) onLoadMore()
+    if (!atTop || !hasMore) return
+    // Virtuoso shifts the scroll offset for a prepend a frame or two after the
+    // data changes; check after that, or a just-prepended page reads as "still
+    // at the top" and fetches one page too many.
+    let raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(() => {
+        const el = scrollerRef.current
+        if (el && el.scrollTop <= AT_TOP_PX) onLoadMore()
+      })
+    })
+    return () => cancelAnimationFrame(raf)
   }, [atTop, hasMore, messages.length, onLoadMore])
   // The View (display: flex) contains the bubble's vertical margins; Virtuoso's
   // item div is a plain block, so margins would collapse through it and go
