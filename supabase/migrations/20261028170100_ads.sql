@@ -17,12 +17,20 @@
 
 create or replace function public.current_user_is_admin()
 returns boolean
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select coalesce((select p.is_admin from public.profiles p where p.id = (select auth.uid())), false)
+begin
+  -- #102 moves admins from profiles.is_admin to public.app_admins (and forces
+  -- the column to false). Check whichever exists, so this works in either
+  -- merge order; plpgsql only plans the branch it runs.
+  if to_regclass('public.app_admins') is not null then
+    return exists (select 1 from public.app_admins a where a.user_id = (select auth.uid()));
+  end if;
+  return coalesce((select p.is_admin from public.profiles p where p.id = (select auth.uid())), false);
+end;
 $$;
 
 revoke all on function public.current_user_is_admin() from public, anon;
