@@ -9,6 +9,7 @@
 
 import type { Database, Json, Tables, TablesInsert, TablesUpdate } from './database'
 import type { TabKey } from '../constants/navigation'
+import type { ReactElement } from 'react'
 
 /** The client's database type. Kept as an alias so callers don't care how it's assembled. */
 export type AppDatabase = Database
@@ -679,6 +680,21 @@ export type MessageWithDetails = Message & {
   _sending?: boolean
   /** UI-only: the insert failed; the bubble offers "Tap to retry" (never persisted) */
   _failed?: boolean
+}
+
+/** `ChatMessageList` (native inverted FlatList / web react-virtuoso). */
+export type ChatMessageListProps = {
+  /** Newest first, as `useMessages` returns them. */
+  messages: MessageWithDetails[]
+  /** The viewer: their own new message always scrolls the list to the bottom. */
+  myId: string | null
+  renderMessage: (item: MessageWithDetails) => ReactElement
+  hasMore: boolean
+  onLoadMore: () => void
+  refreshing: boolean
+  onRefresh: () => void
+  /** The finger dragged the list (dismiss the keyboard). */
+  onUserDrag: () => void
 }
 
 // ─── Badge Types ──────────────────────────────────────────────────────────────

@@ -60,6 +60,25 @@ function chatHeader(page: Page) {
   return page.getByText('Chat', { exact: true }).nth(1)
 }
 
+/**
+ * The virtualized web message list (react-virtuoso, #3): how far it is from
+ * the bottom, and how many message rows are actually in the DOM.
+ */
+async function listState(page: Page) {
+  return page.evaluate(() => {
+    const el = document.querySelector<HTMLElement>('[data-testid="chat-message-list"]')
+    if (!el) return null
+    return {
+      fromBottom: el.scrollHeight - el.scrollTop - el.clientHeight,
+      scrollTop: el.scrollTop,
+      rows: el.querySelectorAll('[data-index]').length,
+      // data-index counts from the oldest LOADED message, so it shifts by a page when one is prepended.
+      minIndex: Math.min(...Array.from(el.querySelectorAll('[data-index]')).map(r => Number(r.getAttribute('data-index')))),
+      maxIndex: Math.max(...Array.from(el.querySelectorAll('[data-index]')).map(r => Number(r.getAttribute('data-index')))),
+    }
+  })
+}
+
 /** Right-click a message bubble and open the context menu. */
 async function openContextMenu(page: Page, messageText: string) {
   // Wait for the message to actually render (message history loads async and
@@ -220,12 +239,41 @@ test.describe('Chat', () => {
     const input = page.getByRole('textbox', { name: 'Message' })
     await expect(input).toBeVisible()
 
-    // Verify scroll position: the page should be at (or very near) the bottom
-    const atBottom = await page.evaluate(() => {
-      const el = document.documentElement
-      return el.scrollHeight - el.scrollTop - el.clientHeight < 100
-    })
-    expect(atBottom).toBe(true)
+    // The message list itself (not the page) opens at its very end.
+    const state = await listState(page)
+    expect(state).not.toBeNull()
+    expect(state!.fromBottom).toBeLessThan(120)
+  })
+
+  test('long conversation: opens at the newest, keeps a bounded DOM, loads older on scroll-up without a jump', async ({ page }) => {
+    // The seed DM has hundreds of messages; a page is 40.
+    await gotoConversation(page)
+    await page.waitForTimeout(1500)
+    const opened = await listState(page)
+    expect(opened).not.toBeNull()
+    expect(opened!.fromBottom).toBeLessThan(120)
+    // Virtualized: far fewer rows in the DOM than the 40 loaded.
+    expect(opened!.rows).toBeGreaterThan(0)
+    expect(opened!.rows).toBeLessThan(40)
+
+    // Scroll to the top until an older page is prepended.
+    const list = page.getByTestId('chat-message-list')
+    await list.hover()
+    await expect(async () => {
+      await page.mouse.wheel(0, -4000)
+      await page.waitForTimeout(300)
+      const s = await listState(page)
+      // A row past index 39 is on screen: an older page was prepended.
+      expect(s!.maxIndex).toBeGreaterThanOrEqual(40)
+    }).toPass({ timeout: 20000 })
+
+    // The prepend kept the reader where they were: the rows on screen are not
+    // the new top (index 0), which would also chain-load the whole history.
+    await page.waitForTimeout(800)
+    const after = await listState(page)
+    expect(after!.minIndex).toBeGreaterThan(0)
+    expect(after!.rows).toBeLessThan(40)
+    expect(after!.fromBottom).toBeGreaterThan(500)
   })
 
   test('messages render in chronological order (oldest at top, newest at bottom)', async ({ page }) => {
@@ -277,11 +325,8 @@ test.describe('Chat', () => {
     await page.keyboard.press('Enter')
     await page.waitForTimeout(1500)
 
-    const atBottom = await page.evaluate(() => {
-      const el = document.documentElement
-      return el.scrollHeight - el.scrollTop - el.clientHeight < 100
-    })
-    expect(atBottom).toBe(true)
+    const state = await listState(page)
+    expect(state!.fromBottom).toBeLessThan(120)
     await expect(page.getByText(unique)).toBeVisible()
   })
 

@@ -487,6 +487,16 @@ export const shared = StyleSheet.create({
   /** Host form while a cold edit link loads: one field-shaped block. */
   skeletonField: { height: 48, borderRadius: 12, backgroundColor: theme.colors.card },
   skeletonLabel: { width: 96, height: 10, borderRadius: 5, backgroundColor: theme.colors.card, marginBottom: 8 },
+  /** Chat (web): "New messages" pill over the list while scrolled up. */
+  chatNewMessagesPill: {
+    position: 'absolute', bottom: theme.spacing.md, alignSelf: 'center',
+    flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44,
+    paddingHorizontal: theme.spacing.md, borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.primary, ...theme.shadow.md,
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer', touchAction: 'manipulation' } as object) : null),
+  },
+  chatNewMessagesLabel: { fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.onPrimary },
+  chatListEdge: { alignItems: 'center', justifyContent: 'center', minHeight: theme.spacing.md, paddingVertical: theme.spacing.xs },
   skeletonHero: {
     marginHorizontal: theme.spacing.md, marginTop: theme.spacing.xs, marginBottom: theme.spacing.sm,
     height: 128, borderRadius: 22, backgroundColor: theme.colors.card,
