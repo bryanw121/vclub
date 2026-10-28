@@ -25,8 +25,16 @@ function inDays(days: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+/**
+ * Press a React Native Web touchable. dispatchEvent skips Playwright's viewport
+ * check, which fails for buttons inside bottom sheets and horizontal scrollers.
+ */
+async function press(page: Page, testId: string) {
+  await page.getByTestId(testId).first().dispatchEvent('click')
+}
+
 async function openTab(page: Page, tab: string) {
-  await page.getByTestId(`tournament-tab-${tab}`).click({ force: true })
+  await press(page, `tournament-tab-${tab}`)
 }
 
 test.describe('Tournament flow', () => {
@@ -63,9 +71,9 @@ test.describe('Tournament flow', () => {
   test('host registers a team', async ({ page }) => {
     test.skip(!tournamentUrl, 'needs the tournament from the previous test')
     await gotoReady(page, tournamentUrl, page.getByTestId('register-team'))
-    await page.getByTestId('register-team').click({ force: true })
+    await press(page, 'register-team')
     await page.getByPlaceholder('e.g. Block Party').fill(MY_TEAM)
-    await page.getByTestId('register-submit').click({ force: true })
+    await press(page, 'register-submit')
     await openTab(page, 'teams')
     await expect(page.getByText(MY_TEAM, { exact: true })).toBeVisible({ timeout: 15_000 })
   })
@@ -75,15 +83,15 @@ test.describe('Tournament flow', () => {
     await withNetworkRetry(addRivalTeam, { label: 'add rival team' })
     await gotoReady(page, tournamentUrl, page.getByTestId('tournament-tab-schedule'))
     await openTab(page, 'schedule')
-    await page.getByTestId('generate-schedule').click({ force: true })
+    await press(page, 'generate-schedule')
     await expect(page.getByText('Final', { exact: true }).first()).toBeVisible({ timeout: 15_000 })
 
-    await page.locator('[data-testid^="record-result-"]').first().click({ force: true })
+    await page.locator('[data-testid^="record-result-"]').first().dispatchEvent('click')
     await page.getByTestId('set-1-a').fill('25')
     await page.getByTestId('set-1-b').fill('20')
     await page.getByTestId('set-2-a').fill('25')
     await page.getByTestId('set-2-b').fill('18')
-    await page.getByTestId('result-save').click({ force: true })
+    await press(page, 'result-save')
 
     // Status flips to Completed (points PR #100 awards on this), and the podium shows.
     await expect(page.getByTestId('tournament-status').first()).toHaveText('Completed', { timeout: 15_000 })
@@ -96,7 +104,7 @@ test.describe('Tournament flow', () => {
   test('the finished tournament is listed under Past', async ({ page }) => {
     test.skip(!tournamentUrl, 'needs the tournament from the previous tests')
     await gotoReady(page, `${BASE_URL}/tournaments`, page.getByTestId('tournaments-past'))
-    await page.getByTestId('tournaments-past').click({ force: true })
+    await press(page, 'tournaments-past')
     await expect(page.getByText(TOURNAMENT_TITLE, { exact: true })).toBeVisible({ timeout: 15_000 })
   })
 
