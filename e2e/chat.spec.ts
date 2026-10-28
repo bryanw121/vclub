@@ -71,6 +71,7 @@ async function listState(page: Page) {
     return {
       fromBottom: el.scrollHeight - el.scrollTop - el.clientHeight,
       scrollTop: el.scrollTop,
+      scrollHeight: el.scrollHeight,
       rows: el.querySelectorAll('[data-index]').length,
       // data-index counts from the oldest LOADED message, so it shifts by a page when one is prepended.
       minIndex: Math.min(...Array.from(el.querySelectorAll('[data-index]')).map(r => Number(r.getAttribute('data-index')))),
@@ -256,24 +257,29 @@ test.describe('Chat', () => {
     expect(opened!.rows).toBeGreaterThan(0)
     expect(opened!.rows).toBeLessThan(40)
 
-    // Scroll to the top until an older page is prepended.
+    // Scroll to the very top ONCE, then stop: the older page must load on its
+    // own and be prepended above the reader without moving them. (Wheeling
+    // continuously would keep re-pinning the view to the new top and hide
+    // whether the prepend kept the position.)
     const list = page.getByTestId('chat-message-list')
     await list.hover()
     await expect(async () => {
-      await page.mouse.wheel(0, -4000)
-      await page.waitForTimeout(300)
-      const s = await listState(page)
-      // A row past index 39 is on screen: an older page was prepended.
-      expect(s!.maxIndex).toBeGreaterThanOrEqual(40)
+      await page.mouse.wheel(0, -100000)
+      expect((await listState(page))!.scrollTop).toBeLessThan(5)
+    }).toPass({ timeout: 10000 })
+    const atTop = (await listState(page))!
+
+    // The older page lands: content grows above, and the reader is pushed down
+    // with it (scrollTop grows by the prepended height) instead of staying at 0.
+    await expect(async () => {
+      const s = (await listState(page))!
+      expect(s.scrollHeight).toBeGreaterThan(atTop.scrollHeight + 500)
+      expect(s.scrollTop).toBeGreaterThan(500)
     }).toPass({ timeout: 20000 })
 
-    // The prepend kept the reader where they were: the rows on screen are not
-    // the new top (index 0), which would also chain-load the whole history.
-    await page.waitForTimeout(800)
-    const after = await listState(page)
-    expect(after!.minIndex).toBeGreaterThan(0)
-    expect(after!.rows).toBeLessThan(40)
-    expect(after!.fromBottom).toBeGreaterThan(500)
+    // Still virtualized after more history loaded.
+    const after = (await listState(page))!
+    expect(after.rows).toBeLessThan(40)
   })
 
   test('messages render in chronological order (oldest at top, newest at bottom)', async ({ page }) => {
