@@ -193,6 +193,7 @@ export const DELETE_ACCOUNT_MARKDOWN = String.raw`# Delete your vteam account
 
 - Open vteam and sign in.
 - Go to **Profile > Account Settings > Delete account**.
+- If you signed in more than 10 minutes ago, confirm it's you with your password or an emailed code.
 - Check what will happen to your clubs, tournaments and events, type DELETE, and tap **Delete my account**.
 
 Your account is deleted right away.
@@ -203,8 +204,9 @@ If you can't sign in, email **privacy@vteamvolleyball.com** \[set up this addres
 
 ## What happens to your data
 
-- Your profile, photos, messages, comments, RSVPs, kudos, settings and push notification tokens are deleted.
-- Clubs you created go to another owner of the club if there is one. Otherwise they are deleted, with their posts, chat and tournaments.
+- Your profile, photos, messages, comments, RSVPs, settings and push notification tokens are deleted.
+- Kudos you gave stay with the people who received them, without your name.
+- Clubs you created go to another owner of the club if there is one. Otherwise they are deleted, with their group chat, posts and tournaments (finished ones too).
 - Tournaments you created go to an owner of their club if there is one. Otherwise they are deleted.
 - Upcoming events you host go to your co-host if you have one. Otherwise they are cancelled, and players who joined are notified.
 - Past events you hosted stay for the people who played, without your name.

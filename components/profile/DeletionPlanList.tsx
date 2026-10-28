@@ -42,6 +42,19 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+
+/** Everything a club deletion takes with it, spelled out. */
+export function clubConsequences(c: AccountDeletionPlan['clubs'][number]): string {
+  const parts = [
+    c.has_chat ? 'its group chat' : null,
+    plural(c.posts, 'post', 'posts'),
+    `${plural(c.tournaments, 'tournament', 'tournaments')}${c.tournaments > 0 ? ' (including finished ones)' : ''}`,
+  ].filter(Boolean)
+  const members = c.members > 0 ? ` ${plural(c.members, 'member loses', 'members lose')} the club.` : ''
+  return `Also deletes ${parts.join(', ')}.${members}`
+}
+
 const to = (p: AccountDeletionSuccessor | null) => (p ? `Goes to ${profileDisplayName(p)} (@${p.username})` : '')
 
 /** The confirm screen's list: every club, tournament and upcoming event, and what happens to it. */
@@ -62,7 +75,8 @@ export function DeletionPlanList({ plan }: Props) {
               key={c.id}
               title={c.name}
               destructive={c.action === 'delete'}
-              outcome={c.action === 'delete' ? 'Deleted, with its posts, chat and tournaments (no other owner)' : to(c.to)}
+              subtitle={c.action === 'delete' ? clubConsequences(c) : undefined}
+              outcome={c.action === 'delete' ? 'Deleted: no other owner can take it over' : to(c.to)}
             />
           ))}
         </Section>
@@ -73,7 +87,7 @@ export function DeletionPlanList({ plan }: Props) {
             <Row
               key={t.id}
               title={t.title}
-              subtitle={t.with_club ? `In ${t.with_club}` : undefined}
+              subtitle={[t.with_club ? `In ${t.with_club}` : null, t.status === 'completed' ? 'Finished: results and standings go too' : null].filter(Boolean).join(' · ') || undefined}
               destructive={t.action === 'delete'}
               outcome={t.action === 'delete'
                 ? (t.with_club ? 'Deleted with the club' : 'Deleted (no club owner to take it over)')
@@ -94,6 +108,13 @@ export function DeletionPlanList({ plan }: Props) {
             />
           ))}
         </Section>
+      )}
+      {plan.kudos_given_kept > 0 && (
+        <View style={shared.card}>
+          <Text style={shared.body}>
+            {plan.kudos_given_kept === 1 ? '1 kudo' : `${plan.kudos_given_kept} kudos`} you gave stay with the people who received them, from "Deleted user".
+          </Text>
+        </View>
       )}
       {plan.past_events_kept > 0 && (
         <View style={shared.card}>

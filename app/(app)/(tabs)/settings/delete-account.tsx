@@ -8,6 +8,7 @@ import { Button } from '../../../../components/Button'
 import { Input } from '../../../../components/Input'
 import { ScreenState } from '../../../../components/ui'
 import { DeletionPlanList } from '../../../../components/profile/DeletionPlanList'
+import { ReauthCard } from '../../../../components/profile/ReauthCard'
 import { shared, theme } from '../../../../constants'
 import { routes } from '../../../../utils/routes'
 import { notifyInfo } from '../../../../utils/notify'
@@ -22,13 +23,16 @@ export default function DeleteAccountScreen() {
   useStackBackTitle('Delete account')
   const router = useRouter()
   const { tabBarHeight } = useTabsShell()
-  const { plan, isLoading, error, refetch, deleteAccount, isDeleting, deleteError } = useAccountDeletion()
+  const {
+    plan, isLoading, error, refetch, deleteAccount, isDeleting, deleteError,
+    email, needsReauth, block, reauthWithPassword, sendReauthCode, verifyReauthCode,
+  } = useAccountDeletion()
   const [typed, setTyped] = useState('')
   const confirmed = typed.trim().toUpperCase() === DELETE_CONFIRMATION
 
   async function handleDelete() {
-    if (!confirmed) return
-    const done = await deleteAccount(DELETE_CONFIRMATION)
+    if (!confirmed || !plan?.hash) return
+    const done = await deleteAccount({ confirmation: DELETE_CONFIRMATION, planHash: plan.hash })
     if (!done) return
     router.replace(routes.events())
     notifyInfo('Account deleted', 'Your vteam account and its data have been deleted.')
@@ -46,8 +50,8 @@ export default function DeleteAccountScreen() {
           <Text style={shared.subheading}>This can't be undone</Text>
         </View>
         <Text style={shared.body}>
-          Deleting your account removes your profile, photos, messages, comments, RSVPs, kudos and settings.
-          Past events you hosted stay for the people who played, without your name.
+          Deleting your account removes your profile, photos, messages, comments, RSVPs and settings.
+          Past events you hosted and kudos you gave stay for the people involved, without your name.
         </Text>
       </View>
 
@@ -60,7 +64,11 @@ export default function DeleteAccountScreen() {
         {plan && <DeletionPlanList plan={plan} />}
       </ScreenState>
 
-      {plan && (
+      {plan && needsReauth && (
+        <ReauthCard email={email} onPassword={reauthWithPassword} onSendCode={sendReauthCode} onVerifyCode={verifyReauthCode} />
+      )}
+
+      {plan && !needsReauth && (
         <View style={[shared.card, { gap: theme.spacing.sm }]}>
           <Input
             label={`Type ${DELETE_CONFIRMATION} to confirm`}
@@ -71,7 +79,11 @@ export default function DeleteAccountScreen() {
             autoCorrect={false}
             testID="delete-account-confirm-input"
           />
-          {deleteError && <Text style={[shared.caption, { color: theme.colors.error }]}>{deleteError.message}</Text>}
+          {deleteError && block !== 'reauth_required' && (
+            <Text style={[shared.caption, { color: theme.colors.error }]}>
+              {block === 'plan_changed' ? 'Something changed since you opened this screen. Review the list above, then confirm again.' : deleteError.message}
+            </Text>
+          )}
           <Button
             label="Delete my account"
             variant="danger"

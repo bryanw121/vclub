@@ -90,12 +90,18 @@ describe('delete-account', () => {
     expect(deleteAccount).toMatch(/service\.auth\.getUser\(token\)/)
     expect(deleteAccount).not.toMatch(/body\.(user|user_id|userId)/)
   })
-  it('prepares (transfers + cleanup) before deleting the auth user', () => {
-    const prepareAt = deleteAccount.indexOf("rpc('prepare_account_deletion'")
-    const deleteAt = deleteAccount.indexOf('auth.admin.deleteUser(userId)')
-    expect(prepareAt).toBeGreaterThan(-1)
-    expect(deleteAt).toBeGreaterThan(prepareAt)
-    // A failed prepare returns before the delete.
-    expect(deleteAccount.slice(prepareAt, deleteAt)).toMatch(/if \(prepareError\) \{[\s\S]*?return json/)
+  it('requires a recent sign-in before deleting', () => {
+    const reauthAt = deleteAccount.indexOf('isRecentSignIn(')
+    const deleteAt = deleteAccount.indexOf("rpc('delete_account'")
+    expect(reauthAt).toBeGreaterThan(-1)
+    expect(deleteAt).toBeGreaterThan(reauthAt)
+  })
+  it('deletes in one SQL transaction (no separate auth admin call) and removes files only afterwards', () => {
+    expect(deleteAccount).not.toMatch(/auth\.admin\.deleteUser/)
+    const deleteAt = deleteAccount.indexOf("rpc('delete_account'")
+    const filesAt = deleteAccount.indexOf('await removeFolder(')
+    expect(filesAt).toBeGreaterThan(deleteAt)
+    expect(deleteAccount.slice(deleteAt, filesAt)).toMatch(/if \(deleteError\) \{[\s\S]*?return json/)
+    expect(deleteAccount).toMatch(/removeFolder\('club-avatars', club\.id\)/)
   })
 })

@@ -3,39 +3,42 @@
  *
  * Permanently deletes the signed-in user's account (App Store 5.1.1(v), Google Play).
  *
- * POST { confirm: 'DELETE' } with the user's JWT ->
- *   200 { ok: true, plan }   plan = what was transferred / deleted (same shape as
- *                            get_account_deletion_preview, which the app showed first)
- *   400 missing confirmation, 401 not signed in, 500 failure (nothing deleted
- *   unless the final auth delete failed after the hand-over; retrying is safe)
+ * POST { confirm: 'DELETE', planHash } with the user's JWT ->
+ *   200 { ok: true, plan }          deleted
+ *   400 missing confirmation or hash
+ *   401 not signed in
+ *   403 { code: 'reauth_required' } last sign-in older than 10 minutes: sign in again first
+ *   409 { code: 'plan_changed' }    what would be deleted changed since the preview: review again
+ *   500 failure (nothing was deleted)
  *
- * Steps:
- *   1. prepare_account_deletion(user) with the service role: one transaction
- *      that hands clubs / tournaments / upcoming events to a successor or
- *      deletes / cancels them, detaches past events, and clears every
- *      reference that would block step 3. It fails and rolls back rather than
- *      leave a blocking reference.
- *   2. Best effort: remove the person's uploads (avatars/<uid>/, chat-images/<uid>/).
- *   3. auth.admin.deleteUser(user): cascades to profiles and everything keyed on it.
+ * The deletion itself is ONE database transaction, public.delete_account(user,
+ * planHash): it locks the profile, recomputes the plan and compares its hash
+ * with the one the app showed, carries out every hand-over / cancellation /
+ * cleanup, and deletes the auth user last. If anything fails, nothing changes.
+ * Only after it commits does this function remove the person's files (avatar,
+ * chat photos) and the avatars of clubs that were deleted.
  *
- * verify_jwt = true (supabase/config.toml): the gateway rejects calls without a
- * valid JWT; the user id comes from that JWT, never from the request body.
+ * verify_jwt = true (supabase/config.toml); the user id comes from that JWT
+ * (checked again with auth.getUser), never from the request body.
  */
 
 import { getServiceClient } from '../_shared/supabase.ts'
 import { corsHeaders, json } from '../_shared/http.ts'
-import { bearerToken, isDeleteConfirmed, USER_FOLDER_BUCKETS } from '../_shared/accountDeletion.ts'
+import {
+  bearerToken, DELETE_ERRORS, isRecentSignIn, jwtPayload, lastSignInAt, parseDeleteRequest, USER_FOLDER_BUCKETS,
+} from '../_shared/accountDeletion.ts'
 
-async function removeUserFolder(bucket: string, userId: string) {
+/** Best effort: remove every object under `folder/` in a bucket. */
+async function removeFolder(bucket: string, folder: string) {
   const storage = getServiceClient().storage.from(bucket)
   for (let round = 0; round < 20; round++) {
-    const { data, error } = await storage.list(userId, { limit: 100 })
+    const { data, error } = await storage.list(folder, { limit: 100 })
     if (error || !data?.length) return
-    const paths = data.filter(f => f.name).map(f => `${userId}/${f.name}`)
+    const paths = data.filter(f => f.name).map(f => `${folder}/${f.name}`)
     if (!paths.length) return
     const { error: removeError } = await storage.remove(paths)
     if (removeError) {
-      console.warn(`[delete-account] could not remove ${bucket} files:`, removeError.message)
+      console.warn(`[delete-account] could not remove ${bucket}/${folder}:`, removeError.message)
       return
     }
   }
@@ -51,7 +54,8 @@ Deno.serve(async (req) => {
 
   let body: unknown = null
   try { body = await req.json() } catch { /* handled below */ }
-  if (!isDeleteConfirmed(body)) return json({ error: 'Confirmation missing.' }, 400, cors)
+  const request = parseDeleteRequest(body)
+  if (!request) return json({ error: 'Confirmation missing.' }, 400, cors)
 
   try {
     const service = getServiceClient()
@@ -59,19 +63,25 @@ Deno.serve(async (req) => {
     const userId = userData?.user?.id
     if (userError || !userId) return json({ error: 'Sign in to delete your account.' }, 401, cors)
 
-    const { data: plan, error: prepareError } = await service.rpc('prepare_account_deletion', { p_user: userId })
-    if (prepareError) {
-      console.error('[delete-account] prepare failed:', prepareError.message)
+    if (!isRecentSignIn(lastSignInAt(jwtPayload(token)), Math.floor(Date.now() / 1000))) {
+      return json({ code: DELETE_ERRORS.reauthRequired, error: 'For your security, confirm it\'s you before deleting your account.' }, 403, cors)
+    }
+
+    const { data: plan, error: deleteError } = await service.rpc('delete_account', { p_user: userId, p_plan_hash: request.planHash })
+    if (deleteError) {
+      if (deleteError.code === 'P0409') {
+        return json({ code: DELETE_ERRORS.planChanged, error: 'Something changed since you reviewed this. Please review it again.' }, 409, cors)
+      }
+      console.error('[delete-account] delete failed:', deleteError.message)
       return json({ error: 'Could not delete your account. Nothing was changed. Please try again.' }, 500, cors)
     }
 
-    for (const bucket of USER_FOLDER_BUCKETS) await removeUserFolder(bucket, userId)
+    // The account is gone (committed). Clean up files; failures here are only logged.
+    for (const bucket of USER_FOLDER_BUCKETS) await removeFolder(bucket, userId)
+    const deletedClubs = ((plan as { clubs?: { id: string; action: string }[] } | null)?.clubs ?? [])
+      .filter(c => c.action === 'delete')
+    for (const club of deletedClubs) await removeFolder('club-avatars', club.id)
 
-    const { error: deleteError } = await service.auth.admin.deleteUser(userId)
-    if (deleteError) {
-      console.error('[delete-account] auth delete failed:', deleteError.message)
-      return json({ error: 'Could not finish deleting your account. Please try again.' }, 500, cors)
-    }
     return json({ ok: true, plan }, 200, cors)
   } catch (e) {
     console.error('[delete-account] failed:', (e as Error)?.message)

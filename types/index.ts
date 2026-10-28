@@ -1588,8 +1588,19 @@ export type AccountDeletionSuccessor = Pick<Profile, 'id' | 'username' | 'first_
  * (the same plan `prepare_account_deletion` then carries out).
  */
 export type AccountDeletionPlan = {
-  clubs: { id: string; name: string; action: 'transfer' | 'delete'; to: AccountDeletionSuccessor | null }[]
-  tournaments: { id: string; title: string; action: 'transfer' | 'delete'; with_club: string | null; to: AccountDeletionSuccessor | null }[]
+  clubs: {
+    id: string; name: string; action: 'transfer' | 'delete'; to: AccountDeletionSuccessor | null
+    /** Other members, posts, tournaments and whether it has a group chat: what a deletion takes with it. */
+    members: number; posts: number; tournaments: number; has_chat: boolean
+  }[]
+  tournaments: { id: string; title: string; status: string; action: 'transfer' | 'delete'; with_club: string | null; to: AccountDeletionSuccessor | null }[]
   events: { id: string; title: string; event_date: string; action: 'transfer' | 'cancel'; to: AccountDeletionSuccessor | null }[]
   past_events_kept: number
+  /** Kudos the person gave: recipients keep them, from "Deleted user". */
+  kudos_given_kept: number
+  /** md5 of the plan; sent back on delete so a stale confirmation is refused. */
+  hash: string
 }
+
+/** Why the delete-account function refused: sign in again, or the plan changed since the preview. */
+export type AccountDeletionBlock = 'reauth_required' | 'plan_changed' | null
