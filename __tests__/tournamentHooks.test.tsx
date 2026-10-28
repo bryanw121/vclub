@@ -125,6 +125,8 @@ describe('useTournamentData: cold open', () => {
     expect(waves()).toBe(1)
     expect(tables()).toEqual([
       'profiles',
+      // The newest comment page and every announcement, in parallel (#8).
+      'tournament_comments',
       'tournament_comments',
       'tournament_prizes',
       'tournament_rules',
@@ -140,7 +142,7 @@ describe('useTournamentData: cold open', () => {
     renderHook(() => useTournamentData('t1', null, { loadMatches: false }))
     await settleAll()
     expect(waves()).toBe(1)
-    expect(tables()).toEqual(['tournament_comments', 'tournament_prizes', 'tournament_rules', 'tournament_teams', 'tournaments'])
+    expect(tables()).toEqual(['tournament_comments', 'tournament_comments', 'tournament_prizes', 'tournament_rules', 'tournament_teams', 'tournaments'])
   })
 
   it('matches are fetched only once the Schedule tab asks for them', async () => {

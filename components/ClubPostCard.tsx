@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import { supabase } from '../lib/supabase'
 import { shared, theme, CLUB_POST_COMMENT_MAX, CLUB_POST_BODY_MAX } from '../constants'
 import { routes } from '../utils/routes'
 import type { ClubPostCommentWithAuthor, ClubPostWithFeed } from '../types'
-import { profileDisplayName, resolveProfileAvatarUriSmall } from '../utils'
+import { profileAvatarSmallUri, profileDisplayName } from '../utils'
 import { ProfileAvatar } from './ProfileAvatar'
 import { LinkedText } from './LinkedText'
 
@@ -51,7 +51,6 @@ export function ClubPostCard({
   onDataChanged,
 }: ClubPostCardProps) {
   const router = useRouter()
-  const [avatarUri, setAvatarUri] = useState<string | null>(null)
   const [likeBusy, setLikeBusy] = useState(false)
   const [commentDraft, setCommentDraft] = useState('')
   const [commentBusy, setCommentBusy] = useState(false)
@@ -61,14 +60,8 @@ export function ClubPostCard({
   const likeCount = post.club_post_likes?.[0]?.count ?? 0
   const comments = post.club_post_comments ?? []
 
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const { uri } = await resolveProfileAvatarUriSmall(author?.avatar_url)
-      if (!cancelled) setAvatarUri(uri)
-    })()
-    return () => { cancelled = true }
-  }, [author?.avatar_url])
+  // Public bucket: the URL is built synchronously, so the avatar paints on the first render.
+  const avatarUri = profileAvatarSmallUri(author?.avatar_url)
 
   async function toggleLike() {
     if (!currentUserId || !isClubMember || likeBusy) return
@@ -223,17 +216,8 @@ export function ClubPostCard({
 
 function ClubPostCommentLine({ comment }: { comment: ClubPostCommentWithAuthor }) {
   const router = useRouter()
-  const [avatarUri, setAvatarUri] = useState<string | null>(null)
   const p = comment.profiles
-
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const { uri } = await resolveProfileAvatarUriSmall(p?.avatar_url)
-      if (!cancelled) setAvatarUri(uri)
-    })()
-    return () => { cancelled = true }
-  }, [p?.avatar_url])
+  const avatarUri = profileAvatarSmallUri(p?.avatar_url)
 
   const name = p ? profileDisplayName(p) : 'Member'
 

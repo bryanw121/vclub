@@ -1,7 +1,8 @@
 import { supabase } from '../../lib/supabase'
-import { queryKey } from '../../lib/query'
+import { getQueryData, queryKey } from '../../lib/query'
+import { COMMENTS_PAGE, keepLoadedOlder, mergeComments, missingParentIds, pageFromNewestFirst } from '../../utils/commentPages'
 import type {
-  GeneratedSchedule, MyRegistration, PendingInvite, TablesInsert, Tournament, TournamentCommentWithAuthor,
+  GeneratedSchedule, MyRegistration, PendingInvite, TablesInsert, Tournament, TournamentCommentWithAuthor, TournamentCommentsPage,
   TournamentCore, TournamentInviteCandidate, TournamentJoinRequestWithRequester, TournamentMatchRow,
   TournamentPrize, TournamentRules, TournamentTeam, TournamentTeamWithRoster, TournamentViewer,
 } from '../../types'
@@ -106,11 +107,38 @@ export async function fetchTeams(id: string): Promise<TournamentTeamWithRoster[]
   })) as TournamentTeamWithRoster[]
 }
 
-export async function fetchComments(id: string): Promise<TournamentCommentWithAuthor[]> {
-  const data = await ok(
-    supabase.from('tournament_comments').select(COMMENT_SELECT).eq('tournament_id', id).order('created_at', { ascending: true }),
-  )
-  return (data ?? []) as TournamentCommentWithAuthor[]
+/**
+ * One page of the discussion (newest COMMENTS_PAGE, oldest first). The first
+ * page also carries every announcement, since the Overview tab lists them all
+ * however old. Parents of replies older than the page come in one `IN` query.
+ */
+export async function fetchCommentsPage(id: string, before?: string): Promise<TournamentCommentsPage> {
+  let pageQuery = supabase
+    .from('tournament_comments')
+    .select(COMMENT_SELECT)
+    .eq('tournament_id', id)
+    .order('created_at', { ascending: false })
+    .limit(COMMENTS_PAGE + 1)
+  if (before) pageQuery = pageQuery.lt('created_at', before)
+  const [newestFirst, announcements] = await Promise.all([
+    ok(pageQuery),
+    before
+      ? Promise.resolve([])
+      : ok(supabase.from('tournament_comments').select(COMMENT_SELECT).eq('tournament_id', id).eq('is_announcement', true)),
+  ])
+  const page = pageFromNewestFirst((newestFirst ?? []) as TournamentCommentWithAuthor[])
+  const rows = mergeComments((announcements ?? []) as TournamentCommentWithAuthor[], page.rows)
+  const missing = missingParentIds(rows)
+  const parents = missing.length
+    ? ((await ok(supabase.from('tournament_comments').select(COMMENT_SELECT).in('id', missing))) ?? []) as TournamentCommentWithAuthor[]
+    : []
+  return { ...page, rows: mergeComments(parents, rows) }
+}
+
+/** The newest page, keeping older pages already loaded (writes invalidate this key). */
+export async function fetchComments(id: string): Promise<TournamentCommentsPage> {
+  const latest = await fetchCommentsPage(id)
+  return keepLoadedOlder(getQueryData<TournamentCommentsPage>(tournamentKeys.comments(id)), latest)
 }
 
 export async function fetchMatches(id: string): Promise<TournamentMatchRow[]> {

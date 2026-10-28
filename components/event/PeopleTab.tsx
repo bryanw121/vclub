@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import React, { useState, useRef, useCallback, useMemo } from 'react'
 import { Platform, View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
 import { RefreshControl } from '../RefreshControl'
 import { GestureDetector, Gesture, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler'
@@ -11,7 +11,7 @@ import { IconButton } from '../ui'
 import { RosterActionsSheet } from './RosterActionsSheet'
 import { shared, theme, TEAM_COLORS, TEAM_COLOR_NAMES } from '../../constants'
 import type { EventWithDetails, Profile, AttendanceStatus, EventGuest, RosterAction, RosterActionContext, RosterMenu } from '../../types'
-import { profileDisplayName, resolveProfileAvatarUriSmall, hostRosterSkillAndPositionsLine } from '../../utils'
+import { profileDisplayName, profileAvatarSmallUri, hostRosterSkillAndPositionsLine } from '../../utils'
 import { guestRowActions, hasRosterMenu, memberRowActions } from '../../utils/rosterActions'
 import type { EventAttendanceApi, EventData, EventTeamsApi, TeamDragApi } from '../../types'
 
@@ -37,15 +37,7 @@ type DraggableCardProps = {
 function DraggablePlayerCard({ profile, teamColor, isPinned, isOwner, onDragStart, onDragMove, onDragEnd, onRemove, onTogglePin, onOpenMenu }: DraggableCardProps) {
   const scale = useSharedValue(1)
   const opacity = useSharedValue(1)
-  const [avatarUri, setAvatarUri] = useState<string | null>(null)
-  useEffect(() => {
-    if (!profile.avatar_url) return
-    let cancelled = false
-    resolveProfileAvatarUriSmall(profile.avatar_url).then(({ uri }) => {
-      if (!cancelled) setAvatarUri(uri)
-    })
-    return () => { cancelled = true }
-  }, [profile.avatar_url])
+  const avatarUri = profileAvatarSmallUri(profile.avatar_url)
 
   // Stable wrappers so the gesture closure never captures stale callbacks
   const cbRef = useRef({ onDragStart, onDragMove, onDragEnd, onTogglePin })

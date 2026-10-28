@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { RefreshControl } from '../RefreshControl'
 import { Image } from 'expo-image'
@@ -6,7 +6,7 @@ import Ionicons from '@expo/vector-icons/Ionicons'
 import { Button } from '../Button'
 import { shared, theme, CHEER_TYPES, CHEERS_MAX_PER_EVENT, TEAM_COLORS, TEAM_COLOR_NAMES } from '../../constants'
 import type { Profile, CheerType, Cheer, IoniconName, PendingCheer, TeamAssignment } from '../../types'
-import { profileDisplayName, profileInitial, resolveProfileAvatarUriSmall } from '../../utils'
+import { profileAvatarSmallUri, profileDisplayName, profileInitial } from '../../utils'
 import type { EventCheersApi, EventData, EventTeamsApi } from '../../types'
 
 type CheerPersonCardProps = {
@@ -18,15 +18,7 @@ type CheerPersonCardProps = {
 }
 
 function CheerPersonCard({ profile, hasGiven, disabled, teamColor, onPress }: CheerPersonCardProps) {
-  const [avatarUri, setAvatarUri] = useState<string | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const { uri } = await resolveProfileAvatarUriSmall(profile.avatar_url)
-      if (!cancelled) setAvatarUri(uri)
-    })()
-    return () => { cancelled = true }
-  }, [profile.avatar_url])
+  const avatarUri = profileAvatarSmallUri(profile.avatar_url)
 
   const activeColor = teamColor ?? theme.colors.primary
   const initials = profileInitial(profile)

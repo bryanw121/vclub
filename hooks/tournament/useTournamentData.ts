@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { STALE } from '../../constants/cache'
-import { useFocusRefetch, useQuery } from '../../lib/query'
-import type { MentionUser, TournamentTeamWithRoster } from '../../types'
+import { getQueryData, setQueryData, useFocusRefetch, useQuery } from '../../lib/query'
+import { withOlderPage } from '../../utils/commentPages'
+import type { MentionUser, TournamentCommentsPage, TournamentTeamWithRoster } from '../../types'
 import {
-  fetchComments, fetchMatches, fetchMyRegistration, fetchTeams, fetchTournamentCore, tournamentKeys,
+  fetchComments, fetchCommentsPage, fetchMatches, fetchMyRegistration, fetchTeams, fetchTournamentCore, tournamentKeys,
 } from './api'
 
 /** @-mention candidates: everyone on a roster, once each. */
@@ -57,5 +58,25 @@ export function useTournamentData(id: string, userId: string | null, opts: { loa
   const teamList = teams.data
   const mentionableUsers = useMemo(() => mentionableFromTeams(teamList ?? []), [teamList])
 
-  return { core, teams, comments, mine, matches, mentionableUsers }
+  // "Load earlier": the page before the oldest loaded comment, merged into
+  // whatever is cached when it lands (a write's refetch may have replaced it).
+  const [loadingEarlierComments, setLoadingEarlier] = useState(false)
+  const loadingEarlierRef = useRef(false)
+  const loadEarlierComments = useCallback(async () => {
+    const page = getQueryData<TournamentCommentsPage>(tournamentKeys.comments(id))
+    if (!page?.hasEarlier || !page.cursor || loadingEarlierRef.current) return
+    loadingEarlierRef.current = true
+    setLoadingEarlier(true)
+    try {
+      const older = await fetchCommentsPage(id, page.cursor)
+      setQueryData<TournamentCommentsPage>(tournamentKeys.comments(id), prev => withOlderPage(prev ?? page, older))
+    } catch (e) {
+      console.warn('[useTournamentData] load earlier comments', (e as { message?: string })?.message)
+    } finally {
+      loadingEarlierRef.current = false
+      setLoadingEarlier(false)
+    }
+  }, [id])
+
+  return { core, teams, comments, mine, matches, mentionableUsers, loadEarlierComments, loadingEarlierComments }
 }

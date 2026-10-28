@@ -229,11 +229,11 @@ export type EventEditSource = Pick<
 > & { event_tags: { tag_id: string }[] }
 
 /**
- * The cached discussion of one event (`eventKeys.comments`): a window of the
+ * A cached, paged discussion (event or tournament comments): a window of the
  * newest comments (oldest first) plus whether older ones exist on the server.
  */
-export type EventCommentsPage = {
-  rows: EventCommentWithAuthor[]
+export type CommentPage<T> = {
+  rows: T[]
   hasEarlier: boolean
   /**
    * `created_at` of the oldest comment loaded by paging (not counting old
@@ -241,6 +241,9 @@ export type EventCommentsPage = {
    */
   cursor: string | null
 }
+
+/** `eventKeys.comments`. */
+export type EventCommentsPage = CommentPage<EventCommentWithAuthor>
 
 /**
  * `event_guests` table
@@ -796,6 +799,9 @@ export type TournamentCommentWithAuthor = TournamentComment & {
   profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'selected_border'> | null
   replies?: TournamentCommentWithAuthor[]
 }
+
+/** `tournamentKeys.comments`: the newest page, every announcement, and parents of loaded replies. */
+export type TournamentCommentsPage = CommentPage<TournamentCommentWithAuthor>
 
 // ─── Tournament Team Management ───────────────────────────────────────────────
 
