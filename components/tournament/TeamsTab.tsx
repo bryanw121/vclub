@@ -48,7 +48,7 @@ export function TeamsTab({ teams, myTeam, viewerId, isCreator, registrationOpen,
   return (
     <ScrollView contentContainerStyle={ts.scrollContent} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
       {/* Captain action strip */}
-      {myTeam && !isCreator && myTeam.captain_user_id === viewerId && (
+      {myTeam && myTeam.captain_user_id === viewerId && (
         <View style={{ marginBottom: 14 }}>
           <Button label="Invite Players" icon="person-add-outline" onPress={actions.onInvite} />
         </View>
