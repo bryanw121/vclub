@@ -1,3 +1,4 @@
+// TODO(#11): also hand-edited to add search_members from 20261028140000_rate_limits.sql until it can be applied on beta.
 // TODO(#102): hand-edited to match migrations 20261028120000_privacy_private_reads.sql and 20261028120200_rate_limit_core.sql until they can be
 // applied on beta (Supabase write approval pending). Regenerate from beta before merging; do not keep this line.
 export type Json =
@@ -2134,6 +2135,20 @@ export type Database = {
           p_user_id: string
         }
         Returns: boolean
+      }
+      search_members: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          avatar_url: string
+          created_at: string
+          first_name: string
+          id: string
+          last_name: string
+          position: string[]
+          selected_border: string
+          skill_level: string
+          username: string
+        }[]
       }
       replace_tournament_schedule: {
         Args: { p_matches: Json; p_pools?: Json; p_tournament_id: string }

@@ -1577,3 +1577,7 @@ export type TextScaleContextValue = {
   osScale: number
   setSize: (size: TextSizeId) => void
 }
+
+/** A row of the `search_members` RPC (lib/memberSearch.ts). */
+export type MemberSearchResult = Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'position' | 'created_at'>
+  & Pick<Partial<Profile>, 'selected_border' | 'skill_level'>
