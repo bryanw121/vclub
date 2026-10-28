@@ -10,6 +10,7 @@
 
 import { test, expect, Page } from '@playwright/test'
 import { E2E_BASE_URL as BASE_URL } from './env'
+import { gotoReady } from './retry'
 
 const CONVO_ID = '1e473b01-c06a-48b0-9308-21b3f593f603'
 const CONVO_URL = `${BASE_URL}/chat/${CONVO_ID}`
@@ -38,10 +39,10 @@ async function dismissErrorOverlays(page: Page) {
  * the DM bad-word detector, and the modal blocks all further interaction.
  */
 async function gotoConversation(page: Page) {
-  await page.goto(CONVO_URL)
   // Wait for the composer to mount (screen ready) rather than a fixed sleep —
-  // the dev server + a long message history can take a while
-  await page.getByRole('textbox', { name: 'Message' }).waitFor({ timeout: 30000 }).catch(() => {})
+  // the dev server + a long message history can take a while. A load that hit
+  // a Supabase "Failed to fetch" is reloaded once (e2e/retry.ts).
+  await gotoReady(page, CONVO_URL, page.getByRole('textbox', { name: 'Message' }), { timeout: 30000 }).catch(() => {})
   await page.waitForTimeout(1500)
   const modal = page.getByText('This player may be unsportsmanlike', { exact: false })
   if (await modal.isVisible().catch(() => false)) {

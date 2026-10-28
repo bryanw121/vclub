@@ -53,3 +53,4 @@ supabase/.temp/
 # yarn — this project standardizes on npm (package-lock.json)
 .yarnrc
 yarn.lock
+coverage/
