@@ -16,23 +16,26 @@ let mockUpdates: Update[]
 
 jest.mock('../lib/supabase', () => ({
   supabase: {
-    from: () => ({
+    from: (table: string) => ({
       select: () => {
         const chain: Record<string, unknown> = {}
         chain.eq = () => chain
+        // Private prefs come from user_settings (owner-only), not profiles.
+        chain.maybeSingle = () => Promise.resolve({ data: table === 'user_settings' ? { notification_prefs: null } : null, error: null })
         chain.single = () => Promise.resolve({
           data: {
             id: 'u1', username: 'bryan', first_name: null, last_name: null, avatar_url: null, position: [],
             skill_level: null, created_at: 'x', selected_border: null, selected_card_bg: null, bio: null,
-            notification_prefs: null,
           },
           error: null,
         })
         return chain
       },
-      update: (patch: Record<string, unknown>) => ({
-        eq: () => new Promise(release => { mockUpdates.push({ patch, release }) }),
-      }),
+      update: () => ({ eq: () => Promise.reject(new Error(`unexpected ${table} update`)) }),
+      upsert: (patch: Record<string, unknown>) => {
+        if (table !== 'user_settings') return Promise.reject(new Error(`unexpected ${table} upsert`))
+        return new Promise(release => { mockUpdates.push({ patch, release }) })
+      },
     }),
   },
 }))

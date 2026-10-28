@@ -1,3 +1,5 @@
+// TODO(#102): hand-edited to match migration 20261028120000_privacy_private_reads.sql until it can be
+// applied on beta (Supabase write approval pending). Regenerate from beta before merging; do not keep this line.
 export type Json =
   | string
   | number
@@ -14,6 +16,21 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_admins: {
+        Row: {
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       app_config: {
         Row: {
           message: string | null
@@ -410,6 +427,35 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clubs"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_attendee_denials: {
+        Row: {
+          created_at: string
+          event_id: string
+          reason: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          reason: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          reason?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_attendee_denials_attendee_fkey"
+            columns: ["event_id", "user_id"]
+            isOneToOne: true
+            referencedRelation: "event_attendees"
+            referencedColumns: ["event_id", "user_id"]
           },
         ]
       }
@@ -1825,18 +1871,21 @@ export type Database = {
       user_settings: {
         Row: {
           home_city_id: string | null
+          notification_prefs: Json | null
           seen_banners: string[]
           updated_at: string
           user_id: string
         }
         Insert: {
           home_city_id?: string | null
+          notification_prefs?: Json | null
           seen_banners?: string[]
           updated_at?: string
           user_id: string
         }
         Update: {
           home_city_id?: string | null
+          notification_prefs?: Json | null
           seen_banners?: string[]
           updated_at?: string
           user_id?: string
@@ -1941,29 +1990,29 @@ export type Database = {
         Row: {
           added_by: string | null
           event_id: string | null
-          first_name: string | null
           id: string | null
           joined_at: string | null
-          last_name: string | null
           status: string | null
+          team_number: number | null
+          team_pinned: boolean | null
         }
         Insert: {
           added_by?: string | null
           event_id?: string | null
-          first_name?: string | null
           id?: string | null
           joined_at?: string | null
-          last_name?: string | null
           status?: string | null
+          team_number?: number | null
+          team_pinned?: boolean | null
         }
         Update: {
           added_by?: string | null
           event_id?: string | null
-          first_name?: string | null
           id?: string | null
           joined_at?: string | null
-          last_name?: string | null
           status?: string | null
+          team_number?: number | null
+          team_pinned?: boolean | null
         }
         Relationships: [
           {
@@ -1988,6 +2037,7 @@ export type Database = {
         Args: { p_invite_id: string }
         Returns: string
       }
+      can_read_chat_image: { Args: { p_name: string }; Returns: boolean }
       find_or_create_dm: { Args: { other_user_id: string }; Returns: string }
       get_chat_unread_count: { Args: never; Returns: number }
       get_email_by_username: { Args: { p_username: string }; Returns: string }
@@ -2039,6 +2089,7 @@ export type Database = {
         }[]
       }
       ingest_schelagg_feed: { Args: never; Returns: number }
+      is_app_admin: { Args: never; Returns: boolean }
       is_club_owner: { Args: { p_club_id: string }; Returns: boolean }
       is_conversation_member: { Args: { conv_id: string }; Returns: boolean }
       mark_all_notifications_read: { Args: never; Returns: undefined }

@@ -7,10 +7,12 @@ import * as Linking from 'expo-linking'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { supabase } from '../../lib/supabase'
 import { signInWithGoogle, signInWithApple, sendEmailOtp, verifyEmailOtp } from '../../lib/socialAuth'
+import { signInWithUsername } from '../../lib/usernameAuth'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
 import { GoogleLogo } from '../../components/GoogleLogo'
 import { shared, theme } from '../../constants'
+import { INCORRECT_EMAIL_OR_PASSWORD } from '../../constants/copy'
 import { routes, toRoute } from '../../utils/routes'
 import { takeGuestReturnPath } from '../../utils/authGate'
 import { AgreementLine } from '../../components/legal/AgreementLine'
@@ -105,22 +107,16 @@ export default function Login() {
 
     try {
       const normalized = identifier.toLowerCase().trim()
-      const isEmail = normalized.includes('@')
-      let email = normalized
-
-      if (!isEmail) {
-        const { data: resolvedEmail } = await supabase
-          .rpc('get_email_by_username', { p_username: normalized })
-
-        if (!resolvedEmail) {
-          setErrors({ identifier: 'Username not found' })
-          return
-        }
-        email = resolvedEmail
+      if (!normalized.includes('@')) {
+        // Resolved server-side: the account's email never reaches this device,
+        // and an unknown username reads the same as a wrong password.
+        const message = await signInWithUsername(normalized, password)
+        if (message) setErrors({ password: message })
+        return
       }
 
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setErrors({ password: 'Incorrect password' })
+      const { error } = await supabase.auth.signInWithPassword({ email: normalized, password })
+      if (error) setErrors({ password: error.status === 429 ? error.message : INCORRECT_EMAIL_OR_PASSWORD })
     } finally {
       setLoading(false)
     }
