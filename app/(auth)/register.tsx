@@ -10,6 +10,8 @@ import { GoogleLogo } from '../../components/GoogleLogo'
 import { shared, theme } from '../../constants'
 import { routes, toRoute } from '../../utils/routes'
 import { takeGuestReturnPath } from '../../utils/authGate'
+import { AgreementLine } from '../../components/legal/AgreementLine'
+import { TERMS_VERSION } from '../../constants/legal'
 
 export default function Register() {
   const router = useRouter()
@@ -72,7 +74,8 @@ export default function Register() {
       const { data, error } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
-        options: { data: { username: normalizedUsername, first_name: trimmedFirst, last_name: trimmedLast } },
+        // terms_version: the Terms shown by the agreement line under the button (passive clickwrap).
+        options: { data: { username: normalizedUsername, first_name: trimmedFirst, last_name: trimmedLast, terms_version: TERMS_VERSION } },
       })
 
       if (error) {
@@ -218,6 +221,12 @@ export default function Register() {
         />
 
         <Button label="Create account" onPress={handleRegister} loading={loading} disabled={!firstName || !lastName || !username || !email || !password} />
+        {/* Covers every way to sign up on this screen (Google above, email here). */}
+        <AgreementLine
+          action="continuing or creating an account"
+          onOpenTerms={() => router.push(routes.terms())}
+          onOpenPrivacy={() => router.push(routes.privacy())}
+        />
         <TouchableOpacity style={shared.authLink} onPress={() => router.push(routes.login())}>
           <Text style={shared.authLinkText}>already have an account? sign in</Text>
         </TouchableOpacity>

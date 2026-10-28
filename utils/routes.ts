@@ -86,6 +86,10 @@ export const routes = {
   /** Court availability at venues that rent by the hour; booking itself happens on the venue's site. Public. */
   book: () => href('/book'),
 
+  /** Terms and Conditions / Privacy Policy. Public (outside the auth gate). */
+  terms: () => href('/terms'),
+  privacy: () => href('/privacy'),
+
   notifications: () => href('/notifications'),
   settings: (section?: SettingsSection) => href(section ? `/settings/${section}` : '/settings'),
 

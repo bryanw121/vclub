@@ -1451,3 +1451,16 @@ export type AnalyticsEventName = (typeof import('../constants/analytics').ANALYT
 
 /** Small, flat props only: they're stored as a JSON object capped at 1 KB. */
 export type AnalyticsProps = Record<string, string | number | boolean | null>
+
+// ─── Legal pages (/terms, /privacy) ───────────────────────────────────────────
+
+/** A run of inline text in a legal document. `placeholder` marks "[fill in on publish]"-style gaps. */
+export type LegalSpan = { text: string; bold?: boolean; placeholder?: boolean }
+
+/** One block of the Markdown subset the legal pages use (utils/legalMarkdown.ts). */
+export type LegalBlock =
+  | { type: 'title'; spans: LegalSpan[] }
+  | { type: 'heading'; spans: LegalSpan[] }
+  | { type: 'paragraph'; spans: LegalSpan[] }
+  | { type: 'list'; items: LegalSpan[][] }
+  | { type: 'table'; header: LegalSpan[][]; rows: LegalSpan[][][] }

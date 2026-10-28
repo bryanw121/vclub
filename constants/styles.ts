@@ -1,7 +1,7 @@
 import { Platform, StyleSheet } from 'react-native'
 import { theme } from './theme'
 
-const { colors, spacing, font, radius, shadow } = theme
+const { colors, spacing, font, radius, shadow, fonts } = theme
 
 export const shared = StyleSheet.create({
 
@@ -806,4 +806,18 @@ export const shared = StyleSheet.create({
   // ── ScreenContainer ───────────────────────────────────────
   screenContainerWide:  { flex: 1, alignItems: 'center' },
   screenContainerInner: { flex: 1, width: '100%' },
+
+  // ── Legal pages (/terms, /privacy) and the sign-up agreement line ──────
+  legalBody:        { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl, gap: spacing.md },
+  legalUpdated:     { fontFamily: fonts.body, fontSize: font.size.sm, color: colors.subtext },
+  legalHeading:     { fontFamily: fonts.displaySemiBold, fontSize: font.size.lg, color: colors.text, marginTop: spacing.md },
+  legalText:        { fontFamily: fonts.body, fontSize: font.size.lgs, lineHeight: 23, color: colors.text },
+  legalBold:        { fontFamily: fonts.bodySemiBold },
+  legalPlaceholder: { fontFamily: fonts.bodyMedium, color: colors.warning, backgroundColor: colors.warning + '22' },
+  legalListItem:    { flexDirection: 'row', gap: spacing.sm, paddingLeft: spacing.xs },
+  legalBullet:      { fontFamily: fonts.body, fontSize: font.size.lgs, lineHeight: 23, color: colors.primary },
+  legalTableRow:    { backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: spacing.xs },
+  legalTableLabel:  { fontFamily: fonts.bodyMedium, fontSize: font.size.sm, color: colors.subtext, textTransform: 'uppercase', letterSpacing: 0.5 },
+  agreementLine:    { fontFamily: fonts.body, fontSize: font.size.xs, lineHeight: 16, color: colors.subtext, textAlign: 'center', marginTop: spacing.md },
+  agreementLink:    { color: colors.primary, textDecorationLine: 'underline' },
 })
