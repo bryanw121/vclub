@@ -436,7 +436,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Inventory fingerprint: `03408219d145`
+> Inventory fingerprint: `ee53baef62eb`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -471,7 +471,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `message_reactions` | [`hooks/useMessages.ts:434`](../hooks/useMessages.ts#L434) |
 | `messages` | [`hooks/useMessages.ts:85`](../hooks/useMessages.ts#L85) |
 | `notifications` | [`hooks/event/useCohosts.ts:73`](../hooks/event/useCohosts.ts#L73)<br>[`hooks/event/useEventAttendance.ts:77`](../hooks/event/useEventAttendance.ts#L77)<br>[`hooks/useNotifications.ts:34`](../hooks/useNotifications.ts#L34)<br>[`utils/badges.ts:217`](../utils/badges.ts#L217) |
-| `profiles` | [`app/_layout.tsx:43`](../app/_layout.tsx#L43)<br>[`app/(app)/(tabs)/chat.tsx:53`](../app/%28app%29/%28tabs%29/chat.tsx#L53)<br>[`app/(app)/profile/[id].tsx:55`](../app/%28app%29/profile/%5Bid%5D.tsx#L55)<br>[`app/(auth)/register.tsx:62`](../app/%28auth%29/register.tsx#L62)<br>[`hooks/event/useCohosts.ts:37`](../hooks/event/useCohosts.ts#L37)<br>[`hooks/event/useEventData.ts:63`](../hooks/event/useEventData.ts#L63)<br>+4 more files |
+| `profiles` | [`app/_layout.tsx:43`](../app/_layout.tsx#L43)<br>[`app/(app)/(tabs)/chat.tsx:53`](../app/%28app%29/%28tabs%29/chat.tsx#L53)<br>[`app/(app)/profile/[id].tsx:55`](../app/%28app%29/profile/%5Bid%5D.tsx#L55)<br>[`app/(auth)/register.tsx:64`](../app/%28auth%29/register.tsx#L64)<br>[`hooks/event/useCohosts.ts:37`](../hooks/event/useCohosts.ts#L37)<br>[`hooks/event/useEventData.ts:63`](../hooks/event/useEventData.ts#L63)<br>+4 more files |
 | `push_receipts` | [`supabase/functions/check-push-receipts/index.ts:37`](../supabase/functions/check-push-receipts/index.ts#L37)<br>[`supabase/functions/send-chat-push/index.ts:199`](../supabase/functions/send-chat-push/index.ts#L199) |
 | `push_tokens` | [`supabase/functions/check-push-receipts/index.ts:82`](../supabase/functions/check-push-receipts/index.ts#L82)<br>[`supabase/functions/send-chat-push/index.ts:144`](../supabase/functions/send-chat-push/index.ts#L144)<br>[`utils/pushNotifications.ts:47`](../utils/pushNotifications.ts#L47) |
 | `tags` | [`hooks/useTags.ts:14`](../hooks/useTags.ts#L14) |
@@ -496,7 +496,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 |---|---|---|
 | `accept_tournament_invite` | [`hooks/tournament/api.ts:198`](../hooks/tournament/api.ts#L198) | [`supabase/migrations/20261025120000_tournament_rpcs.sql:18`](../supabase/migrations/20261025120000_tournament_rpcs.sql#L18) |
 | `find_or_create_dm` | [`hooks/useOpenDm.ts:26`](../hooks/useOpenDm.ts#L26) | Not checked in |
-| `get_email_by_username` | [`app/(auth)/login.tsx:111`](../app/%28auth%29/login.tsx#L111) | Not checked in |
+| `get_email_by_username` | [`app/(auth)/login.tsx:112`](../app/%28auth%29/login.tsx#L112) | Not checked in |
 | `get_event_card_attendee_previews` | [`utils/eventCardPreviews.ts:35`](../utils/eventCardPreviews.ts#L35) | [`supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql:2`](../supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql#L2) |
 | `get_feed_span` | [`hooks/useMonthEvents.ts:174`](../hooks/useMonthEvents.ts#L174) | [`supabase/migrations/20261025220000_get_feed_span.sql:33`](../supabase/migrations/20261025220000_get_feed_span.sql#L33) |
 | `get_my_conversations` | [`hooks/useConversations.ts:35`](../hooks/useConversations.ts#L35) | Not checked in |
@@ -516,14 +516,14 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Auth | `getSession` | [`app/_layout.tsx:39`](../app/_layout.tsx#L39)<br>[`app/(app)/(tabs)/settings/account.tsx:18`](../app/%28app%29/%28tabs%29/settings/account.tsx#L18)<br>[`app/(app)/(tabs)/settings/cheers.tsx:22`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L22)<br>[`app/(app)/club/create.tsx:33`](../app/%28app%29/club/create.tsx#L33)<br>[`app/(auth)/reset-password.tsx:32`](../app/%28auth%29/reset-password.tsx#L32)<br>[`components/ClubPostCard.tsx:270`](../components/ClubPostCard.tsx#L270)<br>+2 more files |
 | Auth | `getUser` | [`contexts/session.tsx:15`](../contexts/session.tsx#L15)<br>[`lib/sessionUser.ts:6`](../lib/sessionUser.ts#L6) |
 | Auth | `onAuthStateChange` | [`app/(auth)/reset-password.tsx:27`](../app/%28auth%29/reset-password.tsx#L27)<br>[`contexts/session.tsx:32`](../contexts/session.tsx#L32) |
-| Auth | `resetPasswordForEmail` | [`app/(auth)/login.tsx:89`](../app/%28auth%29/login.tsx#L89) |
+| Auth | `resetPasswordForEmail` | [`app/(auth)/login.tsx:90`](../app/%28auth%29/login.tsx#L90) |
 | Auth | `setSession` | [`lib/socialAuth.ts:27`](../lib/socialAuth.ts#L27) |
 | Auth | `signInWithIdToken` | [`lib/socialAuth.ts:78`](../lib/socialAuth.ts#L78) |
 | Auth | `signInWithOAuth` | [`lib/socialAuth.ts:38`](../lib/socialAuth.ts#L38) |
 | Auth | `signInWithOtp` | [`lib/socialAuth.ts:89`](../lib/socialAuth.ts#L89) |
-| Auth | `signInWithPassword` | [`app/(auth)/login.tsx:120`](../app/%28auth%29/login.tsx#L120) |
+| Auth | `signInWithPassword` | [`app/(auth)/login.tsx:121`](../app/%28auth%29/login.tsx#L121) |
 | Auth | `signOut` | [`app/(app)/(tabs)/settings/account.tsx:26`](../app/%28app%29/%28tabs%29/settings/account.tsx#L26) |
-| Auth | `signUp` | [`app/(auth)/register.tsx:72`](../app/%28auth%29/register.tsx#L72) |
+| Auth | `signUp` | [`app/(auth)/register.tsx:74`](../app/%28auth%29/register.tsx#L74) |
 | Auth | `startAutoRefresh` | [`lib/supabase.ts:36`](../lib/supabase.ts#L36) |
 | Auth | `stopAutoRefresh` | [`lib/supabase.ts:37`](../lib/supabase.ts#L37) |
 | Auth | `updateUser` | [`app/(auth)/reset-password.tsx:46`](../app/%28auth%29/reset-password.tsx#L46) |
@@ -568,8 +568,9 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Chat hooks / utils | [`SenderProfile`](../types/index.ts#L1187), [`ReplySnapshot`](../types/index.ts#L1188), [`MessageRecord`](../types/index.ts#L1191), [`DebouncedCall`](../types/index.ts#L1193), [`PendingSend`](../types/index.ts#L1203), [`ConversationLookupRow`](../types/index.ts#L1211) |
 | Shared component contracts | [`EventCardRsvpHandler`](../types/index.ts#L1227), [`RowEventCardRsvpHandler`](../types/index.ts#L1228), [`TeamCardActions`](../types/index.ts#L1231), [`CheerCounts`](../types/index.ts#L1244), [`AnchorRect`](../types/index.ts#L1247), [`AnchorMenuOption`](../types/index.ts#L1249), [`LocationValue`](../types/index.ts#L1257) |
 | Badges, previews, tournament tabs | [`BadgeStats`](../types/index.ts#L1265), [`BadgeAwardPlan`](../types/index.ts#L1280), [`EventCardPreviews`](../types/index.ts#L1286), [`EventCardPreviewRow`](../types/index.ts#L1289), [`FeedSpanRows`](../types/index.ts#L1297), [`StoredFeedFilters`](../types/index.ts#L1305), [`TournamentTabName`](../types/index.ts#L1310) |
-| Schelagg court availability and session checks (lib/schelagg, utils/courts) | [`HHMM`](../types/index.ts#L1315), [`HHMMRange`](../types/index.ts#L1318), [`MinuteRange`](../types/index.ts#L1321), [`CourtsCourt`](../types/index.ts#L1323), [`CourtsFacility`](../types/index.ts#L1329), [`CourtsVenue`](../types/index.ts#L1338), [`CourtsError`](../types/index.ts#L1349), [`CourtsResponse`](../types/index.ts#L1352), [`CourtsData`](../types/index.ts#L1362), [`AustinNow`](../types/index.ts#L1365), [`CourtLane`](../types/index.ts#L1367), [`FacilityDay`](../types/index.ts#L1376), [`DayOption`](../types/index.ts#L1395), [`SessionCheckStatus`](../types/index.ts#L1397), [`SessionCheckResult`](../types/index.ts#L1400), [`SessionLinkDecision`](../types/index.ts#L1421), [`SessionLinkNotice`](../types/index.ts#L1436), [`CreateMenuSectionKey`](../types/index.ts#L1440) |
-| Usage metrics (lib/analytics.ts) | [`AnalyticsEventName`](../types/index.ts#L1444), [`AnalyticsProps`](../types/index.ts#L1447) |
+| Schelagg court availability and session checks (lib/schelagg, utils/courts) | [`HHMM`](../types/index.ts#L1315), [`HHMMRange`](../types/index.ts#L1318), [`MinuteRange`](../types/index.ts#L1321), [`CourtsCourt`](../types/index.ts#L1323), [`CourtsFacility`](../types/index.ts#L1329), [`CourtsVenue`](../types/index.ts#L1338), [`CourtsError`](../types/index.ts#L1355), [`CourtsResponse`](../types/index.ts#L1358), [`CourtsData`](../types/index.ts#L1368), [`AustinNow`](../types/index.ts#L1371), [`CourtLane`](../types/index.ts#L1373), [`FacilityDay`](../types/index.ts#L1382), [`DayOption`](../types/index.ts#L1401), [`SessionCheckStatus`](../types/index.ts#L1403), [`SessionCheckResult`](../types/index.ts#L1406), [`SessionLinkDecision`](../types/index.ts#L1427), [`SessionLinkNotice`](../types/index.ts#L1442), [`CreateMenuSectionKey`](../types/index.ts#L1446) |
+| Usage metrics (lib/analytics.ts) | [`AnalyticsEventName`](../types/index.ts#L1450), [`AnalyticsProps`](../types/index.ts#L1453) |
+| Legal pages (/terms, /privacy) | [`LegalSpan`](../types/index.ts#L1458), [`LegalBlock`](../types/index.ts#L1461) |
 
 ### Constrained string values
 
@@ -584,7 +585,7 @@ TypeScript `enum` keyword.
 | `CheerType` | `spike`, `block`, `serve`, `dig`, `set`, `pass`, `communication` | [`types/index.ts:160`](../types/index.ts#L160) |
 | `ChipVariant` | `solid`, `tint` | [`types/index.ts:858`](../types/index.ts#L858) |
 | `ConversationType` | `dm`, `club` | [`types/index.ts:597`](../types/index.ts#L597) |
-| `CreateMenuSectionKey` | `vteam`, `venue` | [`types/index.ts:1440`](../types/index.ts#L1440) |
+| `CreateMenuSectionKey` | `vteam`, `venue` | [`types/index.ts:1446`](../types/index.ts#L1446) |
 | `EventCardRsvpHandler` | `join`, `leave` | [`types/index.ts:1227`](../types/index.ts#L1227) |
 | `FeedbackKind` | `feature`, `bug` | [`types/index.ts:255`](../types/index.ts#L255) |
 | `FeedbackPriority` | `low`, `medium`, `high` | [`types/index.ts:256`](../types/index.ts#L256) |
@@ -600,7 +601,7 @@ TypeScript `enum` keyword.
 | `RosterAction.key` | `message`, `message-adder`, `profile`, `remove` | [`types/index.ts:1127`](../types/index.ts#L1127) |
 | `ScheduleMatch.stage` | `pool_play`, `bracket`, `round_robin` | [`types/index.ts:1002`](../types/index.ts#L1002) |
 | `SelfAttendanceAction` | `join`, `leave`, `joinWaitlist`, `leaveWaitlist`, `requestToJoin`, `cancelRequest`, `rerequest` | [`types/index.ts:1111`](../types/index.ts#L1111) |
-| `SessionCheckStatus` | `scheduled`, `canceled`, `changed`, `gone`, `unknown` | [`types/index.ts:1397`](../types/index.ts#L1397) |
+| `SessionCheckStatus` | `scheduled`, `canceled`, `changed`, `gone`, `unknown` | [`types/index.ts:1403`](../types/index.ts#L1403) |
 | `Surface` | `indoor`, `sand`, `grass` | [`types/index.ts:157`](../types/index.ts#L157) |
 | `TournamentBracketType` | `single`, `double` | [`types/index.ts:694`](../types/index.ts#L694) |
 | `TournamentFormat` | `pool_play`, `bracket`, `pool_bracket`, `round_robin` | [`types/index.ts:693`](../types/index.ts#L693) |

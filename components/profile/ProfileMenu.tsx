@@ -8,6 +8,8 @@ type Props = {
   onOpen: (section: SettingsSection) => void
   /** "Take the tour" row: restarts the intro tour. */
   onTakeTour: () => void
+  onOpenTerms: () => void
+  onOpenPrivacy: () => void
 }
 
 type MenuItem = {
@@ -27,10 +29,12 @@ const MENU_ITEMS: readonly MenuItem[] = [
 ]
 
 /** The settings shortcuts under the profile hero. Navigation is the caller's (`onOpen`). */
-export function ProfileMenu({ onOpen, onTakeTour }: Props) {
+export function ProfileMenu({ onOpen, onTakeTour, onOpenTerms, onOpenPrivacy }: Props) {
   const rows = [
     ...MENU_ITEMS.map(item => ({ key: item.section, title: item.title, icon: item.icon, onPress: () => onOpen(item.section) })),
     { key: 'tour', title: 'Take the tour', icon: 'compass-outline' as MenuItem['icon'], onPress: onTakeTour },
+    { key: 'terms', title: 'Terms and Conditions', icon: 'document-text-outline' as MenuItem['icon'], onPress: onOpenTerms },
+    { key: 'privacy', title: 'Privacy Policy', icon: 'shield-checkmark-outline' as MenuItem['icon'], onPress: onOpenPrivacy },
   ]
   return (
     <View style={[shared.card, { gap: 0, marginTop: theme.spacing.lg, padding: 0, overflow: 'hidden' }]}>

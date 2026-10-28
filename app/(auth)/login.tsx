@@ -12,6 +12,7 @@ import { GoogleLogo } from '../../components/GoogleLogo'
 import { shared, theme } from '../../constants'
 import { routes, toRoute } from '../../utils/routes'
 import { takeGuestReturnPath } from '../../utils/authGate'
+import { AgreementLine } from '../../components/legal/AgreementLine'
 
 function obfuscateEmail(email: string): string {
   const [local, domain] = email.split('@')
@@ -272,6 +273,11 @@ export default function Login() {
                   error={otpError}
                 />
                 <Button label="Send code" onPress={handleSendOtp} loading={otpLoading} disabled={!otpEmail} />
+                <AgreementLine
+                  action="continuing"
+                  onOpenTerms={() => router.push(routes.terms())}
+                  onOpenPrivacy={() => router.push(routes.privacy())}
+                />
               </>
             ) : (
               <>
@@ -381,6 +387,12 @@ export default function Login() {
                 </Text>
               </TouchableOpacity>
             </View>
+            {/* A first Google / Apple / email-code sign-in creates an account. */}
+            <AgreementLine
+              action="continuing"
+              onOpenTerms={() => router.push(routes.terms())}
+              onOpenPrivacy={() => router.push(routes.privacy())}
+            />
 
             <TouchableOpacity style={shared.authLink} onPress={() => { setForgotMode(true); setResetEmail(identifier.includes('@') ? identifier : '') }}>
               <Text style={shared.authLinkText}>Forgot password?</Text>

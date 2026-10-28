@@ -115,7 +115,12 @@ function MyProfileBody({ profile, totalCheers, badges, saving, updateProfile, se
           <>
             <TrophyCase />
             <RecentCheersPlaceholder />
-            <ProfileMenu onOpen={s => router.push(routes.settings(s))} onTakeTour={() => tour.start('intro', 'profile_menu')} />
+            <ProfileMenu
+              onOpen={s => router.push(routes.settings(s))}
+              onTakeTour={() => tour.start('intro', 'profile_menu')}
+              onOpenTerms={() => router.push(routes.terms())}
+              onOpenPrivacy={() => router.push(routes.privacy())}
+            />
           </>
         ) : (
           <EditProfileForm
