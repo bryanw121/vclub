@@ -58,10 +58,11 @@ test.describe('anon (guest browsing)', () => {
 
   test('sees no rows of private tables', async () => {
     for (const table of ['notifications', 'user_settings', 'messages', 'conversations', 'conversation_members', 'push_tokens', 'feedback_submissions'] as const) {
-      const res = await q(() => anon.from(table).select('*', { count: 'exact', head: true }), `anon ${table}`)
-      // No anon policy: PostgREST answers with zero rows (or a permission error), never data.
-      if (res.error) expect(res.error.code, `anon ${table}`).toBe(RLS_DENIED)
-      else expect(res.count, `anon rows visible in ${table}`).toBe(0)
+      // A GET (not head: a HEAD error has no body to read the code from).
+      const res = await q(() => anon.from(table).select('*').limit(1), `anon ${table}`)
+      // No grant: permission denied. Granted but no anon policy: zero rows. Never data.
+      if (res.error) expect(res.error.code, `anon ${table}: ${res.error.message}`).toBe(RLS_DENIED)
+      else expect(res.data, `anon rows visible in ${table}`).toEqual([])
     }
     const dm = await q(() => anon.from('messages').select('id').eq('conversation_id', SEED_DM_ID).limit(1), 'anon seed messages')
     expect(dm.data ?? []).toEqual([])
