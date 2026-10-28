@@ -430,6 +430,20 @@ export type FeedAdPlacement =
   | { kind: 'banner'; banner: AdBanner }
   | { kind: 'sponsored'; event: EventWithDetails }
 
+/** `get_ad_free_status()`: the offer (cost in points, days) plus the caller's balance and ad-free expiry. */
+export type AdFreeStatus = {
+  cost: number
+  days: number
+  balance: number
+  ad_free_until: string | null
+}
+
+/** `redeem_ad_free()`: the new status, and whether the points were spent. */
+export type AdFreeRedeemResult = AdFreeStatus & {
+  ok: boolean
+  reason?: 'insufficient_points'
+}
+
 // ─── Tours (constants/tours.ts, contexts/tour.tsx) ───────────────────────────
 
 export type TourId = 'intro'
