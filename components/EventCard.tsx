@@ -1,6 +1,7 @@
 import React, { memo, useState } from 'react'
 import { TouchableOpacity, View, ActivityIndicator } from 'react-native'
 import { Text } from './ui/Text'
+import { FriendsGoingLine } from './FriendsGoingLine'
 import { Image } from 'expo-image'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useRouter, usePathname } from 'expo-router'
@@ -10,7 +11,7 @@ import { routes } from '../utils/routes'
 import { rememberEventCard } from '../hooks/event/seed'
 import { eventPrefetchProps } from '../hooks/event/prefetch'
 import { profileAvatarSmallUri, profileDisplayName, surfaceOf } from '../utils'
-import type { EventCardRsvpHandler, EventWithDetails, Tag } from '../types'
+import type { EventCardRsvpHandler, EventWithDetails, FriendGoing, Tag } from '../types'
 
 // ─── Attendance helpers ───────────────────────────────────────────────────────
 
@@ -79,6 +80,7 @@ function EventCardInner({
   currentUserId,
   onRsvp,
   rsvpPending = false,
+  friendsGoing,
 }: {
   event: EventWithDetails
   from?: string
@@ -86,6 +88,8 @@ function EventCardInner({
   onRsvp?: EventCardRsvpHandler
   /** The parent's RSVP write for this event is in flight (survives a remount, unlike the local spinner). */
   rsvpPending?: boolean
+  /** My friends going (useFriendsGoing), best friends first (#15). */
+  friendsGoing?: FriendGoing[]
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -192,6 +196,8 @@ function EventCardInner({
             </Text>
           </View>
         )}
+
+        <FriendsGoingLine going={friendsGoing} tone="onDark" />
 
         {/* Attendee row + capacity */}
         <View style={{
@@ -307,13 +313,15 @@ export const HeroEventCard = EventCard
 
 // ─── Row Event Card (desktop secondary cards) ─────────────────────────────────
 
-function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, rsvpPending = false }: {
+function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, rsvpPending = false, friendsGoing }: {
   event: EventWithDetails
   from?: string
   currentUserId?: string | null
   onRsvp?: EventCardRsvpHandler
   /** See EventCard. */
   rsvpPending?: boolean
+  /** See EventCard. */
+  friendsGoing?: FriendGoing[]
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -429,6 +437,8 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
             </Text>
           </View>
         )}
+
+        <FriendsGoingLine going={friendsGoing} />
 
         {/* Attendees + capacity bar + RSVP */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 }}>
