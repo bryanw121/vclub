@@ -1,18 +1,18 @@
 import React from 'react'
-import { ActivityIndicator, Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import type { RefreshControlProps } from 'react-native'
-import * as Linking from 'expo-linking'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { theme } from '../../constants'
 import { FORMAT_LABELS } from '../../constants/tournamentCopy'
-import { formatCommentTime, profileDisplayName } from '../../utils'
+import { formatCommentTime, formatPriceAmount } from '../../utils'
 import { Button } from '../Button'
 import type {
   Tournament, TournamentCommentWithAuthor, TournamentPrize, TournamentRules, TournamentTeam, TournamentTeamWithRoster,
 } from '../../types'
-import type { PendingInvite, TournamentViewer } from '../../types'
+import type { PendingInvite } from '../../types'
 import { MiniButton } from './TournamentBits'
-import { ts, VENMO_BLUE } from './tournamentStyles'
+import { ts } from './tournamentStyles'
+import { VenmoPayButton } from '../VenmoPayButton'
 
 type Props = {
   /** Pull-to-refresh for the whole tournament page. */
@@ -22,7 +22,6 @@ type Props = {
   prizes: TournamentPrize[]
   teams: TournamentTeamWithRoster[]
   myTeam: TournamentTeam | null
-  myProfile: TournamentViewer | null
   invites: PendingInvite[]
   announcements: TournamentCommentWithAuthor[]
   isCreator: boolean
@@ -46,35 +45,6 @@ const PODIUM_COLORS = [theme.colors.medalGold, theme.colors.medalSilver, theme.c
 const PODIUM_HEIGHTS = [76, 58, 44]
 const MEDALS = ['🥇', '🥈', '🥉']
 const PODIUM_ORDER = [1, 0, 2] // show 2nd left, 1st center, 3rd right
-
-function VenmoButton({ tournament, myProfile }: { tournament: Tournament; myProfile: TournamentViewer | null }) {
-  const handle = tournament.venmo_handle
-  if (!handle) return null
-  const amount = tournament.price % 1 === 0 ? String(tournament.price) : tournament.price.toFixed(2)
-  const name = myProfile ? profileDisplayName(myProfile) : ''
-  const date = new Date(tournament.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  const note = encodeURIComponent([tournament.title, 'entry fee', name, date].filter(Boolean).join(' — '))
-  const deepLink = `venmo://paycharge?txn=pay&recipients=${handle}&amount=${amount}&note=${note}`
-  const webLink = `https://venmo.com/${handle}?txn=pay&amount=${amount}&note=${note}`
-  return (
-    <TouchableOpacity
-      onPress={() => {
-        if (Platform.OS === 'web') window.open(webLink, '_blank')
-        else void Linking.openURL(deepLink).catch(() => Linking.openURL(webLink))
-      }}
-      style={{
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        gap: 8, marginBottom: 12, paddingVertical: 14,
-        borderRadius: 16, backgroundColor: VENMO_BLUE,
-      }}
-    >
-      <Text style={{ fontSize: 18 }}>💸</Text>
-      <Text style={{ fontFamily: theme.fonts.display, fontSize: 15, color: theme.colors.onPrimary }}>
-        Pay ${amount} entry via Venmo
-      </Text>
-    </TouchableOpacity>
-  )
-}
 
 export function OverviewTab(p: Props) {
   const { tournament, rules, prizes, myTeam, isCreator } = p
@@ -123,7 +93,15 @@ export function OverviewTab(p: Props) {
 
       {/* Pay via Venmo — non-creators, when there is a fee and a handle */}
       {!isCreator && tournament.price > 0 && tournament.venmo_handle && (
-        <VenmoButton tournament={tournament} myProfile={p.myProfile} />
+        <View style={{ marginBottom: 12 }}>
+          <VenmoPayButton
+            handle={tournament.venmo_handle}
+            amount={formatPriceAmount(tournament.price)}
+            title={tournament.title}
+            date={tournament.start_date}
+            label={`Pay $${formatPriceAmount(tournament.price)} entry via Venmo`}
+          />
+        </View>
       )}
 
       {/* Pending invitations */}

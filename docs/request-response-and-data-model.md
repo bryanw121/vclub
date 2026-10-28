@@ -436,7 +436,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Inventory fingerprint: `36d7fb09529e`
+> Inventory fingerprint: `d479c4d531a9`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -570,7 +570,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Badges, previews, tournament tabs | [`BadgeStats`](../types/index.ts#L1308), [`BadgeAwardPlan`](../types/index.ts#L1323), [`EventCardPreviews`](../types/index.ts#L1329), [`EventCardPreviewRow`](../types/index.ts#L1332), [`FeedSpanRows`](../types/index.ts#L1340), [`StoredFeedFilters`](../types/index.ts#L1348), [`TournamentTabName`](../types/index.ts#L1353) |
 | Schelagg court availability and session checks (lib/schelagg, utils/courts) | [`HHMM`](../types/index.ts#L1358), [`HHMMRange`](../types/index.ts#L1361), [`MinuteRange`](../types/index.ts#L1364), [`CourtsCourt`](../types/index.ts#L1366), [`CourtsFacility`](../types/index.ts#L1372), [`CourtsVenue`](../types/index.ts#L1381), [`CourtsError`](../types/index.ts#L1398), [`CourtsResponse`](../types/index.ts#L1401), [`CourtsData`](../types/index.ts#L1411), [`AustinNow`](../types/index.ts#L1414), [`CourtLane`](../types/index.ts#L1416), [`FacilityDay`](../types/index.ts#L1425), [`DayOption`](../types/index.ts#L1444), [`SessionCheckStatus`](../types/index.ts#L1446), [`SessionCheckResult`](../types/index.ts#L1449), [`SessionLinkDecision`](../types/index.ts#L1470), [`SessionLinkNotice`](../types/index.ts#L1485), [`CreateMenuSectionKey`](../types/index.ts#L1489) |
 | Usage metrics (lib/analytics.ts) | [`AnalyticsEventName`](../types/index.ts#L1493), [`AnalyticsProps`](../types/index.ts#L1496) |
-| Legal pages (/terms, /privacy) | [`LegalSpan`](../types/index.ts#L1501), [`LegalBlock`](../types/index.ts#L1504) |
+| Legal pages (/terms, /privacy) | [`LegalSpan`](../types/index.ts#L1501), [`LegalBlock`](../types/index.ts#L1504), [`VenmoLinks`](../types/index.ts#L1512) |
 
 ### Constrained string values
 
