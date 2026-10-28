@@ -1,4 +1,4 @@
--- Undo 20261028120000_points_ledger.sql.
+-- Undo 20261028170000_points_ledger.sql.
 do $$
 begin
   if exists (select 1 from cron.job where jobname = 'award-event-points') then
