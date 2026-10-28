@@ -1,8 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react'
 import {
-  ActivityIndicator, Modal, Platform, ScrollView,
-  Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator,
+  Modal,
+  Platform,
+  ScrollView,
+  TouchableOpacity,
+  View,
 } from 'react-native'
+import { Text, TextInput } from './ui/Text'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../lib/supabase'
@@ -130,14 +135,14 @@ function ResultRow({
       </View>
       <View style={{ flex: 1 }}>
         <Text
-          style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 14, color: theme.colors.text }}
+          style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.md, color: theme.colors.text }}
           numberOfLines={1}
         >
           {title}
         </Text>
         {subtitle ? (
           <Text
-            style={{ fontFamily: theme.fonts.body, fontSize: 12, color: theme.colors.subtext, marginTop: 1 }}
+            style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.sm, color: theme.colors.subtext, marginTop: 1 }}
             numberOfLines={1}
           >
             {subtitle}
@@ -246,7 +251,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
         <Text style={{
           flex: 1,
           fontFamily: theme.fonts.body,
-          fontSize: 15,
+          fontSize: theme.font.size.lgs,
           color: value?.display ? theme.colors.text : theme.colors.subtext,
           fontWeight: '500',
         }}>
@@ -295,7 +300,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
                 style={{
                   flex: 1,
                   fontFamily: theme.fonts.body,
-                  fontSize: 15,
+                  fontSize: theme.font.size.lgs,
                   color: theme.colors.text,
                   ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
                 }}
@@ -309,7 +314,7 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
                   : null}
             </View>
             <TouchableOpacity onPress={close} hitSlop={8}>
-              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 14, color: theme.colors.primary }}>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.md, color: theme.colors.primary }}>
                 Cancel
               </Text>
             </TouchableOpacity>
@@ -369,14 +374,14 @@ export function LocationPickerField({ value, onChange, recentVenues = [] }: Prop
 
             {/* Empty state */}
             {query.length >= MIN_LEN && !loading && !hasContent && (
-              <Text style={{ textAlign: 'center', color: theme.colors.subtext, fontSize: 13, padding: 32 }}>
+              <Text style={{ textAlign: 'center', color: theme.colors.subtext, fontSize: theme.font.size.smd, padding: 32 }}>
                 No venues found
               </Text>
             )}
 
             {/* Prompt when nothing typed yet */}
             {query.length === 0 && !hasContent && (
-              <Text style={{ textAlign: 'center', color: theme.colors.subtext, fontSize: 13, padding: 32 }}>
+              <Text style={{ textAlign: 'center', color: theme.colors.subtext, fontSize: theme.font.size.smd, padding: 32 }}>
                 Type to search for a venue
               </Text>
             )}

@@ -1,5 +1,6 @@
 import React from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { ScrollView, View } from 'react-native'
+import { Text } from '../ui/Text'
 import type { RefreshControlProps } from 'react-native'
 import { theme } from '../../constants'
 import { SKILL_LEVEL_LABELS } from '../../constants/copy'
@@ -62,9 +63,9 @@ export function TeamsTab({ teams, myTeam, viewerId, isCreator, registrationOpen,
 
       {teams.length === 0 && (
         <View style={{ alignItems: 'center', paddingVertical: 56 }}>
-          <Text style={{ fontSize: 36, marginBottom: 10 }}>🏐</Text>
-          <Text style={{ fontFamily: theme.fonts.display, fontSize: 16, color: theme.colors.subtext }}>No teams yet</Text>
-          <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.subtext, marginTop: 4 }}>Be the first to register.</Text>
+          <Text style={{ fontSize: theme.font.emoji.xxl, marginBottom: 10 }}>🏐</Text>
+          <Text style={{ fontFamily: theme.fonts.display, fontSize: theme.font.size.base, color: theme.colors.subtext }}>No teams yet</Text>
+          <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.smd, color: theme.colors.subtext, marginTop: 4 }}>Be the first to register.</Text>
         </View>
       )}
 
@@ -75,8 +76,8 @@ export function TeamsTab({ teams, myTeam, viewerId, isCreator, registrationOpen,
           {joinRequests.map(req => (
             <View key={req.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.text }}>{req.requester ? profileDisplayName(req.requester) : 'Unknown'}</Text>
-                <Text style={{ fontSize: 11, color: theme.colors.subtext }}>
+                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.smd, color: theme.colors.text }}>{req.requester ? profileDisplayName(req.requester) : 'Unknown'}</Text>
+                <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext }}>
                   {req.requester?.skill_level ? SKILL_LEVEL_LABELS[req.requester.skill_level] ?? req.requester.skill_level : ''} → {teams.find(t => t.id === req.team_id)?.name ?? '?'}
                 </Text>
               </View>

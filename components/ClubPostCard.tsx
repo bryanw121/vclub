@@ -1,9 +1,7 @@
 import React, { useState } from 'react'
 import {
   View,
-  Text,
   TouchableOpacity,
-  TextInput,
   ActivityIndicator,
   ScrollView,
   StyleSheet,
@@ -13,6 +11,7 @@ import {
   Pressable,
   KeyboardAvoidingView,
 } from 'react-native'
+import { Text, TextInput } from './ui/Text'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'

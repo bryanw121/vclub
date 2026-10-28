@@ -4,9 +4,14 @@
  */
 import React, { useMemo, useRef, useState } from 'react'
 import {
-  ActivityIndicator, Platform, ScrollView, Switch, Text,
-  TouchableOpacity, View,
+  ActivityIndicator,
+  Platform,
+  ScrollView,
+  Switch,
+  TouchableOpacity,
+  View,
 } from 'react-native'
+import { Text } from './ui/Text'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { Input } from './Input'
 import { theme } from '../constants'
@@ -130,7 +135,7 @@ export function DiscussionComposer({
           backgroundColor: theme.colors.primary + '14',
           borderRadius: 8, marginBottom: 6,
         }}>
-          <Text style={{ fontSize: 12, color: theme.colors.primary, flex: 1 }}>Editing comment</Text>
+          <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.primary, flex: 1 }}>Editing comment</Text>
           <TouchableOpacity onPress={onCancelEdit} hitSlop={8}>
             <Ionicons name="close-circle" size={18} color={theme.colors.primary} />
           </TouchableOpacity>
@@ -146,7 +151,7 @@ export function DiscussionComposer({
           borderLeftWidth: 3, borderLeftColor: theme.colors.primary,
           borderRadius: 4, marginBottom: 6,
         }}>
-          <Text style={{ fontSize: 12, color: theme.colors.subtext, flex: 1 }} numberOfLines={1}>
+          <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, flex: 1 }} numberOfLines={1}>
             Replying to <Text style={{ fontWeight: '600', color: theme.colors.text }}>{replyToAuthor}</Text>
           </Text>
           <TouchableOpacity onPress={onClearReply} hitSlop={8}>
@@ -158,7 +163,7 @@ export function DiscussionComposer({
       {/* Announcement toggle */}
       {showAnnouncementToggle && !isEditing && (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Text style={{ fontSize: 12, color: theme.colors.subtext, flex: 1, paddingRight: 8 }}>
+          <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, flex: 1, paddingRight: 8 }}>
             {announcementLabel}
           </Text>
           <Switch
@@ -192,10 +197,10 @@ export function DiscussionComposer({
                   minHeight: 44, justifyContent: 'center',
                 }}
               >
-                <Text style={{ fontSize: 14, fontWeight: '600', color: theme.colors.text }}>
+                <Text style={{ fontSize: theme.font.size.md, fontWeight: '600', color: theme.colors.text }}>
                   {u.displayName}
                 </Text>
-                <Text style={{ fontSize: 12, color: theme.colors.subtext }}>@{u.username}</Text>
+                <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>@{u.username}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>

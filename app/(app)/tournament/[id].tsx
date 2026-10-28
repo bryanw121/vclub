@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Text, TouchableOpacity, View } from 'react-native'
+import { TouchableOpacity, View } from 'react-native'
+import { Text } from '../../../components/ui/Text'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { theme } from '../../../constants'
 import { TOURNAMENT_TABS } from '../../../constants/tournamentCopy'
@@ -229,7 +230,7 @@ export default function TournamentDetailScreen() {
                 >
                   <Text style={{
                     fontFamily: activeTab === tab ? theme.fonts.bodySemiBold : theme.fonts.body,
-                    fontSize: 13,
+                    fontSize: theme.font.size.smd,
                     color: activeTab === tab ? theme.colors.text : theme.colors.subtext,
                   }}>{tab}</Text>
                 </TouchableOpacity>

@@ -1,5 +1,6 @@
 import React from 'react'
-import { Platform, Pressable, Text } from 'react-native'
+import { Platform, Pressable } from 'react-native'
+import { Text } from './ui/Text'
 import * as Linking from 'expo-linking'
 import { theme } from '../constants'
 import { venmoNote, venmoPayLinks } from '../utils/venmo'
@@ -46,7 +47,7 @@ export function VenmoPayButton({ handle, amount, title, date, label }: Props) {
         ...(Platform.OS === 'web' ? { cursor: 'pointer', touchAction: 'manipulation' } as object : null),
       })}
     >
-      <Text style={{ fontSize: 18 }}>💸</Text>
+      <Text style={{ fontSize: theme.font.emoji.xs }}>💸</Text>
       <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.onPrimary }}>
         {label}
       </Text>

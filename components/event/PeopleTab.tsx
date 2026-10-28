@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react'
-import { Platform, View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
+import { Platform, View, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
+import { Text } from '../ui/Text'
 import { RefreshControl } from '../RefreshControl'
 import { GestureDetector, Gesture, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated'

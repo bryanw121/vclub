@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Animated, Image, Platform, Text, View } from 'react-native'
+import { Animated, Image, Platform, View } from 'react-native'
+import { Text } from '../components/ui/Text'
 import { useFonts } from 'expo-font'
 import {
   SpaceGrotesk_400Regular,
@@ -18,6 +19,7 @@ import { Stack, usePathname, useRouter, useSegments } from 'expo-router'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { SessionProvider, useSession } from '../contexts/session'
+import { TextScaleProvider } from '../contexts/textScale'
 import { routes, toRoute } from '../utils/routes'
 import { isProtectedPath, setPostSignInRedirect, takePostSignInRedirect } from '../utils/authGate'
 import { supabase } from '../lib/supabase'
@@ -63,9 +65,9 @@ function AppSplash({ opacity }: { opacity: Animated.Value }) {
         end={{ x: 1, y: 1 }}
         style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 }}
       >
-        <Text style={{ fontSize: 48, fontWeight: '800', color: theme.colors.white, letterSpacing: -1 }}>vteam</Text>
+        <Text style={{ fontSize: theme.font.heading.splash, fontWeight: '800', color: theme.colors.white, letterSpacing: -1 }}>vteam</Text>
         <View style={{ backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-          <Text style={{ fontSize: 11, fontWeight: '700', color: theme.colors.white, letterSpacing: 1.5 }}>BETA</Text>
+          <Text style={{ fontSize: theme.font.size.xs, fontWeight: '700', color: theme.colors.white, letterSpacing: 1.5 }}>BETA</Text>
         </View>
       </LinearGradient>
     </Animated.View>
@@ -75,7 +77,9 @@ function AppSplash({ opacity }: { opacity: Animated.Value }) {
 function RootLayout() {
   return (
     <SessionProvider>
-      <RootNavigator />
+      <TextScaleProvider>
+        <RootNavigator />
+      </TextScaleProvider>
     </SessionProvider>
   )
 }

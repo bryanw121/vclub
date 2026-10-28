@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
-import { View, Text, TouchableOpacity, TextInput, Animated, Modal, ActivityIndicator } from 'react-native'
+import { View, TouchableOpacity, Animated, Modal, ActivityIndicator } from 'react-native'
+import { Text, TextInput } from '../../components/ui/Text'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import * as Linking from 'expo-linking'
@@ -194,7 +195,7 @@ export default function Login() {
             ...(ball.right !== undefined ? { right: `${ball.right}%` } : { left: `${ball.left ?? 0}%` }),
           }}
         >
-          <Animated.Text style={{ fontSize: 64, opacity: 0.55, transform: [{ scale: scales[i] }] }}>
+          <Animated.Text style={{ fontSize: theme.font.emoji.giant, opacity: 0.55, transform: [{ scale: scales[i] }] }}>
             🏐
           </Animated.Text>
         </TouchableOpacity>
@@ -207,10 +208,10 @@ export default function Login() {
           style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}
         >
           <View style={{ backgroundColor: theme.colors.card, borderRadius: 24, padding: 32, alignItems: 'center', gap: 12, maxWidth: 300 }}>
-            <Text style={{ fontSize: 48 }}>🏐🏆🏐</Text>
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: theme.colors.primary, textAlign: 'center' }}>You're a natural!</Text>
-            <Text style={{ fontSize: 15, color: '#666', textAlign: 'center' }}>10 spikes. The team needs you. Now go sign in.</Text>
-            <Text style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>tap to dismiss</Text>
+            <Text style={{ fontSize: theme.font.emoji.hero }}>🏐🏆🏐</Text>
+            <Text style={{ fontSize: theme.font.heading.md, fontWeight: 'bold', color: theme.colors.primary, textAlign: 'center' }}>You're a natural!</Text>
+            <Text style={{ fontSize: theme.font.size.lgs, color: '#666', textAlign: 'center' }}>10 spikes. The team needs you. Now go sign in.</Text>
+            <Text style={{ fontSize: theme.font.size.sm, color: '#aaa', marginTop: 4 }}>tap to dismiss</Text>
           </View>
         </TouchableOpacity>
       </Modal>

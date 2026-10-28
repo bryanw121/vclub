@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFocusEffect, Stack, usePathname, useRouter } from "expo-router";
-import { Animated, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Text } from "../../../components/ui/Text";
 import { BlurView } from "expo-blur";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Slot } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TabsActiveContext, TabsContext, TabsShellContext } from "../../../contexts/tabs";
 import { useWebNav } from "../../../contexts/webNav";
-import { theme, BREAKPOINTS, TABS, tabIndexFromPath } from "../../../constants";
+import { theme, BREAKPOINTS, TABS, TIGHT_TEXT_SCALE, tabIndexFromPath } from "../../../constants";
 import type { CreateMenuOption } from "../../../constants";
 import { CreateMenuList } from "../../../components/CreateMenuList";
 import { useChatUnread } from "../../../hooks/useChatUnread";
@@ -348,13 +349,13 @@ export default function TabsLayout() {
                             alignItems: "center", justifyContent: "center",
                             paddingHorizontal: 2,
                           }}>
-                            <Text style={{ fontFamily: theme.fonts.bodyBold, fontSize: theme.font.size.xs, color: theme.colors.white, lineHeight: 13 }}>
+                            <Text maxFontSizeMultiplier={TIGHT_TEXT_SCALE} style={{ fontFamily: theme.fonts.bodyBold, fontSize: theme.font.size.xs, color: theme.colors.white, lineHeight: 13 }}>
                               {badge > 99 ? "99+" : badge}
                             </Text>
                           </View>
                         )}
                       </View>
-                      <Text style={{
+                      <Text numberOfLines={1} maxFontSizeMultiplier={TIGHT_TEXT_SCALE} style={{
                         fontSize: theme.font.size.xs,
                         fontFamily: active ? theme.fonts.bodySemiBold : theme.fonts.body,
                         color: active ? theme.colors.white : 'rgba(255,255,255,0.5)',

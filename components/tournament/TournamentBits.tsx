@@ -1,5 +1,6 @@
 import React from 'react'
-import { Text, TouchableOpacity, View } from 'react-native'
+import { TouchableOpacity, View } from 'react-native'
+import { Text } from '../ui/Text'
 import { theme } from '../../constants'
 import { profileAvatarSmallUri } from '../../utils'
 import { ProfileAvatar } from '../ProfileAvatar'
@@ -23,7 +24,7 @@ export function TourneyStatusBadge({ status }: { status: string }) {
   const s = map[status] ?? { bg: theme.colors.border, color: theme.colors.subtext, label: status }
   return (
     <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: s.bg }}>
-      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: s.color, letterSpacing: 0.3 }}>{s.label}</Text>
+      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, color: s.color, letterSpacing: 0.3 }}>{s.label}</Text>
     </View>
   )
 }
@@ -31,7 +32,7 @@ export function TourneyStatusBadge({ status }: { status: string }) {
 export function HeroPill({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <View style={{ flex: 1, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: accent ? theme.colors.accent : 'rgba(255,255,255,0.1)', alignItems: 'center' }}>
-      <Text style={{ fontFamily: theme.fonts.display, fontSize: 15, color: accent ? theme.colors.accentInk : theme.colors.text, letterSpacing: -0.3 }}>{value}</Text>
+      <Text style={{ fontFamily: theme.fonts.display, fontSize: theme.font.size.lgs, color: accent ? theme.colors.accentInk : theme.colors.text, letterSpacing: -0.3 }}>{value}</Text>
       <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: accent ? theme.colors.accentInk : 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 1 }}>{label}</Text>
     </View>
   )
@@ -51,8 +52,8 @@ export function TeamSectionLabel({ title, count }: { title: string; count: numbe
 export function ScheduleSectionLabel({ title, count }: { title: string; count: number }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4, marginTop: 8, paddingHorizontal: 2 }}>
-      <Text style={{ fontFamily: theme.fonts.display, fontSize: 17, color: theme.colors.text, letterSpacing: -0.3 }}>{title}</Text>
-      <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, color: theme.colors.subtext }}>{count} matches</Text>
+      <Text style={{ fontFamily: theme.fonts.display, fontSize: theme.font.size.lgm, color: theme.colors.text, letterSpacing: -0.3 }}>{title}</Text>
+      <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext }}>{count} matches</Text>
     </View>
   )
 }
@@ -73,7 +74,7 @@ export function OrgButton({ label, color, onPress, disabled }: { label: string; 
       disabled={disabled}
       style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: color + '18', borderWidth: 1, borderColor: color + '44', opacity: disabled ? 0.5 : 1 }}
     >
-      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11.5, color }}>{label}</Text>
+      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.sm, color }}>{label}</Text>
     </TouchableOpacity>
   )
 }

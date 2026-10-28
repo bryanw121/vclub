@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react'
-import { ScrollView, Switch, Text, View } from 'react-native'
+import { ScrollView, Switch, View } from 'react-native'
+import { Text } from '../../../../components/ui/Text'
 import { RefreshControl } from '../../../../components/RefreshControl'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'
 import { useMyProfile } from '../../../../hooks/useMyProfile'

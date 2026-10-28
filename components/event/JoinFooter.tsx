@@ -1,5 +1,6 @@
 import React from 'react'
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { StyleSheet, TouchableOpacity, View } from 'react-native'
+import { Text } from '../ui/Text'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { Button } from '../Button'
 import { APPROVAL_REQUIRED_NOTE, shared, theme } from '../../constants'
@@ -98,7 +99,7 @@ export function JoinFooter({ eventDate, eventStatus, requiresApproval, attendanc
 
 const styles = StyleSheet.create({
   signupTime: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: theme.spacing.sm },
-  signupTimeLabel: { fontFamily: theme.fonts.bodySemiBold, fontWeight: '700', fontSize: 15, color: theme.colors.timeText },
+  signupTimeLabel: { fontFamily: theme.fonts.bodySemiBold, fontWeight: '700', fontSize: theme.font.size.lgs, color: theme.colors.timeText },
   footer: {
     bottom: 0,
     left: 0,

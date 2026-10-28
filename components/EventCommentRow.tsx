@@ -1,4 +1,5 @@
-import { Platform, View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native'
+import { Platform, View, TouchableOpacity, StyleSheet, Alert } from 'react-native'
+import { Text } from './ui/Text'
 import * as Linking from 'expo-linking'
 import { useRouter } from 'expo-router'
 import Ionicons from '@expo/vector-icons/Ionicons'

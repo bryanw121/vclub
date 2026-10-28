@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { ScrollView, TouchableOpacity, View } from 'react-native'
+import { Text } from '../../components/ui/Text'
 import { RefreshControl } from '../../components/RefreshControl'
 import { useRouter } from 'expo-router'
 import Ionicons from '@expo/vector-icons/Ionicons'

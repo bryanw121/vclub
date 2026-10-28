@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, Platform } from 'react-native'
+import { View, TouchableOpacity, Platform } from 'react-native'
+import { Text, TextInput } from './ui/Text'
 import { supabase } from '../lib/supabase'
 import { shared, theme } from '../constants'
 import type { MajorCity } from '../types'
@@ -94,7 +95,7 @@ export function MajorCityAutocomplete({ label = 'Metro area', value, onChange, e
         style={[
           shared.input,
           !!error && shared.inputError,
-          Platform.OS === 'web' && { fontSize: 16 },
+          Platform.OS === 'web' && { fontSize: theme.font.size.base },
         ]}
         autoCorrect={false}
         autoCapitalize="none"
@@ -125,14 +126,14 @@ export function MajorCityAutocomplete({ label = 'Metro area', value, onChange, e
             >
               <Text style={{ fontFamily: theme.fonts.body, color: theme.colors.text }}>{c.display_name}</Text>
               {c.country_code !== 'US' ? (
-                <Text style={{ fontSize: 11, color: theme.colors.subtext, marginTop: 2 }}>{c.country_code}</Text>
+                <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, marginTop: 2 }}>{c.country_code}</Text>
               ) : null}
             </TouchableOpacity>
           ))}
         </View>
       )}
       {error || loadError ? (
-        <Text style={{ color: theme.colors.error, fontSize: 12, marginTop: 4 }}>{error || loadError}</Text>
+        <Text style={{ color: theme.colors.error, fontSize: theme.font.size.sm, marginTop: 4 }}>{error || loadError}</Text>
       ) : null}
     </View>
   )

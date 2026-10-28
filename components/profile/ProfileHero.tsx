@@ -1,4 +1,5 @@
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { StyleSheet, TouchableOpacity, View } from 'react-native'
+import { Text } from '../ui/Text'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BADGE_DEFINITIONS, theme } from '../../constants'
 import { profileFullName, volleyballSkillLevelLabel } from '../../utils'
@@ -46,13 +47,13 @@ export function ProfileHero({ profile, uploader, mode, totalCheers, displayedBad
             <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 1, textTransform: 'uppercase' }}>
               Member since {new Date(profile.created_at).getFullYear().toString().slice(2)}
             </Text>
-            <Text style={{ fontFamily: theme.fonts.display, fontSize: 22, letterSpacing: -0.5, color: theme.colors.white, lineHeight: 24 }}>
+            <Text style={{ fontFamily: theme.fonts.display, fontSize: theme.font.heading.md, letterSpacing: -0.5, color: theme.colors.white, lineHeight: 24 }}>
               {profileFullName(profile)}
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 2 }}>
               {profile.position.slice(0, 2).map(pos => (
                 <View key={pos} style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, backgroundColor: theme.colors.accent }}>
-                  <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: theme.colors.accentInk }}>{shortPositionLabel(pos)}</Text>
+                  <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: theme.font.size.xs, color: theme.colors.accentInk }}>{shortPositionLabel(pos)}</Text>
                 </View>
               ))}
             </View>
@@ -129,7 +130,7 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontFamily: theme.fonts.display,
-    fontSize: 26,
+    fontSize: theme.font.heading.lg,
     letterSpacing: -1,
     color: theme.colors.white,
   },

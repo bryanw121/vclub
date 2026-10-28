@@ -1,4 +1,5 @@
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { ScrollView, TouchableOpacity, View } from 'react-native'
+import { Text } from '../ui/Text'
 import { shared } from '../../constants'
 import { dayParts } from '../../utils/courts'
 import type { DayOption } from '../../types'

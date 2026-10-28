@@ -1,5 +1,6 @@
 import React from 'react'
-import { Text, TouchableOpacity, View } from 'react-native'
+import { TouchableOpacity, View } from 'react-native'
+import { Text } from '../ui/Text'
 import { theme } from '../../constants'
 import { SCHEDULE_OPTIONS } from '../../constants/tournamentCopy'
 import { Button } from '../Button'
@@ -8,7 +9,7 @@ import type { ScheduleConfig } from '../../types'
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <View style={{ gap: 8 }}>
-      <Text style={{ fontSize: 13, fontWeight: '600', color: theme.colors.text }}>{label}</Text>
+      <Text style={{ fontSize: theme.font.size.smd, fontWeight: '600', color: theme.colors.text }}>{label}</Text>
       {children}
     </View>
   )
@@ -33,7 +34,7 @@ function Choices<T extends number | null>({ options, value, onSelect, labelFor, 
             accessibilityState={{ selected: active }}
             style={{ paddingHorizontal: padding, paddingVertical: 8, borderRadius: 8, backgroundColor: active ? theme.colors.primary : theme.colors.border }}
           >
-            <Text style={{ fontSize: 13, color: active ? theme.colors.onPrimary : theme.colors.text }}>{labelFor ? labelFor(n) : String(n)}</Text>
+            <Text style={{ fontSize: theme.font.size.smd, color: active ? theme.colors.onPrimary : theme.colors.text }}>{labelFor ? labelFor(n) : String(n)}</Text>
           </TouchableOpacity>
         )
       })}
@@ -73,7 +74,7 @@ export function ScheduleConfigForm({ config, onChange, submitLabel, onSubmit, bu
           labelFor={v => (v === null ? 'Full' : String(v))}
           wrap
         />
-        <Text style={{ fontSize: 11, color: theme.colors.subtext, marginTop: 4 }}>How many different opponents each team faces. Full = everyone plays everyone.</Text>
+        <Text style={{ fontSize: theme.font.size.xs, color: theme.colors.subtext, marginTop: 4 }}>How many different opponents each team faces. Full = everyone plays everyone.</Text>
       </Field>
       <Button label={submitLabel} onPress={onSubmit} loading={busy} disabled={disabled} />
     </View>

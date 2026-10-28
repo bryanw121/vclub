@@ -1,5 +1,6 @@
 import React from 'react'
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, ScrollView, TouchableOpacity, View } from 'react-native'
+import { Text } from '../ui/Text'
 import type { RefreshControlProps } from 'react-native'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { theme } from '../../constants'
@@ -61,12 +62,12 @@ export function OverviewTab(p: Props) {
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
               <Ionicons name="checkmark-circle" size={14} color={theme.colors.primary} />
-              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: theme.colors.primary }}>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.sm, color: theme.colors.primary }}>
                 {myTeam.status === 'free_agent' ? 'Registered as Free Agent' : 'Registered'}
               </Text>
             </View>
-            <Text style={{ fontFamily: theme.fonts.display, fontSize: 17, letterSpacing: -0.3, color: theme.colors.text }}>{myTeam.name}</Text>
-            <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, color: theme.colors.subtext, marginTop: 1 }}>
+            <Text style={{ fontFamily: theme.fonts.display, fontSize: theme.font.size.lgm, letterSpacing: -0.3, color: theme.colors.text }}>{myTeam.name}</Text>
+            <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext, marginTop: 1 }}>
               {p.teams.find(t => t.id === myTeam.id)?.members.length ?? 0} players on roster
             </Text>
           </View>
@@ -75,12 +76,12 @@ export function OverviewTab(p: Props) {
               onPress={p.onGoToTeams}
               style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: theme.colors.background }}
             >
-              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: theme.colors.text }}>Manage →</Text>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.sm, color: theme.colors.text }}>Manage →</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={p.onWithdraw} disabled={p.withdrawing}>
               {p.withdrawing
                 ? <ActivityIndicator size="small" color={theme.colors.error} />
-                : <Text style={{ fontSize: 12, color: theme.colors.error }}>Withdraw</Text>}
+                : <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.error }}>Withdraw</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -110,7 +111,7 @@ export function OverviewTab(p: Props) {
           <Text style={[ts.sectionTitle, { marginBottom: 10 }]}>Team Invitations</Text>
           {p.invites.map(inv => (
             <View key={inv.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
-              <Text style={{ flex: 1, fontSize: 14, color: theme.colors.text }}>Invited to <Text style={{ fontWeight: '600' }}>{inv.team_name}</Text></Text>
+              <Text style={{ flex: 1, fontSize: theme.font.size.md, color: theme.colors.text }}>Invited to <Text style={{ fontWeight: '600' }}>{inv.team_name}</Text></Text>
               <MiniButton label="Accept" tone="primary" disabled={p.acceptingInviteId === inv.id} onPress={() => p.onAcceptInvite(inv.id)} />
               <MiniButton label="Decline" tone="neutral" onPress={() => p.onDeclineInvite(inv.id)} />
             </View>
@@ -134,7 +135,7 @@ export function OverviewTab(p: Props) {
           ) : (
             p.announcements.slice().reverse().map((ann, i) => (
               <View key={ann.id} style={{ paddingTop: i > 0 ? 10 : 0, marginTop: i > 0 ? 10 : 0, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: theme.colors.border }}>
-                <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.text, lineHeight: 20 }}>{ann.body}</Text>
+                <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.smd, color: theme.colors.text, lineHeight: 20 }}>{ann.body}</Text>
                 <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext, marginTop: 3 }}>{formatCommentTime(ann.created_at)}</Text>
               </View>
             ))
@@ -163,12 +164,12 @@ export function OverviewTab(p: Props) {
                 if (!prize) return null
                 return (
                   <View key={prize.id} style={{ flex: 1, alignItems: 'center' }}>
-                    <Text style={{ fontFamily: theme.fonts.display, fontSize: 14, color: theme.colors.text, marginBottom: 4 }}>{prize.amount ?? prize.place_label}</Text>
+                    <Text style={{ fontFamily: theme.fonts.display, fontSize: theme.font.size.md, color: theme.colors.text, marginBottom: 4 }}>{prize.amount ?? prize.place_label}</Text>
                     <View style={{
                       height: PODIUM_HEIGHTS[idx], width: '100%', borderTopLeftRadius: 8, borderTopRightRadius: 8,
                       backgroundColor: PODIUM_COLORS[displayIdx], alignItems: 'center', justifyContent: 'flex-start', paddingTop: 8,
                     }}>
-                      <Text style={{ fontSize: 20 }}>{MEDALS[displayIdx]}</Text>
+                      <Text style={{ fontSize: theme.font.emoji.sm }}>{MEDALS[displayIdx]}</Text>
                     </View>
                     <View style={{ width: '100%', paddingVertical: 5, backgroundColor: theme.colors.borderSoft, borderBottomLeftRadius: 6, borderBottomRightRadius: 6, alignItems: 'center' }}>
                       <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, color: theme.colors.text }}>{prize.place_label}</Text>
@@ -185,10 +186,10 @@ export function OverviewTab(p: Props) {
           )}
           {prizes.length > 3 && prizes.slice(3).map(prize => (
             <View key={prize.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.colors.border, marginTop: 10 }}>
-              <Text style={{ fontSize: 18 }}>🏅</Text>
+              <Text style={{ fontSize: theme.font.emoji.xs }}>🏅</Text>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: theme.colors.text }}>{prize.place_label}</Text>
-                <Text style={{ fontSize: 12, color: theme.colors.subtext }}>{prize.description}{prize.amount ? ` · ${prize.amount}` : ''}</Text>
+                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.smd, color: theme.colors.text }}>{prize.place_label}</Text>
+                <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>{prize.description}{prize.amount ? ` · ${prize.amount}` : ''}</Text>
               </View>
               {isCreator && (
                 <TouchableOpacity hitSlop={8} accessibilityLabel="Delete prize" onPress={() => p.onDeletePrize(prize.id)}>
@@ -214,7 +215,7 @@ export function OverviewTab(p: Props) {
           ].filter(r => !r.hide).map((row, i, arr) => (
             <View key={row.label} style={{ width: '50%', paddingVertical: 9, paddingHorizontal: 4, borderBottomWidth: i < arr.length - (arr.length % 2 === 0 ? 2 : 1) ? 1 : 0, borderBottomColor: theme.colors.borderSoft }}>
               <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>{row.label}</Text>
-              <Text style={{ fontFamily: theme.fonts.display, fontSize: 14, color: theme.colors.text }}>{row.value}</Text>
+              <Text style={{ fontFamily: theme.fonts.display, fontSize: theme.font.size.md, color: theme.colors.text }}>{row.value}</Text>
             </View>
           ))}
         </View>
@@ -224,7 +225,7 @@ export function OverviewTab(p: Props) {
       {!!tournament.description && (
         <View style={ts.card}>
           <Text style={[ts.sectionTitle, { marginBottom: 8 }]}>About</Text>
-          <Text style={{ fontFamily: theme.fonts.body, fontSize: 14, color: theme.colors.text, lineHeight: 21 }}>{tournament.description}</Text>
+          <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.md, color: theme.colors.text, lineHeight: 21 }}>{tournament.description}</Text>
         </View>
       )}
 
@@ -240,8 +241,8 @@ export function OverviewTab(p: Props) {
             { label: 'Point cap',    value: rules.point_cap ? String(rules.point_cap) : 'None' },
           ].map((row, i, arr) => (
             <View key={row.label} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 9, paddingHorizontal: 4, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: theme.colors.borderSoft }}>
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.subtext }}>{row.label}</Text>
-              <Text style={{ fontFamily: theme.fonts.bodyMedium, fontSize: 13, color: theme.colors.text }}>{row.value}</Text>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.smd, color: theme.colors.subtext }}>{row.label}</Text>
+              <Text style={{ fontFamily: theme.fonts.bodyMedium, fontSize: theme.font.size.smd, color: theme.colors.text }}>{row.value}</Text>
             </View>
           ))}
         </View>

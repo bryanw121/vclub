@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { ScrollView, View } from 'react-native'
+import { Text, useScaledFontSize } from '../ui/Text'
 import type { LayoutChangeEvent } from 'react-native'
 import Svg, { Line, Rect, Text as SvgText } from 'react-native-svg'
 import { shared, theme } from '../../constants'
+import { TIGHT_TEXT_SCALE } from '../../constants/textSize'
 import { describeLane, formatClock, gridTicks } from '../../utils/courts'
 import type { FacilityDay, MinuteRange } from '../../types'
 
@@ -27,6 +29,8 @@ const MIN_PX_PER_HOUR = 40
  * the hours scroll on a phone.
  */
 export function CourtGrid({ day, span, nowMin }: Props) {
+  // Axis labels sit in a fixed-height strip, so they grow only a little.
+  const svgLabelSize = useScaledFontSize(theme.font.size.xs, TIGHT_TEXT_SCALE)
   const [viewport, setViewport] = useState(0)
   const scrollRef = useRef<ScrollView>(null)
   const [start, end] = span
@@ -84,7 +88,7 @@ export function CourtGrid({ day, span, nowMin }: Props) {
                 key={t}
                 x={Math.min(Math.max(x(t), 2), width - 2)}
                 y={12}
-                fontSize={theme.font.size.xs}
+                fontSize={svgLabelSize}
                 fontFamily={theme.fonts.body}
                 fill={theme.colors.subtext}
                 textAnchor={t === start ? 'start' : t === end ? 'end' : 'middle'}

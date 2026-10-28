@@ -1,9 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  View, Text, ScrollView, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
-  Image, Pressable, Modal, Alert,
+  View,
+  ScrollView,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Image,
+  Pressable,
+  Modal,
+  Alert,
 } from 'react-native'
+import { Text, TextInput } from '../../../components/ui/Text'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 
@@ -547,8 +555,8 @@ export default function ChatRoomScreen() {
                     <Ionicons name="person" size={16} color={theme.colors.subtext} />
                   </View>
                   <View>
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: theme.colors.text }}>{u.displayName}</Text>
-                    <Text style={{ fontSize: 12, color: theme.colors.subtext }}>@{u.username}</Text>
+                    <Text style={{ fontSize: theme.font.size.md, fontWeight: '600', color: theme.colors.text }}>{u.displayName}</Text>
+                    <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext }}>@{u.username}</Text>
                   </View>
                 </TouchableOpacity>
               ))}

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, ScrollView, Text, TextInput, View, TouchableOpacity, Switch, Modal, StyleSheet, Platform } from 'react-native'
+import { ActivityIndicator, ScrollView, View, TouchableOpacity, Switch, Modal, StyleSheet, Platform } from 'react-native'
+import { Text, TextInput } from '../../components/ui/Text'
 import { RefreshControl } from '../../components/RefreshControl'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
@@ -607,10 +608,10 @@ export default function HostEventScreen() {
       >
         {/* Header */}
         <View style={{ marginBottom: 20 }}>
-          <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 32, letterSpacing: -1.1, color: theme.colors.text }}>
+          <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: theme.font.size.xxl, letterSpacing: -1.1, color: theme.colors.text }}>
             {isEdit ? 'Edit event.' : 'New event.'}
           </Text>
-          <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.subtext, marginTop: 3 }}>
+          <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.smd, color: theme.colors.subtext, marginTop: 3 }}>
             Fill in the basics — you can edit later.
           </Text>
         </View>
@@ -655,11 +656,11 @@ export default function HostEventScreen() {
                       borderColor: theme.colors.border,
                     }}
                   >
-                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 17, letterSpacing: -0.3, color: selected ? theme.colors.white : theme.colors.text }}>
+                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: theme.font.size.lgm, letterSpacing: -0.3, color: selected ? theme.colors.white : theme.colors.text }}>
                       {tag.name}
                     </Text>
                     {meta.subtitle ? (
-                      <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, color: selected ? 'rgba(255,255,255,0.75)' : theme.colors.subtext, marginTop: 2 }}>
+                      <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: selected ? 'rgba(255,255,255,0.75)' : theme.colors.subtext, marginTop: 2 }}>
                         {meta.subtitle}
                       </Text>
                     ) : null}
@@ -717,7 +718,7 @@ export default function HostEventScreen() {
             activeOpacity={0.7}
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}
           >
-            <Text style={{ fontFamily: theme.fonts.body, fontSize: 15, color: theme.colors.text, fontWeight: '500' }}>
+            <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.lgs, color: theme.colors.text, fontWeight: '500' }}>
               {DURATION_OPTIONS.find(o => o.minutes === form.durationMinutes)?.label ?? 'Select'}
             </Text>
             <Ionicons name="chevron-down" size={16} color={theme.colors.subtext} />
@@ -804,7 +805,7 @@ export default function HostEventScreen() {
                       }}
                     >
                       <Text style={{
-                        fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 12.5,
+                        fontFamily: theme.fonts.display, fontWeight: '700', fontSize: theme.font.size.smd,
                         color: active ? theme.colors.background : theme.colors.text,
                       }}>{tag.name}</Text>
                     </TouchableOpacity>
@@ -833,7 +834,7 @@ export default function HostEventScreen() {
         <View style={hostStyles.fieldCard}>
           <Text style={hostStyles.fieldLabel}>Price (optional)</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-            <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 15, color: theme.colors.subtext }}>$</Text>
+            <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.lgs, color: theme.colors.subtext }}>$</Text>
             <TextInput
               testID="event-price-input"
               // Bound to raw text. Never round-trip through parseFloat on
@@ -853,7 +854,7 @@ export default function HostEventScreen() {
             <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 12 }}>
               <Text style={hostStyles.fieldLabel}>Venmo handle (optional)</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 15, color: theme.colors.subtext }}>@</Text>
+                <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.lgs, color: theme.colors.subtext }}>@</Text>
                 <TextInput
                   value={form.venmoHandle}
                   onChangeText={v => setField('venmoHandle', v.replace(/^@/, ''))}
@@ -970,7 +971,7 @@ export default function HostEventScreen() {
                   <DatePickerField value={recurrence.endDate} onChange={d => setRecurrence(prev => ({ ...prev, endDate: d }))} />
                 </View>
                 {eventCount > 0 && (
-                  <Text style={{ fontFamily: theme.fonts.body, fontSize: 12, color: theme.colors.primary }}>
+                  <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.sm, color: theme.colors.primary }}>
                     {eventCount} event{eventCount !== 1 ? 's' : ''} will be created
                   </Text>
                 )}
@@ -995,7 +996,7 @@ export default function HostEventScreen() {
                       backgroundColor: active ? theme.colors.primary : theme.colors.border,
                     }}
                   >
-                    <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 13, color: active ? theme.colors.white : theme.colors.text }}>
+                    <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.smd, color: active ? theme.colors.white : theme.colors.text }}>
                       {club.name}
                     </Text>
                   </TouchableOpacity>
@@ -1043,7 +1044,7 @@ export default function HostEventScreen() {
         >
           {loading
             ? <ActivityIndicator color={theme.colors.background} />
-            : <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 15, letterSpacing: 0.2, color: theme.colors.background }}>
+            : <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: theme.font.size.lgs, letterSpacing: 0.2, color: theme.colors.background }}>
                 {isEdit ? 'Save changes' : (eventCount > 1 ? `Publish ${eventCount} events` : 'Publish event')}
               </Text>
           }
@@ -1080,7 +1081,7 @@ const hostStyles = StyleSheet.create({
   },
   fieldInput: {
     fontFamily: theme.fonts.body,
-    fontSize: 15,
+    fontSize: theme.font.size.lgs,
     color: theme.colors.text,
     fontWeight: '500',
     paddingVertical: 2,

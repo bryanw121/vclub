@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Animated, Image, Platform, Pressable, View, Text, TouchableOpacity } from 'react-native'
+import { Animated, Image, Platform, Pressable, View, TouchableOpacity } from 'react-native'
+import { Text } from '../../components/ui/Text'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { Stack, useRouter, usePathname } from 'expo-router'
-import { theme, BADGE_DEFINITIONS, BREAKPOINTS, TABS, tabIndexFromPath } from '../../constants'
+import { theme, BADGE_DEFINITIONS, BREAKPOINTS, TABS, TIGHT_TEXT_SCALE, tabIndexFromPath } from '../../constants'
 import type { CreateMenuOption } from '../../constants'
 import { CreateMenuList } from '../../components/CreateMenuList'
 import { WebNavContext } from '../../contexts/webNav'
@@ -172,7 +173,7 @@ function AppLayoutInner() {
                         alignItems: 'center', justifyContent: 'center',
                         paddingHorizontal: 3,
                       }}>
-                        <Text style={{ fontSize: theme.font.size.xs, fontWeight: '800', color: theme.colors.white, lineHeight: 13 }}>
+                        <Text maxFontSizeMultiplier={TIGHT_TEXT_SCALE} style={{ fontSize: theme.font.size.xs, fontWeight: '800', color: theme.colors.white, lineHeight: 13 }}>
                           {badge > 99 ? '99+' : badge}
                         </Text>
                       </View>

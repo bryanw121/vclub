@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Platform, Pressable, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { Platform, Pressable, Share, StyleSheet, TouchableOpacity, View } from 'react-native'
+import { Text } from '../ui/Text'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import * as Linking from 'expo-linking'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'

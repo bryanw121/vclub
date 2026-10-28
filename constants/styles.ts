@@ -157,7 +157,7 @@ export const shared = StyleSheet.create({
     width: '85%',
     ...shadow.md,
   },
-  modalEmoji:    { fontSize: 48 },
+  modalEmoji:    { fontSize: theme.font.emoji.hero },
   modalTitle:    { fontSize: font.size.lg, fontWeight: font.weight.bold,   color: colors.text,    textAlign: 'center' },
   modalBody:     { fontSize: font.size.sm, fontWeight: font.weight.regular, color: colors.subtext, textAlign: 'center' },
   modalButton: {
@@ -208,7 +208,7 @@ export const shared = StyleSheet.create({
     justifyContent: 'center',
   },
   playerCardAvatarInitial: {
-    fontSize: 13,
+    fontSize: theme.font.size.smd,
     fontWeight: font.weight.bold,
     letterSpacing: 0.5,
   },
@@ -228,10 +228,10 @@ export const shared = StyleSheet.create({
     borderWidth: 1, borderColor: theme.colors.timeBorder,
   },
   timePillLabel: {
-    fontFamily: theme.fonts.bodySemiBold, fontWeight: '800', fontSize: 15,
+    fontFamily: theme.fonts.bodySemiBold, fontWeight: '800', fontSize: theme.font.size.lgs,
     color: theme.colors.timeInk, letterSpacing: -0.2,
   },
-  timePillLabelLg: { fontSize: 17 },
+  timePillLabelLg: { fontSize: theme.font.size.lgm },
   externalCard: {
     backgroundColor: theme.colors.card,
     borderRadius: 20,
@@ -258,7 +258,7 @@ export const shared = StyleSheet.create({
   },
   externalDate: {
     fontFamily: theme.fonts.display,
-    fontSize: 28,
+    fontSize: theme.font.heading.xl,
     lineHeight: 30,
     letterSpacing: -1.2,
   },
@@ -413,7 +413,7 @@ export const shared = StyleSheet.create({
   chipActiveTint:  { backgroundColor: colors.primary + '24', borderColor: colors.primary },
   chipLabel: {
     fontFamily: theme.fonts.bodySemiBold,
-    fontSize: 12.5,
+    fontSize: theme.font.size.smd,
     fontWeight: font.weight.semibold,
     color: colors.subtext,
   },
@@ -461,7 +461,7 @@ export const shared = StyleSheet.create({
   },
   screenHeaderTitle: {
     fontFamily: theme.fonts.display,
-    fontSize: 34,
+    fontSize: theme.font.heading.xxl,
     lineHeight: 34,
     letterSpacing: -1.2,
     color: colors.text,
@@ -840,4 +840,18 @@ export const shared = StyleSheet.create({
   legalTableLabel:  { fontFamily: fonts.bodyMedium, fontSize: font.size.sm, color: colors.subtext, textTransform: 'uppercase', letterSpacing: 0.5 },
   agreementLine:    { fontFamily: fonts.body, fontSize: font.size.xs, lineHeight: 16, color: colors.subtext, textAlign: 'center', marginTop: spacing.md },
   agreementLink:    { color: colors.primary, textDecorationLine: 'underline' },
+
+  // Settings → Display (text size)
+  settingsOptionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    minHeight: 52, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    backgroundColor: colors.card,
+  },
+  settingsOptionRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  settingsOptionLabel:     { flex: 1, fontFamily: fonts.bodyMedium, fontSize: font.size.md, color: colors.subtext },
+  settingsPreviewBubble: {
+    alignSelf: 'flex-end', maxWidth: '85%', backgroundColor: colors.primary,
+    borderRadius: 18, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+  },
+  settingsPreviewBubbleText: { fontFamily: fonts.body, fontSize: font.size.md, color: colors.onPrimary },
 })

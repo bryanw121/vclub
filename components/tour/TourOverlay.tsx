@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { AccessibilityInfo, Animated, Platform, Pressable, Text, View, useWindowDimensions, type ViewStyle } from 'react-native'
+import { AccessibilityInfo, Animated, Platform, Pressable, View, useWindowDimensions, type ViewStyle } from 'react-native'
+import { Text } from '../ui/Text'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { shared } from '../../constants'
 import { Button } from '../Button'

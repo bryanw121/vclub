@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   View,
-  Text,
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
@@ -10,9 +9,9 @@ import {
   Modal,
   Pressable,
   Platform,
-  TextInput,
   StyleSheet,
 } from 'react-native'
+import { Text, TextInput } from '../../../components/ui/Text'
 import { RefreshControl } from '../../../components/RefreshControl'
 import { LinearGradient } from 'expo-linear-gradient'
 import Ionicons from '@expo/vector-icons/Ionicons'
@@ -718,7 +717,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   avatarInitial: {
-    fontSize: 32,
+    fontSize: theme.font.size.xxl,
     fontWeight: theme.font.weight.bold,
     color: theme.colors.primary,
   },
