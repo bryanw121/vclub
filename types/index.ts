@@ -1577,3 +1577,19 @@ export type TextScaleContextValue = {
   osScale: number
   setSize: (size: TextSizeId) => void
 }
+
+// ─── Account deletion (#99) ───────────────────────────────────────────────────
+
+/** Who takes over something the deleted account owned. */
+export type AccountDeletionSuccessor = Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name'>
+
+/**
+ * What deleting the signed-in account does, from `get_account_deletion_preview()`
+ * (the same plan `prepare_account_deletion` then carries out).
+ */
+export type AccountDeletionPlan = {
+  clubs: { id: string; name: string; action: 'transfer' | 'delete'; to: AccountDeletionSuccessor | null }[]
+  tournaments: { id: string; title: string; action: 'transfer' | 'delete'; with_club: string | null; to: AccountDeletionSuccessor | null }[]
+  events: { id: string; title: string; event_date: string; action: 'transfer' | 'cancel'; to: AccountDeletionSuccessor | null }[]
+  past_events_kept: number
+}

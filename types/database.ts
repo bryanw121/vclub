@@ -1,5 +1,7 @@
 // TODO(#102): hand-edited to match migrations 20261028120000_privacy_private_reads.sql and 20261028120200_rate_limit_core.sql until they can be
 // applied on beta (Supabase write approval pending). Regenerate from beta before merging; do not keep this line.
+// TODO(#99 account deletion): hand-edited to add the functions from migration 20261028130000_account_deletion.sql
+// until it can be applied on beta (Supabase write approval pending). Regenerate from beta before merging; do not keep this line.
 export type Json =
   | string
   | number
@@ -2051,6 +2053,7 @@ export type Database = {
       }
     }
     Functions: {
+      account_deletion_plan: { Args: { p_user: string }; Returns: Json }
       accept_tournament_invite: {
         Args: { p_invite_id: string }
         Returns: string
@@ -2065,6 +2068,7 @@ export type Database = {
         Returns: undefined
       }
       find_or_create_dm: { Args: { other_user_id: string }; Returns: string }
+      get_account_deletion_preview: { Args: never; Returns: Json }
       get_chat_unread_count: { Args: never; Returns: number }
       get_email_by_username: { Args: { p_username: string }; Returns: string }
       get_event_card_attendee_previews: {
@@ -2135,6 +2139,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      prepare_account_deletion: { Args: { p_user: string }; Returns: Json }
       replace_tournament_schedule: {
         Args: { p_matches: Json; p_pools?: Json; p_tournament_id: string }
         Returns: number
