@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, ScrollView, TouchableOpacity, View } from 'react-native'
+import { Text } from '../ui/Text'
 import type { RefreshControlProps } from 'react-native'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { shared, theme } from '../../constants'
@@ -66,7 +67,7 @@ export function ScheduleTab(p: Props) {
     return (
       <React.Fragment key={match.id}>
         {showTimeHeader && (
-          <Text style={{ fontFamily: theme.fonts.display, fontSize: 13, color: theme.colors.text, paddingVertical: 10, paddingHorizontal: 2, letterSpacing: -0.2 }}>{timeStr}</Text>
+          <Text style={{ fontFamily: theme.fonts.display, fontSize: theme.font.size.smd, color: theme.colors.text, paddingVertical: 10, paddingHorizontal: 2, letterSpacing: -0.2 }}>{timeStr}</Text>
         )}
         <View style={{
           backgroundColor: isMyMatch ? theme.colors.primarySoft : theme.colors.card,
@@ -100,13 +101,13 @@ export function ScheduleTab(p: Props) {
                 )}
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={{ flex: 1, fontFamily: theme.fonts.display, fontSize: 14, color: theme.colors.text, letterSpacing: -0.2 }}>{teamName(match.team_a_id)}</Text>
+                <Text style={{ flex: 1, fontFamily: theme.fonts.display, fontSize: theme.font.size.md, color: theme.colors.text, letterSpacing: -0.2 }}>{teamName(match.team_a_id)}</Text>
                 <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: isDone ? theme.colors.border : 'transparent', minWidth: 40, alignItems: 'center' }}>
-                  <Text style={{ fontFamily: theme.fonts.display, fontSize: isDone ? 17 : 13, color: isDone ? theme.colors.text : theme.colors.subtext, letterSpacing: -0.5 }}>
+                  <Text style={{ fontFamily: theme.fonts.display, fontSize: isDone ? theme.font.size.lgm : theme.font.size.smd, color: isDone ? theme.colors.text : theme.colors.subtext, letterSpacing: -0.5 }}>
                     {isDone && match.winner_id ? (match.winner_id === match.team_a_id ? '✓' : '✗') : 'vs'}
                   </Text>
                 </View>
-                <Text style={{ flex: 1, fontFamily: theme.fonts.display, fontSize: 14, color: theme.colors.text, letterSpacing: -0.2, textAlign: 'right' }}>{teamName(match.team_b_id)}</Text>
+                <Text style={{ flex: 1, fontFamily: theme.fonts.display, fontSize: theme.font.size.md, color: theme.colors.text, letterSpacing: -0.2, textAlign: 'right' }}>{teamName(match.team_b_id)}</Text>
               </View>
             </>
           )}
@@ -161,7 +162,7 @@ export function ScheduleTab(p: Props) {
       <ScrollView contentContainerStyle={ts.scrollContent} showsVerticalScrollIndicator={false} refreshControl={p.refreshControl}>
         {isCreator ? (
           <View style={[shared.card, { gap: 16 }]}>
-            <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 16, color: theme.colors.text }}>Generate Schedule</Text>
+            <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: theme.font.size.base, color: theme.colors.text }}>Generate Schedule</Text>
             <Text style={ts.muted13}>Auto-assigns teams to pools and creates round-robin matches. You can edit individual matches after generating.</Text>
             <ScheduleConfigForm
               config={p.config}
@@ -172,7 +173,7 @@ export function ScheduleTab(p: Props) {
               onSubmit={() => { void p.onGenerate() }}
             />
             {registeredCount < 2 && (
-              <Text style={{ fontSize: 12, color: theme.colors.subtext, textAlign: 'center' }}>Need at least 2 registered teams.</Text>
+              <Text style={{ fontSize: theme.font.size.sm, color: theme.colors.subtext, textAlign: 'center' }}>Need at least 2 registered teams.</Text>
             )}
           </View>
         ) : (
@@ -189,7 +190,7 @@ export function ScheduleTab(p: Props) {
         editingConfig ? (
           <View style={[shared.card, { gap: 16, marginBottom: 16 }]}>
             <View style={ts.rowBetween}>
-              <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 16, color: theme.colors.text }}>Regenerate Schedule</Text>
+              <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: theme.font.size.base, color: theme.colors.text }}>Regenerate Schedule</Text>
               <TouchableOpacity hitSlop={8} accessibilityLabel="Close" onPress={() => setEditingConfig(false)}>
                 <Ionicons name="close" size={20} color={theme.colors.subtext} />
               </TouchableOpacity>

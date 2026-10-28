@@ -1,5 +1,6 @@
 import React from 'react'
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { Text } from '../ui/Text'
 import { RefreshControl } from '../RefreshControl'
 import { Image } from 'expo-image'
 import Ionicons from '@expo/vector-icons/Ionicons'

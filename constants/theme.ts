@@ -82,9 +82,40 @@ export const theme = {
       smd: 13,
       md:  14,
       lgs: 15,
+      /** Inputs on web: below 16 iOS Safari zooms the page on focus. */
+      base: 16,
+      lgm: 17,
       lg:  18,
       xl:  24,
       xxl: 32,
+    },
+    /** Display type (Space Grotesk titles, big numbers). */
+    heading: {
+      sm:     20,
+      md:     22,
+      lg:     26,
+      xl:     28,
+      xxl:    34,
+      hero:   44,
+      splash: 48,
+    },
+    /** Emoji used as pictures (empty states, medals, pickers). */
+    emoji: {
+      xs:    18,
+      sm:    20,
+      md:    22,
+      lg:    24,
+      xl:    28,
+      xxl:   36,
+      hero:  48,
+      giant: 64,
+    },
+    /** Faint decorative glyphs behind card content (clipped by their card). */
+    watermark: {
+      sm: 80,
+      md: 110,
+      lg: 120,
+      xl: 140,
     },
     weight: {
       regular:  '400' as const,

@@ -1,4 +1,5 @@
-import { Text, TouchableOpacity } from 'react-native'
+import { TouchableOpacity } from 'react-native'
+import { Text } from './Text'
 import { shared } from '../../constants'
 import type { ChipProps } from '../../types'
 

@@ -1515,3 +1515,25 @@ export type VenmoLinks = {
   /** Venmo's web pay page; used on web and as the native fallback. */
   web: string
 }
+
+// ─── Text size (#43) ──────────────────────────────────────────────────────────
+
+/** The in-app text size setting (Settings → Display). Stored on the device. */
+export type TextSizeId = 'small' | 'default' | 'large' | 'xlarge'
+
+export type TextSizeOption = {
+  id: TextSizeId
+  label: string
+  /** Multiplier on every font size token. Composes with the OS / browser text size. */
+  scale: number
+}
+
+export type TextScaleContextValue = {
+  /** The chosen setting. */
+  size: TextSizeId
+  /** The setting's multiplier (1 at Default). */
+  appScale: number
+  /** The OS (native Dynamic Type / font scale) or browser (root font size / 16) text size. */
+  osScale: number
+  setSize: (size: TextSizeId) => void
+}

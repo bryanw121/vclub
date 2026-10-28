@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native'
+import { Pressable, View } from 'react-native'
+import { Text } from './Text'
 import { ANALYTICS_EVENTS, shared } from '../../constants'
 import { track } from '../../lib/analytics'
 import { useOneTimeBanner } from '../../hooks/useOneTimeBanner'

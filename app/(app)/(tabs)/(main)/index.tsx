@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo, useCallback, memo, useEffect, useLayoutEffect } from 'react'
 import { useRouter } from 'expo-router'
-import { Dimensions, Platform, View, ScrollView, SectionList, Text, TouchableOpacity, PanResponder, Animated, ActivityIndicator, StyleSheet } from 'react-native'
+import { Dimensions, Platform, View, ScrollView, SectionList, TouchableOpacity, PanResponder, Animated, ActivityIndicator, StyleSheet } from 'react-native'
+import { Text } from '../../../../components/ui/Text'
 import { DocPullToRefresh, RefreshControl } from '../../../../components/RefreshControl'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useFeedRsvp, useMonthEvents } from '../../../../hooks/useMonthEvents'
@@ -18,7 +19,7 @@ import { NextUpCard } from '../../../../components/events/NextUpCard'
 import { IconButton } from '../../../../components/ui'
 import { myStatusFor, useMyUpcomingEvents } from '../../../../hooks/useMyUpcomingEvents'
 import { NotificationPopup } from '../../../../components/NotificationPopup'
-import { BANNERS, BREAKPOINTS, FEED_STALE_NOTICE, TOUR_TARGETS, shared, theme } from '../../../../constants'
+import { BANNERS, BREAKPOINTS, COMPACT_TEXT_SCALE, FEED_STALE_NOTICE, TIGHT_TEXT_SCALE, TOUR_TARGETS, shared, theme } from '../../../../constants'
 import { TourTarget } from '../../../../components/tour/TourTarget'
 import { OneTimeBanner } from '../../../../components/ui'
 import { useFeedRegion } from '../../../../hooks/useUserSettings'
@@ -27,6 +28,7 @@ import { DEFAULT_FEED_FILTERS, feedFiltersNow, loadFeedFilters, saveFeedFilters,
 import { useTabsShell } from '../../../../contexts/tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useSession } from '../../../../contexts/session'
+import { useTextScale } from '../../../../contexts/textScale'
 import { useRequireSignIn } from '../../../../hooks/useRequireSignIn'
 import { SignInButton } from '../../../../components/SignInButton'
 import { addMonths } from '../../../../utils/monthKeys'
@@ -452,7 +454,7 @@ export default function EventsScreen() {
                   : d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
                 return (
                   <View key={month} style={{ marginBottom: 32 }}>
-                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 20, letterSpacing: -0.4, color: theme.colors.text, marginBottom: 12 }}>
+                    <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: theme.font.heading.sm, letterSpacing: -0.4, color: theme.colors.text, marginBottom: 12 }}>
                       {label}
                     </Text>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
@@ -730,10 +732,18 @@ type WeekStripContentProps = {
 
 const DAY_ABBREVS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
+/** Width a three-letter day name ("WED") needs at 1x; narrower cells (small phones, large text) get "We". */
+const WEEK_DAY_NAME_WIDTH = 30
+
 const WeekStripContent = memo(function WeekStripContent({ weekDays, selectedDate, markedDates, onSelectDate, onPrevWeek, onNextWeek }: WeekStripContentProps) {
+  const [rowWidth, setRowWidth] = useState(0)
+  const { appScale, osScale } = useTextScale()
+  const textScale = Math.min(appScale * osScale, TIGHT_TEXT_SCALE)
+  const compact = rowWidth > 0 && (rowWidth - 6 * 6) / 7 < WEEK_DAY_NAME_WIDTH * textScale
+  const dayNames = compact ? DAY_LABELS : DAY_ABBREVS
   return (
     <View style={{ paddingBottom: theme.spacing.sm, paddingTop: theme.spacing.xs }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <View onLayout={e => setRowWidth(e.nativeEvent.layout.width)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         {weekDays.map(day => {
           // `day` is a local-midnight Date; toISOString() would shift it to the
           // previous day for any viewer at a positive UTC offset.
@@ -756,19 +766,19 @@ const WeekStripContent = memo(function WeekStripContent({ weekDays, selectedDate
                 gap: 3,
               }}
             >
-              <Text style={{
+              <Text numberOfLines={1} maxFontSizeMultiplier={TIGHT_TEXT_SCALE} style={{
                 fontFamily: theme.fonts.body,
                 fontSize: theme.font.size.xs,
                 fontWeight: theme.font.weight.bold,
-                letterSpacing: 0.8,
+                letterSpacing: compact ? 0 : 0.8,
                 color: isSelected ? theme.colors.white : theme.colors.subtext,
                 opacity: isSelected ? 0.7 : 1,
               }}>
-                {DAY_ABBREVS[day.getDay()]}
+                {dayNames[day.getDay()]}
               </Text>
-              <Text style={{
+              <Text numberOfLines={1} maxFontSizeMultiplier={compact ? COMPACT_TEXT_SCALE : TIGHT_TEXT_SCALE} style={{
                 fontFamily: theme.fonts.display,
-                fontSize: 20,
+                fontSize: theme.font.heading.sm,
                 lineHeight: 22,
                 color: isSelected ? theme.colors.white : isToday ? theme.colors.primary : theme.colors.text,
               }}>
@@ -991,20 +1001,20 @@ const feedStyles = StyleSheet.create({
   },
   sectionDate: {
     fontFamily: theme.fonts.display,
-    fontSize: 20,
+    fontSize: theme.font.heading.sm,
     color: theme.colors.text,
     letterSpacing: -0.3,
   },
   sectionCountText: {
     fontFamily: theme.fonts.body,
-    fontSize: 12,
+    fontSize: theme.font.size.sm,
     fontWeight: theme.font.weight.semibold,
     color: theme.colors.subtext,
   },
   /** Desktop right-rail section labels ("This week", "Next up"). */
   railLabel: {
     fontFamily: theme.fonts.body,
-    fontSize: 11,
+    fontSize: theme.font.size.xs,
     fontWeight: '700',
     letterSpacing: 1,
     color: theme.colors.subtext,

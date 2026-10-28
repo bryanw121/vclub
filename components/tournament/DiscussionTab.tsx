@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, View } from 'react-native'
+import { Text } from '../ui/Text'
 import type { RefreshControlProps } from 'react-native'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -116,7 +117,7 @@ export function DiscussionTab({ comments, hasEarlier, loadingEarlier, onLoadEarl
           {topLevel.length === 0 && (
             <View style={{ alignItems: 'center', paddingVertical: 48 }}>
               <Ionicons name="chatbubbles-outline" size={40} color={theme.colors.border} />
-              <Text style={{ fontSize: 14, color: theme.colors.subtext, marginTop: 12 }}>No messages yet. Start the conversation.</Text>
+              <Text style={{ fontSize: theme.font.size.md, color: theme.colors.subtext, marginTop: 12 }}>No messages yet. Start the conversation.</Text>
             </View>
           )}
           {topLevel.map(c => (

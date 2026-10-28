@@ -1,5 +1,6 @@
 import { Fragment, useMemo } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
+import { Text } from '../ui/Text'
 import { shared, theme } from '../../constants'
 import { parseLegalMarkdown, spansText } from '../../utils/legalMarkdown'
 import type { LegalSpan } from '../../types'

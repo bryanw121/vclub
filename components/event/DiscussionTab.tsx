@@ -1,5 +1,6 @@
 import React, { useRef } from 'react'
-import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native'
+import { View, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native'
+import { Text } from '../ui/Text'
 import { RefreshControl } from '../RefreshControl'
 import { shared, theme } from '../../constants'
 import type { MentionUser } from '../../types'

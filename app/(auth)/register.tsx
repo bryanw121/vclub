@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
-import { View, Text, TouchableOpacity, Alert, TextInput, ActivityIndicator } from 'react-native'
+import { View, TouchableOpacity, Alert, ActivityIndicator } from 'react-native'
+import { Text, TextInput } from '../../components/ui/Text'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { supabase } from '../../lib/supabase'

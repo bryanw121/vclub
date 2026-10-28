@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { KeyboardAvoidingView, Modal, Platform, Text, TouchableOpacity, View } from 'react-native'
+import { KeyboardAvoidingView, Modal, Platform, TouchableOpacity, View } from 'react-native'
+import { Text } from './Text'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { shared, theme } from '../../constants'
 import type { BottomSheetProps } from '../../types'

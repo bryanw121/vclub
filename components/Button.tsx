@@ -1,4 +1,5 @@
-import { TouchableOpacity, Text, ActivityIndicator, StyleProp, ViewStyle } from 'react-native'
+import { TouchableOpacity, ActivityIndicator, StyleProp, ViewStyle } from 'react-native'
+import { Text } from './ui/Text'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { shared, theme } from '../constants'
 import type { IoniconName } from '../types'

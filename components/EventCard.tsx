@@ -1,5 +1,6 @@
 import React, { memo, useState } from 'react'
-import { TouchableOpacity, Text, View, ActivityIndicator } from 'react-native'
+import { TouchableOpacity, View, ActivityIndicator } from 'react-native'
+import { Text } from './ui/Text'
 import { Image } from 'expo-image'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useRouter, usePathname } from 'expo-router'
@@ -137,7 +138,7 @@ function EventCardInner({
     >
       {typeTags.length > 0 && (
         <View pointerEvents="none" style={{ position: 'absolute', right: -10, top: -20 }}>
-          <Text style={{ fontSize: 140, opacity: 0.13 }}>
+          <Text style={{ fontSize: theme.font.watermark.xl, opacity: 0.13 }}>
             {isTournament(typeTags) ? '🏆' : '🏐'}
           </Text>
         </View>
@@ -147,27 +148,27 @@ function EventCardInner({
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
           <TimePill label={time} testID="event-card-time" />
           <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, backgroundColor: theme.colors.accent }}>
-            <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: theme.colors.accentInk }}>
+            <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, color: theme.colors.accentInk }}>
               {day}
             </Text>
           </View>
           {typeTags.map(tag => (
             <View key={tag.id} style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }}>
-              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, color: 'rgba(255,255,255,0.85)' }}>
                 {isTournament([tag]) ? '🏆 ' : ''}{tag.name}
               </Text>
             </View>
           ))}
           {skillTags.slice(0, 1).map(tag => (
             <View key={tag.id} style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: 'rgba(255,255,255,0.6)' }}>
                 {tag.name}
               </Text>
             </View>
           ))}
           {event.clubs && (
             <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radius.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: 'rgba(255,255,255,0.6)' }}>
                 {event.clubs.name}
               </Text>
             </View>
@@ -176,7 +177,7 @@ function EventCardInner({
 
         {/* Title */}
         <Text
-          style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 22, letterSpacing: -0.6, color: theme.colors.white, lineHeight: 26, maxWidth: '78%' }}
+          style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: theme.font.heading.md, letterSpacing: -0.6, color: theme.colors.white, lineHeight: 26, maxWidth: '78%' }}
           numberOfLines={2}
         >
           {event.title}
@@ -186,7 +187,7 @@ function EventCardInner({
         {event.location && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
             <Ionicons name="location-outline" size={12} color="rgba(255,255,255,0.6)" />
-            <Text style={{ fontFamily: theme.fonts.body, fontSize: 12, color: 'rgba(255,255,255,0.6)' }} numberOfLines={1}>
+            <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.sm, color: 'rgba(255,255,255,0.6)' }} numberOfLines={1}>
               {event.location}{surfaceLabel ? ` · ${surfaceLabel}` : ''}
             </Text>
           </View>
@@ -233,10 +234,10 @@ function EventCardInner({
               </View>
             )}
             <View>
-              <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 15, letterSpacing: -0.2, color: theme.colors.white }}>
+              <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: theme.font.size.lgs, letterSpacing: -0.2, color: theme.colors.white }}>
                 {attendeeCount}
                 {event.max_attendees
-                  ? <Text style={{ opacity: 0.4, fontSize: 13 }}>/{event.max_attendees}</Text>
+                  ? <Text style={{ opacity: 0.4, fontSize: theme.font.size.smd }}>/{event.max_attendees}</Text>
                   : null}
               </Text>
               <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: 'rgba(255,255,255,0.5)', fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' }}>
@@ -246,7 +247,7 @@ function EventCardInner({
           </View>
           {onRsvp && currentUserId && awaiting && (
             <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border }}>
-              <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 12, letterSpacing: 0.2, color: theme.colors.subtext }}>{awaiting}</Text>
+              <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: theme.font.size.sm, letterSpacing: 0.2, color: theme.colors.subtext }}>{awaiting}</Text>
             </View>
           )}
           {onRsvp && currentUserId && !awaiting && (
@@ -276,7 +277,7 @@ function EventCardInner({
                     <Text
                       style={{
                         fontFamily: theme.fonts.displaySemiBold,
-                        fontSize: 12,
+                        fontSize: theme.font.size.sm,
                         letterSpacing: 0.2,
                         color: isAttending ? theme.colors.subtext : theme.colors.accentInk,
                       }}
@@ -369,7 +370,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
     >
       {/* Emoji watermark */}
       <View pointerEvents="none" style={{ position: 'absolute', right: -6, top: -14 }}>
-        <Text style={{ fontSize: 80, opacity: 0.07 }}>
+        <Text style={{ fontSize: theme.font.watermark.sm, opacity: 0.07 }}>
           {tourney ? '🏆' : '🏐'}
         </Text>
       </View>
@@ -384,7 +385,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
         paddingVertical: 10,
       }}>
         <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, fontWeight: '700', letterSpacing: 1, color: accentColor }}>{day}</Text>
-        <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 28, lineHeight: 30, color: accentColor, letterSpacing: -1.2 }}>{date}</Text>
+        <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: theme.font.heading.xl, lineHeight: 30, color: accentColor, letterSpacing: -1.2 }}>{date}</Text>
       </View>
 
       {/* Content */}
@@ -399,7 +400,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
               paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.full,
               backgroundColor: tourney ? theme.colors.warm + '22' : theme.colors.primary + '18',
             }}>
-              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 11, color: accentColor }}>
+              <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, color: accentColor }}>
                 {tourney ? '🏆 ' : ''}{tag.name}
               </Text>
             </View>
@@ -409,13 +410,13 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
               paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.full,
               borderWidth: 1, borderColor: theme.colors.border,
             }}>
-              <Text style={{ fontFamily: theme.fonts.body, fontSize: 11, color: theme.colors.subtext }}>{tag.name}</Text>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, color: theme.colors.subtext }}>{tag.name}</Text>
             </View>
           ))}
         </View>
 
         {/* Title */}
-        <Text numberOfLines={1} style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 15, letterSpacing: -0.3, color: theme.colors.text, lineHeight: 18 }}>
+        <Text numberOfLines={1} style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: theme.font.size.lgs, letterSpacing: -0.3, color: theme.colors.text, lineHeight: 18 }}>
           {event.title}
         </Text>
 
@@ -423,7 +424,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
         {event.location && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
             <Ionicons name="location-outline" size={11} color={theme.colors.subtext} />
-            <Text numberOfLines={1} style={{ fontFamily: theme.fonts.body, fontSize: 11.5, color: theme.colors.subtext }}>
+            <Text numberOfLines={1} style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.sm, color: theme.colors.subtext }}>
               {event.location}{surfaceLabel ? ` · ${surfaceLabel}` : ''}
             </Text>
           </View>
@@ -475,7 +476,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
           </View>
           {onRsvp && currentUserId && awaiting && (
             <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, flexShrink: 0, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border }}>
-              <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: theme.colors.subtext }}>{awaiting}</Text>
+              <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: theme.font.size.xs, color: theme.colors.subtext }}>{awaiting}</Text>
             </View>
           )}
           {onRsvp && currentUserId && !awaiting && (
@@ -499,7 +500,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
             >
               {rsvpLoading
                 ? <ActivityIndicator size="small" color={isAttending ? theme.colors.subtext : theme.colors.white} />
-                : <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: 11, color: isAttending ? theme.colors.subtext : theme.colors.white }}>
+                : <Text style={{ fontFamily: theme.fonts.displaySemiBold, fontSize: theme.font.size.xs, color: isAttending ? theme.colors.subtext : theme.colors.white }}>
                     {isAttending ? 'Going ✓' : 'RSVP'}
                   </Text>
               }

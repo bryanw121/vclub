@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react'
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, ScrollView, View } from 'react-native'
+import { Text } from '../../../../components/ui/Text'
 import { RefreshControl } from '../../../../components/RefreshControl'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useFocusEffect } from 'expo-router'

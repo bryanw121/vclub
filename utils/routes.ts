@@ -38,6 +38,7 @@ export type SettingsSection =
   | 'cheers'
   | 'silenced'
   | 'notifications'
+  | 'display'
   | 'feedback'
   | 'badges'
 

@@ -1,5 +1,6 @@
 import type { ComponentProps } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, View } from 'react-native'
+import { Text } from '../ui/Text'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { shared, theme } from '../../constants'
 import type { SettingsSection } from '../../utils/routes'
@@ -22,6 +23,7 @@ const MENU_ITEMS: readonly MenuItem[] = [
   { title: 'Account Settings', icon: 'settings-outline', section: 'account' },
   { title: 'Silenced people', icon: 'eye-off-outline', section: 'silenced' },
   { title: 'Notifications', icon: 'notifications-outline', section: 'notifications' },
+  { title: 'Display', icon: 'text-outline', section: 'display' },
   { title: 'History', icon: 'time-outline', section: 'history' },
   { title: 'Cheers', icon: 'star-outline', section: 'cheers' },
   { title: 'Badges', icon: 'ribbon-outline', section: 'badges' },

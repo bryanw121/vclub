@@ -1,5 +1,6 @@
 import React from 'react'
-import { Platform, View, Text, TouchableOpacity, Alert } from 'react-native'
+import { Platform, View, TouchableOpacity, Alert } from 'react-native'
+import { Text } from '../ui/Text'
 import { RefreshControl } from '../RefreshControl'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import * as Linking from 'expo-linking'
@@ -92,11 +93,11 @@ function HostRow({
       <ProfileAvatar uri={avatarUri} border={border ?? null} size={44} />
       <View style={{ flex: 1 }}>
         <Text style={{ fontFamily: theme.fonts.body, fontSize: theme.font.size.xs, fontWeight: '700', color: theme.colors.subtext, letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</Text>
-        <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 16, color: theme.colors.text, letterSpacing: -0.2 }}>{name}</Text>
+        <Text style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: theme.font.size.base, color: theme.colors.text, letterSpacing: -0.2 }}>{name}</Text>
       </View>
       {!isMe && (
         <TouchableOpacity onPress={onMessage} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border }} hitSlop={4}>
-          <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: 12, color: theme.colors.text }}>Message</Text>
+          <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.sm, color: theme.colors.text }}>Message</Text>
         </TouchableOpacity>
       )}
     </TouchableOpacity>
@@ -155,7 +156,7 @@ export function DetailsTab({
               <View key={s.l} style={{ flex: 1, backgroundColor: theme.colors.card, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' }}>
                 <Text
                   testID={s.l === 'Price' ? 'event-price-stat' : undefined}
-                  style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: 20, letterSpacing: -0.5, color: theme.colors.text }}
+                  style={{ fontFamily: theme.fonts.display, fontWeight: '700', fontSize: theme.font.heading.sm, letterSpacing: -0.5, color: theme.colors.text }}
                 >
                   {s.k}
                 </Text>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Pressable, View } from 'react-native'
+import { Text } from '../ui/Text'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { BADGE_DEFINITIONS, PROFILE_BORDERS, badgeTierLabel, badgeTitle, isBorderUnlocked, shared, theme } from '../../constants'
 import type { ProfileBorderType } from '../../constants'

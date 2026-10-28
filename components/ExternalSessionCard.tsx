@@ -1,5 +1,6 @@
 import { memo } from 'react'
-import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, TouchableOpacity, View } from 'react-native'
+import { Text } from './ui/Text'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { shared, theme, SURFACE_ACCENTS, SURFACE_LABELS } from '../constants'
 import { TimePill } from './ui'

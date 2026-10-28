@@ -1,4 +1,5 @@
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { ScrollView, TouchableOpacity, View } from 'react-native'
+import { Text } from '../ui/Text'
 import { RefreshControl } from '../RefreshControl'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { shared, theme } from '../../constants'

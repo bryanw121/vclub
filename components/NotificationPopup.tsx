@@ -4,10 +4,10 @@ import {
   FlatList,
   Modal,
   Pressable,
-  Text,
   TouchableOpacity,
   View,
 } from 'react-native'
+import { Text } from './ui/Text'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { theme } from '../constants'
 import type { Notification } from '../types'
