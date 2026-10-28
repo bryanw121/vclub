@@ -1,4 +1,4 @@
-// TODO(#102): hand-edited to match migration 20261028120000_privacy_private_reads.sql until it can be
+// TODO(#102): hand-edited to match migrations 20261028120000_privacy_private_reads.sql and 20261028120200_rate_limit_core.sql until they can be
 // applied on beta (Supabase write approval pending). Regenerate from beta before merging; do not keep this line.
 export type Json =
   | string
@@ -1128,6 +1128,24 @@ export type Database = {
           },
         ]
       }
+      rate_limits: {
+        Row: {
+          hits: number
+          key: string
+          window_start: string
+        }
+        Insert: {
+          hits?: number
+          key: string
+          window_start?: string
+        }
+        Update: {
+          hits?: number
+          key?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       tags: {
         Row: {
           category: string
@@ -2038,6 +2056,14 @@ export type Database = {
         Returns: string
       }
       can_read_chat_image: { Args: { p_name: string }; Returns: boolean }
+      check_rate_limit: {
+        Args: { p_key: string; p_max: number; p_window_seconds: number }
+        Returns: boolean
+      }
+      enforce_rate_limit: {
+        Args: { p_key: string; p_max: number; p_window_seconds: number }
+        Returns: undefined
+      }
       find_or_create_dm: { Args: { other_user_id: string }; Returns: string }
       get_chat_unread_count: { Args: never; Returns: number }
       get_email_by_username: { Args: { p_username: string }; Returns: string }

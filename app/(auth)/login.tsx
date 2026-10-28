@@ -7,6 +7,7 @@ import * as Linking from 'expo-linking'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { supabase } from '../../lib/supabase'
 import { signInWithGoogle, signInWithApple, sendEmailOtp, verifyEmailOtp } from '../../lib/socialAuth'
+import { isUnknownEmailOtpError } from '../../utils/authErrors'
 import { signInWithUsername } from '../../lib/usernameAuth'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
@@ -149,7 +150,12 @@ export default function Login() {
       setOtpCodeSent(true)
       setTimeout(() => otpCodeRef.current?.focus(), 200)
     } catch (e: any) {
-      setOtpError(e?.message ?? 'Failed to send code')
+      if (isUnknownEmailOtpError(e)) {
+        // Same screen as a sent code: the error would reveal that no account uses this email.
+        setOtpCodeSent(true)
+      } else {
+        setOtpError(e?.status === 429 ? 'Too many codes requested. Please wait a minute and try again.' : 'Could not send a code. Please try again.')
+      }
     } finally {
       setOtpLoading(false)
     }
@@ -252,7 +258,7 @@ export default function Login() {
         ) : otpMode ? (
           <>
             <Text style={shared.authSubtitle}>
-              {otpCodeSent ? `code sent to ${obfuscateEmail(otpEmail)}` : 'sign in with a one-time code'}
+              {otpCodeSent ? `if ${obfuscateEmail(otpEmail)} has an account, a code is on its way` : 'sign in with a one-time code'}
             </Text>
 
             {!otpCodeSent ? (

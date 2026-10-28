@@ -1,4 +1,4 @@
-import { GENERIC_LOGIN_ERROR, MIN_RESPONSE_MS, parseLoginBody, remainingDelayMs } from '../supabase/functions/_shared/usernameLogin'
+import { clientIp, GENERIC_LOGIN_ERROR, MIN_RESPONSE_MS, parseLoginBody, passwordGrantOutcome, remainingDelayMs, secretKeyFromEnv } from '../supabase/functions/_shared/usernameLogin'
 import { corsHeaders } from '../supabase/functions/_shared/http'
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -28,6 +28,14 @@ describe('remainingDelayMs', () => {
   })
 })
 
+describe('clientIp', () => {
+  it('takes the first forwarded hop', () => {
+    expect(clientIp('203.0.113.7, 10.0.0.1')).toBe('203.0.113.7')
+    expect(clientIp(null)).toBeNull()
+    expect(clientIp('')).toBeNull()
+  })
+})
+
 describe('corsHeaders', () => {
   it('allows any origin when ALLOWED_ORIGINS is unset', () => {
     expect(corsHeaders('https://x.test', undefined)['Access-Control-Allow-Origin']).toBe('*')
@@ -39,18 +47,50 @@ describe('corsHeaders', () => {
 })
 
 describe('login-with-username function', () => {
-  it('answers an unknown username and a wrong password with the same generic error', () => {
-    const unknown = fn.indexOf("if (typeof email !== 'string' || !email) return finish({ error: GENERIC_LOGIN_ERROR }, 401)")
-    const wrong = fn.indexOf('return finish({ error: GENERIC_LOGIN_ERROR }, 401)', unknown + 1)
-    expect(unknown).toBeGreaterThan(-1)
-    expect(wrong).toBeGreaterThan(unknown)
+  it('answers an unknown username and any Auth failure with the same generic error', () => {
+    expect(fn).toMatch(/if \(typeof email !== 'string' \|\| !email\) return finish\(\{ error: GENERIC_LOGIN_ERROR \}, 401\)/)
+    expect(fn).toMatch(/if \(outcome\.kind !== 'session'\) return finish\(\{ error: GENERIC_LOGIN_ERROR \}, 401\)/)
     expect(GENERIC_LOGIN_ERROR).toBe('Incorrect username or password')
+  })
+  it('forwards the caller IP to Supabase Auth with a secret key', () => {
+    expect(fn).toMatch(/headers\['Sb-Forwarded-For'\] = ip/)
+    expect(fn).toMatch(/headers\.apikey = secret/)
   })
   it('never returns the resolved email', () => {
     expect(fn).not.toMatch(/json\([^)]*email/)
     expect(fn).not.toMatch(/finish\(\{[^}]*email/)
   })
-  it('is the only client of get_email_by_username and uses the service role for it', () => {
-    expect(fn).toMatch(/getServiceClient\(\)\s*\n\s*\.rpc\('get_email_by_username'/)
+  it('uses the service role for get_email_by_username', () => {
+    expect(fn).toMatch(/const service = getServiceClient\(\)/)
+    expect(fn).toMatch(/service\s*\n\s*\.rpc\('get_email_by_username'/)
   })
+  it('checks the rate limits before looking the username up (#11)', () => {
+    const limitAt = fn.indexOf("rpc('check_rate_limit'")
+    const lookupAt = fn.indexOf("rpc('get_email_by_username'")
+    expect(limitAt).toBeGreaterThan(-1)
+    expect(lookupAt).toBeGreaterThan(limitAt)
+    expect(fn).toMatch(/allowed === false\) return finish\(\{ error: TOO_MANY_ATTEMPTS \}, 429\)/)
+  })
+})
+
+describe('secretKeyFromEnv', () => {
+  it('reads the default secret key', () => {
+    expect(secretKeyFromEnv(JSON.stringify({ default: 'sb_secret_abc' }))).toBe('sb_secret_abc')
+  })
+  it('rejects missing, malformed or non-secret values', () => {
+    expect(secretKeyFromEnv(undefined)).toBeNull()
+    expect(secretKeyFromEnv('not json')).toBeNull()
+    expect(secretKeyFromEnv(JSON.stringify({ default: 'eyJhbGciOi...' }))).toBeNull()
+  })
+})
+
+describe('passwordGrantOutcome', () => {
+  it('passes a session through', () => {
+    const out = passwordGrantOutcome(200, { access_token: 'a', refresh_token: 'r', expires_in: 3600, token_type: 'bearer' })
+    expect(out).toEqual({ kind: 'session', session: { access_token: 'a', refresh_token: 'r', expires_in: 3600, expires_at: undefined, token_type: 'bearer' } })
+  })
+  it.each([[400, { error_code: 'invalid_credentials' }], [429, { error_code: 'over_request_rate_limit' }], [500, null], [200, {}]])(
+    'treats %s as rejected (same generic answer, so Auth 429s never reveal a real username)', (status, body) => {
+      expect(passwordGrantOutcome(status, body)).toEqual({ kind: 'rejected' })
+    })
 })

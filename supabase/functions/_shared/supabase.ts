@@ -31,18 +31,6 @@ export function getServiceClient() {
   return client
 }
 
-/**
- * A fresh client with the project's anon key, for calling Auth on behalf of a
- * user (e.g. a password sign-in). Never shared between requests: a sign-in
- * stores the session on the client instance.
- */
-export function createAnonClient() {
-  const url = Deno.env.get('SUPABASE_URL')
-  const key = Deno.env.get('SUPABASE_ANON_KEY')
-  if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_ANON_KEY are not set')
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } })
-}
-
 export function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
