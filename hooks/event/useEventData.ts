@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { useFocusRefetch, useQuery } from '../../lib/query'
+import { getQueryData, setQueryData, useFocusRefetch, useQuery } from '../../lib/query'
 import { useSession } from '../../contexts/session'
 import {
   STALE,
@@ -13,6 +13,7 @@ import {
 import type {
   EventCohostWithProfile,
   EventCommentWithAuthor,
+  EventCommentsPage,
   EventGuest,
   EventWithDetails,
   ProfileBrief,
@@ -48,14 +49,64 @@ export async function fetchEventCohosts(id: string): Promise<EventCohostWithProf
   return (data ?? []) as EventCohostWithProfile[]
 }
 
-export async function fetchEventComments(id: string): Promise<EventCommentWithAuthor[]> {
-  const { data, error } = await supabase
+/** Newest comments fetched per page; older ones load on "Load earlier". */
+export const EVENT_COMMENTS_PAGE = 100
+
+function byCreatedAt(a: EventCommentWithAuthor, b: EventCommentWithAuthor): number {
+  return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0
+}
+
+/** Union by id (later wins), oldest first. */
+export function mergeComments(...lists: EventCommentWithAuthor[][]): EventCommentWithAuthor[] {
+  const byId = new Map<string, EventCommentWithAuthor>()
+  lists.forEach(list => list.forEach(c => byId.set(c.id, c)))
+  return Array.from(byId.values()).sort(byCreatedAt)
+}
+
+/**
+ * One page of comments, newest first from the server, returned oldest first.
+ * Asks for one extra row to learn whether older ones exist. A reply whose
+ * parent is older than the page would be invisible (the thread renders under
+ * its root), so missing parents are fetched in one `IN` query — only when a
+ * page has such replies.
+ */
+export async function fetchEventCommentsPage(id: string, before?: string): Promise<EventCommentsPage> {
+  let query = supabase
     .from('event_comments')
     .select(COMMENT_SELECT)
     .eq('event_id', id)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
+    .limit(EVENT_COMMENTS_PAGE + 1)
+  if (before) query = query.lt('created_at', before)
+  const { data, error } = await query
   if (error) throw error
-  return (data ?? []) as EventCommentWithAuthor[]
+  const newestFirst = (data ?? []) as EventCommentWithAuthor[]
+  const hasEarlier = newestFirst.length > EVENT_COMMENTS_PAGE
+  const rows = newestFirst.slice(0, EVENT_COMMENTS_PAGE)
+
+  const have = new Set(rows.map(c => c.id))
+  const missing = Array.from(new Set(rows.filter(c => c.parent_id && !have.has(c.parent_id)).map(c => c.parent_id as string)))
+  let parents: EventCommentWithAuthor[] = []
+  if (missing.length) {
+    const res = await supabase.from('event_comments').select(COMMENT_SELECT).in('id', missing)
+    if (res.error) throw res.error
+    parents = (res.data ?? []) as EventCommentWithAuthor[]
+  }
+  return { rows: mergeComments(parents, rows), hasEarlier, cursor: rows[rows.length - 1]?.created_at ?? null }
+}
+
+/**
+ * The newest page, merged into what is cached: a refetch (focus, pull to
+ * refresh, `/host` edit) must not drop older pages the viewer already loaded.
+ */
+export async function fetchEventComments(id: string): Promise<EventCommentsPage> {
+  const latest = await fetchEventCommentsPage(id)
+  const prev = getQueryData<EventCommentsPage>(eventKeys.comments(id))
+  const windowStart = latest.cursor
+  // Nothing older was paged in, or the new page already reaches the start of the thread.
+  if (!prev?.cursor || !latest.hasEarlier || !windowStart || prev.cursor >= windowStart) return latest
+  const older = prev.rows.filter(c => c.created_at < windowStart)
+  return { rows: mergeComments(older, latest.rows), hasEarlier: prev.hasEarlier, cursor: prev.cursor }
 }
 
 /** Same key and shape (`ProfileBrief`) chat caches sender profiles under. */
@@ -101,6 +152,30 @@ export function useEventData(id: string) {
   const event = main.data ?? undefined
   const roster = useMemo(() => deriveRoster(event, guests.data), [event, guests.data])
 
+  // "Load earlier": the page before the oldest loaded comment, merged into
+  // whatever is cached when it lands (a refetch may have replaced it meanwhile).
+  const [loadingEarlier, setLoadingEarlier] = useState(false)
+  const loadingEarlierRef = useRef(false)
+  const loadEarlierComments = useCallback(async () => {
+    const page = getQueryData<EventCommentsPage>(eventKeys.comments(id))
+    if (!page?.hasEarlier || !page.cursor || loadingEarlierRef.current) return
+    loadingEarlierRef.current = true
+    setLoadingEarlier(true)
+    try {
+      const older = await fetchEventCommentsPage(id, page.cursor)
+      setQueryData<EventCommentsPage>(eventKeys.comments(id), prev => {
+        const base = prev ?? page
+        const cursor = older.cursor && (!base.cursor || older.cursor < base.cursor) ? older.cursor : base.cursor
+        return { rows: mergeComments(older.rows, base.rows), hasEarlier: older.hasEarlier, cursor }
+      })
+    } catch (e) {
+      console.warn('[useEventData] load earlier comments', (e as { message?: string })?.message)
+    } finally {
+      loadingEarlierRef.current = false
+      setLoadingEarlier(false)
+    }
+  }, [id])
+
   const [refreshing, setRefreshing] = useState(false)
   const refetchAll = useCallback(async () => {
     await Promise.all([
@@ -134,8 +209,12 @@ export function useEventData(id: string) {
     notFound: main.data === null,
     allGuests: guests.data ?? EMPTY_GUESTS,
     cohosts: cohosts.data ?? EMPTY_COHOSTS,
-    comments: comments.data ?? EMPTY_COMMENTS,
+    comments: comments.data?.rows ?? EMPTY_COMMENTS,
     commentsLoading: comments.isLoading,
+    /** Older comments exist beyond the loaded window (latest EVENT_COMMENTS_PAGE first). */
+    hasEarlierComments: comments.data?.hasEarlier ?? false,
+    loadingEarlierComments: loadingEarlier,
+    loadEarlierComments,
     viewerProfile: viewer.data ?? null,
     roster,
     isLoading,

@@ -477,6 +477,16 @@ export const shared = StyleSheet.create({
   emptyStateAction: { fontSize: font.size.sm, color: colors.primary, fontWeight: font.weight.medium },
   // EventDetailSkeleton: placeholders in the event page's final layout
   skeletonBlock: { backgroundColor: theme.colors.card, borderRadius: 16 },
+  /** "Load earlier comments" at the top of a discussion: full-width, 44pt touch target. */
+  loadEarlierButton: {
+    minHeight: 44, alignItems: 'center', justifyContent: 'center', alignSelf: 'center',
+    paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.xs,
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer', touchAction: 'manipulation' } as object) : null),
+  },
+  loadEarlierLabel: { fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.primary },
+  /** Host form while a cold edit link loads: one field-shaped block. */
+  skeletonField: { height: 48, borderRadius: 12, backgroundColor: theme.colors.card },
+  skeletonLabel: { width: 96, height: 10, borderRadius: 5, backgroundColor: theme.colors.card, marginBottom: 8 },
   skeletonHero: {
     marginHorizontal: theme.spacing.md, marginTop: theme.spacing.xs, marginBottom: theme.spacing.sm,
     height: 128, borderRadius: 22, backgroundColor: theme.colors.card,

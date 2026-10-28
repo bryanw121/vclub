@@ -220,6 +220,27 @@ export type EventCommentWithAuthor = EventComment & {
   profiles: Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url' | 'selected_border'> | null
 }
 
+/** What the host edit form is filled from: EVENT_EDIT_SELECT (a subset of the detail row). */
+export type EventEditSource = Pick<
+  Tables<'events'>,
+  | 'id' | 'title' | 'description' | 'location' | 'latitude' | 'longitude' | 'event_date' | 'duration_minutes'
+  | 'max_attendees' | 'price' | 'venmo_handle' | 'requires_approval' | 'surface' | 'club_id'
+> & { event_tags: { tag_id: string }[] }
+
+/**
+ * The cached discussion of one event (`eventKeys.comments`): a window of the
+ * newest comments (oldest first) plus whether older ones exist on the server.
+ */
+export type EventCommentsPage = {
+  rows: EventCommentWithAuthor[]
+  hasEarlier: boolean
+  /**
+   * `created_at` of the oldest comment loaded by paging (not counting old
+   * parents fetched for replies): "Load earlier" asks for comments before it.
+   */
+  cursor: string | null
+}
+
 /**
  * `event_guests` table
  * A guest added as a +1 by an attending user. Has no profile/account.
