@@ -20,3 +20,8 @@ verify_jwt = false
 # verifies the user JWT.
 [functions.places-proxy]
 verify_jwt = true
+
+# Called by signed-in clients after inserting feedback_submissions; the gateway
+# verifies the user JWT and the function checks the caller owns the row.
+[functions.send-feedback-email]
+verify_jwt = true
