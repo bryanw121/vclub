@@ -10,7 +10,7 @@ import {
   fetchEventCommentsPage,
   useEventData,
 } from '../hooks/event/useEventData'
-import { prefetchEventDetail } from '../hooks/event/prefetch'
+import { PRESS_INTENT_MS, prefetchEventDetail } from '../hooks/event/prefetch'
 import { EventCard } from '../components/EventCard'
 import { EVENT_DETAIL_COLUMNS, EVENT_EDIT_SELECT } from '../constants/selects'
 import type { EventCommentWithAuthor, EventCommentsPage, EventData, EventWithDetails } from '../types'
@@ -213,17 +213,31 @@ describe('prefetchQuery', () => {
     expect(mockCalls).toHaveLength(4)
   })
 
-  it('pressing in on a feed card starts the detail requests before the press completes', async () => {
-    const row = {
-      id: 'e1', created_by: 'host', club_id: null, title: 'Tap me', description: null, location: 'Roots',
-      event_date: '2030-01-15T19:00:00', duration_minutes: 120, max_attendees: 12, created_at: 'x', price: 0,
-      cancelled_at: null, profiles: { id: 'host', username: 'host' }, event_tags: [], clubs: null,
-      event_attendees_attending: [{ count: 3 }], event_guests_attending: [{ count: 0 }], my_attendance: [],
-    } as unknown as EventWithDetails
-    const view = render(<EventCard event={row} currentUserId="me" onRsvp={jest.fn()} />)
+  const pressRow = () => ({
+    id: 'e1', created_by: 'host', club_id: null, title: 'Tap me', description: null, location: 'Roots',
+    event_date: '2030-01-15T19:00:00', duration_minutes: 120, max_attendees: 12, created_at: 'x', price: 0,
+    cancelled_at: null, profiles: { id: 'host', username: 'host' }, event_tags: [], clubs: null,
+    event_attendees_attending: [{ count: 3 }], event_guests_attending: [{ count: 0 }], my_attendance: [],
+  } as unknown as EventWithDetails)
+  const waitPastIntent = () => act(() => new Promise<void>(r => setTimeout(r, PRESS_INTENT_MS + 30)))
+
+  it('a press held past the intent delay starts the detail requests before the press completes', async () => {
+    const view = render(<EventCard event={pressRow()} currentUserId="me" onRsvp={jest.fn()} />)
     fireEvent(view.getByText('Tap me'), 'pressIn')
     await settle()
+    expect(mockCalls).toHaveLength(0)
+    await waitPastIntent()
+    await settle()
     expect(mockCalls.some(c => c.table === 'events')).toBe(true)
+  })
+
+  it('a touch that ends early (a scroll starting on the card) fetches nothing', async () => {
+    const view = render(<EventCard event={pressRow()} currentUserId="me" onRsvp={jest.fn()} />)
+    fireEvent(view.getByText('Tap me'), 'pressIn')
+    fireEvent(view.getByText('Tap me'), 'pressOut')
+    await waitPastIntent()
+    await settle()
+    expect(mockCalls).toHaveLength(0)
   })
 })
 
