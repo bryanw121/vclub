@@ -14,7 +14,8 @@
     "e2e:sweep": "node e2e/sweep.mjs",
     "docs:update": "node scripts/generate-architecture-doc.mjs",
     "docs:check": "node scripts/generate-architecture-doc.mjs --check",
-    "db:drift": "node scripts/schema-drift.mjs"
+    "db:drift": "node scripts/schema-drift.mjs",
+    "test:coverage": "TZ=America/Chicago jest --coverage"
   },
   "jest": {
     "preset": "jest-expo",
@@ -23,7 +24,24 @@
     ],
     "setupFiles": [
       "./jest.setup.js"
-    ]
+    ],
+    "collectCoverageFrom": [
+      "{app,components,contexts,hooks,lib,utils,constants}/**/*.{ts,tsx}",
+      "!**/*.d.ts"
+    ],
+    "coverageReporters": [
+      "json-summary",
+      "text-summary",
+      "lcov"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 34,
+        "branches": 27,
+        "functions": 29,
+        "lines": 35
+      }
+    }
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
