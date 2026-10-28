@@ -19,11 +19,14 @@ async function swipeDown(cdp: CDPSession, distance: number) {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
 }
 
-/** Counts Supabase REST calls from now on. */
+/** Supabase REST calls from now on (paths, so a failure says which requests fired). */
 function apiCalls(page: Page) {
-  let n = 0
-  page.on('request', r => { if (r.url().includes('/rest/v1/')) n++ })
-  return () => n
+  const seen: string[] = []
+  page.on('request', r => {
+    const url = new URL(r.url())
+    if (url.pathname.startsWith('/rest/v1/')) seen.push(url.pathname.replace('/rest/v1/', ''))
+  })
+  return () => seen
 }
 
 async function openFeed(page: Page) {
@@ -39,7 +42,7 @@ test.describe('pull to refresh (mobile web)', () => {
     const cdp = await page.context().newCDPSession(page)
     const calls = apiCalls(page)
     await swipeDown(cdp, 300)
-    await expect.poll(calls, { timeout: 10_000 }).toBeGreaterThan(0)
+    await expect.poll(() => calls().length, { timeout: 10_000 }).toBeGreaterThan(0)
   })
 
   test('a short pull below the threshold springs back without refetching', async ({ page }) => {
@@ -48,7 +51,7 @@ test.describe('pull to refresh (mobile web)', () => {
     const calls = apiCalls(page)
     await swipeDown(cdp, 60)
     await page.waitForTimeout(2_000)
-    expect(calls()).toBe(0)
+    expect(calls()).toEqual([])
   })
 
   test('pulling down mid-scroll scrolls instead of refreshing', async ({ page }) => {
@@ -58,8 +61,11 @@ test.describe('pull to refresh (mobile web)', () => {
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
     const cdp = await page.context().newCDPSession(page)
     const calls = apiCalls(page)
+    // The finger lands on whatever card is under it. An event card used to
+    // prefetch its page on touch-down (events, event_guests, event_cohosts,
+    // event_comments), so this failed whenever beta's feed put one there.
     await swipeDown(cdp, 300)
     await page.waitForTimeout(2_000)
-    expect(calls()).toBe(0)
+    expect(calls()).toEqual([])
   })
 })
