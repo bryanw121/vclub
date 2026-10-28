@@ -10,6 +10,7 @@
 import type { Database, Json, Tables, TablesInsert, TablesUpdate } from './database'
 import type { TabKey } from '../constants/navigation'
 import type { ReactElement } from 'react'
+import type { BracketMatchInsert, SetScore } from './tournament'
 
 /** The client's database type. Kept as an alias so callers don't care how it's assembled. */
 export type AppDatabase = Database
@@ -1008,6 +1009,8 @@ export type OwnedClubOption = { id: string; name: string }
 
 // ─── Tournament detail screen + schedule generator ────────────────────────────
 
+export * from './tournament'
+
 // ─── Schedule generator ───────────────────────────────────────────────────────
 
 export type ScheduleConfig = {
@@ -1018,6 +1021,10 @@ export type ScheduleConfig = {
   breakDuration: number
   /** Max opponents each team faces; null = full round robin. */
   gamesPerTeam: number | null
+  /** Target pool size for pool formats; null = automatic (about four). */
+  teamsPerPool: number | null
+  /** Never schedule a team in two consecutive slots when avoidable (may lengthen the day). */
+  restBetweenMatches: boolean
 }
 
 export type ScheduleInput = {
@@ -1027,6 +1034,15 @@ export type ScheduleInput = {
   /** Registered team ids, in registration order. */
   teamIds: string[]
   config: ScheduleConfig
+  /** Organizer seeds by team id (1 = strongest). Unseeded teams are left out. */
+  seeds?: Readonly<Record<string, number | null>>
+  /** Assign referee teams (tournaments.has_refs). */
+  refs?: boolean
+  /** Bracket-only format: elimination type and whether to play a third-place match. */
+  bracketType?: TournamentBracketType
+  thirdPlace?: boolean
+  /** Team pairs to keep in different pools (see PoolAssignInput.avoid). */
+  avoid?: ReadonlyMap<string, number>
   /** Injected for tests; defaults to Math.random. Only used to deal pool play teams. */
   random?: () => number
 }
@@ -1050,11 +1066,19 @@ export type ScheduleMatch = {
   court: string
   scheduled_at: string
   status: 'scheduled'
+  /** Referee team; the RPC ignores it, so it is written in a follow-up update. */
+  ref_team_id: string | null
 }
+
+/** A bracket row with its time and court, ready to insert. */
+export type TimedBracketMatch = BracketMatchInsert & { court: string; scheduled_at: string; status: 'scheduled' }
 
 export type GeneratedSchedule = {
   pools: SchedulePool[]
+  /** Pool play / round robin matches (saved through replace_tournament_schedule). */
   matches: ScheduleMatch[]
+  /** Elimination rows (bracket-only format; pool formats seed theirs after pool play). */
+  bracket: TimedBracketMatch[]
 }
 
 // ─── Screen data ──────────────────────────────────────────────────────────────
@@ -1088,14 +1112,18 @@ export type MyRegistration = {
 export type TournamentMatchRow = Pick<
   TournamentMatch,
   | 'id' | 'tournament_id' | 'pool_id' | 'stage' | 'round' | 'match_number' | 'team_a_id' | 'team_b_id'
-  | 'court' | 'scheduled_at' | 'status' | 'winner_id' | 'bracket_round_name' | 'is_losers_bracket'
->
+  | 'court' | 'scheduled_at' | 'status' | 'winner_id' | 'bracket_round_name' | 'is_losers_bracket' | 'ref_team_id'
+> & {
+  /** Set scores, in set order. */
+  sets: SetScore[]
+}
 
 /** Which destructive action the confirm dialog is asking about. */
 export type TournamentConfirm =
   | { kind: 'withdraw' }
   | { kind: 'removeTeam'; teamId: string; teamName: string }
   | { kind: 'deleteComment'; commentId: string }
+  | { kind: 'seedBracket' }
 
 /** A profile offered by the tournament invite search. */
 export type TournamentInviteCandidate = Pick<Profile, 'id' | 'username' | 'first_name' | 'last_name' | 'avatar_url'>

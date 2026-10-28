@@ -59,6 +59,7 @@ export function RegisterSheet({ visible, onDismiss, tournament, busy, onSubmit }
 
       <Button
         label="Register"
+        testID="register-submit"
         loading={busy}
         disabled={!freeAgent && !name.trim()}
         onPress={() => { void onSubmit({ name: name.trim(), freeAgent }) }}

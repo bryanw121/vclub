@@ -30,6 +30,7 @@ describe('routes', () => {
     expect(routes.conversation('m1')).toBe('/chat/m1')
     expect(routes.tournament('t1')).toBe('/tournament/t1')
     expect(routes.tournamentCreate()).toBe('/tournament/create')
+    expect(routes.tournaments()).toBe('/tournaments')
     expect(routes.notifications()).toBe('/notifications')
   })
 

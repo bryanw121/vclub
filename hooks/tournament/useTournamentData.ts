@@ -4,7 +4,7 @@ import { getQueryData, setQueryData, useFocusRefetch, useQuery } from '../../lib
 import { withOlderPage } from '../../utils/commentPages'
 import type { MentionUser, TournamentCommentsPage, TournamentTeamWithRoster } from '../../types'
 import {
-  fetchComments, fetchCommentsPage, fetchMatches, fetchMyRegistration, fetchTeams, fetchTournamentCore, tournamentKeys,
+  fetchComments, fetchCommentsPage, fetchMatches, fetchMyRegistration, fetchPools, fetchTeams, fetchTournamentCore, tournamentKeys,
 } from './api'
 
 /** @-mention candidates: everyone on a roster, once each. */
@@ -32,8 +32,8 @@ export function mentionableFromTeams(teams: readonly TournamentTeamWithRoster[])
  * They all depend only on the route id (and the signed-in user, from the session
  * context — no network hop), so they start together in one request round:
  *   core (tournament + rules + prizes), teams, comments, the viewer's registration
- *   (+ invites + join requests + name), and — once the Schedule tab has been
- *   opened — matches.
+ *   (+ invites + join requests + name), and — once the Schedule or Results tab
+ *   has been opened — matches and pools.
  */
 export function useTournamentData(id: string, userId: string | null, opts: { loadMatches: boolean }) {
   const core = useQuery(tournamentKeys.core(id), () => fetchTournamentCore(id), { staleMs: STALE.detail })
@@ -49,11 +49,18 @@ export function useTournamentData(id: string, userId: string | null, opts: { loa
     enabled: opts.loadMatches,
   })
 
+  // Pools load with the matches (the Schedule and Results tabs both need them).
+  const pools = useQuery(tournamentKeys.pools(id), () => fetchPools(id), {
+    staleMs: STALE.detail,
+    enabled: opts.loadMatches,
+  })
+
   useFocusRefetch(tournamentKeys.core(id))
   useFocusRefetch(tournamentKeys.teams(id))
   useFocusRefetch(tournamentKeys.comments(id))
   useFocusRefetch(userId ? tournamentKeys.mine(id, userId) : null)
   useFocusRefetch(opts.loadMatches ? tournamentKeys.matches(id) : null)
+  useFocusRefetch(opts.loadMatches ? tournamentKeys.pools(id) : null)
 
   const teamList = teams.data
   const mentionableUsers = useMemo(() => mentionableFromTeams(teamList ?? []), [teamList])
@@ -78,5 +85,5 @@ export function useTournamentData(id: string, userId: string | null, opts: { loa
     }
   }, [id])
 
-  return { core, teams, comments, mine, matches, mentionableUsers, loadEarlierComments, loadingEarlierComments }
+  return { core, teams, comments, mine, matches, pools, mentionableUsers, loadEarlierComments, loadingEarlierComments }
 }

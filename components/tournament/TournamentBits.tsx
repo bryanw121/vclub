@@ -20,11 +20,12 @@ export function TourneyStatusBadge({ status }: { status: string }) {
     in_progress: { bg: theme.colors.hot + '22',     color: theme.colors.hot,     label: '● In Progress' },
     completed:   { bg: theme.colors.cool + '22',    color: theme.colors.cool,    label: 'Completed' },
     draft:       { bg: theme.colors.border,          color: theme.colors.subtext, label: 'Draft' },
+    cancelled:   { bg: theme.colors.border,          color: theme.colors.subtext, label: 'Cancelled' },
   }
   const s = map[status] ?? { bg: theme.colors.border, color: theme.colors.subtext, label: status }
   return (
     <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: s.bg }}>
-      <Text style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, color: s.color, letterSpacing: 0.3 }}>{s.label}</Text>
+      <Text testID="tournament-status" style={{ fontFamily: theme.fonts.bodySemiBold, fontSize: theme.font.size.xs, color: s.color, letterSpacing: 0.3 }}>{s.label}</Text>
     </View>
   )
 }
