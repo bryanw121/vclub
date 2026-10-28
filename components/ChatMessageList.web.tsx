@@ -22,6 +22,9 @@ const FIRST_INDEX_BASE = 1_000_000
  */
 const AT_BOTTOM_PX = 120
 
+/** Start loading the older page this far (px) before the very top. */
+const AT_TOP_PX = 200
+
 /** A typical one-line bubble with its meta row; closer estimates mean less settling. */
 const ESTIMATED_ROW_PX = 64
 
@@ -123,6 +126,24 @@ export function ChatMessageList({
   const startReached = useCallback(() => {
     if (hasMore) onLoadMore()
   }, [hasMore, onLoadMore])
+
+  // startReached fires once per arrival at the top. If that call was dropped
+  // (a page already in flight, e.g. a reconnect refresh), a reader parked at
+  // the top would never get older messages. So while the top is in view, ask
+  // again whenever the list changes (the in-flight page landed) — `loadMore`
+  // ignores calls while one is pending. After a prepend the reader is no
+  // longer at the top (firstItemIndex keeps their place), so this can't chain.
+  // The scroller's real offset is checked (not just the atTop flag, which lags a
+  // prepend by a frame and would fetch one page too many).
+  const [atTop, setAtTop] = useState(false)
+  const scrollerRef = useRef<HTMLElement | null>(null)
+  const setScroller = useCallback((el: HTMLElement | Window | null) => {
+    scrollerRef.current = el instanceof HTMLElement ? el : null
+  }, [])
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (atTop && hasMore && el && el.scrollTop <= AT_TOP_PX) onLoadMore()
+  }, [atTop, hasMore, messages.length, onLoadMore])
   // The View (display: flex) contains the bubble's vertical margins; Virtuoso's
   // item div is a plain block, so margins would collapse through it and go
   // unmeasured, leaving "scroll to end" short of the real end.
@@ -149,6 +170,9 @@ export function ChatMessageList({
           atBottomStateChange={onAtBottom}
           atBottomThreshold={AT_BOTTOM_PX}
           startReached={startReached}
+          atTopStateChange={setAtTop}
+          scrollerRef={setScroller}
+          atTopThreshold={AT_TOP_PX}
           itemsRendered={onItemsRendered}
           totalListHeightChanged={onTotalHeightChanged}
           defaultItemHeight={ESTIMATED_ROW_PX}
