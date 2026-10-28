@@ -8,18 +8,18 @@ import type { FriendRowProps } from '../../types'
 const AVATAR = 44
 
 /** Avatar, name and @username, with optional controls on the right. Tapping the row opens the profile. */
-export function FriendRow({ profile, caption, onPress, children, last, testID }: FriendRowProps) {
+export function FriendRow({ profile, caption, onPress, children, footer, last, testID }: FriendRowProps) {
   const uri = profileAvatarSmallUri(profile?.avatar_url ?? null)
   return (
     <View
       testID={testID}
       style={{
-        flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md,
         paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm,
-        minHeight: 64,
         borderBottomWidth: last ? 0 : 1, borderBottomColor: theme.colors.border,
+        gap: theme.spacing.sm,
       }}
     >
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, minHeight: 48 }}>
       <Pressable
         onPress={onPress}
         disabled={!onPress}
@@ -42,6 +42,8 @@ export function FriendRow({ profile, caption, onPress, children, last, testID }:
         </View>
       </Pressable>
       {children}
+    </View>
+    {footer ? <View style={{ paddingLeft: AVATAR + theme.spacing.md }}>{footer}</View> : null}
     </View>
   )
 }

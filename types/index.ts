@@ -755,8 +755,10 @@ export type FriendRowProps = {
   /** Small line under the name ("Wants to be friends", "Request sent"). */
   caption?: string
   onPress?: () => void
-  /** Right-hand controls (Accept/Decline, Cancel, best-friend star). */
+  /** Right-hand controls (Cancel, best-friend star). */
   children?: import('react').ReactNode
+  /** Controls under the name, full width (Accept / Decline), so a narrow phone keeps the name readable. */
+  footer?: import('react').ReactNode
   last?: boolean
   testID?: string
 }

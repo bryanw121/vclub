@@ -70,27 +70,31 @@ export default function FriendsScreen() {
                     onPress={() => router.push(routes.profileOf(r.requester_id))}
                     last={i === incoming.length - 1}
                     testID="friend-request-row"
-                  >
-                    <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <Button
-                        label={FRIEND_COPY.accept}
-                        size="touch"
-                        fullWidth={false}
-                        disabled={isPending}
-                        onPress={() => void act({ kind: 'respond', requestId: r.id, accept: true }, 'Friend added')}
-                        testID="friend-request-accept"
-                      />
-                      <Button
-                        label={FRIEND_COPY.decline}
-                        variant="secondary"
-                        size="touch"
-                        fullWidth={false}
-                        disabled={isPending}
-                        onPress={() => void act({ kind: 'respond', requestId: r.id, accept: false })}
-                        testID="friend-request-decline"
-                      />
-                    </View>
-                  </FriendRow>
+                    footer={
+                      <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
+                        <View style={{ flex: 1 }}>
+                          <Button
+                            label={FRIEND_COPY.accept}
+                            icon="checkmark"
+                            size="touch"
+                            disabled={isPending}
+                            onPress={() => void act({ kind: 'respond', requestId: r.id, accept: true }, 'Friend added')}
+                            testID="friend-request-accept"
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Button
+                            label={FRIEND_COPY.decline}
+                            variant="secondary"
+                            size="touch"
+                            disabled={isPending}
+                            onPress={() => void act({ kind: 'respond', requestId: r.id, accept: false })}
+                            testID="friend-request-decline"
+                          />
+                        </View>
+                      </View>
+                    }
+                  />
                 ))}
               </View>
             </>
