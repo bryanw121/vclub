@@ -14,4 +14,6 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationPrefType, string> = {
   join_request: 'Join requests',
   request_approved: 'Request approved',
   request_denied: 'Request denied',
+  friend_request: 'Friend requests',
+  friend_accepted: 'Friend request accepted',
 }

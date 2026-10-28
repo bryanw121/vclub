@@ -92,6 +92,8 @@ export const NOTIFICATION_PREF_TYPES = [
   'join_request',
   'request_approved',
   'request_denied',
+  'friend_request',
+  'friend_accepted',
 ] as const
 
 /** Must match the `notifications_notification_type_check` constraint in Supabase exactly. */
@@ -124,6 +126,9 @@ export type NotificationData = {
   cheer_id?: string
   deep_link?: string
   badge_type?: string
+  /** friend_request / friend_accepted: the other person, and the request. */
+  user_id?: string
+  request_id?: string
 }
 
 /**
@@ -700,6 +705,64 @@ export type ChatMessageListProps = {
   /** The finger dragged the list (dismiss the keyboard). */
   onUserDrag: () => void
 }
+
+// ─── Friends (#15) ────────────────────────────────────────────────────────────
+
+/** One of my friendships (my own row: `is_best_friend` is my private flag) with the friend's profile. */
+export type Friend = Pick<Tables<'friendships'>, 'friend_id' | 'is_best_friend' | 'created_at'> & {
+  profile: ProfileBrief | null
+}
+
+/** A pending request, sent or received, with the other person's profile. */
+export type FriendRequest = Pick<Tables<'friend_requests'>, 'id' | 'requester_id' | 'addressee_id' | 'created_at'> & {
+  /** The person on the other side (the requester for incoming, the addressee for outgoing). */
+  other: ProfileBrief | null
+}
+
+export type FriendsData = {
+  friends: Friend[]
+  incoming: FriendRequest[]
+  outgoing: FriendRequest[]
+}
+
+/** My relationship to another player. */
+export type FriendStatus = 'none' | 'requested' | 'incoming' | 'friends'
+
+/** components/profile/FriendButton. */
+export type FriendButtonProps = {
+  userId: string
+  /** Shown optimistically in my list while a new request is pending. */
+  profile?: ProfileBrief | null
+  /** Short feedback after an action ("Request sent", an error). */
+  onMessage?: (message: string, variant: 'success' | 'error' | 'info') => void
+}
+
+/** components/profile/FriendManageSheet: options for an existing friend. */
+export type FriendManageSheetProps = {
+  visible: boolean
+  name: string
+  isBestFriend: boolean
+  bestFriendCount: number
+  onToggleBest: (best: boolean) => void
+  onRemove: () => void
+  onDismiss: () => void
+  onClosed?: () => void
+}
+
+/** components/profile/FriendRow: one person in the Friends screen. */
+export type FriendRowProps = {
+  profile: ProfileBrief | null
+  /** Small line under the name ("Wants to be friends", "Request sent"). */
+  caption?: string
+  onPress?: () => void
+  /** Right-hand controls (Accept/Decline, Cancel, best-friend star). */
+  children?: import('react').ReactNode
+  last?: boolean
+  testID?: string
+}
+
+/** A friend attending an event (get_friends_going), best friends first. */
+export type FriendGoing = Database['public']['Functions']['get_friends_going']['Returns'][number]
 
 // ─── Badge Types ──────────────────────────────────────────────────────────────
 
