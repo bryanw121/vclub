@@ -1507,3 +1507,11 @@ export type LegalBlock =
   | { type: 'paragraph'; spans: LegalSpan[] }
   | { type: 'list'; items: LegalSpan[][] }
   | { type: 'table'; header: LegalSpan[][]; rows: LegalSpan[][][] }
+
+/** The two links behind a "Pay via Venmo" button (`utils/venmo.ts`). */
+export type VenmoLinks = {
+  /** The Venmo app's own scheme; opened directly on iOS/Android. */
+  app: string
+  /** Venmo's web pay page; used on web and as the native fallback. */
+  web: string
+}

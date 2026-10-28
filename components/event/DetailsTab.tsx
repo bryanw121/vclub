@@ -7,6 +7,7 @@ import * as Calendar from 'expo-calendar'
 import { ProfileAvatar } from '../ProfileAvatar'
 import { DocScrollView } from '../DocScrollView'
 import { LinkedText } from '../LinkedText'
+import { VenmoPayButton } from '../VenmoPayButton'
 import { shared, theme, LOCATIONS } from '../../constants'
 import type { EventWithDetails, Profile, AttendanceStatus } from '../../types'
 import type { EventData } from '../../types'
@@ -104,7 +105,7 @@ function HostRow({
 
 type Props = {
   event: EventWithDetails
-  /** Co-hosts, viewer (id + profile for the Venmo note) and pull-to-refresh. */
+  /** Co-hosts, viewer id and pull-to-refresh. */
   data: EventData
   eventStatus: AttendanceStatus
   isOwner: boolean
@@ -128,7 +129,7 @@ export function DetailsTab({
   onMessageHost,
   onManageCohosts,
 }: Props) {
-  const { refreshing, refresh: onRefresh, cohosts, userId, viewerProfile: currentUserProfile } = data
+  const { refreshing, refresh: onRefresh, cohosts, userId } = data
   const totalAttending = eventStatus.count
   return (
     <DocScrollView
@@ -396,37 +397,17 @@ export function DetailsTab({
         </>
 
         {/* Pay via Venmo — shown to non-owners when price > 0 and venmo_handle set */}
-        {!isOwner && event.price != null && event.price > 0 && event.venmo_handle && (() => {
-          const handle = event.venmo_handle
-          const amount = formatPriceAmount(event.price)
-          const name = currentUserProfile ? profileDisplayName(currentUserProfile) : ''
-          const date = new Date(event.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-          const noteParts = [event.title, 'entry fee', name, date].filter(Boolean)
-          const note = encodeURIComponent(noteParts.join(' — '))
-          const deepLink = `venmo://paycharge?txn=pay&recipients=${handle}&amount=${amount}&note=${note}`
-          const webLink = `https://venmo.com/${handle}?txn=pay&amount=${amount}&note=${note}`
-          return (
-            <TouchableOpacity
-              onPress={() => {
-                if (Platform.OS === 'web') {
-                  window.open(webLink, '_blank')
-                } else {
-                  void Linking.openURL(deepLink).catch(() => Linking.openURL(webLink))
-                }
-              }}
-              style={{
-                flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-                gap: 8, marginTop: theme.spacing.sm, paddingVertical: 12,
-                borderRadius: theme.radius.md, backgroundColor: '#008CFF',
-              }}
-            >
-              <Text style={{ fontSize: 18 }}>💸</Text>
-              <Text style={{ fontSize: theme.font.size.md, fontWeight: theme.font.weight.semibold, color: theme.colors.white }}>
-                Pay ${amount} via Venmo
-              </Text>
-            </TouchableOpacity>
-          )
-        })()}
+        {!isOwner && event.price != null && event.price > 0 && event.venmo_handle && (
+          <View style={{ marginTop: theme.spacing.sm }}>
+            <VenmoPayButton
+              handle={event.venmo_handle}
+              amount={formatPriceAmount(event.price)}
+              title={event.title}
+              date={event.event_date}
+              label={`Pay $${formatPriceAmount(event.price)} via Venmo`}
+            />
+          </View>
+        )}
 
       </View>
 

@@ -1,9 +1,6 @@
 import { StyleSheet } from 'react-native'
 import { theme } from '../../constants'
 
-/** Venmo's brand blue for the "Pay via Venmo" button: a third-party colour, so not a theme token. */
-export const VENMO_BLUE = '#008CFF'
-
 /** Styles shared by the tournament tab components (kept local to the feature). */
 export const ts = StyleSheet.create({
   scrollContent: { padding: 16, paddingBottom: 40 },

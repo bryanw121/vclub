@@ -244,7 +244,6 @@ export default function TournamentDetailScreen() {
                 prizes={prizes}
                 teams={teams}
                 myTeam={myTeam}
-                myProfile={mine.data?.profile ?? null}
                 invites={mine.data?.invites ?? []}
                 announcements={announcements}
                 isCreator={isCreator}
