@@ -1,3 +1,4 @@
+// TODO regenerate from beta: badge_art was added by hand (#10, draft until the migration is applied on beta).
 export type Json =
   | string
   | number
@@ -65,6 +66,36 @@ export type Database = {
           platform?: string | null
           props?: Json
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      badge_art: {
+        Row: {
+          badge_type: string
+          generated_at: string
+          generated_by: string | null
+          image_url: string
+          model: string
+          prompt: string
+          tier: number
+        }
+        Insert: {
+          badge_type: string
+          generated_at?: string
+          generated_by?: string | null
+          image_url: string
+          model: string
+          prompt: string
+          tier: number
+        }
+        Update: {
+          badge_type?: string
+          generated_at?: string
+          generated_by?: string | null
+          image_url?: string
+          model?: string
+          prompt?: string
+          tier?: number
         }
         Relationships: []
       }
