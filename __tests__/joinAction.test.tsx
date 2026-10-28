@@ -6,7 +6,7 @@ import { resolveJoinAction } from '../hooks/event/derive'
 import { JoinFooter } from '../components/event/JoinFooter'
 import { APPROVAL_REQUIRED_NOTE } from '../constants'
 import { EVENT_LIST_EVENT_COLUMNS } from '../constants/events'
-import { EVENT_DETAIL_COLUMNS } from '../constants/selects'
+import { EVENT_DETAIL_COLUMNS, EVENT_EDIT_SELECT } from '../constants/selects'
 import type { AttendanceStatus, EventAttendanceApi, JoinAction, JoinActionState } from '../types'
 
 const base: JoinActionState = {
@@ -170,7 +170,8 @@ describe('host form persists the approval choice', () => {
   })
 
   it('selects and hydrates it when editing', () => {
-    expect(host).toMatch(/EDIT_EVENT_SELECT =[\s\S]*?requires_approval/)
+    expect(EVENT_EDIT_SELECT).toMatch(/\brequires_approval\b/)
+    expect(host).toMatch(/\.select\(EVENT_EDIT_SELECT\)/)
     expect(host).toMatch(/requiresApproval: data\.requires_approval/)
   })
 

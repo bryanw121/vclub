@@ -1,5 +1,5 @@
-import React from 'react'
-import { View, Text, ScrollView, ActivityIndicator } from 'react-native'
+import React, { useRef } from 'react'
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native'
 import { RefreshControl } from '../RefreshControl'
 import { shared, theme } from '../../constants'
 import type { MentionUser } from '../../types'
@@ -40,7 +40,20 @@ export function DiscussionTab({
   const {
     comments, loading: commentsLoading, post: onPost, remove: onDelete,
     replyTo: replyToComment, editing: editingComment, setReplyTo: onReply, setEditing: onEdit,
+    hasEarlier, loadingEarlier, loadEarlier,
   } = discussion
+  // Keep the viewer's place when older comments are prepended: remember the
+  // scroll offset and content height at tap time, then shift by the growth.
+  const scrollYRef = useRef(0)
+  const contentHeightRef = useRef(0)
+  const anchorRef = useRef<{ y: number; height: number } | null>(null)
+  const onLoadEarlier = () => {
+    anchorRef.current = { y: scrollYRef.current, height: contentHeightRef.current }
+    void loadEarlier().finally(() => {
+      // Nothing was added (error / empty page): stop holding the anchor.
+      setTimeout(() => { anchorRef.current = null }, 500)
+    })
+  }
   const onClearReply = () => onReply(null)
   const onCancelEdit = () => onEdit(null)
   return (
@@ -58,8 +71,17 @@ export function DiscussionTab({
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
-        onContentSizeChange={() => {
-          if (isActive) scrollToBottom(false)
+        onScroll={e => { scrollYRef.current = e.nativeEvent.contentOffset.y }}
+        scrollEventThrottle={64}
+        onContentSizeChange={(_w, h) => {
+          const anchor = anchorRef.current
+          contentHeightRef.current = h
+          if (anchor && h > anchor.height) {
+            anchorRef.current = null
+            scrollRef.current?.scrollTo({ y: anchor.y + (h - anchor.height), animated: false })
+            return
+          }
+          if (isActive && !anchor) scrollToBottom(false)
         }}
       >
         {commentsLoading && comments.length === 0 ? (
@@ -72,6 +94,20 @@ export function DiscussionTab({
           </View>
         ) : (
           <View style={{ gap: theme.spacing.xs }}>
+            {hasEarlier ? (
+              <TouchableOpacity
+                onPress={onLoadEarlier}
+                disabled={loadingEarlier}
+                accessibilityRole="button"
+                accessibilityLabel="Load earlier comments"
+                testID="discussion-load-earlier"
+                style={shared.loadEarlierButton}
+              >
+                {loadingEarlier
+                  ? <ActivityIndicator size="small" color={theme.colors.primary} />
+                  : <Text style={shared.loadEarlierLabel}>Load earlier comments</Text>}
+              </TouchableOpacity>
+            ) : null}
             {comments.filter(c => !c.parent_id).map(c => (
               <EventCommentRow
                 key={c.id}

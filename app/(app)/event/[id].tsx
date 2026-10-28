@@ -136,9 +136,11 @@ export default function EventDetail() {
     const t = setTimeout(() => discussionScrollRef.current?.scrollToEnd({ animated: true }), 64)
     return () => clearTimeout(t)
   }, [keyboardInset])
+  // Keyed on the newest comment, not the count: "Load earlier" prepends and must not jump to the bottom.
+  const newestCommentId = data.comments[data.comments.length - 1]?.id
   useEffect(() => {
     if (activeTab === DISCUSSION_TAB) scrollDiscussionToBottom(false)
-  }, [activeTab, data.comments.length, composerHeight, scrollDiscussionToBottom])
+  }, [activeTab, newestCommentId, composerHeight, scrollDiscussionToBottom])
 
   // ── @mentions: attendees + co-hosts + host, excluding self ─────────────────
   const mentionProfiles = useMemo(() => {

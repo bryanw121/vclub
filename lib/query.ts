@@ -271,6 +271,19 @@ export function setQueryData<T>(key: string, updater: T | ((prev: T | undefined)
   notify(key, entry)
 }
 
+/**
+ * Warm `key` before anything reads it (prefetch on intent: press-in, hover).
+ * Fetches only if there is no fresh data and no fetch in flight; the screen's
+ * `useQuery` on the same key then joins the request or reads the result.
+ * Fire-and-forget: never rejects.
+ */
+export function prefetchQuery<T>(key: string, fetcher: () => Promise<T>, opts?: { staleMs?: number }): Promise<void> {
+  const entry = getEntry(key)
+  const staleMs = opts?.staleMs ?? entry.staleMs
+  if (entry.promise || (entry.hasData && !isEntryStale(entry, staleMs, Date.now()))) return Promise.resolve()
+  return runFetch(key, fetcher, false).then(() => undefined)
+}
+
 export function getQueryData<T>(key: string): T | undefined {
   return cache.get(key)?.data as T | undefined
 }

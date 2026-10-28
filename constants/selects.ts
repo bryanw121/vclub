@@ -33,9 +33,17 @@ export const ATTENDEE_SELECT =
 /** `cheers` row. */
 export const CHEER_SELECT = 'id, event_id, giver_id, receiver_id, cheer_type, created_at'
 
-/** `events` columns the event detail screen renders. */
+/**
+ * `events` columns the event detail screen renders. Includes the coordinates so
+ * the cached row also holds every field of the host edit form (EVENT_EDIT_SELECT),
+ * which then paints from it without waiting.
+ */
 export const EVENT_DETAIL_COLUMNS =
-  'id, created_by, club_id, title, description, location, event_date, duration_minutes, max_attendees, created_at, price, venmo_handle, requires_approval, surface'
+  'id, created_by, club_id, title, description, location, latitude, longitude, event_date, duration_minutes, max_attendees, created_at, price, venmo_handle, requires_approval, surface'
+
+/** The host edit form (`/host?edit=`): the editable columns and the tag ids. */
+export const EVENT_EDIT_SELECT =
+  'id, title, description, location, latitude, longitude, event_date, duration_minutes, max_attendees, price, venmo_handle, requires_approval, surface, club_id, event_tags (tag_id)'
 
 /** Event detail: the row, its host, every attendee with profile, and its tags. */
 export const EVENT_DETAIL_SELECT =

@@ -7,6 +7,7 @@ import { theme, eventAttendeeDisplayCount, SURFACE_LABELS } from '../constants'
 import { TimePill } from './ui'
 import { routes } from '../utils/routes'
 import { rememberEventCard } from '../hooks/event/seed'
+import { eventPrefetchProps } from '../hooks/event/prefetch'
 import { profileAvatarSmallUri, profileDisplayName, surfaceOf } from '../utils'
 import type { EventCardRsvpHandler, EventWithDetails, Tag } from '../types'
 
@@ -116,6 +117,7 @@ function EventCardInner({
   return (
     <TouchableOpacity
       activeOpacity={0.85}
+      {...(event._isTournament ? null : eventPrefetchProps(event.id))}
       onPress={() => {
         if (!event._isTournament) rememberEventCard(event)
         router.push(
@@ -343,6 +345,7 @@ function RowEventCardInner({ event, from: fromOverride, currentUserId, onRsvp, r
   return (
     <TouchableOpacity
       activeOpacity={0.85}
+      {...(event._isTournament ? null : eventPrefetchProps(event.id))}
       onPress={() => {
         if (!event._isTournament) rememberEventCard(event)
         router.push(
