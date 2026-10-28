@@ -1,4 +1,4 @@
--- Undo 20261028130000_club_place_location.sql
+-- Undo 20261028180100_club_place_location.sql
 alter table public.clubs
   drop constraint if exists clubs_location_has_name,
   drop constraint if exists clubs_coords_valid,
