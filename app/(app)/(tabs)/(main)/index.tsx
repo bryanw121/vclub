@@ -15,6 +15,7 @@ import { EventsHeader } from '../../../../components/events/EventsHeader'
 import { FilterChips } from '../../../../components/events/FilterChips'
 import { SurfaceFilter } from '../../../../components/events/SurfaceFilter'
 import { FeedEmpty } from '../../../../components/events/FeedEmpty'
+import { AllTournamentsLink } from '../../../../components/events/AllTournamentsLink'
 import { NextUpCard } from '../../../../components/events/NextUpCard'
 import { IconButton } from '../../../../components/ui'
 import { myStatusFor, useMyUpcomingEvents } from '../../../../hooks/useMyUpcomingEvents'
@@ -370,6 +371,7 @@ export default function EventsScreen() {
         />
         <SurfaceFilter active={surfaceFilter} onSelect={selectSurface} wide={!isMobile} />
       </TourTarget>
+      {activeFilter === 'tournament' && <AllTournamentsLink onPress={() => router.push(routes.tournaments())} />}
       {staleNotice}
     </>
   )

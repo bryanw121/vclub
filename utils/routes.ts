@@ -73,6 +73,7 @@ export const routes = {
   conversation: (id: string) => href(`/chat/${id}`),
   tournament: (id: string) => href(`/tournament/${id}`),
   tournamentCreate: () => href('/tournament/create'),
+  tournaments: () => href('/tournaments'),
 
   host: (opts: HostRouteOptions = {}) => {
     const query: string[] = []

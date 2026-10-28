@@ -23,9 +23,11 @@ type Props = {
   registrationOpen: boolean
   joinRequests: TournamentJoinRequestWithRequester[]
   actions: TeamCardActions
+  /** Organizer: open the seeding sheet. */
+  onSetSeeds: () => void
 }
 
-export function TeamsTab({ teams, myTeam, viewerId, isCreator, registrationOpen, joinRequests, actions, refreshControl }: Props) {
+export function TeamsTab({ teams, myTeam, viewerId, isCreator, registrationOpen, joinRequests, actions, refreshControl, onSetSeeds }: Props) {
   const approved = teams.filter(t => t.status === 'registered' && t.is_approved)
   const pending = teams.filter(t => t.status === 'registered' && !t.is_approved)
   const freeAgents = teams.filter(t => t.status === 'free_agent')
@@ -49,6 +51,12 @@ export function TeamsTab({ teams, myTeam, viewerId, isCreator, registrationOpen,
       {myTeam && !isCreator && myTeam.captain_user_id === viewerId && (
         <View style={{ marginBottom: 14 }}>
           <Button label="Invite Players" icon="person-add-outline" onPress={actions.onInvite} />
+        </View>
+      )}
+
+      {isCreator && approved.length + pending.length >= 2 && (
+        <View style={{ marginBottom: 14 }}>
+          <Button label="Set seeds" icon="podium-outline" variant="secondary" onPress={onSetSeeds} testID="set-seeds" />
         </View>
       )}
 

@@ -2,7 +2,9 @@ import { useCallback } from 'react'
 import { TOURNAMENT_ERROR_TITLE as T } from '../../constants/tournamentCopy'
 import { getQueryData, invalidate, setQueryData, useMutation, type MutationOptions } from '../../lib/query'
 import { patchCommentRow } from '../../utils/commentPages'
-import type { GeneratedSchedule, TournamentCommentWithAuthor, TournamentCommentsPage } from '../../types'
+import type {
+  GeneratedSchedule, SetScore, TimedBracketMatch, TournamentCommentWithAuthor, TournamentCommentsPage, TournamentResultWrites,
+} from '../../types'
 import * as api from './api'
 import { tournamentKeys } from './api'
 import { notifyError, notifyInfo } from '../../utils/notify'
@@ -119,9 +121,28 @@ export function useTournamentActions(id: string, userId: string | null) {
     { invalidates: [tournamentKeys.core(id)], onError: e => notifyError(T.publish, e) },
   )
 
+  const schedule = [tournamentKeys.core(id), tournamentKeys.matches(id), tournamentKeys.pools(id)]
+
   const replaceSchedule = useAction(
-    (schedule: GeneratedSchedule) => api.replaceSchedule(id, schedule),
-    { invalidates: [tournamentKeys.core(id), tournamentKeys.matches(id)], onError: e => notifyError(T.schedule, e) },
+    (generated: GeneratedSchedule) => api.replaceSchedule(id, generated),
+    { invalidates: schedule, onError: e => notifyError(T.schedule, e) },
+  )
+
+  const seedBracket = useAction(
+    (rows: TimedBracketMatch[]) => api.seedBracket(id, rows),
+    { invalidates: [tournamentKeys.matches(id)], onError: e => notifyError(T.bracket, e) },
+  )
+
+  const recordResult = useAction(
+    (v: { matchId: string; winnerId: string; sets: SetScore[]; forfeit: boolean; writes: TournamentResultWrites }) =>
+      api.recordResult({ tournamentId: id, ...v }),
+    // Status may change (in progress / completed), so the core row refetches too.
+    { invalidates: [tournamentKeys.core(id), tournamentKeys.matches(id)], onError: e => notifyError(T.result, e) },
+  )
+
+  const saveSeeds = useAction(
+    (seeds: { teamId: string; seed: number | null }[]) => api.saveSeeds(seeds),
+    { invalidates: [tournamentKeys.teams(id)], onError: e => notifyError(T.team, e) },
   )
 
   const saveMatch = useAction(
@@ -181,7 +202,7 @@ export function useTournamentActions(id: string, userId: string | null) {
   return {
     register, withdraw, acceptInvite, declineInvite, sendInvite, sendJoinRequest,
     approveJoinRequest, declineJoinRequest, approveTeam, markPaid, removeTeam, movePlayer, assignFreeAgent,
-    publishTournament, publishSchedule, replaceSchedule, saveMatch, addPrize, deletePrize,
+    publishTournament, publishSchedule, replaceSchedule, seedBracket, recordResult, saveSeeds, saveMatch, addPrize, deletePrize,
     deleteComment, postAnnouncement, postComment,
   }
 }

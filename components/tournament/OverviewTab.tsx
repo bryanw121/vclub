@@ -89,7 +89,7 @@ export function OverviewTab(p: Props) {
 
       {/* Registration CTA */}
       {!isCreator && !myTeam && p.registrationOpen && (
-        <Button label="Register Team" onPress={p.onRegister} style={{ marginBottom: 12 }} />
+        <Button label="Register Team" testID="register-team" onPress={p.onRegister} style={{ marginBottom: 12 }} />
       )}
 
       {/* Pay via Venmo — non-creators, when there is a fee and a handle */}
