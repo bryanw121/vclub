@@ -1,3 +1,4 @@
+// TODO regenerate from beta: event_payments was added by hand (PR for #6, migration 20261028180000_event_payments). Replace with `generate_typescript_types` output once it is applied on beta.
 export type Json =
   | string
   | number
@@ -610,6 +611,32 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "events"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_payments: {
+        Row: {
+          event_id: string
+          paid_at: string
+          user_id: string
+        }
+        Insert: {
+          event_id: string
+          paid_at?: string
+          user_id: string
+        }
+        Update: {
+          event_id?: string
+          paid_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_payments_event_id_user_id_fkey"
+            columns: ["event_id", "user_id"]
+            isOneToOne: true
+            referencedRelation: "event_attendees"
+            referencedColumns: ["event_id", "user_id"]
           },
         ]
       }
