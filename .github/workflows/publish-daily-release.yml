@@ -1,0 +1,35 @@
+# Publishes each notes/YYYY-MM-DD.md pushed to this branch as a GitHub release
+# tagged daily-YYYY-MM-DD on main. The daily summary scheduled task writes the
+# notes; this workflow exists because that task can't call the releases API.
+name: Publish daily release
+on:
+  push:
+    branches: [release-notes]
+    paths: ['notes/*.md']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Create or update releases for changed notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          files=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- 'notes/*.md' 2>/dev/null || ls notes/*.md)
+          for f in $files; do
+            day=$(basename "$f" .md)
+            tag="daily-$day"
+            title="Daily progress, $(date -d "$day" '+%b %-d, %Y')"
+            if gh release view "$tag" >/dev/null 2>&1; then
+              gh release edit "$tag" --title "$title" --notes-file "$f"
+            else
+              gh release create "$tag" --target main --title "$title" --notes-file "$f" --latest=false
+            fi
+            echo "Published $tag"
+          done
