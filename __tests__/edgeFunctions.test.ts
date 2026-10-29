@@ -14,6 +14,7 @@ const sendPush = read('supabase/functions/send-chat-push/index.ts')
 const checkReceipts = read('supabase/functions/check-push-receipts/index.ts')
 const places = read('supabase/functions/places-proxy/index.ts')
 const loginWithUsername = read('supabase/functions/login-with-username/index.ts')
+const deleteAccount = read('supabase/functions/delete-account/index.ts')
 const shared = read('supabase/functions/_shared/supabase.ts')
 const config = read('supabase/config.toml')
 
@@ -47,7 +48,7 @@ describe('shared supabase-js import', () => {
   })
 
   it('is the only place functions import it from a URL', () => {
-    for (const source of [sendPush, checkReceipts, places, loginWithUsername]) {
+    for (const source of [sendPush, checkReceipts, places, loginWithUsername, deleteAccount]) {
       expect(source).not.toMatch(/esm\.sh/)
     }
   })
@@ -66,6 +67,10 @@ describe('supabase/config.toml', () => {
     expect(verifyJwt('login-with-username')).toBe('false')
   })
 
+  it('keeps JWT verification on for delete-account', () => {
+    expect(verifyJwt('delete-account')).toBe('true')
+  })
+
   it('keeps JWT verification on for places-proxy', () => {
     expect(verifyJwt('places-proxy')).toBe('true')
   })
@@ -77,5 +82,26 @@ describe('places-proxy CORS', () => {
     const wildcards = places.match(/'Access-Control-Allow-Origin': '\*'/g) ?? []
     expect(wildcards).toHaveLength(1)
     expect(places).toMatch(/if \(!allowed\.length\)[\s\S]{0,200}'\*'/)
+  })
+})
+
+describe('delete-account', () => {
+  it('takes the user from the JWT, never from the request body', () => {
+    expect(deleteAccount).toMatch(/service\.auth\.getUser\(token\)/)
+    expect(deleteAccount).not.toMatch(/body\.(user|user_id|userId)/)
+  })
+  it('requires a recent sign-in before deleting', () => {
+    const reauthAt = deleteAccount.indexOf('isRecentSignIn(')
+    const deleteAt = deleteAccount.indexOf("rpc('delete_account'")
+    expect(reauthAt).toBeGreaterThan(-1)
+    expect(deleteAt).toBeGreaterThan(reauthAt)
+  })
+  it('deletes in one SQL transaction (no separate auth admin call) and removes files only afterwards', () => {
+    expect(deleteAccount).not.toMatch(/auth\.admin\.deleteUser/)
+    const deleteAt = deleteAccount.indexOf("rpc('delete_account'")
+    const filesAt = deleteAccount.indexOf('await removeFolder(')
+    expect(filesAt).toBeGreaterThan(deleteAt)
+    expect(deleteAccount.slice(deleteAt, filesAt)).toMatch(/if \(deleteError\) \{[\s\S]*?return json/)
+    expect(deleteAccount).toMatch(/removeFolder\('club-avatars', club\.id\)/)
   })
 })

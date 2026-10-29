@@ -25,3 +25,6 @@ export const APPROVAL_REQUIRED_NOTE = 'The host reviews requests for this event'
 export const INCORRECT_USERNAME_OR_PASSWORD = 'Incorrect username or password'
 /** Email sign-in: the same message for an unknown email and a wrong password. */
 export const INCORRECT_EMAIL_OR_PASSWORD = 'Incorrect email or password'
+
+/** Shown in place of someone who deleted their account (e.g. the other side of a DM). */
+export const DELETED_USER_LABEL = 'Deleted user'

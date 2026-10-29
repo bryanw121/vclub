@@ -41,6 +41,7 @@ export type SettingsSection =
   | 'display'
   | 'feedback'
   | 'badges'
+  | 'delete-account'
 
 export type HostRouteOptions = {
   /** Event id to edit. */
@@ -91,6 +92,8 @@ export const routes = {
   /** Terms and Conditions / Privacy Policy. Public (outside the auth gate). */
   terms: () => href('/terms'),
   privacy: () => href('/privacy'),
+  /** Public page on how to delete an account (the URL Google Play asks for). */
+  deleteAccountInfo: () => href('/delete-account'),
 
   notifications: () => href('/notifications'),
   settings: (section?: SettingsSection) => href(section ? `/settings/${section}` : '/settings'),
