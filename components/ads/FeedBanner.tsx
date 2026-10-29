@@ -1,5 +1,6 @@
 import { memo } from 'react'
-import { Platform, Pressable, Text, View } from 'react-native'
+import { Platform, Pressable, View } from 'react-native'
+import { Text } from '../ui/Text'
 import { Image } from 'expo-image'
 import * as Linking from 'expo-linking'
 import Ionicons from '@expo/vector-icons/Ionicons'
