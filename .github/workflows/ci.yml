@@ -60,7 +60,7 @@ jobs:
           name: coverage
           path: coverage/
           retention-days: 14
-      - run: node --test scripts/*.test.mjs
+      - run: node --test scripts/*.test.mjs scripts/shots/*.test.mjs
 
   # The web build runs in parallel with docs/unit, outside the shared e2e lock,
   # so the serialized e2e job only installs and runs tests.

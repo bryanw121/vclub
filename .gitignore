@@ -7,6 +7,9 @@ node_modules/
 .expo/
 dist/
 web-build/
+
+# Screenshot tool output (scripts/shots)
+/shots/
 expo-env.d.ts
 
 # Native

@@ -15,7 +15,9 @@
     "docs:update": "node scripts/generate-architecture-doc.mjs",
     "docs:check": "node scripts/generate-architecture-doc.mjs --check",
     "db:drift": "node scripts/schema-drift.mjs",
-    "test:coverage": "TZ=America/Chicago jest --coverage"
+    "test:coverage": "TZ=America/Chicago jest --coverage",
+    "shots:capture": "node scripts/shots/capture.mjs",
+    "shots:compare": "node scripts/shots/compare.mjs"
   },
   "jest": {
     "preset": "jest-expo",
