@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
+import { Text } from '../ui/Text'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { shared, theme } from '../../constants'
 import { formatEventDate, profileDisplayName } from '../../utils'

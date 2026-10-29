@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { ScrollView, View } from 'react-native'
+import { Text } from '../../../../components/ui/Text'
 import { useRouter } from 'expo-router'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useStackBackTitle } from '../../../../hooks/useStackBackTitle'

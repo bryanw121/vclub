@@ -436,7 +436,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Inventory fingerprint: `23bf10596f83`
+> Inventory fingerprint: `db70c74d32a6`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -473,7 +473,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `message_reactions` | [`hooks/useMessages.ts:434`](../hooks/useMessages.ts#L434) |
 | `messages` | [`hooks/useMessages.ts:85`](../hooks/useMessages.ts#L85) |
 | `notifications` | [`hooks/event/useCohosts.ts:73`](../hooks/event/useCohosts.ts#L73)<br>[`hooks/event/useEventAttendance.ts:77`](../hooks/event/useEventAttendance.ts#L77)<br>[`hooks/useNotifications.ts:34`](../hooks/useNotifications.ts#L34)<br>[`utils/badges.ts:217`](../utils/badges.ts#L217) |
-| `profiles` | [`app/_layout.tsx:45`](../app/_layout.tsx#L45)<br>[`app/(app)/(tabs)/chat.tsx:59`](../app/%28app%29/%28tabs%29/chat.tsx#L59)<br>[`app/(app)/profile/[id].tsx:56`](../app/%28app%29/profile/%5Bid%5D.tsx#L56)<br>[`app/(auth)/register.tsx:65`](../app/%28auth%29/register.tsx#L65)<br>[`hooks/event/useCohosts.ts:37`](../hooks/event/useCohosts.ts#L37)<br>[`hooks/event/useEventData.ts:109`](../hooks/event/useEventData.ts#L109)<br>+5 more files |
+| `profiles` | [`app/_layout.tsx:45`](../app/_layout.tsx#L45)<br>[`app/(app)/(tabs)/chat.tsx:62`](../app/%28app%29/%28tabs%29/chat.tsx#L62)<br>[`app/(app)/profile/[id].tsx:56`](../app/%28app%29/profile/%5Bid%5D.tsx#L56)<br>[`app/(auth)/register.tsx:65`](../app/%28auth%29/register.tsx#L65)<br>[`hooks/event/useCohosts.ts:37`](../hooks/event/useCohosts.ts#L37)<br>[`hooks/event/useEventData.ts:109`](../hooks/event/useEventData.ts#L109)<br>+5 more files |
 | `push_receipts` | [`supabase/functions/check-push-receipts/index.ts:37`](../supabase/functions/check-push-receipts/index.ts#L37)<br>[`supabase/functions/send-chat-push/index.ts:199`](../supabase/functions/send-chat-push/index.ts#L199) |
 | `push_tokens` | [`supabase/functions/check-push-receipts/index.ts:82`](../supabase/functions/check-push-receipts/index.ts#L82)<br>[`supabase/functions/send-chat-push/index.ts:144`](../supabase/functions/send-chat-push/index.ts#L144)<br>[`utils/pushNotifications.ts:47`](../utils/pushNotifications.ts#L47) |
 | `tags` | [`hooks/useTags.ts:14`](../hooks/useTags.ts#L14) |
@@ -500,7 +500,9 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 |---|---|---|
 | `accept_tournament_invite` | [`hooks/tournament/api.ts:241`](../hooks/tournament/api.ts#L241) | [`supabase/migrations/20261025120000_tournament_rpcs.sql:18`](../supabase/migrations/20261025120000_tournament_rpcs.sql#L18) |
 | `check_rate_limit` | [`supabase/functions/login-with-username/index.ts:104`](../supabase/functions/login-with-username/index.ts#L104) | [`supabase/migrations/20261028120200_rate_limit_core.sql:19`](../supabase/migrations/20261028120200_rate_limit_core.sql#L19) |
+| `delete_account` | [`supabase/functions/delete-account/index.ts:70`](../supabase/functions/delete-account/index.ts#L70) | [`supabase/migrations/20261028130000_account_deletion.sql:190`](../supabase/migrations/20261028130000_account_deletion.sql#L190) |
 | `find_or_create_dm` | [`hooks/useOpenDm.ts:26`](../hooks/useOpenDm.ts#L26) | Not checked in |
+| `get_account_deletion_preview` | [`hooks/useAccountDeletion.ts:18`](../hooks/useAccountDeletion.ts#L18) | [`supabase/migrations/20261028130000_account_deletion.sql:166`](../supabase/migrations/20261028130000_account_deletion.sql#L166) |
 | `get_email_by_username` | [`supabase/functions/login-with-username/index.ts:111`](../supabase/functions/login-with-username/index.ts#L111) | Not checked in |
 | `get_event_card_attendee_previews` | [`utils/eventCardPreviews.ts:35`](../utils/eventCardPreviews.ts#L35) | [`supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql:2`](../supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql#L2) |
 | `get_feed_span` | [`hooks/useMonthEvents.ts:174`](../hooks/useMonthEvents.ts#L174) | [`supabase/migrations/20261025220000_get_feed_span.sql:33`](../supabase/migrations/20261025220000_get_feed_span.sql#L33) |
@@ -518,7 +520,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Surface | Name | Call sites |
 |---|---|---|
 | Auth | `exchangeCodeForSession` | [`lib/socialAuth.ts:24`](../lib/socialAuth.ts#L24) |
-| Auth | `getSession` | [`app/_layout.tsx:41`](../app/_layout.tsx#L41)<br>[`app/(app)/(tabs)/settings/account.tsx:19`](../app/%28app%29/%28tabs%29/settings/account.tsx#L19)<br>[`app/(app)/(tabs)/settings/cheers.tsx:23`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L23)<br>[`app/(app)/club/create.tsx:34`](../app/%28app%29/club/create.tsx#L34)<br>[`app/(auth)/reset-password.tsx:33`](../app/%28auth%29/reset-password.tsx#L33)<br>[`components/ClubPostCard.tsx:253`](../components/ClubPostCard.tsx#L253)<br>+2 more files |
+| Auth | `getSession` | [`app/_layout.tsx:41`](../app/_layout.tsx#L41)<br>[`app/(app)/(tabs)/settings/account.tsx:22`](../app/%28app%29/%28tabs%29/settings/account.tsx#L22)<br>[`app/(app)/(tabs)/settings/cheers.tsx:23`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L23)<br>[`app/(app)/club/create.tsx:34`](../app/%28app%29/club/create.tsx#L34)<br>[`app/(auth)/reset-password.tsx:33`](../app/%28auth%29/reset-password.tsx#L33)<br>[`components/ClubPostCard.tsx:253`](../components/ClubPostCard.tsx#L253)<br>+2 more files |
 | Auth | `getUser` | [`contexts/session.tsx:15`](../contexts/session.tsx#L15)<br>[`lib/sessionUser.ts:6`](../lib/sessionUser.ts#L6) |
 | Auth | `onAuthStateChange` | [`app/(auth)/reset-password.tsx:28`](../app/%28auth%29/reset-password.tsx#L28)<br>[`contexts/session.tsx:32`](../contexts/session.tsx#L32) |
 | Auth | `resetPasswordForEmail` | [`app/(auth)/login.tsx:94`](../app/%28auth%29/login.tsx#L94) |
@@ -526,8 +528,8 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Auth | `signInWithIdToken` | [`lib/socialAuth.ts:78`](../lib/socialAuth.ts#L78) |
 | Auth | `signInWithOAuth` | [`lib/socialAuth.ts:38`](../lib/socialAuth.ts#L38) |
 | Auth | `signInWithOtp` | [`lib/socialAuth.ts:89`](../lib/socialAuth.ts#L89) |
-| Auth | `signInWithPassword` | [`app/(auth)/login.tsx:119`](../app/%28auth%29/login.tsx#L119) |
-| Auth | `signOut` | [`app/(app)/(tabs)/settings/account.tsx:27`](../app/%28app%29/%28tabs%29/settings/account.tsx#L27) |
+| Auth | `signInWithPassword` | [`app/(auth)/login.tsx:119`](../app/%28auth%29/login.tsx#L119)<br>[`hooks/useAccountDeletion.ts:70`](../hooks/useAccountDeletion.ts#L70) |
+| Auth | `signOut` | [`app/(app)/(tabs)/settings/account.tsx:30`](../app/%28app%29/%28tabs%29/settings/account.tsx#L30)<br>[`hooks/useAccountDeletion.ts:63`](../hooks/useAccountDeletion.ts#L63) |
 | Auth | `signUp` | [`app/(auth)/register.tsx:75`](../app/%28auth%29/register.tsx#L75) |
 | Auth | `startAutoRefresh` | [`lib/supabase.ts:36`](../lib/supabase.ts#L36) |
 | Auth | `stopAutoRefresh` | [`lib/supabase.ts:37`](../lib/supabase.ts#L37) |
@@ -578,6 +580,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | Usage metrics (lib/analytics.ts) | [`AnalyticsEventName`](../types/index.ts#L1533), [`AnalyticsProps`](../types/index.ts#L1536) |
 | Legal pages (/terms, /privacy) | [`LegalSpan`](../types/index.ts#L1541), [`LegalBlock`](../types/index.ts#L1544), [`VenmoLinks`](../types/index.ts#L1552) |
 | Text size (#43) | [`TextSizeId`](../types/index.ts#L1562), [`TextSizeOption`](../types/index.ts#L1564), [`TextScaleContextValue`](../types/index.ts#L1571) |
+| Account deletion (#99) | [`AccountDeletionSuccessor`](../types/index.ts#L1584), [`AccountDeletionPlan`](../types/index.ts#L1590), [`AccountDeletionBlock`](../types/index.ts#L1606) |
 
 ### Constrained string values
 
@@ -586,6 +589,7 @@ TypeScript `enum` keyword.
 
 | Type or field | Values | Source |
 |---|---|---|
+| `AccountDeletionBlock` | `reauth_required`, `plan_changed` | [`types/index.ts:1606`](../types/index.ts#L1606) |
 | `BadgeStat` | `events_attended_past`, `events_hosted_past`, `cheers_received_total`, `cheers_given_events`, `spike_cheers`, `serve_cheers`, `block_cheers`, `set_cheers`, `dig_pass_cheers`, `communication_cheers`, `beta_active`, `tournament_hosted`, `profile_complete`, `vex_member` | [`constants/badges.ts:43`](../constants/badges.ts#L43) |
 | `BadgeType` | `event_attendee`, `event_host`, `cheers_received`, `cheers_given`, `spike_cheer`, `serve_cheer`, `block_cheer`, `set_cheer`, `dig_pass_cheer`, `communication_cheer`, `beta_tester`, `tournament_director`, `profile_complete`, `vex_spirit` | [`types/index.ts:720`](../types/index.ts#L720) |
 | `CardBgType` | `ember`, `frost`, `aurora` | [`types/index.ts:718`](../types/index.ts#L718) |
