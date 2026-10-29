@@ -236,6 +236,9 @@ The policy text lives in `constants/legal.ts` (Markdown subset, rendered by `com
 ### Text size
 Every font size is a token in `theme.font` (`size`, `heading`, `emoji`, `watermark`; nothing below 11px), and every `Text` / `TextInput` is imported from `components/ui/Text`, never from `react-native` (`__tests__/textSizeFloor.test.ts` enforces both). That wrapper multiplies the style's own `fontSize` and `lineHeight` by the text size setting (Settings → Display: Small 0.9×, Default, Large 1.15×, Extra large 1.3×; `TextScaleProvider` in `contexts/textScale.tsx`, stored on the device) and the OS/browser text size: on native React Native applies Dynamic Type itself and the wrapper caps it through `maxFontSizeMultiplier`; on web, where react-native-web emits fixed px, it reads the root font size. `maxFontSizeMultiplier` on the wrapper caps the combined scale (default `MAX_TEXT_SCALE`, 2×); pass `TIGHT_TEXT_SCALE` (1.3×) for fixed-size UI (tab bar labels, unread pips) and `COMPACT_TEXT_SCALE` (1.15×) for rows of equal cells on a 320px phone (week strip dates, event tabs). Non-`Text` sizes (SVG labels) use `useScaledFontSize(token)`. Check new layouts at Extra large.
 
+### Badge art
+Badge definitions live in `constants/badges.ts`. Art for a tier comes from, in order: a `badge_art` row (generated, #10), `tierImageUris`/`imageUri` in code, else the gradient + Ionicon. Generate art with `node scripts/generate-badge-art.mjs <badge> [tier] | --missing` (admin account; calls the `generate-badge-art` edge function, see `supabase/functions/README.md`). The look is defined once, in `supabase/functions/_shared/badgeArt.ts`; never call an image model from the app.
+
 ### Login accepts email or username
 If the login field doesn't look like an email, `login.tsx` calls the `get_email_by_username` RPC, then signs in with the resolved email.
 
