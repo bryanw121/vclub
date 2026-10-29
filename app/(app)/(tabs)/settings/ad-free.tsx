@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { ScrollView, View } from 'react-native'
+import { Text } from '../../../../components/ui/Text'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { RefreshControl } from '../../../../components/RefreshControl'
 import { Button } from '../../../../components/Button'
