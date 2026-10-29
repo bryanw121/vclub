@@ -178,3 +178,27 @@ test.describe('privacy tightening (#99)', () => {
     expect(join.error?.code).toBe(RLS_DENIED)
   })
 })
+
+/**
+ * #11 (#108): rate-limit plumbing is server-only; member search needs an
+ * account. Skipped until the migrations are on beta. TODO(#108): drop the skip.
+ */
+test.describe('rate limiting (#108)', () => {
+  test('clients cannot touch the limiter; search_members works signed in only', async () => {
+    const search = await q(() => me.rpc('search_members', { p_query: 'e2e', p_limit: 5 }), 'search_members')
+    test.skip(!!search.error && /search_members|PGRST202/.test(`${search.error.code} ${search.error.message}`),
+      'TODO(#108): migration 20261028140000_rate_limits not on beta yet')
+    expect(search.error).toBeNull()
+    expect(((search.data ?? []) as { username: string }[]).map(r => r.username)).toContain('e2ebuddy')
+
+    const anonSearch = await q(() => anon.rpc('search_members', { p_query: 'e2e' }), 'anon search_members')
+    expect(anonSearch.error).not.toBeNull()
+    for (const client of [anon, me]) {
+      const limiter = await q(() => client.rpc('check_rate_limit', { p_key: 'rls-test', p_max: 1, p_window_seconds: 1 }), 'check_rate_limit')
+      expect(limiter.error, 'check_rate_limit is service-role only').not.toBeNull()
+      const counters = await q(() => client.from('rate_limits').select('key').limit(1), 'rate_limits')
+      if (counters.error) expect(counters.error.code).toBe(RLS_DENIED)
+      else expect(counters.data).toEqual([])
+    }
+  })
+})
