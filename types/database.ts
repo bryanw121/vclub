@@ -1,4 +1,4 @@
-// TODO regenerate from beta: clubs location columns were added by hand (PR for #13, migration 20261028130000_club_place_location). Replace with `generate_typescript_types` output once it is applied on beta.
+// TODO regenerate from beta: clubs location columns were added by hand (PR for #13, migration 20261028180100_club_place_location). Replace with `generate_typescript_types` output once it is applied on beta.
 export type Json =
   | string
   | number
