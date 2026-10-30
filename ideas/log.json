@@ -1,1 +1,26 @@
-[]
+[
+  {
+    "date": "2026-10-30",
+    "n": 1,
+    "title": "Event reminders with one-tap \"Can't make it\" (and push for every notification)",
+    "bucket": "competitor-gap",
+    "status": "proposed",
+    "summary": "pg_cron reminder at the player's lead time (default 2h) with push actions View / Can't make it (confirmed leave); generic send-notification-push edge fn so all notification types deliver push; late_dropout notice to hosts. Cites Spond, TeamSnap."
+  },
+  {
+    "date": "2026-10-30",
+    "n": 2,
+    "title": "Share links that open anywhere, with rich previews",
+    "bucket": "end-user-experience",
+    "status": "proposed",
+    "summary": "Native share sends vteam:// today; switch to https WEB_ORIGIN links and add a Vercel function that injects og:* tags plus an @vercel/og event card (title, time, place, spots left) from anon-readable fields."
+  },
+  {
+    "date": "2026-10-30",
+    "n": 3,
+    "title": "Accessibility check on every PR (axe-core over the shots harness)",
+    "bucket": "testing",
+    "status": "proposed",
+    "summary": "Run axe WCAG 2.1 AA on all scripts/shots screens with mocked Supabase in a CI job; baseline today's findings (contrast 469 nodes, missing title, viewport zoom, unlabelled switches/spinner) and fail on new serious/critical ones."
+  }
+]

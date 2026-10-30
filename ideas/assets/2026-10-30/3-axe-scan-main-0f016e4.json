@@ -1,0 +1,1096 @@
+{
+ "events-feed": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 33,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 4.32 (foreground color: #7a7699, background color: #13111f, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "events-feed-guest": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 24,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 4.32 (foreground color: #7a7699, background color: #13111f, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "event-details": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 20,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 9.8pt (13px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "event-people": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 20,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 9.8pt (13px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "event-discussion": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 20,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 9.8pt (13px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "event-cheers": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 17,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 9.8pt (13px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "event-paid-bottom": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 20,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 9.8pt (13px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "event-guest": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 19,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 9.8pt (13px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "host-create": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 10,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 4.32 (foreground color: #7a7699, background color: #13111f, font size: 9.8pt (13px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "label",
+   "impact": "critical",
+   "nodes": 2,
+   "sample": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  },
+  {
+   "id": "select-name",
+   "impact": "critical",
+   "nodes": 3,
+   "sample": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+  }
+ ],
+ "host-edit": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 10,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 4.32 (foreground color: #7a7699, background color: #13111f, font size: 9.8pt (13px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  },
+  {
+   "id": "select-name",
+   "impact": "critical",
+   "nodes": 3,
+   "sample": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+  }
+ ],
+ "notifications": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 12,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 13.5pt (18px), fon"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "clubs-list": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 2,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.89 (foreground color: #7a7699, background color: #1e1b2e, font size: 9.0pt (12px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "club-detail": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 8,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 4.32 (foreground color: #7a7699, background color: #13111f, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "club-detail-guest": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 7,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 4.32 (foreground color: #7a7699, background color: #13111f, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "club-create": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 8,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 13.5pt (18px), fon"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "chat-list": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 9,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 4.32 (foreground color: #7a7699, background color: #13111f, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "chat-conversation": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 11,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 4.32 (foreground color: #7a7699, background color: #13111f, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "chat-club": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 7,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 4.32 (foreground color: #7a7699, background color: #13111f, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "profile-own": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 4,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.89 (foreground color: #7a7699, background color: #1e1b2e, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "profile-own-guest": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 3,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 4.32 (foreground color: #7a7699, background color: #13111f, font size: 10.5pt (14px), fon"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "profile-other": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 4,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 9.0pt (12px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "settings-account": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 3,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 13.5pt (18px), fon"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "settings-display": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 9,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 13.5pt (18px), fon"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "settings-notifications": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 6,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 13.5pt (18px), fon"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "label",
+   "impact": "critical",
+   "nodes": 24,
+   "sample": "Fix any of the following:   Element does not have an implicit (wrapped) <label>"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "settings-history": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 5,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 13.5pt (18px), fon"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "settings-hosted": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 4,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 13.5pt (18px), fon"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "settings-cheers": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 8,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 13.5pt (18px), fon"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "settings-badges": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "aria-required-attr",
+   "impact": "critical",
+   "nodes": 4,
+   "sample": "Fix any of the following:   Required ARIA attribute not present: aria-checked"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 13,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 13.5pt (18px), fon"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "settings-feedback": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 9,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 13.5pt (18px), fon"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "settings-silenced": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 4,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 13.5pt (18px), fon"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "tournaments-list": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 8,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 9.0pt (12px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "tournaments-list-past": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 8,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 9.0pt (12px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "tournament-overview": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 15,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 1.33 (foreground color: #7c4dff, background color: #635885, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "tournament-teams": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 15,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 1.33 (foreground color: #7c4dff, background color: #635885, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "tournament-schedule": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 15,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 1.33 (foreground color: #7c4dff, background color: #635885, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "tournament-results": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 18,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 1.33 (foreground color: #7c4dff, background color: #635885, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "tournament-discussion": [
+  {
+   "id": "aria-progressbar-name",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   aria-label attribute does not exist or is empty"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 15,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 1.33 (foreground color: #7c4dff, background color: #635885, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "tournament-create": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 12,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "login": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 10,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 2.99 (foreground color: #7c4dff, background color: #2c234d, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "register": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 13,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 2.99 (foreground color: #7c4dff, background color: #2c234d, font size: 8.3pt (11px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "reset-password": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 3,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.89 (foreground color: #7a7699, background color: #1e1b2e, font size: 10.5pt (14px), fon"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "terms": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 3,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 9.0pt (12px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ],
+ "privacy": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "nodes": 5,
+   "sample": "Fix any of the following:   Element has insufficient color contrast of 3.86 (foreground color: #7c4dff, background color: #13111f, font size: 9.0pt (12px), font"
+  },
+  {
+   "id": "document-title",
+   "impact": "serious",
+   "nodes": 1,
+   "sample": "Fix any of the following:   Document does not have a non-empty <title> element"
+  },
+  {
+   "id": "meta-viewport",
+   "impact": "critical",
+   "nodes": 1,
+   "sample": "Fix any of the following:   user-scalable=no on <meta> tag disables zooming on mobile devices"
+  }
+ ]
+}
