@@ -52,5 +52,14 @@
     "status": "approved",
     "summary": "CI job db-tests: supabase start in the runner, load beta schema dump, round-trip each new migration (up/down/up compared by schema_fingerprint), then pgTAP tests for points, ad-free, capacity/waitlist, reminders, rollup, Schelagg mapping. Never touches live or shared beta state.",
     "issue": 150
+  },
+  {
+    "date": "2026-10-31",
+    "n": "discussion",
+    "title": "Points shop (cosmetics, utility, real prizes) and points for non-vteam events",
+    "bucket": "new-feature",
+    "status": "tabled",
+    "reason": "Bryan tabled it at review on 2026-10-31. Don't re-propose unless he raises it. Unfiled prerequisites from the same discussion: points-farming limits (hosts keep earning; min 4 other attendees, created 2h+ ahead / 30min+, daily cap, 5 pts only for real tournaments) and a Points section in the Terms.",
+    "summary": "Shop-only cosmetics separate from earned borders; no pay-to-win or transfers; real prizes only after farming limits and Terms update."
   }
 ]
