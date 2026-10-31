@@ -125,3 +125,22 @@ test.describe('signed in as the e2e account', () => {
     expect(ids).toContain(SEED_DM_ID)
   })
 })
+
+/**
+ * #111: signed-in RPCs are no longer executable by anon. Skips while the
+ * migration is not on beta (anon can still call them then).
+ * TODO(#111): drop the skip once 20261028160000_definer_search_path is applied.
+ */
+test.describe('definer hardening (#111)', () => {
+  test('anon cannot call the chat and notification RPCs', async () => {
+    const probe = await q(() => anon.rpc('get_my_conversations'), 'anon get_my_conversations')
+    test.skip(!probe.error, 'TODO(#111): migration not on beta yet')
+    expect(probe.error?.code).toBe(RLS_DENIED)
+    for (const fn of ['get_chat_unread_count', 'mark_all_notifications_read'] as const) {
+      const res = await q(() => anon.rpc(fn), `anon ${fn}`)
+      expect(res.error?.code, `anon ${fn}`).toBe(RLS_DENIED)
+    }
+    const dm = await q(() => anon.rpc('find_or_create_dm', { other_user_id: BUDDY_ID }), 'anon find_or_create_dm')
+    expect(dm.error?.code).toBe(RLS_DENIED)
+  })
+})
