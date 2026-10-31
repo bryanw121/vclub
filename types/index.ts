@@ -168,6 +168,26 @@ export type Event = Pick<EventRow,
   & Partial<Pick<EventRow,
     'cancelled_at' | 'price' | 'venmo_handle' | 'latitude' | 'longitude' | 'requires_approval' | 'skill_levels' | 'surface'>>
 
+// ─── Share links and previews (#130) ──────────────────────────────────────────
+
+/** The guest-visible `events` columns a link preview reads (`EVENT_PREVIEW_COLUMNS`). */
+export type EventPreviewRow = Pick<EventRow, 'id' | 'title' | 'event_date' | 'location' | 'max_attendees'>
+  & Partial<Pick<EventRow, 'cancelled_at' | 'price' | 'duration_minutes'>>
+
+/** What a preview describes: an open event, a cancelled or finished one, or none (generic card). */
+export type EventPreviewState = 'upcoming' | 'cancelled' | 'ended' | 'missing'
+
+/** Plain-text preview copy (`utils/eventShare.buildEventMeta`); escaped when written into HTML. */
+export type EventPreviewMeta = {
+  state: EventPreviewState
+  /** `og:title` / `<title>`. */
+  title: string
+  /** `og:description`; the only place with the time-stamped "as of" spots count. */
+  description: string
+  /** `og:image:alt`. */
+  imageAlt: string
+}
+
 /** Court surface. Same values on club events (`events.surface`) and outside sessions (`external_sessions.surface`). */
 export type Surface = 'indoor' | 'sand' | 'grass'
 

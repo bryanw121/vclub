@@ -218,6 +218,7 @@ export default function EventDetail() {
     <EventHeaderActions
       eventId={id}
       title={event?.title}
+      eventDate={event?.event_date}
       canManage={isHostOrCohost}
       deleting={deleteEvent.isPending}
       onBack={goBack}
