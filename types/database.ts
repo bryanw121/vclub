@@ -731,6 +731,46 @@ export type Database = {
           },
         ]
       }
+      event_payments: {
+        Row: {
+          event_id: string
+          paid_at: string
+          user_id: string
+        }
+        Insert: {
+          event_id: string
+          paid_at?: string
+          user_id: string
+        }
+        Update: {
+          event_id?: string
+          paid_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_payments_event_id_user_id_fkey"
+            columns: ["event_id", "user_id"]
+            isOneToOne: true
+            referencedRelation: "event_attendees"
+            referencedColumns: ["event_id", "user_id"]
+          },
+          {
+            foreignKeyName: "event_payments_event_id_user_id_fkey"
+            columns: ["event_id", "user_id"]
+            isOneToOne: true
+            referencedRelation: "event_attendees_attending"
+            referencedColumns: ["event_id", "user_id"]
+          },
+          {
+            foreignKeyName: "event_payments_event_id_user_id_fkey"
+            columns: ["event_id", "user_id"]
+            isOneToOne: true
+            referencedRelation: "event_attendees_waitlisted"
+            referencedColumns: ["event_id", "user_id"]
+          },
+        ]
+      }
       event_reminder_log: {
         Row: {
           event_id: string
