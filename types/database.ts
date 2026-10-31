@@ -1,3 +1,4 @@
+// TODO regenerate from live at merge: app_events_daily and rollup_app_events were added by hand to match `supabase gen types` (migration 20261031050000_app_events_daily).
 export type Json =
   | string
   | number
@@ -65,6 +66,33 @@ export type Database = {
           platform?: string | null
           props?: Json
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      app_events_daily: {
+        Row: {
+          day: string
+          events: number
+          name: string
+          people: number
+          platform: string
+          updated_at: string
+        }
+        Insert: {
+          day: string
+          events: number
+          name: string
+          people: number
+          platform?: string
+          updated_at?: string
+        }
+        Update: {
+          day?: string
+          events?: number
+          name?: string
+          people?: number
+          platform?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -2062,6 +2090,7 @@ export type Database = {
         Args: { p_matches: Json; p_pools?: Json; p_tournament_id: string }
         Returns: number
       }
+      rollup_app_events: { Args: { p_days?: number }; Returns: number }
       schema_fingerprint: { Args: never; Returns: Json }
       schema_pending_changes: { Args: never; Returns: Json }
       send_kudos_reminders: { Args: never; Returns: undefined }
