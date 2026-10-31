@@ -19,7 +19,8 @@
     "shots:capture": "node scripts/shots/capture.mjs",
     "shots:compare": "node scripts/shots/compare.mjs",
     "a11y": "node scripts/shots/a11y.mjs",
-    "a11y:baseline": "node scripts/shots/a11y.mjs --update-baseline"
+    "a11y:baseline": "node scripts/shots/a11y.mjs --update-baseline",
+    "og:render": "tsx scripts/render-og.tsx"
   },
   "jest": {
     "preset": "jest-expo",
@@ -40,10 +41,10 @@
     ],
     "coverageThreshold": {
       "global": {
-        "statements": 34,
-        "branches": 27,
-        "functions": 29,
-        "lines": 35
+        "statements": 35,
+        "branches": 28,
+        "functions": 30,
+        "lines": 36
       }
     }
   },
@@ -55,6 +56,7 @@
     "@react-native-community/datetimepicker": "8.4.4",
     "@sentry/react-native": "~7.2.0",
     "@supabase/supabase-js": "^2.99.3",
+    "@vercel/og": "0.11.1",
     "expo": "54",
     "expo-apple-authentication": "~8.0.8",
     "expo-auth-session": "~7.0.10",
