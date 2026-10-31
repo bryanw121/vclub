@@ -1,0 +1,11 @@
+flowchart TD
+    PR[PR or push to main] --> J[CI job db-tests]
+    J --> S[supabase start: local Postgres + auth + pg_cron, in the runner]
+    S --> D[Load schema-only dump of beta, read-only, BETA_DB_URL secret]
+    D --> RT{PR adds migrations?}
+    RT -- yes --> UP[apply up, fingerprint A] --> DN[apply .down.sql, fingerprint must equal baseline] --> UP2[apply up again, must equal A]
+    RT -- no --> T
+    UP2 --> T[supabase test db: pgTAP files in supabase/tests]
+    T --> R[TAP report in job summary, fail on any not ok]
+    style S fill:#2A1F6B,stroke:#7C4DFF,color:#EDEAFF
+    style T fill:#2A1F6B,stroke:#7C4DFF,color:#EDEAFF

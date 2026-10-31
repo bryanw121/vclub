@@ -1,0 +1,20 @@
+sequenceDiagram
+    autonumber
+    actor Host as Host (App)
+    participant API as PostgREST/RLS
+    participant RPC as mark_attendance() (SECURITY DEFINER)
+    participant T as event_attendees guard trigger
+    participant Cron as pg_cron award-event-points (15 min)
+    participant Award as award_event_points()
+    actor Player as Player (App)
+    Host->>API: rpc mark_attendance(event_id, user_id, present or no_show or null)
+    API->>RPC: as authenticated (auth.uid() = host)
+    RPC->>RPC: caller is host/co-host? now() between start - 1h and end + 24h? target is attending?
+    RPC->>T: set_config('vteam.attendance', 'on', true), then UPDATE attendance, marked_at, marked_by
+    T-->>RPC: allowed (direct client UPDATEs of these columns are rejected)
+    RPC-->>Host: updated row (optimistic UI already shows it)
+    Player->>API: select own event_attendees row (existing SELECT policy)
+    API-->>Player: attendance = 'present' (Checked in card)
+    Cron->>Award: every 15 min
+    Award->>Award: present gets points at end, unmarked at end + 2h, no_show never
+    Award-->>Player: point_events row (+2 / +5), balance trigger as today

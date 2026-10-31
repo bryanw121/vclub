@@ -25,5 +25,29 @@
     "status": "approved",
     "summary": "Run axe WCAG 2.1 AA on all scripts/shots screens with mocked Supabase in a CI job; baseline today's findings (contrast 469 nodes, missing title, viewport zoom, unlabelled switches/spinner) and fail on new serious/critical ones.",
     "issue": 131
+  },
+  {
+    "date": "2026-10-31",
+    "n": 1,
+    "title": "Host check-in: mark who showed up, and only they earn points",
+    "bucket": "competitor-gap",
+    "status": "proposed",
+    "summary": "Hosts/co-hosts mark Here / No-show on the People tab from start-1h to end+24h (mark_attendance RPC, guard trigger). award_event_points skips no-shows, pays checked-in at end and unmarked at end+2h. Players see 'You're checked in' and a private reliability card. Cites Meetup check-in, Reclub, TeamSnap."
+  },
+  {
+    "date": "2026-10-31",
+    "n": 2,
+    "title": "Balanced teams: split by skill level and spread the setters",
+    "bucket": "new-feature",
+    "status": "proposed",
+    "summary": "Random | Balanced toggle next to Randomize. balanceAssignments in hooks/event/derive.ts: pins first, one setter per team, greedy by skill_level score, swap pass. Team avg + setter chips. Client-only, no schema."
+  },
+  {
+    "date": "2026-10-31",
+    "n": 3,
+    "title": "Database logic tests: pgTAP + migration up/down round-trip in a throwaway Postgres",
+    "bucket": "testing",
+    "status": "proposed",
+    "summary": "CI job db-tests: supabase start in the runner, load beta schema dump, round-trip each new migration (up/down/up compared by schema_fingerprint), then pgTAP tests for points, ad-free, capacity/waitlist, reminders, rollup, Schelagg mapping. Never touches live or shared beta state."
   }
 ]
