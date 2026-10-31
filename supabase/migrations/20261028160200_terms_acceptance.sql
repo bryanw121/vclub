@@ -30,3 +30,6 @@ begin
   return new;
 end;
 $$;
+-- Keep EXECUTE narrowed as 20261028160000_definer_search_path set it (a trigger
+-- function: no client calls it). create or replace keeps the ACL; this makes it explicit.
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
