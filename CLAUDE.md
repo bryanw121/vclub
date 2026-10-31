@@ -156,9 +156,9 @@ signatures. Regenerate it after every schema change; never hand-edit it. Key dom
 - **cheers**, **user_badges**, **notifications**, **push_tokens**, **feedback_submissions**
 - **app_events**: insert-only usage metrics (see "Usage metrics")
 
-Also **user_settings** (private per-user settings: home city, seen banners).
+Also **user_settings** (private per-user settings: home city, seen banners, notification switches), **app_admins** and **event_attendee_denials** (see "Private data stays off public rows").
 
-Custom RPCs include `get_email_by_username` (username login), `get_my_conversations`,
+Custom RPCs include `get_my_conversations`,
 `get_event_card_attendee_previews`, `get_feed_span` (the Events feed for a date range in one call; `useMonthEvents` falls back to separate queries if it is missing), `mark_conversation_read`, `mark_notification_read`.
 
 ## Key Architectural Decisions
@@ -201,7 +201,7 @@ Nobody has to sign in to look around. Guests see Events, Clubs, event pages, clu
 vteam only reads the table (anon SELECT policy). `useMonthEvents` fetches it with events/tournaments, skipping rows not refreshed within `EXTERNAL_SESSION_MAX_AGE_MS` (a stopped ingest shows nothing rather than possibly-cancelled sessions), and `utils/feedItems.ts` normalizes rows into `EventWithDetails` with `_external` set; the feed renders those with `ExternalSessionCard`, which links out to the venue's sign-up (no RSVP). They show only for the viewer's region (`external_sessions.region`, matched against the home city in `user_settings` via `useFeedRegion()`; guests and people without a city get `DEFAULT_FEED_REGION`, Austin, while we pilot there), under All and the type/surface filters, never under Mine or Not Full.
 
 ### Location and private settings
-`user_settings` (owner-only RLS) holds per-user settings that don't belong on the public `profiles` row: `home_city_id` (→ `major_cities`, set from the profile editor) and `seen_banners`. Read and write it with `useUserSettings()`; it is cache-scoped to the user (`settings` prefix in `useCacheUserScope`).
+`user_settings` (owner-only RLS) holds per-user settings that don't belong on the public `profiles` row: `home_city_id` (→ `major_cities`, set from the profile editor), `seen_banners` and `notification_prefs`. Read and write it with `useUserSettings()`; it is cache-scoped to the user (`settings` prefix in `useCacheUserScope`).
 
 ### One-time banners
 For information someone needs once, the first time they open a screen (e.g. "we're piloting in Austin"): add an entry to `BANNERS` in `constants/banners.ts` and render `<OneTimeBanner banner={BANNERS.x} />` where it should appear. It shows on the first visit and is recorded as seen immediately (on the device, and in `user_settings.seen_banners` when signed in), so it never returns even if not dismissed. To show an updated message to everyone again, change the entry's `id`. Don't use it for anything a person must act on.
@@ -237,7 +237,16 @@ The policy text lives in `constants/legal.ts` (Markdown subset, rendered by `com
 Every font size is a token in `theme.font` (`size`, `heading`, `emoji`, `watermark`; nothing below 11px), and every `Text` / `TextInput` is imported from `components/ui/Text`, never from `react-native` (`__tests__/textSizeFloor.test.ts` enforces both). That wrapper multiplies the style's own `fontSize` and `lineHeight` by the text size setting (Settings → Display: Small 0.9×, Default, Large 1.15×, Extra large 1.3×; `TextScaleProvider` in `contexts/textScale.tsx`, stored on the device) and the OS/browser text size: on native React Native applies Dynamic Type itself and the wrapper caps it through `maxFontSizeMultiplier`; on web, where react-native-web emits fixed px, it reads the root font size. `maxFontSizeMultiplier` on the wrapper caps the combined scale (default `MAX_TEXT_SCALE`, 2×); pass `TIGHT_TEXT_SCALE` (1.3×) for fixed-size UI (tab bar labels, unread pips) and `COMPACT_TEXT_SCALE` (1.15×) for rows of equal cells on a 320px phone (week strip dates, event tabs). Non-`Text` sizes (SVG labels) use `useScaledFontSize(token)`. Check new layouts at Extra large.
 
 ### Login accepts email or username
-If the login field doesn't look like an email, `login.tsx` calls the `get_email_by_username` RPC, then signs in with the resolved email.
+If the login field doesn't look like an email, `login.tsx` calls `signInWithUsername` (`lib/usernameAuth.ts`), which invokes the `login-with-username` edge function: it resolves the username to an email server-side (service role; `get_email_by_username` is not executable by clients), signs in, and returns only a session (the app calls `setSession`) or a generic "Incorrect username or password" for an unknown username, a wrong password and any Auth-side failure (Auth's own 429 included: only real usernames reach Auth), padded to a minimum response time. It limits attempts with `check_rate_limit` (30 per username, 100 per IP per 15 min) before the lookup, and forwards the caller's IP to Auth (`Sb-Forwarded-For` with the project's secret key; see `supabase/functions/README.md`). Never send an email address back to a signed-out caller. The email-code form treats "no account for this email" like a sent code.
+
+### Private data stays off public rows
+Everyone (including signed-out visitors) can read `profiles`, `event_attendees`, `cheers` rows, so private values live elsewhere:
+- notification switches: `user_settings.notification_prefs` (owner-only; `useMyProfile` reads and writes it). `profiles.notification_prefs` is legacy and always the default.
+- admins: `app_admins` (no client access), checked in policies with `is_app_admin()`. `profiles.is_admin` is always false.
+- a host's reason for denying a join request: `event_attendee_denials` (that attendee, the host and co-hosts; `useMyDenialReason`). `event_attendees.denial_reason` is legacy and always null.
+- Triggers move values old app builds still write to the legacy columns. A later contract PR drops those columns.
+- +1 guests' names are for signed-in users only; signed-out visitors read the name-free `event_guests_attending` view (`fetchEventGuests`). Signed-out visitors can't see who gave a kudo (`cheers.giver_id`).
+- `chat-images` is a private bucket: `messages.image_url` stores the object path (older rows a former public URL), and `useChatImageUrl` signs it. Storage only signs for the uploader or a member of a conversation with a message from that uploader referencing the object (`can_read_chat_image`).
 
 ## Code Conventions
 

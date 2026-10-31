@@ -11,6 +11,7 @@ import { useSilencedUserIds } from '../../../hooks/useSilencedUsers'
 import {
   attendeeRemoveTarget,
   computeEventStatus,
+  useMyDenialReason,
   eventCardSeed,
   forgetDeletedEvent,
   guestRemoveTarget,
@@ -166,13 +167,17 @@ export default function EventDetail() {
     return m
   }, [mentionProfiles])
 
-  const eventStatus = computeEventStatus({
+  const derivedStatus = computeEventStatus({
     event,
     rows: roster.rows,
     attendingGuestCount: roster.attendingGuests.length,
     userId,
     isHostOrCohost,
   })
+  const myDenialReason = useMyDenialReason(id, userId, derivedStatus.isDenied)
+  const eventStatus = derivedStatus.isDenied && !derivedStatus.denialReason
+    ? { ...derivedStatus, denialReason: myDenialReason }
+    : derivedStatus
   // An explicit host setting; never inferred from price.
   const requiresApproval = event?.requires_approval === true
   const [footerHeight, setFooterHeight] = useState(80)

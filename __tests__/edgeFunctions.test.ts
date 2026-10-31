@@ -13,6 +13,7 @@ const read = (path: string) => readFileSync(join(root, path), 'utf8')
 const sendPush = read('supabase/functions/send-chat-push/index.ts')
 const checkReceipts = read('supabase/functions/check-push-receipts/index.ts')
 const places = read('supabase/functions/places-proxy/index.ts')
+const loginWithUsername = read('supabase/functions/login-with-username/index.ts')
 const shared = read('supabase/functions/_shared/supabase.ts')
 const config = read('supabase/config.toml')
 
@@ -46,7 +47,7 @@ describe('shared supabase-js import', () => {
   })
 
   it('is the only place functions import it from a URL', () => {
-    for (const source of [sendPush, checkReceipts, places]) {
+    for (const source of [sendPush, checkReceipts, places, loginWithUsername]) {
       expect(source).not.toMatch(/esm\.sh/)
     }
   })
@@ -59,6 +60,10 @@ describe('supabase/config.toml', () => {
   it('turns JWT verification off only for the self-authenticating push functions', () => {
     expect(verifyJwt('send-chat-push')).toBe('false')
     expect(verifyJwt('check-push-receipts')).toBe('false')
+  })
+
+  it('turns JWT verification off for login-with-username (callers are signed out)', () => {
+    expect(verifyJwt('login-with-username')).toBe('false')
   })
 
   it('keeps JWT verification on for places-proxy', () => {

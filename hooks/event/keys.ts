@@ -15,6 +15,8 @@ export const eventKeys = {
   guests: (id: string) => queryKey('event', id, 'guests'),
   cohosts: (id: string) => queryKey('event', id, 'cohosts'),
   myCheers: (id: string, userId: string | null) => queryKey('event', id, 'cheers', userId),
+  /** The host's reason for denying the viewer (owner/host-only table). */
+  myDenial: (id: string, userId: string) => queryKey('event', id, 'denial', userId),
   /** The viewer's own `ProfileBrief` (optimistic join rows, Venmo note). Shared with chat. */
   viewerProfile: (userId: string) => profileBriefKey(userId),
 }
