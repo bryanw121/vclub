@@ -77,7 +77,7 @@ export default function NotificationSettingsScreen() {
               <Text style={[shared.label, { marginBottom: theme.spacing.sm }]}>Reminders</Text>
               <Row
                 label="Before events I'm going to"
-                subtitle="In the app, and by push when Event reminders is on below"
+                subtitle="In your inbox, and as a push on your phone"
                 value={remindersOn}
                 onValueChange={v => void toggle('in_app', 'event_reminder', v)}
                 testID="reminders-toggle"
