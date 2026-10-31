@@ -438,7 +438,7 @@ types fall into four groups:
 > Do not edit this section by hand. Run `npm run docs:update` and commit the
 > result. CI runs `npm run docs:check` and blocks a merge if it is stale.
 >
-> Inventory fingerprint: `e68d9dbedfae`
+> Inventory fingerprint: `a3f6c6529249`
 
 This inventory is generated from the repository's TypeScript and SQL. It is the
 fast lookup layer; the surrounding prose explains intent and relationships.
@@ -446,14 +446,14 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 ### Direct table and view calls
 
 <details>
-<summary>41 tables/views referenced by code</summary>
+<summary>42 tables/views referenced by code</summary>
 
 | Table or view | Frontend/server call sites |
 |---|---|
 | `app_config` | [`hooks/useMinVersion.ts:19`](../hooks/useMinVersion.ts#L19) |
 | `app_events` | [`lib/analytics.ts:132`](../lib/analytics.ts#L132) |
 | `chat_silences` | [`hooks/useSilencedUsers.ts:27`](../hooks/useSilencedUsers.ts#L27)<br>[`supabase/functions/send-chat-push/index.ts:135`](../supabase/functions/send-chat-push/index.ts#L135) |
-| `cheers` | [`app/(app)/(tabs)/settings/cheers.tsx:28`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L28)<br>[`app/(app)/profile/[id].tsx:57`](../app/%28app%29/profile/%5Bid%5D.tsx#L57)<br>[`hooks/event/useEventCheers.ts:16`](../hooks/event/useEventCheers.ts#L16)<br>[`hooks/useMyProfile.ts:175`](../hooks/useMyProfile.ts#L175)<br>[`utils/badges.ts:33`](../utils/badges.ts#L33) |
+| `cheers` | [`app/(app)/(tabs)/settings/cheers.tsx:28`](../app/%28app%29/%28tabs%29/settings/cheers.tsx#L28)<br>[`app/(app)/profile/[id].tsx:59`](../app/%28app%29/profile/%5Bid%5D.tsx#L59)<br>[`hooks/event/useEventCheers.ts:16`](../hooks/event/useEventCheers.ts#L16)<br>[`hooks/useMyProfile.ts:175`](../hooks/useMyProfile.ts#L175)<br>[`utils/badges.ts:33`](../utils/badges.ts#L33) |
 | `club_members` | [`app/(app)/(tabs)/clubs.tsx:89`](../app/%28app%29/%28tabs%29/clubs.tsx#L89)<br>[`app/(app)/chat/[id].tsx:102`](../app/%28app%29/chat/%5Bid%5D.tsx#L102)<br>[`app/(app)/club/[id].tsx:134`](../app/%28app%29/club/%5Bid%5D.tsx#L134)<br>[`app/(app)/host.tsx:159`](../app/%28app%29/host.tsx#L159)<br>[`app/(app)/tournament/create.tsx:737`](../app/%28app%29/tournament/create.tsx#L737) |
 | `club_post_comments` | [`components/ClubPostCard.tsx:100`](../components/ClubPostCard.tsx#L100) |
 | `club_post_likes` | [`components/ClubPostCard.tsx:71`](../components/ClubPostCard.tsx#L71) |
@@ -473,22 +473,23 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `message_reactions` | [`hooks/useMessages.ts:434`](../hooks/useMessages.ts#L434) |
 | `messages` | [`hooks/useMessages.ts:85`](../hooks/useMessages.ts#L85) |
 | `notifications` | [`hooks/event/useCohosts.ts:73`](../hooks/event/useCohosts.ts#L73)<br>[`hooks/event/useEventAttendance.ts:77`](../hooks/event/useEventAttendance.ts#L77)<br>[`hooks/useNotifications.ts:34`](../hooks/useNotifications.ts#L34)<br>[`utils/badges.ts:217`](../utils/badges.ts#L217) |
-| `profiles` | [`app/_layout.tsx:45`](../app/_layout.tsx#L45)<br>[`app/(app)/(tabs)/chat.tsx:59`](../app/%28app%29/%28tabs%29/chat.tsx#L59)<br>[`app/(app)/profile/[id].tsx:56`](../app/%28app%29/profile/%5Bid%5D.tsx#L56)<br>[`app/(auth)/register.tsx:65`](../app/%28auth%29/register.tsx#L65)<br>[`hooks/event/useCohosts.ts:37`](../hooks/event/useCohosts.ts#L37)<br>[`hooks/event/useEventData.ts:93`](../hooks/event/useEventData.ts#L93)<br>+5 more files |
+| `point_balances` | [`hooks/usePoints.ts:24`](../hooks/usePoints.ts#L24) |
+| `profiles` | [`app/_layout.tsx:45`](../app/_layout.tsx#L45)<br>[`app/(app)/(tabs)/chat.tsx:59`](../app/%28app%29/%28tabs%29/chat.tsx#L59)<br>[`app/(app)/profile/[id].tsx:58`](../app/%28app%29/profile/%5Bid%5D.tsx#L58)<br>[`app/(auth)/register.tsx:65`](../app/%28auth%29/register.tsx#L65)<br>[`hooks/event/useCohosts.ts:37`](../hooks/event/useCohosts.ts#L37)<br>[`hooks/event/useEventData.ts:93`](../hooks/event/useEventData.ts#L93)<br>+5 more files |
 | `push_receipts` | [`supabase/functions/check-push-receipts/index.ts:37`](../supabase/functions/check-push-receipts/index.ts#L37)<br>[`supabase/functions/send-chat-push/index.ts:199`](../supabase/functions/send-chat-push/index.ts#L199) |
 | `push_tokens` | [`supabase/functions/check-push-receipts/index.ts:82`](../supabase/functions/check-push-receipts/index.ts#L82)<br>[`supabase/functions/send-chat-push/index.ts:144`](../supabase/functions/send-chat-push/index.ts#L144)<br>[`utils/pushNotifications.ts:47`](../utils/pushNotifications.ts#L47) |
 | `tags` | [`hooks/useTags.ts:14`](../hooks/useTags.ts#L14) |
-| `tournament_comments` | [`hooks/tournament/api.ts:121`](../hooks/tournament/api.ts#L121) |
-| `tournament_matches` | [`hooks/tournament/api.ts:150`](../hooks/tournament/api.ts#L150) |
-| `tournament_pools` | [`hooks/tournament/api.ts:159`](../hooks/tournament/api.ts#L159) |
+| `tournament_comments` | [`hooks/tournament/api.ts:122`](../hooks/tournament/api.ts#L122) |
+| `tournament_matches` | [`hooks/tournament/api.ts:151`](../hooks/tournament/api.ts#L151) |
+| `tournament_pools` | [`hooks/tournament/api.ts:160`](../hooks/tournament/api.ts#L160) |
 | `tournament_prizes` | [`hooks/tournament/api.ts:94`](../hooks/tournament/api.ts#L94) |
 | `tournament_rules` | [`app/(app)/tournament/create.tsx:698`](../app/%28app%29/tournament/create.tsx#L698)<br>[`hooks/tournament/api.ts:93`](../hooks/tournament/api.ts#L93) |
-| `tournament_sets` | [`hooks/tournament/api.ts:399`](../hooks/tournament/api.ts#L399) |
-| `tournament_team_invitations` | [`hooks/tournament/api.ts:179`](../hooks/tournament/api.ts#L179) |
-| `tournament_team_join_requests` | [`hooks/tournament/api.ts:183`](../hooks/tournament/api.ts#L183) |
-| `tournament_team_members` | [`hooks/tournament/api.ts:175`](../hooks/tournament/api.ts#L175) |
-| `tournament_teams` | [`hooks/tournament/api.ts:106`](../hooks/tournament/api.ts#L106) |
+| `tournament_sets` | [`hooks/tournament/api.ts:400`](../hooks/tournament/api.ts#L400) |
+| `tournament_team_invitations` | [`hooks/tournament/api.ts:180`](../hooks/tournament/api.ts#L180) |
+| `tournament_team_join_requests` | [`hooks/tournament/api.ts:184`](../hooks/tournament/api.ts#L184) |
+| `tournament_team_members` | [`hooks/tournament/api.ts:176`](../hooks/tournament/api.ts#L176) |
+| `tournament_teams` | [`hooks/tournament/api.ts:107`](../hooks/tournament/api.ts#L107) |
 | `tournaments` | [`app/(app)/tournament/create.tsx:670`](../app/%28app%29/tournament/create.tsx#L670)<br>[`hooks/tournament/api.ts:92`](../hooks/tournament/api.ts#L92)<br>[`hooks/useMonthEvents.ts:229`](../hooks/useMonthEvents.ts#L229)<br>[`hooks/useTournamentList.ts:22`](../hooks/useTournamentList.ts#L22) |
-| `user_badges` | [`app/(app)/profile/[id].tsx:58`](../app/%28app%29/profile/%5Bid%5D.tsx#L58)<br>[`hooks/useBadges.ts:51`](../hooks/useBadges.ts#L51)<br>[`utils/badges.ts:170`](../utils/badges.ts#L170) |
+| `user_badges` | [`app/(app)/profile/[id].tsx:60`](../app/%28app%29/profile/%5Bid%5D.tsx#L60)<br>[`hooks/useBadges.ts:51`](../hooks/useBadges.ts#L51)<br>[`utils/badges.ts:170`](../utils/badges.ts#L170) |
 | `user_event_templates` | [`app/(app)/host.tsx:206`](../app/%28app%29/host.tsx#L206) |
 | `user_settings` | [`hooks/useUserSettings.ts:19`](../hooks/useUserSettings.ts#L19) |
 
@@ -498,7 +499,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 
 | RPC | Call sites | SQL definition |
 |---|---|---|
-| `accept_tournament_invite` | [`hooks/tournament/api.ts:241`](../hooks/tournament/api.ts#L241) | [`supabase/migrations/20261025120000_tournament_rpcs.sql:18`](../supabase/migrations/20261025120000_tournament_rpcs.sql#L18) |
+| `accept_tournament_invite` | [`hooks/tournament/api.ts:242`](../hooks/tournament/api.ts#L242) | [`supabase/migrations/20261025120000_tournament_rpcs.sql:18`](../supabase/migrations/20261025120000_tournament_rpcs.sql#L18) |
 | `find_or_create_dm` | [`hooks/useOpenDm.ts:26`](../hooks/useOpenDm.ts#L26) | Not checked in |
 | `get_email_by_username` | [`app/(auth)/login.tsx:113`](../app/%28auth%29/login.tsx#L113) | Not checked in |
 | `get_event_card_attendee_previews` | [`utils/eventCardPreviews.ts:35`](../utils/eventCardPreviews.ts#L35) | [`supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql:2`](../supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql#L2) |
@@ -507,7 +508,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `mark_all_notifications_read` | [`hooks/useNotifications.ts:99`](../hooks/useNotifications.ts#L99) | [`supabase/migrations/20260402120000_notifications_inbox.sql:112`](../supabase/migrations/20260402120000_notifications_inbox.sql#L112) |
 | `mark_conversation_read` | [`hooks/useMessages.ts:152`](../hooks/useMessages.ts#L152) | Not checked in |
 | `mark_notification_read` | [`hooks/useNotifications.ts:85`](../hooks/useNotifications.ts#L85) | [`supabase/migrations/20260402120000_notifications_inbox.sql:98`](../supabase/migrations/20260402120000_notifications_inbox.sql#L98) |
-| `replace_tournament_schedule` | [`hooks/tournament/api.ts:346`](../hooks/tournament/api.ts#L346) | [`supabase/migrations/20261025120000_tournament_rpcs.sql:100`](../supabase/migrations/20261025120000_tournament_rpcs.sql#L100) |
+| `replace_tournament_schedule` | [`hooks/tournament/api.ts:347`](../hooks/tournament/api.ts#L347) | [`supabase/migrations/20261025120000_tournament_rpcs.sql:100`](../supabase/migrations/20261025120000_tournament_rpcs.sql#L100) |
 
 ### Other Supabase surfaces
 
