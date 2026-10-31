@@ -1,4 +1,3 @@
-// TODO regenerate from live at merge: event_reminder_log, user_settings.reminder_lead_minutes, event_reminder_text and send_event_reminders were added by hand to match `supabase gen types` (PR for #129, migration 20261101090000_event_reminders).
 export type Json =
   | string
   | number
@@ -11,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.18"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
@@ -169,36 +168,6 @@ export type Database = {
           people?: number
           platform?: string
           updated_at?: string
-        }
-        Relationships: []
-      }
-      badge_art: {
-        Row: {
-          badge_type: string
-          generated_at: string
-          generated_by: string | null
-          image_url: string
-          model: string
-          prompt: string
-          tier: number
-        }
-        Insert: {
-          badge_type: string
-          generated_at?: string
-          generated_by?: string | null
-          image_url: string
-          model: string
-          prompt: string
-          tier: number
-        }
-        Update: {
-          badge_type?: string
-          generated_at?: string
-          generated_by?: string | null
-          image_url?: string
-          model?: string
-          prompt?: string
-          tier?: number
         }
         Relationships: []
       }
@@ -1301,8 +1270,6 @@ export type Database = {
           selected_border: string | null
           selected_card_bg: string | null
           skill_level: string | null
-          terms_accepted_at: string | null
-          terms_version: string | null
           username: string | null
         }
         Insert: {
@@ -1318,8 +1285,6 @@ export type Database = {
           selected_border?: string | null
           selected_card_bg?: string | null
           skill_level?: string | null
-          terms_accepted_at?: string | null
-          terms_version?: string | null
           username?: string | null
         }
         Update: {
@@ -1335,8 +1300,6 @@ export type Database = {
           selected_border?: string | null
           selected_card_bg?: string | null
           skill_level?: string | null
-          terms_accepted_at?: string | null
-          terms_version?: string | null
           username?: string | null
         }
         Relationships: []
@@ -1715,8 +1678,6 @@ export type Database = {
           point_cap: number | null
           sets_to_win: number
           starting_score: number
-          third_place_match: boolean
-          tiebreakers: string[]
           tournament_id: string
           win_by_margin: number
           winning_score: number
@@ -1726,8 +1687,6 @@ export type Database = {
           point_cap?: number | null
           sets_to_win?: number
           starting_score?: number
-          third_place_match?: boolean
-          tiebreakers?: string[]
           tournament_id: string
           win_by_margin?: number
           winning_score?: number
@@ -1737,8 +1696,6 @@ export type Database = {
           point_cap?: number | null
           sets_to_win?: number
           starting_score?: number
-          third_place_match?: boolean
-          tiebreakers?: string[]
           tournament_id?: string
           win_by_margin?: number
           winning_score?: number
@@ -1985,64 +1942,6 @@ export type Database = {
             columns: ["tournament_id"]
             isOneToOne: false
             referencedRelation: "tournaments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tournament_trophies: {
-        Row: {
-          awarded_at: string
-          id: string
-          place: number
-          team_id: string | null
-          team_name: string
-          tournament_date: string
-          tournament_id: string
-          tournament_title: string
-          user_id: string
-        }
-        Insert: {
-          awarded_at?: string
-          id?: string
-          place: number
-          team_id?: string | null
-          team_name: string
-          tournament_date: string
-          tournament_id: string
-          tournament_title: string
-          user_id: string
-        }
-        Update: {
-          awarded_at?: string
-          id?: string
-          place?: number
-          team_id?: string | null
-          team_name?: string
-          tournament_date?: string
-          tournament_id?: string
-          tournament_title?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tournament_trophies_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "tournament_teams"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tournament_trophies_tournament_id_fkey"
-            columns: ["tournament_id"]
-            isOneToOne: false
-            referencedRelation: "tournaments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tournament_trophies_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2402,10 +2301,6 @@ export type Database = {
       }
       ad_free_offer: { Args: never; Returns: Json }
       award_event_points: { Args: never; Returns: number }
-      complete_tournament: {
-        Args: { p_podium: Json; p_tournament_id: string }
-        Returns: number
-      }
       current_user_is_admin: { Args: never; Returns: boolean }
       event_reminder_text: {
         Args: {
@@ -2500,13 +2395,6 @@ export type Database = {
       schema_pending_changes: { Args: never; Returns: Json }
       send_event_reminders: { Args: never; Returns: number }
       send_kudos_reminders: { Args: never; Returns: undefined }
-      tournament_registration_check: {
-        Args: {
-          p_player: string
-          p_tournament: Database["public"]["Tables"]["tournaments"]["Row"]
-        }
-        Returns: undefined
-      }
     }
     Enums: {
       [_ in never]: never
