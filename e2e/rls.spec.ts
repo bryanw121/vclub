@@ -10,6 +10,7 @@
 import { test, expect } from '@playwright/test'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './env'
+import { EVENT_PREVIEW_COLUMNS } from '../constants/selects'
 import { signInE2eClient } from './eventsFixtures'
 import { withNetworkRetry } from './retry'
 
@@ -56,6 +57,18 @@ test.describe('anon (guest browsing)', () => {
     expect(buddy.data).toEqual([{ id: BUDDY_ID, username: 'e2ebuddy' }])
   })
 
+  test('can read what an event link preview shows (#130)', async () => {
+    // api/event-page.ts and api/og/event.tsx read these with the anon key; a
+    // policy change that hides them would quietly turn every preview generic.
+    const ev = await q(() => anon.from('events').select(EVENT_PREVIEW_COLUMNS).limit(1), 'anon event preview columns')
+    expect(ev.error, 'anon SELECT of the preview columns').toBeNull()
+    for (const view of ['event_attendees_attending', 'event_guests_attending'] as const) {
+      const res = await q(() => anon.from(view).select('event_id', { count: 'exact', head: true }), `anon ${view} count`)
+      expect(res.error, `anon count on ${view}`).toBeNull()
+      expect(typeof res.count, `anon count on ${view}`).toBe('number')
+    }
+  })
+
   test('sees no rows of private tables', async () => {
     for (const table of ['notifications', 'user_settings', 'messages', 'conversations', 'conversation_members', 'push_tokens', 'feedback_submissions'] as const) {
       // A GET (not head: a HEAD error has no body to read the code from).
@@ -74,11 +87,14 @@ test.describe('anon (guest browsing)', () => {
     const rsvp = await q(() => anon.from('event_attendees').insert({ event_id: crypto.randomUUID(), user_id: BUDDY_ID }), 'anon insert attendee')
     expect(rsvp.error?.code).toBe(RLS_DENIED)
   })
+
+  test('cannot create a club', async () => {
+    const club = await q(() => anon.from('clubs').insert({ name: '[e2e rls] must fail', created_by: BUDDY_ID }).select('id'), 'anon insert club')
+    expect(club.error?.code).toBe(RLS_DENIED)
+  })
 })
 
-// TODO(#6, PR #115): un-skip once 20261028180000_event_payments is applied on beta
-// (beta_meta.apply_pr_migration). Until then the table doesn't exist there.
-test.describe.skip('event_payments ("I\'ve paid", #6)', () => {
+test.describe('event_payments ("I\'ve paid", #6)', () => {
   test('anon reads nothing and cannot write', async () => {
     const res = await q(() => anon.from('event_payments').select('*').limit(1), 'anon event_payments')
     if (res.error) expect(res.error.code, `anon event_payments: ${res.error.message}`).toBe(RLS_DENIED)
@@ -129,6 +145,10 @@ test.describe('signed in as the e2e account', () => {
     const spoof = await q(() => me.from('messages').insert({ conversation_id: SEED_DM_ID, sender_id: BUDDY_ID, content: '[e2e rls] must fail' }), 'spoofed message')
     expect(spoof.error?.code).toBe(RLS_DENIED)
 
+    // Any signed-in user may create a club, but only as themselves.
+    const club = await q(() => me.from('clubs').insert({ name: '[e2e rls] must fail', created_by: BUDDY_ID }).select('id'), 'club created as buddy')
+    expect(club.error?.code).toBe(RLS_DENIED)
+
     // Writes buddy's current name back, so even a broken policy changes nothing.
     const profile = await q(() => me.from('profiles').update({ first_name: 'E2E' }).eq('id', BUDDY_ID).select('id'), "update buddy's profile")
     // UPDATE with a USING policy filters the row out: no error, zero rows changed.
@@ -148,5 +168,24 @@ test.describe('signed in as the e2e account', () => {
     expect(res.error).toBeNull()
     const ids = ((res.data ?? []) as Record<string, unknown>[]).map(r => r.conversation_id ?? r.id)
     expect(ids).toContain(SEED_DM_ID)
+  })
+})
+
+/**
+ * #111: signed-in RPCs are no longer executable by anon. Skips while the
+ * migration is not on beta (anon can still call them then).
+ * TODO(#111): drop the skip once 20261028160000_definer_search_path is applied.
+ */
+test.describe('definer hardening (#111)', () => {
+  test('anon cannot call the chat and notification RPCs', async () => {
+    const probe = await q(() => anon.rpc('get_my_conversations'), 'anon get_my_conversations')
+    test.skip(!probe.error, 'TODO(#111): migration not on beta yet')
+    expect(probe.error?.code).toBe(RLS_DENIED)
+    for (const fn of ['get_chat_unread_count', 'mark_all_notifications_read'] as const) {
+      const res = await q(() => anon.rpc(fn), `anon ${fn}`)
+      expect(res.error?.code, `anon ${fn}`).toBe(RLS_DENIED)
+    }
+    const dm = await q(() => anon.rpc('find_or_create_dm', { other_user_id: BUDDY_ID }), 'anon find_or_create_dm')
+    expect(dm.error?.code).toBe(RLS_DENIED)
   })
 })
