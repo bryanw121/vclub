@@ -478,16 +478,16 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `push_receipts` | [`supabase/functions/check-push-receipts/index.ts:37`](../supabase/functions/check-push-receipts/index.ts#L37)<br>[`supabase/functions/send-chat-push/index.ts:199`](../supabase/functions/send-chat-push/index.ts#L199) |
 | `push_tokens` | [`supabase/functions/check-push-receipts/index.ts:82`](../supabase/functions/check-push-receipts/index.ts#L82)<br>[`supabase/functions/send-chat-push/index.ts:144`](../supabase/functions/send-chat-push/index.ts#L144)<br>[`utils/pushNotifications.ts:47`](../utils/pushNotifications.ts#L47) |
 | `tags` | [`hooks/useTags.ts:14`](../hooks/useTags.ts#L14) |
-| `tournament_comments` | [`hooks/tournament/api.ts:121`](../hooks/tournament/api.ts#L121) |
-| `tournament_matches` | [`hooks/tournament/api.ts:150`](../hooks/tournament/api.ts#L150) |
-| `tournament_pools` | [`hooks/tournament/api.ts:159`](../hooks/tournament/api.ts#L159) |
+| `tournament_comments` | [`hooks/tournament/api.ts:122`](../hooks/tournament/api.ts#L122) |
+| `tournament_matches` | [`hooks/tournament/api.ts:151`](../hooks/tournament/api.ts#L151) |
+| `tournament_pools` | [`hooks/tournament/api.ts:160`](../hooks/tournament/api.ts#L160) |
 | `tournament_prizes` | [`hooks/tournament/api.ts:94`](../hooks/tournament/api.ts#L94) |
 | `tournament_rules` | [`app/(app)/tournament/create.tsx:698`](../app/%28app%29/tournament/create.tsx#L698)<br>[`hooks/tournament/api.ts:93`](../hooks/tournament/api.ts#L93) |
-| `tournament_sets` | [`hooks/tournament/api.ts:399`](../hooks/tournament/api.ts#L399) |
-| `tournament_team_invitations` | [`hooks/tournament/api.ts:179`](../hooks/tournament/api.ts#L179) |
-| `tournament_team_join_requests` | [`hooks/tournament/api.ts:183`](../hooks/tournament/api.ts#L183) |
-| `tournament_team_members` | [`hooks/tournament/api.ts:175`](../hooks/tournament/api.ts#L175) |
-| `tournament_teams` | [`hooks/tournament/api.ts:106`](../hooks/tournament/api.ts#L106) |
+| `tournament_sets` | [`hooks/tournament/api.ts:400`](../hooks/tournament/api.ts#L400) |
+| `tournament_team_invitations` | [`hooks/tournament/api.ts:180`](../hooks/tournament/api.ts#L180) |
+| `tournament_team_join_requests` | [`hooks/tournament/api.ts:184`](../hooks/tournament/api.ts#L184) |
+| `tournament_team_members` | [`hooks/tournament/api.ts:176`](../hooks/tournament/api.ts#L176) |
+| `tournament_teams` | [`hooks/tournament/api.ts:107`](../hooks/tournament/api.ts#L107) |
 | `tournaments` | [`app/(app)/tournament/create.tsx:670`](../app/%28app%29/tournament/create.tsx#L670)<br>[`hooks/tournament/api.ts:92`](../hooks/tournament/api.ts#L92)<br>[`hooks/useMonthEvents.ts:229`](../hooks/useMonthEvents.ts#L229)<br>[`hooks/useTournamentList.ts:22`](../hooks/useTournamentList.ts#L22) |
 | `user_badges` | [`app/(app)/profile/[id].tsx:60`](../app/%28app%29/profile/%5Bid%5D.tsx#L60)<br>[`hooks/useBadges.ts:51`](../hooks/useBadges.ts#L51)<br>[`utils/badges.ts:170`](../utils/badges.ts#L170) |
 | `user_event_templates` | [`app/(app)/host.tsx:206`](../app/%28app%29/host.tsx#L206) |
@@ -499,7 +499,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 
 | RPC | Call sites | SQL definition |
 |---|---|---|
-| `accept_tournament_invite` | [`hooks/tournament/api.ts:241`](../hooks/tournament/api.ts#L241) | [`supabase/migrations/20261025120000_tournament_rpcs.sql:18`](../supabase/migrations/20261025120000_tournament_rpcs.sql#L18) |
+| `accept_tournament_invite` | [`hooks/tournament/api.ts:242`](../hooks/tournament/api.ts#L242) | [`supabase/migrations/20261025120000_tournament_rpcs.sql:18`](../supabase/migrations/20261025120000_tournament_rpcs.sql#L18) |
 | `find_or_create_dm` | [`hooks/useOpenDm.ts:26`](../hooks/useOpenDm.ts#L26) | Not checked in |
 | `get_email_by_username` | [`app/(auth)/login.tsx:113`](../app/%28auth%29/login.tsx#L113) | Not checked in |
 | `get_event_card_attendee_previews` | [`utils/eventCardPreviews.ts:35`](../utils/eventCardPreviews.ts#L35) | [`supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql:2`](../supabase/migrations/20260811030000_event_card_attendee_previews_rpc.sql#L2) |
@@ -508,7 +508,7 @@ fast lookup layer; the surrounding prose explains intent and relationships.
 | `mark_all_notifications_read` | [`hooks/useNotifications.ts:99`](../hooks/useNotifications.ts#L99) | [`supabase/migrations/20260402120000_notifications_inbox.sql:112`](../supabase/migrations/20260402120000_notifications_inbox.sql#L112) |
 | `mark_conversation_read` | [`hooks/useMessages.ts:152`](../hooks/useMessages.ts#L152) | Not checked in |
 | `mark_notification_read` | [`hooks/useNotifications.ts:85`](../hooks/useNotifications.ts#L85) | [`supabase/migrations/20260402120000_notifications_inbox.sql:98`](../supabase/migrations/20260402120000_notifications_inbox.sql#L98) |
-| `replace_tournament_schedule` | [`hooks/tournament/api.ts:346`](../hooks/tournament/api.ts#L346) | [`supabase/migrations/20261025120000_tournament_rpcs.sql:100`](../supabase/migrations/20261025120000_tournament_rpcs.sql#L100) |
+| `replace_tournament_schedule` | [`hooks/tournament/api.ts:347`](../hooks/tournament/api.ts#L347) | [`supabase/migrations/20261025120000_tournament_rpcs.sql:100`](../supabase/migrations/20261025120000_tournament_rpcs.sql#L100) |
 
 ### Other Supabase surfaces
 
