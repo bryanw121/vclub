@@ -19,3 +19,14 @@ test.describe('Own profile', () => {
     await expect(detailCount).toHaveText(expectedCount!)
   })
 })
+
+test.describe('Points', () => {
+  // Awards come from the server-side pass (award_event_points, pg_cron) after
+  // an event ends; it is verified with SQL on beta. Here: the total renders.
+  test('Own profile shows the accumulated points total', async ({ page }) => {
+    await page.goto(`${BASE_URL}/profile`)
+    const points = page.getByTestId('profile-points-count')
+    await expect(points).toBeVisible({ timeout: 20_000 })
+    await expect(points).toHaveText(/^\d+$/)
+  })
+})
