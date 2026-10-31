@@ -29,6 +29,35 @@ deleted: no channel of any pixel moved by more than `--tolerance`, default 8 of
 comparison on one page. `--desktop` adds 1280x800 shots next to the 390x844 @2x
 mobile ones. `--keep` leaves the temporary worktrees in place for debugging.
 
+## Accessibility check (axe)
+
+`a11y.mjs` opens every screen the same way (`visitScreens` in capture.mjs, with
+an `onReady` that runs axe-core instead of taking a screenshot), mobile and
+desktop, with tags `wcag2a`, `wcag2aa`, `wcag21aa`:
+
+```bash
+EXPO_PUBLIC_SUPABASE_URL=https://shotsmock.supabase.co EXPO_PUBLIC_SUPABASE_ANON_KEY=shots-mock-anon-key npx expo export -p web --clear --output-dir dist-mock
+npm run a11y                # compare with a11y-baseline.json; exit 1 on a new serious/critical finding
+npm run a11y:baseline       # rewrite a11y-baseline.json from this scan (after fixing findings)
+npm run a11y -- --screens host-create,login --mobile-only
+```
+
+It writes `a11y-report/a11y-report.json`, `index.html` (every violation: rule,
+impact, screen, viewport, sample target, help link) and `summary.md` (the CI job
+summary). `a11y-baseline.json` is screen → viewport → rule → node count for
+serious and critical rules (counts, not selectors: react-native-web class names
+change between builds). A rule new to a screen, or a count above its baseline,
+fails; lower counts pass with a note to run `a11y:baseline`; minor and moderate
+findings are listed only. Every full run also writes `a11y-baseline.next.json`
+(what `a11y:baseline` would write). The committed baseline is CI's: Chromium
+fonts on the Ubuntu runner put a few more or fewer contrast nodes on some
+desktop screens than other machines do, so when CI and local counts disagree,
+copy `a11y-baseline.next.json` from the CI run's `a11y-report` artifact. The comparison and rendering live in
+`lib/a11yBaseline.mjs` (tested by `a11y.test.mjs`). Use `--clear` on the
+export if you built another export before: Metro can reuse a cached
+`lib/env.ts` with a different Supabase URL inlined, and every screen then shows
+its error state.
+
 ## How it works
 
 - **compare.mjs** checks each ref out in a temporary `git worktree`, links
