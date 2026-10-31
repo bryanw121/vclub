@@ -29,11 +29,11 @@
   {
     "date": "2026-10-31",
     "n": 1,
-    "title": "Host check-in: mark who showed up, and only they earn points",
+    "title": "No-show flag: hosts mark who didn't come, and only they miss out on points",
     "bucket": "competitor-gap",
-    "status": "proposed",
-    "summary": "Hosts/co-hosts mark Here / No-show on the People tab from start-1h to end+24h (mark_attendance RPC, guard trigger). award_event_points skips no-shows, pays checked-in at end and unmarked at end+2h. Players see 'You're checked in' and a private reliability card. Cites Meetup check-in, Reclub, TeamSnap.",
-    "note": "On hold: Bryan asked whether check-in is too much host work; lighter exception-only variant under discussion."
+    "status": "approved",
+    "summary": "Revised at review: everyone counts as present; hosts/co-hosts flag no-shows from the roster \u22ef menu (set_no_show RPC + guard trigger) between start and end+2h. award_event_points pays unflagged attendees at end+2h. Flagged player sees a notice. Replaced the per-player check-in design (too much host work).",
+    "issue": 151
   },
   {
     "date": "2026-10-31",
