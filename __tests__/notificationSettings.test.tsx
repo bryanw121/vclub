@@ -112,8 +112,8 @@ describe('Reminders', () => {
     mockLead = 60
     const view = render(<NotificationSettingsScreen />)
     await flush()
-    expect(view.getByTestId('reminder-lead-60').props.accessibilityState).toEqual({ selected: true })
-    expect(view.getByTestId('reminder-lead-120').props.accessibilityState).toEqual({ selected: false })
+    expect(view.getByTestId('reminder-lead-60').props.accessibilityState).toMatchObject({ checked: true })
+    expect(view.getByTestId('reminder-lead-120').props.accessibilityState).toMatchObject({ checked: false })
     expect(view.getByText('Sand Doubles at 4:00 PM')).toBeTruthy()
     expect(view.getByText('Starts in 1 hour · Butler Park')).toBeTruthy()
   })
@@ -122,7 +122,7 @@ describe('Reminders', () => {
     mockLead = null
     const view = render(<NotificationSettingsScreen />)
     await flush()
-    expect(view.getByTestId('reminder-lead-120').props.accessibilityState).toEqual({ selected: true })
+    expect(view.getByTestId('reminder-lead-120').props.accessibilityState).toMatchObject({ checked: true })
   })
 
   it('saves a new lead time to user_settings', async () => {

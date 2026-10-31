@@ -956,6 +956,8 @@ export type ChipProps = {
   onPress: () => void
   badge?: number | string
   variant?: ChipVariant
+  /** 'radio' for one choice out of a set (inside a `role="radiogroup"`): exposes `aria-checked`, which web and native both read. Default 'button' (a filter). */
+  role?: 'button' | 'radio'
   testID?: string
 }
 

@@ -74,7 +74,7 @@ export default function NotificationSettingsScreen() {
             </Text>
             {saveFailed ? <Text style={shared.errorText}>Could not save settings. Please try again.</Text> : null}
             <View style={shared.card} testID="settings-reminders">
-              <Text style={[shared.label, { marginBottom: theme.spacing.sm }]}>Reminders</Text>
+              <Text style={[shared.labelStrong, { marginBottom: theme.spacing.sm }]}>Reminders</Text>
               <Row
                 label="Before events I'm going to"
                 subtitle="In your inbox, and as a push on your phone"
@@ -84,11 +84,12 @@ export default function NotificationSettingsScreen() {
               />
               {remindersOn ? (
                 <>
-                  <View style={shared.chipRowWrap}>
+                  <View style={shared.chipRowWrap} role="radiogroup" aria-label="How long before">
                     {REMINDER_LEAD_OPTIONS.map(o => (
                       <Chip
                         key={o.minutes}
                         label={o.label}
+                        role="radio"
                         active={lead === o.minutes}
                         onPress={() => { if (lead !== o.minutes) void setReminderLead(o.minutes) }}
                         testID={`reminder-lead-${o.minutes}`}
@@ -97,13 +98,13 @@ export default function NotificationSettingsScreen() {
                   </View>
                   <View style={shared.reminderPreview} testID="reminder-preview">
                     <Text style={shared.reminderPreviewTitle}>{preview.title}</Text>
-                    <Text style={shared.caption}>{preview.body}</Text>
+                    <Text style={shared.captionStrong}>{preview.body}</Text>
                   </View>
                 </>
               ) : null}
             </View>
             <View style={[shared.card, { marginTop: theme.spacing.md }]}>
-              <Text style={[shared.label, { marginBottom: theme.spacing.sm }]}>In-app</Text>
+              <Text style={[shared.labelStrong, { marginBottom: theme.spacing.sm }]}>In-app</Text>
               {rows.map(({ type, in_app }) => (
                 <Row
                   key={`in_app_${type}`}
@@ -114,7 +115,7 @@ export default function NotificationSettingsScreen() {
               ))}
             </View>
             <View style={[shared.card, { marginTop: theme.spacing.md }]}>
-              <Text style={[shared.label, { marginBottom: theme.spacing.sm }]}>Push on this phone</Text>
+              <Text style={[shared.labelStrong, { marginBottom: theme.spacing.sm }]}>Push on this phone</Text>
               <Row
                 key="push_event_reminder"
                 label={NOTIFICATION_TYPE_LABELS.event_reminder}
@@ -151,7 +152,7 @@ function Row({ label, subtitle, value, disabled, onValueChange, testID }: Notifi
     >
       <View style={{ flex: 1 }}>
         <Text style={shared.body}>{label}</Text>
-        {subtitle ? <Text style={[shared.caption, { marginTop: 2 }]}>{subtitle}</Text> : null}
+        {subtitle ? <Text style={[shared.captionStrong, { marginTop: 2 }]}>{subtitle}</Text> : null}
       </View>
       <Switch
         testID={testID}

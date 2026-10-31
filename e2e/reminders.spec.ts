@@ -21,9 +21,9 @@ function settingsSaved(page: Page): Promise<Response> {
   return page.waitForResponse(r => r.url().includes('/rest/v1/user_settings') && r.request().method() === 'POST', { timeout: 30_000 })
 }
 
-async function selectedLead(page: Page): Promise<number | null> {
+async function selectedLead(page: Page): Promise<(typeof LEADS)[number] | null> {
   for (const m of LEADS) {
-    if ((await page.getByTestId(`reminder-lead-${m}`).getAttribute('aria-selected')) === 'true') return m
+    if ((await page.getByTestId(`reminder-lead-${m}`).getAttribute('aria-checked')) === 'true') return m
   }
   return null
 }
@@ -46,12 +46,16 @@ test('Reminders: choose how long before an event, saved to the account', async (
   }
   await expect(page.getByTestId('reminder-lead-120')).toBeVisible({ timeout: 15_000 })
 
-  const original = (await selectedLead(page)) ?? 120
+  // Exactly one lead is always checked (a missing row reads as the default):
+  // none means the chips stopped exposing their state, so fail here rather than
+  // guess, where the cause is plain (the restore below would hide it).
+  const original = await selectedLead(page)
+  if (original === null) throw new Error('No reminder lead chip has aria-checked="true"')
   const next = original === 60 ? 1440 : 60
   try {
     const saved = settingsSaved(page)
     await page.getByTestId(`reminder-lead-${next}`).click()
-    await expect(page.getByTestId(`reminder-lead-${next}`)).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByTestId(`reminder-lead-${next}`)).toHaveAttribute('aria-checked', 'true')
     // Reload only once the save is done, or the reload can drop it.
     expect((await saved).ok()).toBe(true)
     await expect(page.getByTestId('reminder-preview')).toContainText(next === 60 ? 'Starts in 1 hour' : 'Tomorrow at 4:00 PM')
@@ -60,13 +64,13 @@ test('Reminders: choose how long before an event, saved to the account', async (
     const reloaded = settingsLoaded(page)
     await page.reload()
     await reloaded
-    await expect(page.getByTestId(`reminder-lead-${next}`)).toHaveAttribute('aria-selected', 'true', { timeout: 20_000 })
+    await expect(page.getByTestId(`reminder-lead-${next}`)).toHaveAttribute('aria-checked', 'true', { timeout: 20_000 })
   } finally {
     if ((await selectedLead(page)) !== original) {
       const restored = settingsSaved(page)
       await page.getByTestId(`reminder-lead-${original}`).click()
       expect((await restored).ok()).toBe(true)
-      await expect(page.getByTestId(`reminder-lead-${original}`)).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 })
+      await expect(page.getByTestId(`reminder-lead-${original}`)).toHaveAttribute('aria-checked', 'true', { timeout: 15_000 })
     }
   }
 })
