@@ -16,16 +16,29 @@ function settingsLoaded(page: Page): Promise<Response> {
   return page.waitForResponse(r => r.url().includes('/rest/v1/user_settings') && r.request().method() === 'GET', { timeout: 30_000 })
 }
 
-/** The save (upsert into user_settings) a lead-time chip makes. */
+/** The save a lead-time chip makes (an upsert into user_settings carrying the lead, not the seen-banner upsert). */
 function settingsSaved(page: Page): Promise<Response> {
-  return page.waitForResponse(r => r.url().includes('/rest/v1/user_settings') && r.request().method() === 'POST', { timeout: 30_000 })
+  return page.waitForResponse(
+    r => r.url().includes('/rest/v1/user_settings') && r.request().method() === 'POST' && (r.request().postData() ?? '').includes('reminder_lead_minutes'),
+    { timeout: 30_000 },
+  )
 }
 
+/** The example reminder for each lead (it is built from the saved lead). */
+const PREVIEW: Record<(typeof LEADS)[number], RegExp> = { 60: /Starts in 1 hour/, 120: /Starts in 2 hours/, 1440: /Tomorrow at/ }
+
+/** The checked lead chip (role="radio" + aria-checked in a radiogroup). */
 async function selectedLead(page: Page): Promise<(typeof LEADS)[number] | null> {
   for (const m of LEADS) {
     if ((await page.getByTestId(`reminder-lead-${m}`).getAttribute('aria-checked')) === 'true') return m
   }
   return null
+}
+
+/** `m` is the checked chip and the example reminder follows it. */
+async function expectLead(page: Page, m: (typeof LEADS)[number], timeout = 5_000): Promise<void> {
+  await expect(page.getByTestId(`reminder-lead-${m}`)).toHaveAttribute('aria-checked', 'true', { timeout })
+  await expect(page.getByTestId('reminder-preview')).toContainText(PREVIEW[m], { timeout })
 }
 
 test('Reminders: choose how long before an event, saved to the account', async ({ page }) => {
@@ -55,22 +68,21 @@ test('Reminders: choose how long before an event, saved to the account', async (
   try {
     const saved = settingsSaved(page)
     await page.getByTestId(`reminder-lead-${next}`).click()
-    await expect(page.getByTestId(`reminder-lead-${next}`)).toHaveAttribute('aria-checked', 'true')
+    await expectLead(page, next)
     // Reload only once the save is done, or the reload can drop it.
     expect((await saved).ok()).toBe(true)
-    await expect(page.getByTestId('reminder-preview')).toContainText(next === 60 ? 'Starts in 1 hour' : 'Tomorrow at 4:00 PM')
 
     // Saved on the account, not just on screen.
     const reloaded = settingsLoaded(page)
     await page.reload()
     await reloaded
-    await expect(page.getByTestId(`reminder-lead-${next}`)).toHaveAttribute('aria-checked', 'true', { timeout: 20_000 })
+    await expectLead(page, next, 20_000)
   } finally {
     if ((await selectedLead(page)) !== original) {
       const restored = settingsSaved(page)
       await page.getByTestId(`reminder-lead-${original}`).click()
       expect((await restored).ok()).toBe(true)
-      await expect(page.getByTestId(`reminder-lead-${original}`)).toHaveAttribute('aria-checked', 'true', { timeout: 15_000 })
+      await expectLead(page, original, 15_000)
     }
   }
 })
