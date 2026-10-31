@@ -10,6 +10,7 @@
 import { test, expect } from '@playwright/test'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './env'
+import { EVENT_PREVIEW_COLUMNS } from '../constants/selects'
 import { signInE2eClient } from './eventsFixtures'
 import { withNetworkRetry } from './retry'
 
@@ -54,6 +55,18 @@ test.describe('anon (guest browsing)', () => {
     const buddy = await q(() => anon.from('profiles').select('id, username').eq('id', BUDDY_ID), 'anon profile')
     expect(buddy.error).toBeNull()
     expect(buddy.data).toEqual([{ id: BUDDY_ID, username: 'e2ebuddy' }])
+  })
+
+  test('can read what an event link preview shows (#130)', async () => {
+    // api/event-page.ts and api/og/event.tsx read these with the anon key; a
+    // policy change that hides them would quietly turn every preview generic.
+    const ev = await q(() => anon.from('events').select(EVENT_PREVIEW_COLUMNS).limit(1), 'anon event preview columns')
+    expect(ev.error, 'anon SELECT of the preview columns').toBeNull()
+    for (const view of ['event_attendees_attending', 'event_guests_attending'] as const) {
+      const res = await q(() => anon.from(view).select('event_id', { count: 'exact', head: true }), `anon ${view} count`)
+      expect(res.error, `anon count on ${view}`).toBeNull()
+      expect(typeof res.count, `anon count on ${view}`).toBe('number')
+    }
   })
 
   test('sees no rows of private tables', async () => {

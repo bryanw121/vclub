@@ -236,6 +236,11 @@ The policy text lives in `constants/legal.ts` (Markdown subset, rendered by `com
 ### Text size
 Every font size is a token in `theme.font` (`size`, `heading`, `emoji`, `watermark`; nothing below 11px), and every `Text` / `TextInput` is imported from `components/ui/Text`, never from `react-native` (`__tests__/textSizeFloor.test.ts` enforces both). That wrapper multiplies the style's own `fontSize` and `lineHeight` by the text size setting (Settings → Display: Small 0.9×, Default, Large 1.15×, Extra large 1.3×; `TextScaleProvider` in `contexts/textScale.tsx`, stored on the device) and the OS/browser text size: on native React Native applies Dynamic Type itself and the wrapper caps it through `maxFontSizeMultiplier`; on web, where react-native-web emits fixed px, it reads the root font size. `maxFontSizeMultiplier` on the wrapper caps the combined scale (default `MAX_TEXT_SCALE`, 2×); pass `TIGHT_TEXT_SCALE` (1.3×) for fixed-size UI (tab bar labels, unread pips) and `COMPACT_TEXT_SCALE` (1.15×) for rows of equal cells on a 320px phone (week strip dates, event tabs). Non-`Text` sizes (SVG labels) use `useScaledFontSize(token)`. Check new layouts at Extra large.
 
+### Share links and link previews
+Sharing an event always sends an https link to the web app, `shareUrl(routes.event(id))` from `constants/share.ts` (`WEB_ORIGIN`: `EXPO_PUBLIC_WEB_ORIGIN`, else `https://vteamvolleyball.com`; on web with no env, the page's own origin), never `Linking.createURL` (`vteam://` opens nothing for people without the app). The text comes from `eventShareMessage` in `utils/eventShare.ts`, which writes times in `SHARE_TIME_ZONE` (America/Chicago).
+
+On Vercel, `vercel.json` routes `/event/<uuid>` to `api/event-page.ts`, which serves `dist/index.html` with `<title>`, `og:*` and `twitter:*` tags in the head (body untouched, so hydration is unaffected), reading the event with the anon key (`EVENT_PREVIEW_COLUMNS`) and building the copy with `buildEventMeta`. `og:image` is `api/og/event.tsx` (Edge, `@vercel/og`), drawn from `theme` with fonts from `public/og-fonts`; render it locally with `npm run og:render`. Everything `api/` imports from the app (`constants/share`, `constants/selects`, `constants/theme`, `utils/eventShare`, `utils/eventDate`, `utils/price`, `types`) must stay free of React Native / Supabase imports (a unit test checks). `serve.json` in CI has no functions, so previews are covered by `__tests__/eventPage.test.ts`. To preview clubs or tournaments later, generalize `api/event-page.ts`.
+
 ### Login accepts email or username
 If the login field doesn't look like an email, `login.tsx` calls the `get_email_by_username` RPC, then signs in with the resolved email.
 
@@ -256,7 +261,9 @@ Stored in `.env` (not committed):
 ```
 EXPO_PUBLIC_SUPABASE_URL=...
 EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+EXPO_PUBLIC_WEB_ORIGIN=https://vteamvolleyball.com   # optional; where shared links point
 ```
+On Vercel the link-preview functions also read `SUPABASE_URL` / `SUPABASE_ANON_KEY` (server-side copies of the public values; they fall back to the `EXPO_PUBLIC_*` pair).
 
 ## Running the App
 ```bash
