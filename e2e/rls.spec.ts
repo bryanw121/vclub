@@ -87,6 +87,11 @@ test.describe('anon (guest browsing)', () => {
     const rsvp = await q(() => anon.from('event_attendees').insert({ event_id: crypto.randomUUID(), user_id: BUDDY_ID }), 'anon insert attendee')
     expect(rsvp.error?.code).toBe(RLS_DENIED)
   })
+
+  test('cannot create a club', async () => {
+    const club = await q(() => anon.from('clubs').insert({ name: '[e2e rls] must fail', created_by: BUDDY_ID }).select('id'), 'anon insert club')
+    expect(club.error?.code).toBe(RLS_DENIED)
+  })
 })
 
 test.describe('signed in as the e2e account', () => {
@@ -116,6 +121,10 @@ test.describe('signed in as the e2e account', () => {
 
     const spoof = await q(() => me.from('messages').insert({ conversation_id: SEED_DM_ID, sender_id: BUDDY_ID, content: '[e2e rls] must fail' }), 'spoofed message')
     expect(spoof.error?.code).toBe(RLS_DENIED)
+
+    // Any signed-in user may create a club, but only as themselves.
+    const club = await q(() => me.from('clubs').insert({ name: '[e2e rls] must fail', created_by: BUDDY_ID }).select('id'), 'club created as buddy')
+    expect(club.error?.code).toBe(RLS_DENIED)
 
     // Writes buddy's current name back, so even a broken policy changes nothing.
     const profile = await q(() => me.from('profiles').update({ first_name: 'E2E' }).eq('id', BUDDY_ID).select('id'), "update buddy's profile")
