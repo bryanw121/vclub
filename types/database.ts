@@ -408,9 +408,14 @@ export type Database = {
           created_by: string
           description: string | null
           id: string
+          latitude: number | null
+          location_address: string | null
+          location_name: string | null
+          longitude: number | null
           major_city_id: string
           membership_type: string
           name: string
+          place_id: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -419,9 +424,14 @@ export type Database = {
           created_by: string
           description?: string | null
           id?: string
+          latitude?: number | null
+          location_address?: string | null
+          location_name?: string | null
+          longitude?: number | null
           major_city_id: string
           membership_type?: string
           name: string
+          place_id?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -430,9 +440,14 @@ export type Database = {
           created_by?: string
           description?: string | null
           id?: string
+          latitude?: number | null
+          location_address?: string | null
+          location_name?: string | null
+          longitude?: number | null
           major_city_id?: string
           membership_type?: string
           name?: string
+          place_id?: string | null
         }
         Relationships: [
           {
