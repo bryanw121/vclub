@@ -70,7 +70,7 @@ test.describe('anon (guest browsing)', () => {
   })
 
   test('sees no rows of private tables', async () => {
-    for (const table of ['notifications', 'user_settings', 'messages', 'conversations', 'conversation_members', 'push_tokens', 'feedback_submissions'] as const) {
+    for (const table of ['notifications', 'user_settings', 'messages', 'conversations', 'conversation_members', 'push_tokens', 'feedback_submissions', 'app_events', 'app_events_daily'] as const) {
       // A GET (not head: a HEAD error has no body to read the code from).
       const res = await q(() => anon.from(table).select('*').limit(1), `anon ${table}`)
       // No grant: permission denied. Granted but no anon policy: zero rows. Never data.
