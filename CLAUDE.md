@@ -154,7 +154,7 @@ signatures. Regenerate it after every schema change; never hand-edit it. Key dom
 - **conversations** / **conversation_members** / **messages** / **message_reactions** / **chat_silences**
 - **tournaments** and its children (`tournament_teams`, `_team_members`, `_matches`, `_pools`, `_rules`, `_prizes`, invitations, join requests, comments)
 - **cheers**, **user_badges**, **notifications**, **push_tokens**, **feedback_submissions**
-- **app_events**: insert-only usage metrics (see "Usage metrics")
+- **app_events**: insert-only usage metrics (see "Usage metrics"); **app_events_daily**: their per-day totals, kept forever
 
 Also **user_settings** (private per-user settings: home city, seen banners, reminder lead time) and **event_reminder_log** (service-only reminder dedupe).
 
@@ -210,7 +210,7 @@ For information someone needs once, the first time they open a screen (e.g. "we'
 A tour is an ordered list of steps in `TOURS` (`constants/tours.ts`): target id, title, a short plain body (at most three short sentences, 140 characters), optional `tab` (the tour switches there first) and `placement`. Mark what a step points at with `<TourTarget id={TOUR_TARGETS.x}>` (`components/tour/TourTarget`) or `useTourTarget(id)` on an existing view; register the same id on every surface that shows it (mobile tab bar and desktop sidebar), and a step whose target isn't on screen is skipped. `TourProvider` (in `app/(app)/_layout.tsx`) draws the overlay as an absolute layer (no Modal); the tabs layout hands it tab switching via `useTourShell`. Start one with `useTour().start('intro', source)`. A banner can start one through its `action` (`{ type: 'startTour', tourId }`). Finishing records `tour-<id>-done` next to seen banners; tours can always be restarted ("Take the tour" on Profile).
 
 ### Usage metrics
-`track(name, props)` from `lib/analytics` records a small event (names in `ANALYTICS_EVENTS`, `constants/analytics.ts`; flat props only, at most about 1 KB). Events are buffered and sent to `app_events` in one insert every 10s, or when the app goes to the background or the page is hidden. It never throws, drops a batch the server rejects, and turns itself off if the table is missing. It is off under Jest and in automated browsers (`navigator.webdriver`) unless localStorage `vteam.analytics = 'on'`, which `e2e/metrics.spec.ts` sets before intercepting the insert. `app_events` is insert-only for clients: there is no SELECT policy, and `user_id` comes from the `auth.uid()` default. pg_cron (`prune-app-events`) deletes rows older than 180 days. Currently instrumented: one-time banners (shown / action / dismissed) and tours (started / step viewed / completed / skipped). Read counts in the SQL editor (or with the Supabase MCP `execute_sql`):
+`track(name, props)` from `lib/analytics` records a small event (names in `ANALYTICS_EVENTS`, `constants/analytics.ts`; flat props only, at most about 1 KB). Events are buffered and sent to `app_events` in one insert every 10s, or when the app goes to the background or the page is hidden. It never throws, drops a batch the server rejects, and turns itself off if the table is missing. It is off under Jest and in automated browsers (`navigator.webdriver`) unless localStorage `vteam.analytics = 'on'`, which `e2e/metrics.spec.ts` sets before intercepting the insert. `app_events` is insert-only for clients: there is no SELECT policy, and `user_id` comes from the `auth.uid()` default. pg_cron (`prune-app-events`, 03:17 UTC) first runs `rollup_app_events()`, which writes the last 7 completed UTC days into `app_events_daily` (one row per day, event name and platform: `events`, and `people` = distinct user or device that day, so don't sum it across days), then deletes rows older than 180 days. So per-event detail (props, funnels) lasts 180 days and daily totals last forever; for all-time counts read `app_events_daily`. Currently instrumented: one-time banners (shown / action / dismissed) and tours (started / step viewed / completed / skipped). Read counts in the SQL editor (or with the Supabase MCP `execute_sql`):
 ```sql
 -- Daily counts per event, last 30 days
 select date_trunc('day', created_at)::date as day, name, count(*) as events,
@@ -224,6 +224,9 @@ select (props->>'step')::int as step, props->>'target' as target,
        count(*) filter (where name = 'tour_skipped') as skipped_here
 from app_events where props->>'tour' = 'intro' and name in ('tour_step_viewed', 'tour_skipped')
 group by 1, 2 order by 1;
+
+-- All-time totals per event (survive the 180-day prune; today isn't rolled up yet)
+select name, sum(events) as events, min(day) as since from app_events_daily group by 1 order by 2 desc;
 
 -- Started vs completed vs skipped, per source
 select props->>'source' as source, count(*) as started from app_events where name = 'tour_started' group by 1;

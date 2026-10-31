@@ -69,6 +69,33 @@ export type Database = {
         }
         Relationships: []
       }
+      app_events_daily: {
+        Row: {
+          day: string
+          events: number
+          name: string
+          people: number
+          platform: string
+          updated_at: string
+        }
+        Insert: {
+          day: string
+          events: number
+          name: string
+          people: number
+          platform?: string
+          updated_at?: string
+        }
+        Update: {
+          day?: string
+          events?: number
+          name?: string
+          people?: number
+          platform?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_silences: {
         Row: {
           created_at: string
@@ -2111,6 +2138,7 @@ export type Database = {
         Args: { p_matches: Json; p_pools?: Json; p_tournament_id: string }
         Returns: number
       }
+      rollup_app_events: { Args: { p_days?: number }; Returns: number }
       schema_fingerprint: { Args: never; Returns: Json }
       schema_pending_changes: { Args: never; Returns: Json }
       send_event_reminders: { Args: never; Returns: number }
