@@ -20,7 +20,9 @@ export function PaidToggle({ paid, saving, onChange }: Props) {
     <Pressable
       testID="paid-toggle"
       accessibilityRole="checkbox"
-      accessibilityState={{ checked: paid, busy: saving }}
+      // aria-* rather than accessibilityState: react-native-web only emits aria-checked from these.
+      aria-checked={paid}
+      aria-busy={saving}
       accessibilityLabel="I've paid"
       accessibilityHint="Lets the host know you've paid. Only you and the hosts see this."
       onPress={() => onChange(!paid)}
