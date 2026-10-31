@@ -582,6 +582,17 @@ export const shared = StyleSheet.create({
 
   // ── Wrapping row of Chips (forms) ─────────────────────────
   chipRowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs, marginTop: theme.spacing.xs, marginBottom: theme.spacing.xs },
+  // Settings → Notifications: example of the reminder a player will get.
+  reminderPreview: {
+    marginTop: theme.spacing.sm,
+    padding: theme.spacing.md,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 2,
+  },
+  reminderPreviewTitle: { fontFamily: theme.fonts.bodySemiBold, fontWeight: '600', fontSize: theme.font.size.md, color: theme.colors.text },
 
   // ── One-time banner (components/ui/OneTimeBanner) ────────
   oneTimeBanner: {
